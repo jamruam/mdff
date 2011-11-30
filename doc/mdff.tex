@@ -63,22 +63,22 @@ forc\'ement pr\'esents.
 \subsection{Minimum settings: the input file}
 
 The input file is composed of different sections. 
-Each section is started by \&SECTIONNAME and ended by \&END ( We are closely following italian codes ;) ).
-All input outside the sections is ignored.
-
-
+Each section is defined by  \&SECTIONNAME and \&END.
+Everything outside the sections is ignored.
+\\
+\\
 In \MDFF, five sections are always required :
 
 \begin{itemize}
 \item \&controltag ... \&end $\rightarrow$ General control parameters for calculation 
 \item \&mdtag ... \&end      $\rightarrow$ General Molecular dynamics parameters.
 \item \&configtag ... \&end  $\rightarrow$ Information on the configuration
-\item \&fieldtag ... \&end   $\rightarrow$ Set the Field-Force.
+\item \&fieldtag ... \&end   $\rightarrow$ Set the Force-Field.
 \item \&proptag ... \&end    $\rightarrow$ Calculation of properties
 \end{itemize}
 
 
-Using this minimum settings (empty section) the code runs with default values.
+Using this minimum settings (5 empty sections) the code runs with default values.
 It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc lennard-jones 
 crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the standard output of this minimum setting. 
 
@@ -212,9 +212,9 @@ Where : \verb?SUBROUTINE control_init? in \verb?control.f90?
 \\
 \verb?longrange? & (CHARACTER)        &   \\
 \\
-\verb?cutoff?    & (DOUBLE PRECISION) &   \\
+\verb?cutoff?    & (DBLE) &   \\
 \\
-\verb?skindiff?  & (DOUBLE PRECISION) &   \\
+\verb?skindiff?  & (DBLE) &   \\
 \\
 \verb?restart?   & ()                 &   \\
 \\
@@ -235,37 +235,37 @@ Where : \verb?SUBROUTINE md_init? in \verb?md.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?npas? (INTEGER)  & \\
+\verb?npas? & (INTEGER)  & \\
 \\
-\verb?integrator? (CHARACTER)  & \\
+\verb?integrator? & (CHARACTER)  & \\
 \\
-\verb?dt? (DOUBLE PRECISION)  & \\
+\verb?dt? & (DBLE)  & \\
 \\
-\verb?temp? (DOUBLE PRECISION)  & \\
+\verb?temp? & (DBLE)  & \\
 \\
-\verb?nequil? (INTEGER)  & \\
+\verb?nequil? & (INTEGER)  & \\
 \\
-\verb?nequil_period? (INTEGER) & \\
+\verb?nequil_period? & (INTEGER) & \\
 \\
-\verb?nprint? (INTEGER) & \\
+\verb?nprint? & (INTEGER) & \\
 \\
-\verb?fprint? (INTEGER) & \\
+\verb?fprint? & (INTEGER) & \\
 \\
-\verb?ltraj? (LOGICAL) & \\
+\verb?ltraj? & (LOGICAL) & \\
 \\
-\verb?itraj_start? (INTEGER) & \\
+\verb?itraj_start? & (INTEGER) & \\
 \\
-\verb?itraj_period? (INTEGER) & \\
+\verb?itraj_period? & (INTEGER) & \\
 \\
-\verb?spas? (INTEGER) & \\
+\verb?spas? & (INTEGER) & \\
 \\
-\verb?setvel? (CHARACTER) & \\
+\verb?setvel? & (CHARACTER) & \\
 \\
-\verb?nuandersen? (DOUBLE PRECISION) & \\
+\verb?nuandersen? & (DBLE) & \\
 \\
-\verb?tauberendsen? (DOUBLE PRECISION) & \\
+\verb?tauberendsen? & (DBLE) & \\
 \\
-\verb?Qnosehoover? (DOUBLE PRECISION) & \\
+\verb?Qnosehoover? & (DBLE) & \\
 \\
 \end{tabular}
 
@@ -278,31 +278,31 @@ Where : \verb?SUBROUTINE config_init? in \verb?config.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?system? (CHARACTER) & \\
+\verb?system? & (CHARACTER) & \\
 \\
-\verb?rho? (DOUBLE PRECISION)  & \\
+\verb?rho? & (DBLE)  & \\
 \\
-\verb?box? (DOUBLE PRECISION)  & \\
+\verb?box? & (DBLE)  & \\
 \\
-\verb?ntype? (INTEGER)  & \\
+\verb?ntype? & (INTEGER)  & \\
 \\
-\verb?natm? (INTEGER) & \\
+\verb?natm? & (INTEGER) & \\
 \\
-\verb?struct? (CHARACTER) & \\
+\verb?struct? & (CHARACTER) & \\
 \\
-\verb?lfcc? (LOGICAL) & \\
+\verb?lfcc? & (LOGICAL) & \\
 \\
-\verb?lsc? (LOGICAL) & \\
+\verb?lsc? & (LOGICAL) & \\
 \\
-\verb?lbcc? (LOGICAL) & \\
+\verb?lbcc? & (LOGICAL) & \\
 \\
-\verb?ncell? (INTEGER) & \\
+\verb?ncell? & (INTEGER) & \\
 \\
-\verb?xna? (DOUBLE PRECISION) & \\
+\verb?xna? & (DBLE) & \\
 \\
-\verb?xnb? (DOUBLE PRECISION) & \\
+\verb?xnb? & (DBLE) & \\
 \\
-\verb?lgenconf? (LOGICAL) & \\
+\verb?lgenconf? & (LOGICAL) & \\
 \\
 \end{tabular}
 
@@ -316,37 +316,37 @@ Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?epsAA? &   (DOUBLE PRECISION)  & \\
+\verb?epsAA? &   (DBLE)  & \\
 \\
-\verb?epsAB? &   (DOUBLE PRECISION)  & \\
+\verb?epsAB? &   (DBLE)  & \\
 \\
-\verb?epsBB? &  (DOUBLE PRECISION)  & \\
+\verb?epsBB? &  (DBLE)  & \\
 \\
-\verb?sigmaAA? & (DOUBLE PRECISION)  & \\
+\verb?sigmaAA? & (DBLE)  & \\
 \\
-\verb?sigmaAB? & (DOUBLE PRECISION)  & \\
+\verb?sigmaAB? & (DBLE)  & \\
 \\
-\verb?sigmaBB? & (DOUBLE PRECISION)  & \\
+\verb?sigmaBB? & (DBLE)  & \\
 \\
-\verb?qljAA? &  (DOUBLE PRECISION)  & \\
+\verb?qljAA? &  (DBLE)  & \\
 \\
-\verb?pljAA? &  (DOUBLE PRECISION)  & \\
+\verb?pljAA? &  (DBLE)  & \\
 \\
-\verb?qljAB? &  (DOUBLE PRECISION)  & \\
+\verb?qljAB? &  (DBLE)  & \\
 \\
-\verb?pljAB? &  (DOUBLE PRECISION)  & \\
+\verb?pljAB? &  (DBLE)  & \\
 \\
-\verb?qljBB? &  (DOUBLE PRECISION)  & \\
+\verb?qljBB? &  (DBLE)  & \\
 \\
-\verb?pljBB? &  (DOUBLE PRECISION)  & \\
+\verb?pljBB? &  (DBLE)  & \\
 \\
-\verb?mA?   &   (DOUBLE PRECISION)  & \\
+\verb?mA?   &   (DBLE)  & \\
 \\
-\verb?mB?   &   (DOUBLE PRECISION)  & \\
+\verb?mB?   &   (DBLE)  & \\
 \\
-\verb?qa?   &    (DOUBLE PRECISION)  & \\
+\verb?qa?   &    (DBLE)  & \\
 \\
-\verb?qb?   &    (DOUBLE PRECISION)  & \\
+\verb?qb?   &    (DBLE)  & \\
 \\
 \verb?ncelldirect? & (INTEGER)  & \\
 \\
@@ -354,7 +354,7 @@ Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
 \\
 \verb?lKA?         &  (LOGICAL)  & \\
 \\
-\verb?alphaES?     &  (DOUBLE PRECISION)  & \\
+\verb?alphaES?     &  (DBLE)  & \\
 \\
 \end{tabular}
 
@@ -367,21 +367,21 @@ Where : \verb?SUBROUTINE prop_init? in \verb?prop.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?nprop_start? (INTEGER)  & \\
+\verb?nprop_start? & (INTEGER)  & \\
 \\
-\verb?nprop?       (INTEGER)  & \\
+\verb?nprop?       & (INTEGER)  & \\
 \\
-\verb?nprop_print? (INTEGER)  & \\
+\verb?nprop_print? & (INTEGER)  & \\
 \\
-\verb?lefg?        (LOGICAL)  & \\
+\verb?lefg?        & (LOGICAL)  & \\
 \\
-\verb?lgr?         (LOGICAL)  & \\
+\verb?lgr?         & (LOGICAL)  & \\
 \\
-\verb?lstrfac?     (LOGICAL)  & \\
+\verb?lstrfac?     & (LOGICAL)  & \\
 \\
-\verb?lmsd?        (LOGICAL)  & \\
+\verb?lmsd?        & (LOGICAL)  & \\
 \\
-\verb?lvacf?       (LOGICAL)  & \\
+\verb?lvacf?       & (LOGICAL)  & \\
 \\
 \end{tabular}
 
@@ -394,16 +394,16 @@ Where : \verb?SUBROUTINE opt_init? in \verb?opt.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?ncopt?     (INTEGER) & \\
+\verb?ncopt?     & (INTEGER) & \\
 
 \\
-\verb?nskipopt?  (INTEGER) & \\
+\verb?nskipopt?  & (INTEGER) & \\
 
 \\
-\verb?nmaxopt?   (INTEGER) & \\
+\verb?nmaxopt?   & (INTEGER) & \\
 
 \\
-\verb?optalgo?   (CHARACTER) & \\
+\verb?optalgo?   & (CHARACTER) & \\
 \\
 \end{tabular}
 
@@ -416,19 +416,19 @@ Where : \verb?SUBROUTINE vib_init? in \verb?vib.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?ncvib? (INTEGER) & \\
+\verb?ncvib?  & (INTEGER) & \\
 \\
-\verb?ngconf? (INTEGER)  & \\
+\verb?ngconf? & (INTEGER)  & \\
 \\
-\verb?lwrite_vectff? (LOGICAL)  & \\
+\verb?lwrite_vectff? & (LOGICAL)  & \\
 \\
-\verb?imod? (INTEGER)  & \\
+\verb?imod? & (INTEGER)  & \\
 \\
 \verb?nkphon? & & \\
 \\
-\verb?resdos? & (DOUBLE PRECISION) & \\
+\verb?resdos? & (DBLE) & \\
 \\
-\verb?omegamax? & (DOUBLE PRECISION) & \\
+\verb?omegamax? & (DBLE) & \\
 \\
 \verb?ksx,ksy,ksz? & & \\
 \\
@@ -454,19 +454,19 @@ Where : \verb?SUBROUTINE efg_init? in \verb?efg.f90?
 \\
 \verb?ncellewald?   & (INTEGER) & \\
 \\
-\verb?cutefg?  & (DOUBLE PRECISION) & \\
+\verb?cutefg?  & (DBLE) & \\
 \\
-\verb?alphaES? & (DOUBLE PRECISION) & \\
+\verb?alphaES? & (DBLE) & \\
 \\
-\verb?resvzz?  & (DOUBLE PRECISION) & \\
+\verb?resvzz?  & (DBLE) & \\
 \\
-\verb?reseta?  & (DOUBLE PRECISION) & \\
+\verb?reseta?  & (DBLE) & \\
 \\
-\verb?resu?    & (DOUBLE PRECISION) & \\
+\verb?resu?    & (DBLE) & \\
 \\
-\verb?vzzmin?  & (DOUBLE PRECISION) & \\ 
+\verb?vzzmin?  & (DBLE) & \\ 
 \\
-\verb?umin?    & (DOUBLE PRECISION) & \\
+\verb?umin?    & (DBLE) & \\
 \\
 \verb?ntcor? & & \\
 \\
@@ -482,11 +482,11 @@ Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
 
 \begin{tabular}{lcc}
 \\
-\verb?tdifmax? & (DOUBLE PRECISION) & \\
+\verb?tdifmax? & (DBLE) & \\
 \\
-\verb?nblock? & (DOUBLE PRECISION) & \\
+\verb?nblock? & (DBLE) & \\
 \\
-\verb?ibmax? & (DOUBLE PRECISION) & \\
+\verb?ibmax? & (DBLE) & \\
 \\
 \end{tabular}
 
@@ -498,9 +498,9 @@ Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
 
 Where : \verb?SUBROUTINE control_init? in \verb?radial_distribution.f90?
 
-\begin{tabular}{ccc}
+\begin{tabular}{lcc}
 \\
-\verb?resg? & (DOUBLE PRECISION) & resolution in the radial distribution function \\
+\verb?resg? & (DBLE) & resolution in the radial distribution function \\
 \\
 \end{tabular}
 
@@ -510,10 +510,20 @@ Where : \verb?SUBROUTINE control_init? in \verb?radial_distribution.f90?
 \subsubsection{\&vacftag}
 
 Where : \verb?SUBROUTINE vacf_init? in \verb?vacf.f90?
-\verb?tdifmax? 
 
-\verb?it0?
 
+\begin{tabular}{lcc}
+\\
+\verb?tdifmax?  & (DBLE) & \\ 
+\\
+\verb?it0? & (DBLE) & \\
+\\
+\end{tabular}
+
+
+%###################################################################################################"
+%                                         OUTFILE DESCRIPTION
+%###################################################################################################"
 \subsection{Output files: description}
 
 
