@@ -1,3 +1,20 @@
+! MDFF parallel Molecular Dynamics ... For Fun
+! Copyright (C) 2011  F. Vasconcelos
+!
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+!
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
 !#define debug
 ! ===== fmV =====
 MODULE field 
@@ -13,11 +30,17 @@ MODULE field
   integer   :: trunc
 
   logical, SAVE :: lKA                              ! Kob-Andersen model for BMLJ                        
+
+
   
+  !              eps    /    / sigma*\ q         / sigma*\ p  \
+  !     V  =   ------- |  p | ------- |   -  q  | ------- |    |      sigma* = 2^(1/6)*sigma
+  !             q - p   \    \   r   /           \   r   /    /
+
   double precision :: qljAA, qljAB ,qljBB
-  double precision :: pljAA, pljAB ,pljBB           !              eps    /    / sigma*\ q         / sigma*\ p  \
-  double precision :: epsAA, epsAB, epsBB           !     V  =   ------- |  p | ------- |   -  q  | ------- |    |      sigma* = 2^(1/6)*sigma
-  double precision :: sigmaAA, sigmaAB, sigmaBB     !             q - p   \    \   r   /           \   r   /    /
+  double precision :: pljAA, pljAB ,pljBB          
+  double precision :: epsAA, epsAB, epsBB         
+  double precision :: sigmaAA, sigmaAB, sigmaBB   
 
   double precision :: mA, mB                        ! masses ( not yet )
   double precision :: qa, qb                        ! charges only for efg (no electrostatic interaction and forces)         
@@ -233,8 +256,6 @@ SUBROUTINE field_init
 
 END SUBROUTINE field_init
 
-
-
 !*********************** SUBROUTINE field_print_info **************************
 !
 ! print force field informationto standard output
@@ -418,9 +439,8 @@ SUBROUTINE initialize_param_bmlj
   !
   !
   ! Maple (november 2011)
-  ! 
   !     
-  !               eps p  q         /  / sigma* \ q       /  sigma* \ p \ 
+  !               eps p  q         /  / sigma* \ q       /  sigma* \ p \
   !    c1 =  --------------------- |  | --------|    -   | --------- |  |
   !          2  ( q - p ) * rc^2    \  \   rc   /         \   rc    /   /
   ! 

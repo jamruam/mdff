@@ -4,20 +4,26 @@
 
 # The compiler
 FC = mpif90 
+# installation directory
+INSTALL_DIR=../bin
 
+# on lisa
 # flags for debugging or for maximum performance, comment as necessary
 #FCFLAGS = -fpp -check bounds -warn all
-#FCFLAGS = -O3 -ffree-line-length-0 on superbock
 #FCFLAGS = -O3 -pg -warn all
 #FCFLAGS = -O5 -ip -xW -warn all
-FCFLAGS = -fpp -O3 -ip -xW
-INSTALL_DIR=../bin
+#FCFLAGS = -fpp -O3 -ip -xW
+
+#on superbock
+FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 
 EXE= mdff.x bins.x bins-dos.x gen-kpt.x
 
 # libraries needed 
-LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
-#LDFLAGS= -lm -llapack -lfftw3
+# on lisa
+#LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
+# on superbock
+LDFLAGS= -lm -llapack -lfftw3
 
 # List of executables to be built within the package
 OBJ= \
