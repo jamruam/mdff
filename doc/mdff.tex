@@ -1,0 +1,602 @@
+%MDFF documentation
+\documentclass[10pt,a4paper]{article}
+\usepackage{lscape}
+\usepackage{geometry}
+\usepackage{chngpage}
+%\usepackage{pslatex}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[frenchb]{babel}
+%\usepackage{graphicx}
+%\usepackage{bm}
+%\providecommand{\bm}[1]{\mathbf{#1}}
+%\usepackage{amsmath}
+%\usepackage{color}
+
+%##############################################
+%new commands
+%##############################################
+\newcommand{\MDFF}{{\sc MDff}}
+\newcommand{\FMV}{{\sc fmv}}
+\newcommand{\wiki}{\textcolor{red}{[wiki]}} 
+\newcommand{\addref}{\textcolor{blue}{[ref]}}
+
+\newenvironment{changemargin}[2]{\begin{list}{}{%
+\setlength{\topsep}{0pt}%
+\setlength{\leftmargin}{0pt}%
+\setlength{\rightmargin}{0pt}%
+\setlength{\listparindent}{\parindent}%
+\setlength{\itemindent}{\parindent}%
+\setlength{\parsep}{0pt plus 1pt}%
+\addtolength{\leftmargin}{#1}%
+\addtolength{\rightmargin}{#2}%
+}\item }{\end{list}}
+
+
+\title{Molecular Dynamics FF, Manual , version 0.2.2}
+
+\begin{document}
+
+\maketitle
+
+\clearpage
+
+\section{But}
+
+Le but de ce document est de repertorier les differents 
+algorithmes utilis\'es par \MDFF. Notamment, definir les 
+commandes (TAG) et leurs valeurs par défaut. Mais également, 
+les r\'eferences aux codes, articles originaux, livres dont 
+sont extraits les diff\'erents algorithmes, ou preciser dans 
+le cas contraire (i.e \FMV!) ce que fait la routine point par point. 
+Ce travail de documentation permettra de faciliter la d\'ecouverte
+de bug qui independamment de ma volont\'e sont (et seront) 
+forc\'ement pr\'esents. 
+
+\clearpage
+
+
+\section{Usage}
+
+\MDFF only needs one input file usually called control.F~\footnote{the .F extension permits to get nice colors with vim} 
+
+\subsection{Minimum settings: the input file}
+
+The input file is composed of different sections. 
+Each section is started by \&SECTIONNAME and ended by \&END ( We are closely following italian codes ;) ).
+All input outside the sections is ignored.
+
+
+In \MDFF, five sections are always required :
+
+\begin{itemize}
+\item \&controltag ... \&end $\rightarrow$ General control parameters for calculation 
+\item \&mdtag ... \&end      $\rightarrow$ General Molecular dynamics parameters.
+\item \&configtag ... \&end  $\rightarrow$ Information on the configuration
+\item \&fieldtag ... \&end   $\rightarrow$ Set the Field-Force.
+\item \&proptag ... \&end    $\rightarrow$ Calculation of properties
+\end{itemize}
+
+
+Using this minimum settings (empty section) the code runs with default values.
+It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc lennard-jones 
+crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the standard output of this minimum setting. 
+
+\clearpage
+\subsection{Minimum setting: standart output}
+\begin{verbatim}
+                            \\|//                    
+                           -(o o)-                           
+========================oOO==(_)==OOo========================
+          ____    ____  ______   ________  ________  
+         |_   \  /   _||_   _ `.|_   __  ||_   __  | 
+           |   \/   |    | | `. \ | |_ \_|  | |_ \_| 
+           | |\  /| |    | |  | | |  _|     |  _|    
+          _| |_\/_| |_  _| |_.' /_| |_     _| |_     
+         |_____||_____||______.'|_____|   |_____|    
+  
+=============================================================
+
+MOLECULAR DYNAMICS ...for fun                 
+mdff.0.2.0
+parallel version
+filipe.manuel.vasconcelos@gmail.com  
+Running on   1 nodes                  
+time     : 2011/11/05    15:50:14
+calc     : md                                                          
+
+=============================================================
+
+periodic boundary conditions in cubic cell     
+verlet list used 
+units reduced by the number of atom
+dynamic calculation
+NVE ensemble --- velocity verlet integrator    
+with equilibration:             
+berendsen scaling ( is not canonical ...and so NVE)
+number of steps                      =         10
+timestep                             = .10000E-02
+time range                           = .10000E-01
+temperature                          =    1.00000
+number of equilibration steps        =         10
+equilibration period                 =          1
+Berendsen thermo time scale          = .10000E-02
+tauberendsen = dt -> simple rescale
+print thermo  periodicity            =          1
+
+=============================================================
+
+structure generated from the code
+Face-centered cubic structure :  4x  4x  4  
+system                               : fcc                                                         
+natm                                 =        256
+cell parameter                       =     6.3496
+volume                               =   256.0000
+density                              =     1.0000
+distance check subroutine
+smallest distance =   1.12
+
+=============================================================
+
+force field information :                      
+no masses are implemented                      
+LENNARD-JONES                  
+
+       eps    /    / sigma* \ q       / sigma*  \ p \
+ V = ------- |  p | ------- |    - q | -------- |   |
+      q - p   \    \   r    /         \    r    /   /
+
+USER DEFINED MODEL                             
+cutoff  =    2.50000
+
+A-A interactions:
+sigmaAA =    1.00000
+epsAA   =    1.00000
+qAA     =   12.00000
+pAA     =    6.00000
+long range correction :         -0.535433102
+ 
+paralelisation - atom decomposition
+rank    0 atom    1 to  256
+=============================================================
+...
+=============================================================
+
+                 TOTAL :  cpu time     0.15
+                    MD :  cpu time     0.01
+
+main subroutines:
+MD:
+    engforce_bmlj      :  cpu time     0.01
+    engforce_coul_DS   :  cpu time     0.00
+    vnlistcheck        :  cpu time     0.00
+=============================================================
+\end{verbatim}
+
+\subsection{Miniumim setting : Output files}
+For this minimum setting, the code generates 4 files:
+
+\begin{itemize}
+\item OUTFF  : close to the standard output
+\item OSZIFF : thermodynamic parameters 
+\item TRAJFF : trajectory file (empty in this case) 
+\item CONTFF : final configuration
+\end{itemize}
+theses files and other output files are described in a following section.
+
+\subsection{Input file : Description}
+
+%###################################################################################################"
+%                                         CONTROLTAG
+%###################################################################################################"
+\subsubsection{\&controltag }
+
+Where : \verb?SUBROUTINE control_init? in \verb?control.f90?
+\newline
+
+\begin{tabular}{lcc}
+\\
+\verb?lbmlj?     & (LOGICAL)          &   \\
+\\
+\verb?lcoulomb?  & (LOGICAL)          &   \\
+\\
+\verb?lvnlist?   & (LOGICAL)          &   \\
+\\
+\verb?lstatic?   & (LOGICAL)          &   \\
+\\
+\verb?calc?      & (CHARACTER)        &   \\
+\\
+\verb?dgauss?    & (CHARACTER)        &   \\
+\\
+\verb?lpbc?      & (LOGICAL)          &   \\
+\\
+\verb?longrange? & (CHARACTER)        &   \\
+\\
+\verb?cutoff?    & (DOUBLE PRECISION) &   \\
+\\
+\verb?skindiff?  & (DOUBLE PRECISION) &   \\
+\\
+\verb?restart?   & ()                 &   \\
+\\
+\verb?lreduced?  & (LOGICAL)          &   \\
+\\
+\verb?lshiftpot? & (LOGICAL)          &   \\
+\\
+\verb?ltest?     & (LOGICAL)          &   \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         MDTAG
+%###################################################################################################"
+\subsubsection{\&mdtag}
+
+Where : \verb?SUBROUTINE md_init? in \verb?md.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?npas? (INTEGER)  & \\
+\\
+\verb?integrator? (CHARACTER)  & \\
+\\
+\verb?dt? (DOUBLE PRECISION)  & \\
+\\
+\verb?temp? (DOUBLE PRECISION)  & \\
+\\
+\verb?nequil? (INTEGER)  & \\
+\\
+\verb?nequil_period? (INTEGER) & \\
+\\
+\verb?nprint? (INTEGER) & \\
+\\
+\verb?fprint? (INTEGER) & \\
+\\
+\verb?ltraj? (LOGICAL) & \\
+\\
+\verb?itraj_start? (INTEGER) & \\
+\\
+\verb?itraj_period? (INTEGER) & \\
+\\
+\verb?spas? (INTEGER) & \\
+\\
+\verb?setvel? (CHARACTER) & \\
+\\
+\verb?nuandersen? (DOUBLE PRECISION) & \\
+\\
+\verb?tauberendsen? (DOUBLE PRECISION) & \\
+\\
+\verb?Qnosehoover? (DOUBLE PRECISION) & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         CONFIGTAG
+%###################################################################################################"
+\subsubsection{\&configtag}
+
+Where : \verb?SUBROUTINE config_init? in \verb?config.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?system? (CHARACTER) & \\
+\\
+\verb?rho? (DOUBLE PRECISION)  & \\
+\\
+\verb?box? (DOUBLE PRECISION)  & \\
+\\
+\verb?ntype? (INTEGER)  & \\
+\\
+\verb?natm? (INTEGER) & \\
+\\
+\verb?struct? (CHARACTER) & \\
+\\
+\verb?lfcc? (LOGICAL) & \\
+\\
+\verb?lsc? (LOGICAL) & \\
+\\
+\verb?lbcc? (LOGICAL) & \\
+\\
+\verb?ncell? (INTEGER) & \\
+\\
+\verb?xna? (DOUBLE PRECISION) & \\
+\\
+\verb?xnb? (DOUBLE PRECISION) & \\
+\\
+\verb?lgenconf? (LOGICAL) & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         FIELDTAG
+%###################################################################################################"
+
+\subsubsection{\&fieldtag}
+
+Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?epsAA? &   (DOUBLE PRECISION)  & \\
+\\
+\verb?epsAB? &   (DOUBLE PRECISION)  & \\
+\\
+\verb?epsBB? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?sigmaAA? & (DOUBLE PRECISION)  & \\
+\\
+\verb?sigmaAB? & (DOUBLE PRECISION)  & \\
+\\
+\verb?sigmaBB? & (DOUBLE PRECISION)  & \\
+\\
+\verb?qljAA? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?pljAA? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?qljAB? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?pljAB? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?qljBB? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?pljBB? &  (DOUBLE PRECISION)  & \\
+\\
+\verb?mA?   &   (DOUBLE PRECISION)  & \\
+\\
+\verb?mB?   &   (DOUBLE PRECISION)  & \\
+\\
+\verb?qa?   &    (DOUBLE PRECISION)  & \\
+\\
+\verb?qb?   &    (DOUBLE PRECISION)  & \\
+\\
+\verb?ncelldirect? & (INTEGER)  & \\
+\\
+\verb?ncellewald?  &  (INTEGER)  & \\
+\\
+\verb?lKA?         &  (LOGICAL)  & \\
+\\
+\verb?alphaES?     &  (DOUBLE PRECISION)  & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         PROPTAG
+%###################################################################################################"
+\subsubsection{\&proptag}
+
+Where : \verb?SUBROUTINE prop_init? in \verb?prop.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?nprop_start? (INTEGER)  & \\
+\\
+\verb?nprop?       (INTEGER)  & \\
+\\
+\verb?nprop_print? (INTEGER)  & \\
+\\
+\verb?lefg?        (LOGICAL)  & \\
+\\
+\verb?lgr?         (LOGICAL)  & \\
+\\
+\verb?lstrfac?     (LOGICAL)  & \\
+\\
+\verb?lmsd?        (LOGICAL)  & \\
+\\
+\verb?lvacf?       (LOGICAL)  & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         OPTTAG
+%###################################################################################################"
+\subsubsection{\&opttag}
+
+Where : \verb?SUBROUTINE opt_init? in \verb?opt.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?ncopt?     (INTEGER) & \\
+
+\\
+\verb?nskipopt?  (INTEGER) & \\
+
+\\
+\verb?nmaxopt?   (INTEGER) & \\
+
+\\
+\verb?optalgo?   (CHARACTER) & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         VIBTAG
+%###################################################################################################"
+\subsubsection{\&vibtag}
+
+Where : \verb?SUBROUTINE vib_init? in \verb?vib.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?ncvib? (INTEGER) & \\
+\\
+\verb?ngconf? (INTEGER)  & \\
+\\
+\verb?lwrite_vectff? (LOGICAL)  & \\
+\\
+\verb?imod? (INTEGER)  & \\
+\\
+\verb?nkphon? & & \\
+\\
+\verb?resdos? & (DOUBLE PRECISION) & \\
+\\
+\verb?omegamax? & (DOUBLE PRECISION) & \\
+\\
+\verb?ksx,ksy,ksz? & & \\
+\\
+\verb?kfx,kfy,kfz? & & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         EFGTAG
+%###################################################################################################"
+
+\subsubsection{\&efgtag}
+
+Where : \verb?SUBROUTINE efg_init? in \verb?efg.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?lefgprintall? & (LOGICAL) & \\
+\\
+\verb?ncelldirect?  & (INTEGER) & \\
+\\
+\verb?ncefg?        & (INTEGER) & \\
+\\
+\verb?ncellewald?   & (INTEGER) & \\
+\\
+\verb?cutefg?  & (DOUBLE PRECISION) & \\
+\\
+\verb?alphaES? & (DOUBLE PRECISION) & \\
+\\
+\verb?resvzz?  & (DOUBLE PRECISION) & \\
+\\
+\verb?reseta?  & (DOUBLE PRECISION) & \\
+\\
+\verb?resu?    & (DOUBLE PRECISION) & \\
+\\
+\verb?vzzmin?  & (DOUBLE PRECISION) & \\ 
+\\
+\verb?umin?    & (DOUBLE PRECISION) & \\
+\\
+\verb?ntcor? & & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         MSDTAG
+%###################################################################################################"
+
+\subsubsection{\&msdtag}
+
+Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
+
+\begin{tabular}{lcc}
+\\
+\verb?tdifmax? & (DOUBLE PRECISION) & \\
+\\
+\verb?nblock? & (DOUBLE PRECISION) & \\
+\\
+\verb?ibmax? & (DOUBLE PRECISION) & \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         GRTAG
+%###################################################################################################"
+
+\subsubsection{\&grtag}
+
+Where : \verb?SUBROUTINE control_init? in \verb?radial_distribution.f90?
+
+\begin{tabular}{ccc}
+\\
+\verb?resg? & (DOUBLE PRECISION) & resolution in the radial distribution function \\
+\\
+\end{tabular}
+
+%###################################################################################################"
+%                                         VACFTAG
+%###################################################################################################"
+\subsubsection{\&vacftag}
+
+Where : \verb?SUBROUTINE vacf_init? in \verb?vacf.f90?
+\verb?tdifmax? 
+
+\verb?it0?
+
+\subsection{Output files: description}
+
+
+\section{Commands}
+
+%DESCRIPTION:                                                 
+% 
+%  name   type   descritpion    default
+%   TAG    (r)    something     (1.0D0 or ???)  
+%                                                               
+%  routine:
+%  read control parameters in input files:
+% 
+%     CALCULATION:
+% 
+%        lstatic                 (l) static calculation -- only the potential energy of the input configuration  (.false.)
+%        lnopbc                  (l) no periodic boundaries condition (.false.)
+%        lbmlj                   (l) Binary Lennard-Jones calculation ( or simple LJ if  ntype=1) (.true.) 
+%        calc                    (c) 'nve-vv', 'nve-lf', nve-and 'nvt'nh' or 'nvt-nhc2'    ('nve-vv')
+% 
+%                                         'nve-vv'     NVE ensemble verlet list algorithm  
+%                                         'nve-lf'     NVE ensemble leap-frog algorithm    no thermostat
+%                                         'nvt-and'    NVT+NVE Andersen thermostat 
+%                                                       
+%                                                      nuandersen    (r)  frequency of stochastic collision in the Andersen thermostat
+%                                                                         probability of collision nuandersen*dt (???)
+% 
+%                                         'nvt-nh'     NVT ensemble Nove-Hoover thermostat 
+%                                         'nvt-nhc2'   NVT ensemble Nose-Hoover chain two 2  
+%  
+%                                                      Qnosehoover  (r) nh mass parameter  (???)
+% 
+% 
+%         (keys)                (i) like dl_poly 0, 1 or 2 ( pos, vel, force)
+%        keyconfig              (i) pos input (??? WARN)
+% 
+%     MD:
+% 
+%        npas                   (i) number of time step (28)
+%        dt                     (r) time step (???)            
+%        temp                   (r) temperature  (???)
+%        nequil                 (i) number of equilibration step (???)
+%                                         berendsen : if tauberendsen= dt -> simple scaling 
+%                                         scaling = ( 1 + (dt/tauberendsen)* ( temp/tempi -1)   ) ** 0.5
+%        nequil_period          (i) rescaling period for the berendsen thermostat
+%        cutoff                 (r) cutoff for the small range inter. (less than half the box WARNING)   
+%        skindiff               (r) skindiff control verlet list update
+%        largon                 (l) use argon parametrization (.false.)
+%        
+%       
+%     CONFIG:
+% 
+%        natm                   (i) number of atom (???)
+%        ntype                  (i) number of type if bmlj ntype is 1 or 2 ###### >2  (1)  
+%        rho                    (r) density i'm not planning to simulate other cell than cubic cells ###### mass (???)
+%        lfcc                   (l) start or not from fcc cell (.true.)
+%        ncell                  (i) number of cell in that case natm = 4*(ncell)**3
+% 
+% 
+%     TOOLS:
+% 
+%        lnovnlist             (l) do not use verlet list (.false.)
+%        degauss               (c) 'boxmuller_basic', 'boxmuller_polar' or 'knuth'  (I said for fun aaaouh) (boxmuller_basic )
+%                                   there are basically the same ( Is depending on the random number generator ??)
+% 
+%     OUTPUT:
+%        
+%        ltraj                 (l) save trajectory (.false.)
+%        itraj_start           (i) in which step trajectory start to be saved (1)          
+%        itraj_period          (i) save trajectory period (10000)
+%        nprint                (i) print thermo information period to standard output(10)
+%        fprint                (i) print thermo information period to OSZIFF file (10)
+%        verbosity             (i) ###### well i don't know yet 
+%        spas                  (i) ###### save configuration each spas: to have some backup for long run (1000)
+%        nmax                  (i) ###### minimization sastry 
+
+
+\section{Theory}
+\cite{B-ALLEN_TILDESLEY}
+
+%\section*{Acknowledgements} 
+
+\bibliography{mdff}
+\bibliographystyle{amsplain}
+
+\end{document}

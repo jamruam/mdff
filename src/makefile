@@ -1,0 +1,100 @@
+###################################################
+# MAKEFILE FOR MDFF ON LISA AMSTERDAM JUNE 2011
+################################################### 
+
+# The compiler
+FC = mpif90 
+
+# flags for debugging or for maximum performance, comment as necessary
+#FCFLAGS = -fpp -check bounds -warn all
+#FCFLAGS = -O3 -ffree-line-length-0 on superbock
+#FCFLAGS = -O3 -pg -warn all
+#FCFLAGS = -O5 -ip -xW -warn all
+FCFLAGS = -fpp -O3 -ip -xW
+INSTALL_DIR=../bin
+
+EXE= mdff.x bins.x bins-dos.x gen-kpt.x
+
+# libraries needed 
+LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
+#LDFLAGS= -lm -llapack -lfftw3
+
+# List of executables to be built within the package
+OBJ= \
+constants.o \
+io_file.o \
+control.o \
+prop.o \
+time.o \
+functions.o \
+fft_t.o \
+rand.o \
+config.o \
+lattice.o \
+md.o \
+lbfgs.o \
+m1qn3.o \
+block_average.o \
+thermo.o \
+kspace.o \
+rspace.o \
+kinetic.o \
+field.o \
+stress.o \
+tools.o \
+integration.o \
+opt.o \
+vib.o \
+msd.o \
+multi_tau.o \
+radial_distrib.o \
+efg.o \
+vacf.o \
+runmd.o
+
+all: $(EXE)
+
+bins.x: bins.o
+	$(FC) $(FCFLAGS) -o $@ $^
+
+bins-dos.x: bins-dos.o
+	$(FC) $(FCFLAGS) -o $@ $^
+
+gen-kpt.x: gen-kpt.o
+	$(FC) $(FCFLAGS) -o $@ $^
+
+disttab.x: disttab.o
+	$(FC) $(FCFLAGS) -o $@ $^
+
+
+mdff.x: $(OBJ) mdff.o
+	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.f90
+	$(FC) $(FCFLAGS) -c $< 
+
+.PHONY: clean veryclean
+
+
+clean:
+	rm -f *.o *.mod *.MOD
+
+veryclean: clean
+	rm -f $(EXE)
+	rm -f *~ $(INSTALL_DIR)/$(EXE)
+
+install: all
+	cp $(EXE) $(INSTALL_DIR)
+
+tar :
+	@if test -f mdff.tar.gz ; then /bin/rm mdff.tar.gz ; fi
+	# do not include unneeded stuff 
+	find ./ -type f | grep -v -e -e'/\.' -e'\.o$$' \
+	     -e'\.mod$$'  -e'\.x$$' \
+             -e'~$$'  | xargs tar rvf mdff.tar
+	gzip mdff.tar
+
+depend:
+	@echo 'Checking dependencies...'
+
+
