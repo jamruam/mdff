@@ -82,12 +82,13 @@ SUBROUTINE efg_init
 
   USE control,  ONLY :  calc
   USE prop,     ONLY :  lefg
-  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF
+  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF, ionode
   USE field,    ONLY :  initialize_coulomb
  
   implicit none
   
   ! local
+  integer :: ioerr
   character * 132 :: filename
 
   namelist /efgtag/  lefgprintall  , & 
@@ -115,7 +116,15 @@ SUBROUTINE efg_init
   ! ===================
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
-  READ ( stdin , efgtag)
+  READ ( stdin , efgtag,iostat=ioerr)
+  if( ioerr .lt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag section is absent'
+   STOP
+ elseif( ioerr .gt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag wrong tag'
+   STOP
+ endif
+
   CLOSE ( stdin )
   ! ===============
   !  check efgtag

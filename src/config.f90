@@ -114,8 +114,11 @@ SUBROUTINE config_init
   CALL getarg (1,filename)
   OPEN  ( stdin , file = filename)
   READ  ( stdin , configtag , iostat= ioerr)
-  if( ioerr .ne. 0 )  then
+  if( ioerr .lt. 0 )  then
     if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag section is absent'
+    STOP
+  elseif( ioerr .gt. 0 )  then
+    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag wrong tag'
     STOP
   endif
   CLOSE ( stdin )

@@ -220,8 +220,11 @@ SUBROUTINE field_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , fieldtag, iostat=ioerr)
-  if( ioerr .ne. 0 )  then
+  if( ioerr .lt. 0 )  then
     if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag section is absent'
+    STOP
+  elseif( ioerr .gt. 0 )  then
+    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag wrong tag'
     STOP
   endif
   CLOSE ( stdin )
@@ -476,7 +479,6 @@ SUBROUTINE initialize_param_bmlj
        srp = sr ** pp(i,j)
        ! (sigma* / rc ) ^ q 
        srq = sr ** qq(i,j)
-       
        ! trunc = 1
        uc(i,j)  = epsp(i,j) * (pp(i,j) * srq - qq(i,j) * srp)
        ! trunc = 2

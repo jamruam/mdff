@@ -53,11 +53,12 @@ CONTAINS
 SUBROUTINE vacf_init
 
   USE prop,     ONLY :  lvacf
-  USE io_file,  ONLY :  stdin , stdout, kunit_OUTFF
+  USE io_file,  ONLY :  stdin , stdout , kunit_OUTFF , ionode
 
   implicit none
 
   ! local
+  integer :: ioerr
   character * 132 :: filename
 
   namelist /vacftag/ tdifmax , it0
@@ -71,7 +72,15 @@ SUBROUTINE vacf_init
   ! ============================
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
-  READ ( stdin , vacftag)
+  READ ( stdin , vacftag,iostat=ioerr)
+  if( ioerr .lt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
+   STOP
+  elseif( ioerr .gt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
+   STOP
+  endif
+
   CLOSE ( stdin )
 
   CALL vacf_check_tag

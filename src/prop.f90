@@ -70,8 +70,11 @@ SUBROUTINE prop_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , proptag, iostat=ioerr)
-  if( ioerr .ne. 0 )  then
+  if( ioerr .lt. 0 )  then
     if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag section is absent'
+    STOP
+  elseif( ioerr .gt. 0 )  then
+    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag wrong tag'
     STOP
   endif
   CLOSE ( stdin )

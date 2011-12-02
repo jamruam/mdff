@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-1.40.10 (TeX Live 2009/Debian) (format=pdflatex 2011.6.20)  30 NOV 2011 15:38
+This is pdfTeX, Version 3.1415926-1.40.10 (TeX Live 2009/Debian) (format=pdflatex 2011.3.29)  1 DEC 2011 15:17
 entering extended mode
  %&-line parsing enabled.
 **mdff.tex
@@ -434,29 +434,30 @@ Underfull \hbox (badness 10000) in paragraph at lines 194--196
 
 [5] [6] [7] [8] [9] [10] [11] (./mdff.bbl) [12] (./mdff.aux) ) 
 Here is how much of TeX's memory you used:
- 2439 strings out of 495061
- 30420 string characters out of 1182621
+ 2441 strings out of 495061
+ 30447 string characters out of 1182621
  96368 words of memory out of 3000000
- 5599 multiletter control sequences out of 15000+50000
+ 5600 multiletter control sequences out of 15000+50000
  14970 words of font info for 35 fonts, out of 3000000 for 9000
  28 hyphenation exceptions out of 8191
  25i,7n,24p,207b,248s stack positions out of 5000i,500n,10000p,200000b,50000s
- </home/filipe/.t
-exmf-var/fonts/pk/ljfour/jknappen/ec/ecti1000.600pk> </home/filipe/.texmf-var/f
-onts/pk/ljfour/jknappen/ec/ecbx1000.600pk> </home/filipe/.texmf-var/fonts/pk/lj
-four/jknappen/ec/ectt1000.600pk> </home/filipe/.texmf-var/fonts/pk/ljfour/jknap
-pen/ec/ecrm0800.600pk> </home/filipe/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecb
-x1200.600pk> </home/filipe/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0700.600p
-k> </home/filipe/.texmf-var/fonts/pk/ljfour/jknappen/ec/eccc1000.600pk> </home/
-filipe/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1440.600pk> </home/filipe/.te
-xmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1000.600pk> </home/filipe/.texmf-var/fo
-nts/pk/ljfour/jknappen/ec/ecrm1200.600pk> </home/filipe/.texmf-var/fonts/pk/ljf
-our/jknappen/ec/ecrm1728.600pk></usr/share/texmf-texlive/fonts/type1/public/ams
-fonts/cm/cmmi10.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cm
-r10.pfb></usr/share/texmf-texlive/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
-Output written on mdff.pdf (12 pages, 136711 bytes).
+ </home/mhgdvasc/
+.texmf-var/fonts/pk/ljfour/jknappen/ec/ecti1000.600pk> </home/mhgdvasc/.texmf-v
+ar/fonts/pk/ljfour/jknappen/ec/ecbx1000.600pk> </home/mhgdvasc/.texmf-var/fonts
+/pk/ljfour/jknappen/ec/ectt1000.600pk> </home/mhgdvasc/.texmf-var/fonts/pk/ljfo
+ur/jknappen/ec/ecbx1200.600pk> </home/mhgdvasc/.texmf-var/fonts/pk/ljfour/jknap
+pen/ec/ecrm0700.600pk> </home/mhgdvasc/.texmf-var/fonts/pk/ljfour/jknappen/ec/e
+ccc1000.600pk> </home/mhgdvasc/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1440.
+600pk> </home/mhgdvasc/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1000.600pk> <
+/home/mhgdvasc/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0800.600pk> </home/mh
+gdvasc/.texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1200.600pk> </home/mhgdvasc/.
+texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1728.600pk></usr/share/texmf-texlive/
+fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texmf-texlive/fonts/type1
+/public/amsfonts/cm/cmr10.pfb></usr/share/texmf-texlive/fonts/type1/public/amsf
+onts/cm/cmsy10.pfb>
+Output written on mdff.pdf (12 pages, 136583 bytes).
 PDF statistics:
- 392 PDF objects out of 1000 (max. 8388607)
+ 391 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

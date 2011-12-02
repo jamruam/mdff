@@ -43,11 +43,12 @@ CONTAINS
 SUBROUTINE msd_init
 
   USE prop,     ONLY :  lmsd
-  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF
+  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF, ionode
 
   implicit none
 
   ! local
+  integer :: ioerr
   character * 132 :: filename
 
 
@@ -64,7 +65,15 @@ SUBROUTINE msd_init
   ! ==================
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
-  READ ( stdin , msdtag)
+  READ ( stdin , msdtag, iostat=ioerr)
+  if( ioerr .lt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag section is absent'
+   STOP
+  elseif( ioerr .gt. 0 )  then
+   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag wrong tag'
+   STOP
+  endif
+
   CLOSE ( stdin )
 
   CALL msd_check_tag

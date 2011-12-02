@@ -96,8 +96,11 @@ SUBROUTINE md_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , mdtag ,iostat =ioerr)
-  if( ioerr .ne. 0 )  then
+  if( ioerr .lt. 0 )  then
     if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag section is absent'
+    STOP
+  elseif( ioerr .gt. 0 )  then
+    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag wrong tag'
     STOP
   endif
   CLOSE  ( stdin )
