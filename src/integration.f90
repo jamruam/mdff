@@ -34,7 +34,7 @@
 !
 !******************************************************************************
 
-SUBROUTINE prop_leap_frog ( iastart , iaend )!, list , point )
+SUBROUTINE prop_leap_frog ( iastart , iaend )
 
   USE control,          ONLY :  lpbc
   USE md,               ONLY :  dt
@@ -65,7 +65,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )!, list , point )
   ! ==========================
   ! force + potential f(t)
   ! ==========================
-    CALL engforce ( iastart , iaend )!, list , point )
+    CALL engforce ( iastart , iaend )
 
   ! ================================================= 
   !  r(t+dt) = 2 r(t) - r (t-dt) + f(t) dt*dt
@@ -117,7 +117,7 @@ END SUBROUTINE prop_leap_frog
 !
 !******************************************************************************
 
-SUBROUTINE prop_velocity_verlet ( iastart , iaend )!, list , point )
+SUBROUTINE prop_velocity_verlet ( iastart , iaend )
 
   USE config,           ONLY :  natm, rx, ry, rz, vx, vy, vz, fx, fy, fz
   USE md,               ONLY :  dt
@@ -189,7 +189,7 @@ END SUBROUTINE prop_velocity_verlet
 !
 !******************************************************************************
 
-SUBROUTINE prop_velocity_verlet_test ( iastart , iaend )!, list , point )
+SUBROUTINE prop_velocity_verlet_test ( iastart , iaend )
 
   USE config,           ONLY :  natm, rx, ry, rz, vx, vy, vz, fx, fy, fz
   USE md,               ONLY :  dt
@@ -200,7 +200,7 @@ SUBROUTINE prop_velocity_verlet_test ( iastart , iaend )!, list , point )
   implicit none
 
   ! global
-  integer, intent(inout) :: iastart , iaend !, list(250 * natm) , point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
 
   ! local
   double precision :: dtsq2 , dt2
@@ -235,7 +235,7 @@ SUBROUTINE prop_velocity_verlet_test ( iastart , iaend )!, list , point )
   else
     print*,'only pbc allowed for this test'
     STOP
-    CALL engforce_bmlj_nopbc ( iastart , iaend )!, list , point )
+    CALL engforce_bmlj_nopbc ( iastart , iaend )
   endif
 
   ! ==============================================
@@ -265,7 +265,7 @@ END SUBROUTINE prop_velocity_verlet_test
 !
 !******************************************************************************
 
-SUBROUTINE nose_hoover_chain2 ( iastart , iaend )!, list , point )
+SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
 
   USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz 
   USE md,               ONLY :  dt, vxi1, vxi2, xi1, xi2
@@ -274,7 +274,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )!, list , point )
   implicit none
 
   ! global
-  integer, intent(inout) :: iastart , iaend !, list(natm * 250) , point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
   ! local
   double precision :: kin , tempi
  
@@ -282,7 +282,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )!, list , point )
 
   CALL chain_nh_2 ( kin , vxi1 , vxi2 , xi1 , xi2 )
 
-  CALL prop_pos_vel_verlet ( kin , iastart , iaend )!, list , point ) 
+  CALL prop_pos_vel_verlet ( kin , iastart , iaend )
 
   CALL chain_nh_2( kin, vxi1, vxi2, xi1, xi2 ) 
 
@@ -360,7 +360,7 @@ END SUBROUTINE chain_nh_2
 !
 !******************************************************************************
 
-SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )!, list , point )
+SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
 
   USE config,   ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz 
   USE md,       ONLY :  dt
@@ -371,7 +371,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )!, list , point )
 
   ! global
   double precision, intent (out) :: kin
-  integer, intent(inout) :: iastart , iaend !, list(250 * natm), point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
 
   ! local
   integer :: i
@@ -416,7 +416,7 @@ END SUBROUTINE prop_pos_vel_verlet
 ! Journal of Computational Physics 20 pp. 130-139 (1976)
 !
 !******************************************************************************
-SUBROUTINE beeman ( iastart , iaend )!, list , point ) 
+SUBROUTINE beeman ( iastart , iaend )
 
   USE config,           ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz , fxs , fys , fzs 
   USE thermodynamic,    ONLY :  temp_r , e_kin
@@ -427,7 +427,7 @@ SUBROUTINE beeman ( iastart , iaend )!, list , point )
   implicit none
 
   ! global
-  integer, intent(inout) :: iastart , iaend !, list(250 * natm), point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
 
   ! local
   integer :: ia
@@ -466,7 +466,7 @@ SUBROUTINE beeman ( iastart , iaend )!, list , point )
   ! ===========================
   ! force + potential  f(t+dt)
   ! ===========================
-  CALL engforce ( iastart , iaend )!, list , point )
+  CALL engforce ( iastart , iaend )
 
   ! ==================================================================
   ! v (t+dt) = v (t) + ( 1/3 f(t+dt) + 5/6 f(t) - 1/6  f(t-dt) )  dt

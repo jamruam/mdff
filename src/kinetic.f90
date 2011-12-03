@@ -27,7 +27,7 @@ SUBROUTINE init_velocities
   USE config,   ONLY :  vx , vy , vz , natm 
   USE md,       ONLY :  nequil , setvel , temp
   USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
-  USE control,  ONLY :  restart
+  USE control,  ONLY :  lrestart
 
   implicit none
 
@@ -51,7 +51,7 @@ SUBROUTINE init_velocities
   ! ===============================================
   !  generate velocities from a given distribution
   ! ===============================================
-  if ( (key .eq. 0 .or. .not. restart) .and. temp .ne. 0.0d0 .and. (nequil.ne.0)) then
+  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0d0 .and. (nequil.ne.0)) then
 
     if( ionode ) then
       WRITE ( kunit_OUTFF ,'(a)') '============================================================='
@@ -78,9 +78,9 @@ SUBROUTINE init_velocities
     if ( setvel.ne.'Uniform' )   CALL rescale_velocities(1)
 
   ! ===========
-  !  restart
+  !  lrestart
   ! ===========
-  elseif ( key .eq. 1 .and. restart ) then
+  elseif ( key .eq. 1 .and. lrestart ) then
 
     ! =======================
     !  input temperature  
@@ -214,7 +214,6 @@ SUBROUTINE andersen_velocities
        endif
      endif
   enddo
-
 
   return
 

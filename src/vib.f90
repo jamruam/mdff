@@ -204,7 +204,7 @@ SUBROUTINE vib_main
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , ia , ja , imod , ic , PANdos , ka 
+  integer :: i , ia , ja , im , ic , PANdos , ka 
   double precision :: pressure0, pot0, ak
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   integer, dimension(:), allocatable :: dostab
@@ -315,8 +315,8 @@ SUBROUTINE vib_main
       ! ===========================================
       !  write frequencies^2 (hessian eigenvalues) 
       ! ===========================================
-      do imod = 1,3 * natm
-        if ( ionode ) WRITE ( kunit_EIGFF ,'(f24.10)') deig(imod)
+      do im = 1,3 * natm
+        if ( ionode ) WRITE ( kunit_EIGFF ,'(f24.10)') deig(im)
       enddo
       ! =========================================
       !  DOS: density of states  of the 3N modes
@@ -348,12 +348,12 @@ SUBROUTINE vib_main
       !  write vector field
       ! ====================
       if ( lwrite_vectff ) then
-        do imod = 1,3 * natm
+        do im = 1,3 * natm
           do ja = 1, natm
-            if ( ionode ) WRITE  ( kunit_VECTFF ,'(13f16.8)') rx(ja),ry(ja),hess(ja,imod),hess(ja + natm,imod), &
-                                                              ry(ja),rz(ja),hess(ja + natm,imod),hess(ja + 2 * natm,imod), &
-                                                              rx(ja),rz(ja),hess(ja,imod),hess(ja + 2 * natm,imod), &
-                                                              deig(imod)
+            if ( ionode ) WRITE  ( kunit_VECTFF ,'(13f16.8)') rx(ja),ry(ja),hess(ja,im),hess(ja + natm,im), &
+                                                              ry(ja),rz(ja),hess(ja + natm,im),hess(ja + 2 * natm,im), &
+                                                              rx(ja),rz(ja),hess(ja,im),hess(ja + 2 * natm,im), &
+                                                              deig(im)
           enddo
           if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '
           if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '

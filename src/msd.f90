@@ -96,9 +96,9 @@ SUBROUTINE msd_default_tag
 
   implicit none
 
-  tdifmax = 100
-  nblock=10
-  ibmax=20
+  tdifmax = 100.0d0
+  nblock  = 10
+  ibmax   = 20
 
   return 
  

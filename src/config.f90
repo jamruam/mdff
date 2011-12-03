@@ -186,7 +186,7 @@ SUBROUTINE config_default_tag
   lfcc     = .true. 
   lsc      = .false.
   lbcc     = .false.
-  rho      = 1.0d0
+  rho      = 0.0d0
   box      = 0.0d0 
   struct   = 'random'
   natm     = 0

@@ -35,7 +35,7 @@ MODULE control
   logical, SAVE :: lstatic                   ! no MD                                                
   logical, SAVE :: lvnlist                   ! verlet list if .true.                            
   logical, SAVE :: lpbc                      ! PBC (periodic ...) if .true.                     
-  logical, SAVE :: restart                   ! restart or not if true strart from the velocities read in POSFF
+  logical, SAVE :: lrestart                   ! restart or not if true strart from the velocities read in POSFF
   logical, SAVE :: lreduced                  ! print reduced thermo quantites by the number of atoms (natm)
   logical, SAVE :: lshiftpot                 ! shifted potential
   logical, SAVE :: lbmlj                     ! binary mixture lennard-jones potential
@@ -89,7 +89,7 @@ SUBROUTINE control_init
                          longrange , &
                          cutoff    , &
                          skindiff  , &
-                         restart   , &
+                         lrestart   , &
                          lreduced  , & 
                          lshiftpot , &
                          ltest      
@@ -151,7 +151,7 @@ SUBROUTINE control_default_tag
   lvnlist       = .true.
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  restart       = .false.
+  lrestart       = .false.
   cutoff        = 2.5d0
   skindiff      = 0.1d0
   lreduced      = .true.

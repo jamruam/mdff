@@ -25,7 +25,7 @@ MODULE efg
   implicit none
 
   logical :: lefgprintall                                               ! whether or not we want to print all the efg for each atoms and configurations in file EFGALL
-  logical :: efg_it_contrib                                             ! if ones want to get the contributions to EFG separated in types
+  logical :: lefg_it_contrib                                             ! if ones want to get the contributions to EFG separated in types
   integer :: ncefg                                                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
   integer :: ntcor                                                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
 
@@ -92,7 +92,7 @@ SUBROUTINE efg_init
   character * 132 :: filename
 
   namelist /efgtag/  lefgprintall  , & 
-                     efg_it_contrib, &
+                     lefg_it_contrib, &
                      ncelldirect   , &
                      ncefg         , & 
                      ncellewald    , &
@@ -155,7 +155,7 @@ SUBROUTINE efg_default_tag
   !  default values
   ! =================
   lefgprintall  = .false. 
-  efg_it_contrib = .false.
+  lefg_it_contrib = .false.
   reseta        =   0.1D0
   resvzz        =   0.1D0
   resu          =   0.1D0 
@@ -360,7 +360,7 @@ SUBROUTINE efg_alloc
     OPEN (unit = kunit_EFGFF   ,file = 'EFGFF')
     OPEN (unit = kunit_EFGALL  ,file = 'EFGALL')
 
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       OPEN (unit = kunit_EFGFFIT ,file = 'EFGFFIT')
       OPEN (unit = kunit_EFGALLIT1  ,file = 'EFGALLIT1')
       OPEN (unit = kunit_EFGALLIT2  ,file = 'EFGALLIT2')
@@ -369,14 +369,14 @@ SUBROUTINE efg_alloc
     allocate( dibUtot(6,0:ntype,0:PANU) )
     allocate( dibvzztot(0:ntype,0:PANvzz) )
     allocate( dibetatot(0:ntype,0:PANeta) )  
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       allocate( dibvzztot_it(0:ntype,ntype,0:PANvzz) )
       allocate( dibetatot_it(0:ntype,ntype,0:PANeta) )  
     endif
     dibvzztot = 0
     dibetatot = 0
     dibUtot = 0
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       dibvzztot_it = 0
       dibetatot_it = 0
     endif
@@ -430,7 +430,7 @@ SUBROUTINE efg_dealloc
   deallocate( dibUtot )
   deallocate( dibvzztot )
   deallocate( dibetatot )
-  if (efg_it_contrib) then
+  if (lefg_it_contrib) then
     deallocate( dibvzztot_it )
     deallocate( dibetatot_it )
   endif
@@ -568,7 +568,7 @@ SUBROUTINE efgcalc
   CLOSE(kunit_EFGALL)
   CLOSE(kunit_EFGFF)
   CLOSE(kunit_TRAJFF)
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
     CLOSE(kunit_EFGALLIT1)
     CLOSE(kunit_EFGALLIT2)
     CLOSE(kunit_EFGFFIT)
@@ -761,7 +761,7 @@ atom : do ia = iastart , iaend
               efg_ia( ia , 2 , 3 )  = efg_ia( ia , 2 , 3 ) -  3.0d0 * ryij * rzij * dm5
 
               ! added 19-11-11
-              if ( efg_it_contrib ) then
+              if ( lefg_it_contrib ) then
                 itja = itype(ja)  
                 efg_ia_it( ia , itja , 1 , 1 )  = efg_ia_it( ia , itja , 1 , 1 ) - (3.0d0 * rxij * rxij - d2 ) * dm5
                 efg_ia_it( ia , itja , 2 , 2 )  = efg_ia_it( ia , itja , 2 , 2 ) - (3.0d0 * ryij * ryij - d2 ) * dm5
@@ -805,7 +805,7 @@ atom : do ia = iastart , iaend
                 efg_ia( ia , 2 , 3 )  = efg_ia( ia , 2 , 3 ) -  3.0d0 * ryij * rzij * dm5
 
               ! added 19-11-11
-              if ( efg_it_contrib ) then
+              if ( lefg_it_contrib ) then
                 itja = itype(ja)  
                 efg_ia_it( ia , itja , 1 , 1 )  = efg_ia_it( ia , itja , 1 , 1 ) - (3.0d0 * rxij * rxij - d2 ) * dm5
                 efg_ia_it( ia , itja , 2 , 2 )  = efg_ia_it( ia , itja , 2 , 2 ) - (3.0d0 * ryij * ryij - d2 ) * dm5
@@ -828,21 +828,21 @@ atom : do ia = iastart , iaend
     efg_ia( ia , 3 , 1 ) = efg_ia( ia , 1 , 3 )
     efg_ia( ia , 3 , 2 ) = efg_ia( ia , 2 , 3 )
     ! addes 19-11-11
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       efg_ia_it( ia , : , 2 , 1 ) = efg_ia_it( ia , : , 1 , 2 )
       efg_ia_it( ia , : , 3 , 1 ) = efg_ia_it( ia , : , 1 , 3 )
       efg_ia_it( ia , : , 3 , 2 ) = efg_ia_it( ia , : , 2 , 3 )
     endif
 
     EFGT=efg_ia(ia,:,:)
-    if ( efg_it_contrib ) then 
+    if ( lefg_it_contrib ) then 
       EFGTIT(1,:,:)=efg_ia_it(ia,1,:,:)
       EFGTIT(2,:,:)=efg_ia_it(ia,2,:,:)
     endif
 
 #ifdef debug
      if(ia.eq.1) CALL print_tensor(EFGT,'DIREC')
-     if ( efg_it_contrib ) then
+     if ( lefg_it_contrib ) then
        if(ia.eq.1) CALL print_tensor(EFGTIT(1,:,:),'DRITA')
        if(ia.eq.1) CALL print_tensor(EFGTIT(2,:,:),'DRITB')
        if(ia.eq.1) CALL print_tensor(EFGTIT(2,:,:)+EFGTIT(1,:,:),'DITAB')
@@ -867,7 +867,7 @@ atom : do ia = iastart , iaend
       STOP 
     endif
     ! added 19-11-11
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       work=0.0d0
       CALL DSYEV('N','U',3,EFGTIT(1,:,:),3,wit(1,:),work,3 * lwork,ifail)    
       if (ifail.ne.0) then
@@ -887,7 +887,7 @@ atom : do ia = iastart , iaend
    ! changed and added 19-11-11
    ! =============================
    call nmr_convention( w , nmr(ia,:) , ia )
-   if ( efg_it_contrib ) then
+   if ( lefg_it_contrib ) then
      call nmr_convention( wit(1,:) , nmrit(ia,1,:) , ia )
      call nmr_convention( wit(2,:) , nmrit(ia,2,:) , ia )
    endif
@@ -929,7 +929,7 @@ atom : do ia = iastart , iaend
     enddo
 
    ! added 19-11-11
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       do itja = 1 , ntype
         vzzmit(itja,0) = vzzmit(itja,0) + nmrit(ia,itja,3)
         etamit(itja,0) = etamit(itja,0) + nmrit(ia,itja,4)
@@ -1003,7 +1003,7 @@ atom : do ia = iastart , iaend
   pvzz  = pvzz_sum
 
   !added 19-11-11
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
     do itja = 1 , ntype
       vzzm_sum = 0.0d0
       vzzsq_sum = 0.0d0
@@ -1047,7 +1047,7 @@ atom : do ia = iastart , iaend
       pvzz(it)  = pvzz(it)  / dble( natmi(it) )
     enddo
   !added 19-11-11
-    if (efg_it_contrib) then 
+    if (lefg_it_contrib) then 
       do itja=1,ntype
         vzzmit(itja,0)  = vzzmit(itja,0)  / dble( natm )
         vzzsqit(itja,0) = vzzsqit(itja,0) / dble( natm )
@@ -1068,7 +1068,7 @@ atom : do ia = iastart , iaend
   sigmavzz = vzzsq - ( vzzma * vzzma )
   sigmavzz = dsqrt( sigmavzz )
   rho_z = sigmavzz / vzzma
-  if (efg_it_contrib) then
+  if (lefg_it_contrib) then
     sigmavzzit = vzzsqit - ( vzzmait * vzzmait )
     sigmavzzit = dsqrt( sigmavzzit )
     rho_zit = sigmavzzit / vzzmait
@@ -1090,7 +1090,7 @@ atom : do ia = iastart , iaend
 
 
 ! added 19-11-11
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
   do itja=1,ntype
     if ( ionode .and. (mod(nefg,nprop_print).eq.0) )  WRITE ( stdout ,'(a,i5)') 'ITJA = ',itja
     do it=1,ntype
@@ -1170,7 +1170,7 @@ do ia=iastart , iaend
   enddo
 
 !added 19-11-11
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
 
     do itja = 1, ntype
       ! ========================
@@ -1249,7 +1249,7 @@ enddo  !ia
     enddo
   endif
 
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
     itja =1
     eta_sum = 0.0D0
     vxx_sum = 0.0D0
@@ -1930,7 +1930,7 @@ SUBROUTINE efg_write_output ( iefgcount )
   OPEN (unit = kunit_DTETAFF,file = 'DTETAFF')
   OPEN (unit = kunit_DTVZZFF,file = 'DTVZZFF')
   OPEN (unit = kunit_DTIBUFF,file = 'DTIBUFF')
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
     OPEN (unit = kunit_DTETAFFIT,file = 'DTETAFFIT')
     OPEN (unit = kunit_DTVZZFFIT,file = 'DTVZZFFIT')
   endif
@@ -1953,7 +1953,7 @@ SUBROUTINE efg_write_output ( iefgcount )
       enddo
     enddo 
     ! added 19-11-11
-    if ( efg_it_contrib ) then
+    if ( lefg_it_contrib ) then
       do itja=1,ntype
         dibetatot_sum = 0
         dibvzztot_sum = 0
@@ -2002,7 +2002,7 @@ SUBROUTINE efg_write_output ( iefgcount )
    enddo
 
  !added 19-11-11
-  if ( efg_it_contrib ) then
+  if ( lefg_it_contrib ) then
 
    do itja = 1 , ntype 
 
@@ -2030,7 +2030,7 @@ SUBROUTINE efg_write_output ( iefgcount )
 
   endif
 
-  if (efg_it_contrib ) then
+  if (lefg_it_contrib ) then
   CLOSE (kunit_DTVZZFFIT)
   CLOSE (kunit_DTETAFFIT)
   endif

@@ -66,9 +66,9 @@ SUBROUTINE knuth ( G , mean , sigma )
 
   ! local
   double precision :: A1, A3, A5, A7, A9
-  PARAMETER ( A1 = 3.949846138, A3 = 0.252408784 )
-  PARAMETER ( A5 = 0.076542912, A7 = 0.008355968 )
-  PARAMETER ( A9 = 0.029899776                   )
+  PARAMETER ( A1 = 3.949846138d0, A3 = 0.252408784d0 )
+  PARAMETER ( A5 = 0.076542912d0, A7 = 0.008355968d0 )
+  PARAMETER ( A9 = 0.029899776d0                   )
   double precision :: x
   double precision :: summ, r, r2
   integer :: i

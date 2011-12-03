@@ -1,17 +1,16 @@
 %MDFF documentation
-\documentclass[10pt,a4paper]{article}
+\documentclass[a4paper]{article}
 \usepackage{lscape}
 \usepackage{geometry}
 \usepackage{chngpage}
-%\usepackage{pslatex}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[frenchb]{babel}
-%\usepackage{graphicx}
-%\usepackage{bm}
-%\providecommand{\bm}[1]{\mathbf{#1}}
-%\usepackage{amsmath}
-%\usepackage{color}
+%\usepackage[frenchb]{babel}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{color}
+
 
 %##############################################
 %new commands
@@ -22,12 +21,15 @@
 \newcommand{\addref}{\textcolor{blue}{[ref]}}
 
 \newenvironment{changemargin}[2]{\begin{list}{}{%
+\renewcommand{\arraystretch}{4.0}
 \setlength{\topsep}{0pt}%
 \setlength{\leftmargin}{0pt}%
 \setlength{\rightmargin}{0pt}%
 \setlength{\listparindent}{\parindent}%
 \setlength{\itemindent}{\parindent}%
 \setlength{\parsep}{0pt plus 1pt}%
+\setlength{\tabcolsep}{1cm}
+\setlength{\extrarowheight}{40pt}
 \addtolength{\leftmargin}{#1}%
 \addtolength{\rightmargin}{#2}%
 }\item }{\end{list}}
@@ -38,10 +40,12 @@
 \begin{document}
 
 \maketitle
+\clearpage
+\tableofcontents
 
 \clearpage
 
-\section{But}
+\section{Aim}
 
 Le but de ce document est de repertorier les differents 
 algorithmes utilis\'es par \MDFF. Notamment, definir les 
@@ -54,6 +58,26 @@ de bug qui independamment de ma volont\'e sont (et seront)
 forc\'ement pr\'esents. 
 
 \clearpage
+
+\section{Theory}
+
+\subsection{Molecular Dynamics\label{sec:MD}}
+
+\subsection{Optimisation\label{sec:OPT}}
+
+\subsection{Phonons\label{sec:VIB}}
+
+\subsection{Electric-Field Gradient\label{sec:EFG}}
+
+\subsection{Radial distribution function\label{sec:GR}}
+
+\subsection{Binary Mixture Lennar-Jones\label{sec:BMLJ}}
+
+\subsection{Kob-Andersen model\label{sec:KA}}
+
+\subsection{Verlet list\label{sec:vnlist}}
+
+\subsection{Units \label{sec:units}}
 
 
 \section{Usage}
@@ -194,37 +218,87 @@ theses files and other output files are described in a following section.
 Where : \verb?SUBROUTINE control_init? in \verb?control.f90?
 \newline
 
-\begin{tabular}{lcc}
-\\
-\verb?lbmlj?     & (LOGICAL)          &   \\
-\\
-\verb?lcoulomb?  & (LOGICAL)          &   \\
-\\
-\verb?lvnlist?   & (LOGICAL)          &   \\
-\\
-\verb?lstatic?   & (LOGICAL)          &   \\
-\\
-\verb?calc?      & (CHARACTER)        &   \\
-\\
-\verb?dgauss?    & (CHARACTER)        &   \\
-\\
-\verb?lpbc?      & (LOGICAL)          &   \\
-\\
-\verb?longrange? & (CHARACTER)        &   \\
-\\
-\verb?cutoff?    & (DBLE) &   \\
-\\
-\verb?skindiff?  & (DBLE) &   \\
-\\
-\verb?restart?   & ()                 &   \\
-\\
-\verb?lreduced?  & (LOGICAL)          &   \\
-\\
-\verb?lshiftpot? & (LOGICAL)          &   \\
-\\
-\verb?ltest?     & (LOGICAL)          &   \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lbmlj?     & (LOGICAL)          &  set the binary mixture lennard-jones potential (see section~\ref{sec:BMLJ})        & \verb?.TRUE.?  \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lcoulomb?  & (LOGICAL)          &  set coulombic potentials (to be tested)                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lvnlist?   & (LOGICAL)          &  use verlet neighbour list (see section~\ref{sec:vnlist})                           & \verb?.TRUE.?  \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lstatic?   & (LOGICAL)          &  static calculation                                                                 & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lpbc?      & (LOGICAL)          &  use periodic boundary conditions (if .FALSE. should be tested)                     & \verb?.TRUE.?  \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lreduced?  & (LOGICAL)          &  \newline reduced the output quantities by the total number of particules \newline
+
+                                         Comment: this has nothing to do with the units of the calculated quantities
+					 Units are discussed in section \ref{sec:units} \newline                            & \verb?.TRUE.? \\ 
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lshiftpot? & (LOGICAL)          &  use a shifted potential (maybe redundant with ctrunc)                              & \verb?.TRUE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ltest?     & (LOGICAL)          &  get round of the main code (for test purpose only)                                 & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lrestart?   & (LOGICAL)         &  restart calculation read previous positions and velocities                         & \verb?.FALSE.? \\
+\hline
+\rule[-2.5cm]{0cm}{5cm}
+\verb?calc?      & (CHARACTER)        & \newline \verb?'md'?  : molecular dynamics simulation (see section~\ref{sec:MD}) \newline
+
+                                        \verb?'opt'? : unconstrained optimization of configuation saved in TRAJFF file 
+					(see section~\ref{sec:OPT}) \newline
+
+					\verb?'vib'? : 'vib+fvib', 'vib+gmod', 'vib+band', 'vib+dos' : phonons related 
+					(see section~\ref{sec:VIB})\newline
+
+					\verb?'efg'? : Electric Field Gradient calculation from configuration in TRAJFF 
+					(see section~\ref{sec:EFG})\newline
+
+					\verb?'efg+acf?' : EFG auto-correlation function from EFGALL file 
+					(see section~\ref{sec:EFG})\newline
+
+					\verb?'gr'? : radial distribution function of configurations in TRAJFF
+					(see section~\ref{sec:GR}) \newline    & \verb?'md'?   \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?dgauss?    & (CHARACTER)        & \newline algorithm for gaussian distribution (no fondamental differences test purpose only) 
+                                        (see section~\ref{sec:rand}) \newline  
+
+                                        \verb?'boxmuller_basic'? : also known as the cartesian form  \newline
+
+					\verb?'boxmuller_polar'? : supposed to be faster than the basic method because it is 
+					simpler to compute.     \newline
+
+					\verb?'knuth'? : knuth algorithm cited by~\cite{B-ALLEN_TILDESLEY} \newline          & \verb?'boxmuller_basic'? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?longrange? & (CHARACTER)        & \newline algorithm for long-range interactions. It will be used for coulombic potential 
+                                        calculation and Electric-Field Gradient calculation, if both are set together. \newline
+
+					\verb?'direct'? : Direct summation (can be used for EFG but difficult to converge for columbic potential) \newline
+
+					\verb?'ewald'? : Ewald summation technique \newline                                &  \verb?'ewald?'      \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?cutoff?    & (DBLE)             &  real-space cut-off for lennard-jones potentials                                   & \verb?2.5?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?skindiff?  & (DBLE)             &  verlet-list cutoff ( cutoff + skindiff )                                          & \verb?0.1?\\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         MDTAG
@@ -232,42 +306,82 @@ Where : \verb?SUBROUTINE control_init? in \verb?control.f90?
 \subsubsection{\&mdtag}
 
 Where : \verb?SUBROUTINE md_init? in \verb?md.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?npas? & (INTEGER)  & \\
-\\
-\verb?integrator? & (CHARACTER)  & \\
-\\
-\verb?dt? & (DBLE)  & \\
-\\
-\verb?temp? & (DBLE)  & \\
-\\
-\verb?nequil? & (INTEGER)  & \\
-\\
-\verb?nequil_period? & (INTEGER) & \\
-\\
-\verb?nprint? & (INTEGER) & \\
-\\
-\verb?fprint? & (INTEGER) & \\
-\\
-\verb?ltraj? & (LOGICAL) & \\
-\\
-\verb?itraj_start? & (INTEGER) & \\
-\\
-\verb?itraj_period? & (INTEGER) & \\
-\\
-\verb?spas? & (INTEGER) & \\
-\\
-\verb?setvel? & (CHARACTER) & \\
-\\
-\verb?nuandersen? & (DBLE) & \\
-\\
-\verb?tauberendsen? & (DBLE) & \\
-\\
-\verb?Qnosehoover? & (DBLE) & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ltraj?         & (LOGICAL)      &  save trajectory in file TRAJFF                                                     & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?integrator?    & (CHARACTER)    &  \newline algorithm for dynamic integration (see section~\ref{sec:integrator}) \newline                   
+
+                                         \verb?'nve-vv'? : NVE velocity-verlet \newline
+					  
+					 \verb?'nve-lf'? : NVE leap-frog \newline
+					   
+				         \verb?'nve-be'? : NVE beeman \newline
+					 
+					 \verb?'nvt-and'?: NVT Andersen \newline
+					 
+					 \verb?'nvt-nh'? : NVT Nosé-Hoover \newline
+					 
+					 \verb?'nvt-nhc2'? : NVT Nosé-Hoover two chains \newline
+					 
+					 \verb?'nve-lfq'? : NVE leap-frog +  equilibration \newline                         & \verb?'nve-vv'? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?setvel?        & (CHARACTER)    &  \newline velocity distribution \newline 
+                                        
+					 \verb?'MaxwBoltz'? : Maxwell-Boltzmann distribution \newline 
+
+					 \verb?'uniform'?   : Uniform distribution (test purpose) \newline                  & \verb?'MaxwBoltz'? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?npas?          & (INTEGER)      &  total number of time steps                                                         & \verb?10?    \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nequil?        & (INTEGER)      &  total number of equilibration steps                                                & \verb?10? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nequil_period? & (INTEGER)      &  equilibration period                                                               & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nprint?        & (INTEGER)      &  print thermo info to standard output and OUTFF (period)                            & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?fprint?        & (INTEGER)      &  print thermo info to file OSZIFF (period)                                          & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?itraj_start?   & (INTEGER)      &  write trajectory from step \verb?itraj_start?                                      & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?itraj_period?  & (INTEGER)      &  write trajectory each \verb?itraj_period? steps                                    & \verb?10000? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?spas?          & (INTEGER)      &  save configuration each \verb?spas? steps in file CONTFF                           & \verb?1000? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?dt?            & (DBLE)         &  time step for integration                                                          & \verb?0.001? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?temp?          & (DBLE)         &  temperature                                                                        & \verb?1.0?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nuandersen?    & (DBLE)         &  characteristic frequency in andersen thermostat                                    & \verb?NULL? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?tauberendsen?  & (DBLE)         &  characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt ) & \verb?dt? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?Qnosehoover?   & (DBLE)         &  Q parameter in Nose-Hoover two chains                                              & \verb?NULL? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         CONFIGTAG
@@ -275,36 +389,68 @@ Where : \verb?SUBROUTINE md_init? in \verb?md.f90?
 \subsubsection{\&configtag}
 
 Where : \verb?SUBROUTINE config_init? in \verb?config.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?system? & (CHARACTER) & \\
-\\
-\verb?rho? & (DBLE)  & \\
-\\
-\verb?box? & (DBLE)  & \\
-\\
-\verb?ntype? & (INTEGER)  & \\
-\\
-\verb?natm? & (INTEGER) & \\
-\\
-\verb?struct? & (CHARACTER) & \\
-\\
-\verb?lfcc? & (LOGICAL) & \\
-\\
-\verb?lsc? & (LOGICAL) & \\
-\\
-\verb?lbcc? & (LOGICAL) & \\
-\\
-\verb?ncell? & (INTEGER) & \\
-\\
-\verb?xna? & (DBLE) & \\
-\\
-\verb?xnb? & (DBLE) & \\
-\\
-\verb?lgenconf? & (LOGICAL) & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lgenconf?  & (LOGICAL)          & \newline if \verb?.TRUE.? generate the configuration \newline
+
+                                      if \verb?.FALSE.? read configuration from file \newline
+
+				      POSFF if \verb?calc='md'? \newline
+
+				      TRAJFF if \verb?calc='opt'?or \verb?'efg'? \newline
+
+				      ISCFF if \verb?calc='vib'?  \newline                                                  & \verb?.TRUE.? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lfcc?      & (LOGICAL)         & for \verb?lgenconf=.TRUE.?  generate face-centered cubic lattice                     & \verb?.TRUE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lsc?       & (LOGICAL)         & for \verb?lgenconf=.TRUE.?  generate simple cubic lattice (primitive)                & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lbcc?      & (LOGICAL)         & for \verb?lgenconf=.TRUE.?  generate body-centered cubic lattice                     & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?system?    & (CHARACTER)       & system name                                                                          & \verb?'UNKNOWN'? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?struct?    & (CHARACTER)       & \newline crystal structure for fcc (only make sense for \verb?ntype=2?) \newline
+           
+	                              \verb?'NaCl'? \newline
+				      
+				      \verb?'random'? \newline                                                              & \verb?'random'? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ntype?     & (INTEGER)         & number of types \verb?=1? or \verb?=2?                                               & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?natm?      & (INTEGER)         & total number of atoms                                                                & \verb?NULL? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncell?     & (INTEGER)         & number of cell in 1D (with \verb?lfcc?,\verb?lsc?,\verb?lbcc?)                       & \verb?4? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?xna?       & (DBLE)            & relative composition of atom of type A                                               & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?xnb?       & (DBLE)            & relative composition of atom of type B                                               & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?rho?       & (DBLE)            & density number ( if \verb?box=0.0? )                                                 & \verb?NULL? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?box?       & (DBLE)            & lattice parameter ( if \verb?rho=0.0? )                                              & \verb?NULL? \\
+\hline
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         FIELDTAG
@@ -313,50 +459,62 @@ Where : \verb?SUBROUTINE config_init? in \verb?config.f90?
 \subsubsection{\&fieldtag}
 
 Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?epsAA? &   (DBLE)  & \\
-\\
-\verb?epsAB? &   (DBLE)  & \\
-\\
-\verb?epsBB? &  (DBLE)  & \\
-\\
-\verb?sigmaAA? & (DBLE)  & \\
-\\
-\verb?sigmaAB? & (DBLE)  & \\
-\\
-\verb?sigmaBB? & (DBLE)  & \\
-\\
-\verb?qljAA? &  (DBLE)  & \\
-\\
-\verb?pljAA? &  (DBLE)  & \\
-\\
-\verb?qljAB? &  (DBLE)  & \\
-\\
-\verb?pljAB? &  (DBLE)  & \\
-\\
-\verb?qljBB? &  (DBLE)  & \\
-\\
-\verb?pljBB? &  (DBLE)  & \\
-\\
-\verb?mA?   &   (DBLE)  & \\
-\\
-\verb?mB?   &   (DBLE)  & \\
-\\
-\verb?qa?   &    (DBLE)  & \\
-\\
-\verb?qb?   &    (DBLE)  & \\
-\\
-\verb?ncelldirect? & (INTEGER)  & \\
-\\
-\verb?ncellewald?  &  (INTEGER)  & \\
-\\
-\verb?lKA?         &  (LOGICAL)  & \\
-\\
-\verb?alphaES?     &  (DBLE)  & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter          &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lKA?         &  (LOGICAL)         & use the Kob-Andersen model for BMLJ\ref{sec:KA}                                     & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ctrunc?      &  (CHARACTER)       & \newline truncation and shift of the potential \newline 
+
+                                         \verb?'linear'?: linear correction (potential discontinuity at $r=r_{cut}$) \newline 
+					 
+                   			 \verb?'quadratic'?: quadratic correction ( potential and force 
+					 discontinuity at $r=r_{cut}$) \newline                                               & \verb?'linear'? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncelldirect? &  (INTEGER)         & \newline number of neighboring cells in the direct summation 
+                                         (total number of cells $=ncelldirect^3$ \newline 
+
+                                          for \verb?lcoulomb=.TRUE.? and \verb?longrange='direct'?  \newline                  
+					  
+					  not efficient for coulombic interaction                                             & \verb?2? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncellewald?  &  (INTEGER)         & \newline number of kpoints in the reciprocal contribution of the Ewald summation
+                                         (total number of cells $=ncellewald^3$ \newline                                      
+					 
+					 for \verb?lcoulomb=.TRUE.? and \verb?longrange='ewald'?  \newline                   & \verb?10? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?alphaES?     &  (DBLE)            & Ewald screening parameter                                                          & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?epsXY?       &  (DBLE)            & depth of the potential well of the Lennard jones potential. XY = AA, BB or AB      & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?sigmaXY?     &  (DBLE)            & finite distance at which the inter-particle potential is zero. XY = AA, BB or AB   & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?qljXY?       &  (DBLE)            & exponent of the repulsive part. XY = AA, BB or AB                                  & \verb?12? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?pljXY?       &  (DBLE)            & exponent of the attratcive part. XY = AA, BB or AB                                 & \verb?6? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?mX?          &  (DBLE)            & mass of the particule. X= A or B (not used)                                        & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?qX?          &  (DBLE)            & charge of the particule. X= A or B                                                 & \verb?qA = 1.0?\newline\verb?qB =-1.0?\\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         PROPTAG
@@ -364,26 +522,40 @@ Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
 \subsubsection{\&proptag}
 
 Where : \verb?SUBROUTINE prop_init? in \verb?prop.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?nprop_start? & (INTEGER)  & \\
-\\
-\verb?nprop?       & (INTEGER)  & \\
-\\
-\verb?nprop_print? & (INTEGER)  & \\
-\\
-\verb?lefg?        & (LOGICAL)  & \\
-\\
-\verb?lgr?         & (LOGICAL)  & \\
-\\
-\verb?lstrfac?     & (LOGICAL)  & \\
-\\
-\verb?lmsd?        & (LOGICAL)  & \\
-\\
-\verb?lvacf?       & (LOGICAL)  & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter          &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lefg?        & (LOGICAL)          & calculate electric field gradient on the fly during the md                          & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lgr?         & (LOGICAL)          & calculate radial distribution function on the fly during the md                     & \verb?.FALSE? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lstrfac?     & (LOGICAL)          & calculate static structural factor on the fly during the md                         & \verb?.FALSE? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lmsd?        & (LOGICAL)          & calculate mean square displacment on the fly during the md                          & \verb?.FALSE? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lvacf?       & (LOGICAL)          & calculate velocity autocorrelation function on the fly during the md                & \verb?.FALSE? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nprop_start? & (INTEGER)          & calculate properties from step \verb?nprop_start?                                   & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nprop?       & (INTEGER)          & calculate properties each \verb?nprop? step ( for lgr and efg not sure anymore)     & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nprop_print? & (INTEGER)          & print properties each \verb?nprop_print?                                            & \verb?nprop? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         OPTTAG
@@ -391,21 +563,37 @@ Where : \verb?SUBROUTINE prop_init? in \verb?prop.f90?
 \subsubsection{\&opttag}
 
 Where : \verb?SUBROUTINE opt_init? in \verb?opt.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?ncopt?     & (INTEGER) & \\
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?optalgo?   & (CHARACTER)        & \newline choose unconstrained optimization algorithm \newline 
 
-\\
-\verb?nskipopt?  & (INTEGER) & \\
+                                        \verb?'sastry'? : Linear minimisation via cubic extrapolation of potential 
+					Original author S. Sastry JNCASR \newline
 
-\\
-\verb?nmaxopt?   & (INTEGER) & \\
-
-\\
-\verb?optalgo?   & (CHARACTER) & \\
-\\
-\end{tabular}
+					\verb?'lbfgs'? : Limited memory BFGS method for large scale optimisation
+					Author: J. Nocedal~\addref  \newline 
+					 
+					\verb?'m1qn3'? : M1QN3, Version 3.3, October 2009
+					Authors: Jean Charles Gilbert, Claude Lemarechal, INRIA.~\addref \newline            & \verb?step? \tabularnewline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncopt?     & (INTEGER)          & number of configurations in TRAJFF                                                   & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nskipopt?  & (INTEGER)          & number of configurations skipped in the beginning                                    & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nmaxopt?   & (INTEGER)          & number of configurations to be optimize                                              & \verb?1? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         VIBTAG
@@ -413,28 +601,43 @@ Where : \verb?SUBROUTINE opt_init? in \verb?opt.f90?
 \subsubsection{\&vibtag}
 
 Where : \verb?SUBROUTINE vib_init? in \verb?vib.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?ncvib?  & (INTEGER) & \\
-\\
-\verb?ngconf? & (INTEGER)  & \\
-\\
-\verb?lwrite_vectff? & (LOGICAL)  & \\
-\\
-\verb?imod? & (INTEGER)  & \\
-\\
-\verb?nkphon? & & \\
-\\
-\verb?resdos? & (DBLE) & \\
-\\
-\verb?omegamax? & (DBLE) & \\
-\\
-\verb?ksx,ksy,ksz? & & \\
-\\
-\verb?kfx,kfy,kfz? & & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter            &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lwrite_vectff? & (LOGICAL)          & write the vector field (i.e eigenvectors) in VECTFF file                            & \verb?.FALSE.?  \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncvib?         & (INTEGER)          & number of configurations in ISCFF to be analysed                                    & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ngconf?        & (INTEGER)          & number of configurations generated with \verb?calc='vib+gmod'?                      & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?imod?          & (INTEGER)          & if \verb?calc='vib+gmod'? generate the mode \verb?imod?                             & \verb?4? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nkphon?        & (INTEGER)          & number of kpoint between ks and kf used when calc = 'vib+band'                      & \verb?NULL? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?resdos?       & (DBLE)              & resolution in vibrational density of states distribution                            & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?omegamax?     & (DBLE)              & maximum value in dos                                                                & \verb?100.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ksx,ksy,ksz?  & (DBLE)              & first kpoint & \verb?NULL? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?kfx,kfy,kfz?  & (DBLE)              & last kpoint  & \verb?NULL? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         EFGTAG
@@ -443,34 +646,64 @@ Where : \verb?SUBROUTINE vib_init? in \verb?vib.f90?
 \subsubsection{\&efgtag}
 
 Where : \verb?SUBROUTINE efg_init? in \verb?efg.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?lefgprintall? & (LOGICAL) & \\
-\\
-\verb?ncelldirect?  & (INTEGER) & \\
-\\
-\verb?ncefg?        & (INTEGER) & \\
-\\
-\verb?ncellewald?   & (INTEGER) & \\
-\\
-\verb?cutefg?  & (DBLE) & \\
-\\
-\verb?alphaES? & (DBLE) & \\
-\\
-\verb?resvzz?  & (DBLE) & \\
-\\
-\verb?reseta?  & (DBLE) & \\
-\\
-\verb?resu?    & (DBLE) & \\
-\\
-\verb?vzzmin?  & (DBLE) & \\ 
-\\
-\verb?umin?    & (DBLE) & \\
-\\
-\verb?ntcor? & & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter              &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lefgprintall?    & (LOGICAL)          &  whether or not we want to print all the efg for each atoms and 
+                                               configurations in file EFGALL                                                      & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lefg_it_contrib? & (LOGICAL)          & if one wants to get the contribution to EFG separated in types 
+                                              (only \verb?'direct'? and test purpose)                                             & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncefg?           & (INTEGER)          & number of configurations read in TRAJFF for EFG calculation ( \verb?calc='efg'? )    & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ntcor?           & (INTEGER)          & maximum number of steps for the efg auto-correlation function( \verb?calc='efg+acf'?)& \verb?10? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncellewald?      & (INTEGER)          & \newline number of kpoints in the reciprocal contribution of the Ewald summation
+                                              (total number of cells $=ncellewald^3$ \newline
+					 
+                                              for \verb?longrange='ewald'?  \newline                                               & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ncelldirect?     & (INTEGER)          & \newline number of neighboring cells in the direct summation
+                                              (total number of cells $=ncelldirect^3$ \newline
+					 
+                                              for \verb?longrange='direct'?  only \newline                                         & \verb?0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?cutefg?          & (DBLE)             & cut-off distance for efg calculation in for direct summation 
+                                              (\verb?longrange='direct'?) & \verb?30.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?alphaES?         & (DBLE)             & Ewald sum screening parameter                                                        & \verb?1.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?resvzz?          & (DBLE)             & resolution in vzz distribution                                                       & \verb?0.1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?reseta?          & (DBLE)             & resolution in eta distribution                                                       & \verb?0.1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?resu?            & (DBLE)             & resolution in Ui ditribution                                                         & \verb?0.1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?vzzmin?          & (DBLE)             & minimum value of vzz distribution which is then between [vzzmin, -vzzmin]            & \verb?-4.0? \\ 
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?umin?            & (DBLE)             & minimum value of umin distribution which is then between [umin, -umin]               & \verb?-4.0? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         MSDTAG
@@ -479,16 +712,26 @@ Where : \verb?SUBROUTINE efg_init? in \verb?efg.f90?
 \subsubsection{\&msdtag}
 
 Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
+BE CAREFUL !!!
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?tdifmax? & (DBLE) & \\
-\\
-\verb?nblock? & (DBLE) & \\
-\\
-\verb?ibmax? & (DBLE) & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nblock?    & (INTEGER)          & ???????? I forgot ;)                                                                & \verb?10? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ibmax?     &  (INTEGER)         & ???????? I forgot ;)                                                                & \verb?20? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?tdifmax?   & (DBLE)             & ???????? I forgot ;)                                                                & \verb?100.0? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         GRTAG
@@ -497,12 +740,19 @@ Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
 \subsubsection{\&grtag}
 
 Where : \verb?SUBROUTINE control_init? in \verb?radial_distribution.f90?
+\newline
 
-\begin{tabular}{lcc}
-\\
-\verb?resg? & (DBLE) & resolution in the radial distribution function \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?resg?      & (DBLE)             & resolution in the radial distribution function                                      & \verb?? \\
+\hline
+\hline
+\end{longtable}
 
 %###################################################################################################"
 %                                         VACFTAG
@@ -510,101 +760,29 @@ Where : \verb?SUBROUTINE control_init? in \verb?radial_distribution.f90?
 \subsubsection{\&vacftag}
 
 Where : \verb?SUBROUTINE vacf_init? in \verb?vacf.f90?
+BE CAREFUL
+\newline
 
-
-\begin{tabular}{lcc}
-\\
-\verb?tdifmax?  & (DBLE) & \\ 
-\\
-\verb?it0? & (DBLE) & \\
-\\
-\end{tabular}
+\begin{longtable}{l|c|m{8cm}|m{2cm}}
+\hline
+\hline
+Parameter        &  Type              &          Short Description                                                          & Default value \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?it0?       & (INTEGER)          & ???????? I forgot ;)                                                                & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?tdifmax?   & (DBLE)             & ???????? I forgot ;)                                                                & \verb?100.0? \\ 
+\hline
+\hline
+\end{longtable}
 
 
 %###################################################################################################"
 %                                         OUTFILE DESCRIPTION
 %###################################################################################################"
-\subsection{Output files: description}
-
-
-\section{Commands}
-
-%DESCRIPTION:                                                 
-% 
-%  name   type   descritpion    default
-%   TAG    (r)    something     (1.0D0 or ???)  
-%                                                               
-%  routine:
-%  read control parameters in input files:
-% 
-%     CALCULATION:
-% 
-%        lstatic                 (l) static calculation -- only the potential energy of the input configuration  (.false.)
-%        lnopbc                  (l) no periodic boundaries condition (.false.)
-%        lbmlj                   (l) Binary Lennard-Jones calculation ( or simple LJ if  ntype=1) (.true.) 
-%        calc                    (c) 'nve-vv', 'nve-lf', nve-and 'nvt'nh' or 'nvt-nhc2'    ('nve-vv')
-% 
-%                                         'nve-vv'     NVE ensemble verlet list algorithm  
-%                                         'nve-lf'     NVE ensemble leap-frog algorithm    no thermostat
-%                                         'nvt-and'    NVT+NVE Andersen thermostat 
-%                                                       
-%                                                      nuandersen    (r)  frequency of stochastic collision in the Andersen thermostat
-%                                                                         probability of collision nuandersen*dt (???)
-% 
-%                                         'nvt-nh'     NVT ensemble Nove-Hoover thermostat 
-%                                         'nvt-nhc2'   NVT ensemble Nose-Hoover chain two 2  
-%  
-%                                                      Qnosehoover  (r) nh mass parameter  (???)
-% 
-% 
-%         (keys)                (i) like dl_poly 0, 1 or 2 ( pos, vel, force)
-%        keyconfig              (i) pos input (??? WARN)
-% 
-%     MD:
-% 
-%        npas                   (i) number of time step (28)
-%        dt                     (r) time step (???)            
-%        temp                   (r) temperature  (???)
-%        nequil                 (i) number of equilibration step (???)
-%                                         berendsen : if tauberendsen= dt -> simple scaling 
-%                                         scaling = ( 1 + (dt/tauberendsen)* ( temp/tempi -1)   ) ** 0.5
-%        nequil_period          (i) rescaling period for the berendsen thermostat
-%        cutoff                 (r) cutoff for the small range inter. (less than half the box WARNING)   
-%        skindiff               (r) skindiff control verlet list update
-%        largon                 (l) use argon parametrization (.false.)
-%        
-%       
-%     CONFIG:
-% 
-%        natm                   (i) number of atom (???)
-%        ntype                  (i) number of type if bmlj ntype is 1 or 2 ###### >2  (1)  
-%        rho                    (r) density i'm not planning to simulate other cell than cubic cells ###### mass (???)
-%        lfcc                   (l) start or not from fcc cell (.true.)
-%        ncell                  (i) number of cell in that case natm = 4*(ncell)**3
-% 
-% 
-%     TOOLS:
-% 
-%        lnovnlist             (l) do not use verlet list (.false.)
-%        degauss               (c) 'boxmuller_basic', 'boxmuller_polar' or 'knuth'  (I said for fun aaaouh) (boxmuller_basic )
-%                                   there are basically the same ( Is depending on the random number generator ??)
-% 
-%     OUTPUT:
-%        
-%        ltraj                 (l) save trajectory (.false.)
-%        itraj_start           (i) in which step trajectory start to be saved (1)          
-%        itraj_period          (i) save trajectory period (10000)
-%        nprint                (i) print thermo information period to standard output(10)
-%        fprint                (i) print thermo information period to OSZIFF file (10)
-%        verbosity             (i) ###### well i don't know yet 
-%        spas                  (i) ###### save configuration each spas: to have some backup for long run (1000)
-%        nmax                  (i) ###### minimization sastry 
-
-
-\section{Theory}
-\cite{B-ALLEN_TILDESLEY}
-
-%\section*{Acknowledgements} 
+\section{Output files description}
 
 \bibliography{mdff}
 \bibliographystyle{amsplain}
