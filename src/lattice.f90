@@ -51,6 +51,21 @@ SUBROUTINE periodicbc ( natm , rx , ry , rz , box )
   return
 
 END SUBROUTINE periodicbc
+SUBROUTINE periodicbc_ia ( rxx , ryy , rzz , box )
+
+   implicit none
+
+  ! global
+  double precision :: box
+  double precision :: rxx , ryy , rzz
+
+  rxx = rxx - nint( rxx / box ) * box
+  ryy = ryy - nint( ryy / box ) * box
+  rzz = rzz - nint( rzz / box ) * box
+
+  return
+
+END SUBROUTINE periodicbc_ia
 
 ! The folloowing subroutines: init-fcc, init-sc and init-bcc should be merged in a more efficient way !
 ! TODO test LJ crystal and compare to litterature data

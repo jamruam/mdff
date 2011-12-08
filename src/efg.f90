@@ -1,3 +1,6 @@
+! ===== fmV =====
+! ====================================================================================
+!
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -15,8 +18,16 @@
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-! ===== fmV =====
+! ====================================================================================
+
+! HARDWARE
 !#define debug
+
+!test purpose
+!#define fix_grid
+
+
+! ====================================================================================
 MODULE efg 
 
   USE kspace
@@ -25,9 +36,12 @@ MODULE efg
   implicit none
 
   logical :: lefgprintall                                               ! whether or not we want to print all the efg for each atoms and configurations in file EFGALL
-  logical :: lefg_it_contrib                                             ! if ones want to get the contributions to EFG separated in types
+  logical :: lefg_it_contrib                                            ! if ones want to get the contributions to EFG separated in types
   integer :: ncefg                                                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
   integer :: ntcor                                                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
+
+
+  double precision, dimension ( : , : ) , allocatable :: rgrid
 
   ! ===================
   !  direct summation
@@ -381,6 +395,8 @@ SUBROUTINE efg_alloc
       dibetatot_it = 0
     endif
 
+   allocate ( rgrid ( 3 , natm ) )
+
   ! ============
   !  direct sum
   ! ============
@@ -430,6 +446,7 @@ SUBROUTINE efg_dealloc
   deallocate( dibUtot )
   deallocate( dibvzztot )
   deallocate( dibetatot )
+  deallocate ( rgrid )
   if (lefg_it_contrib) then
     deallocate( dibvzztot_it )
     deallocate( dibetatot_it )
@@ -463,7 +480,8 @@ END SUBROUTINE efg_dealloc
 
 SUBROUTINE efgcalc 
 
-  USE io_file,  ONLY :  ionode , stdout , kunit_TRAJFF, kunit_EFGFF, kunit_EFGALL, kunit_OUTFF , kunit_EFGALLIT1 , kunit_EFGALLIT2 , kunit_EFGFFIT
+  USE io_file,  ONLY :  ionode , stdout , kunit_TRAJFF, kunit_EFGFF, kunit_EFGALL, kunit_OUTFF , kunit_tmp , kunit_EFGALLIT1 , kunit_EFGALLIT2 , kunit_EFGFFIT
+
   USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , atypei , natmi, rho , box , omega , config_alloc , qia , qit
   USE control,  ONLY :  longrange , myrank , numprocs
   USE field,    ONLY :  qa , qb, field_init
@@ -472,13 +490,14 @@ SUBROUTINE efgcalc
 
   ! local
   integer :: iastart , iaend
-  integer :: i, ia, iconf , na
+  integer :: i, ia, iconf , na , it
   double precision :: aaaa 
   integer :: iiii
   character * 60 :: cccc 
+  double precision, dimension ( : , : ) , allocatable :: rave !average positions
 
 
-  OPEN (UNIT = kunit_TRAJFF,FILE = 'TRAJFF')
+  OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
 
   READ ( kunit_TRAJFF, * )  natm 
   READ ( kunit_TRAJFF, * )  system
@@ -510,6 +529,15 @@ SUBROUTINE efgcalc
   endif
   qit(1)=qa
   qit(2)=qb
+
+
+#ifndef fix_grid
+    WRITE(stdout,'(a)') 'not fix_grid' 
+! =============================================
+!  not fix_grid: we calculate efg at 
+!  each atom positions which are moving.
+! =============================================
+
   ! ============================================
   ! LOOP OVER CONFIGURATIONS 
   ! ============================================
@@ -573,6 +601,163 @@ SUBROUTINE efgcalc
     CLOSE(kunit_EFGALLIT2)
     CLOSE(kunit_EFGFFIT)
   endif
+
+#else
+  WRITE(stdout,'(a)') 'fix_grid used' 
+
+  allocate ( rave ( 3 , natm ) )
+  rave = 0.0D0
+! =================================================
+!  fix_grid: we calculate efg at fixed positions
+!  which are the average positions of the dynamic
+! =================================================
+
+! =================================================
+!  so first we calculate the average configuration
+! =================================================
+do iconf = 1, ncefg
+    na = 0
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa , iiii
+    do i = 1,natm
+      READ ( kunit_TRAJFF, * ) atype(i),rx(i),ry(i),rz(i)
+      if(atype(i) .eq. 'A') na = na + 1
+      if(atype(i) .eq. 'A') itype(i)=1
+      if(atype(i) .eq. 'B') itype(i)=2
+      if( iconf .eq. 1) then
+        rave(1,i) = rave(1,i) + rx(i) 
+        rave(2,i) = rave(2,i) + ry(i) 
+        rave(3,i) = rave(3,i) + rz(i) 
+      else
+        if ( rave(1,i) .gt. 0 ) rave(1,i) = rave(1,i) + abs(rx(i))
+        if ( rave(2,i) .gt. 0 ) rave(2,i) = rave(2,i) + abs(ry(i))
+        if ( rave(3,i) .gt. 0 ) rave(3,i) = rave(3,i) + abs(rz(i))
+        if ( rave(1,i) .lt. 0 ) rave(1,i) = rave(1,i) - abs(rx(i))
+        if ( rave(2,i) .lt. 0 ) rave(2,i) = rave(2,i) - abs(ry(i))
+        if ( rave(3,i) .lt. 0 ) rave(3,i) = rave(3,i) - abs(rz(i))
+      endif
+    enddo
+enddo ! ifconf
+
+    rave(1,:) = rave(1,:) / dble ( ncefg )
+    rave(2,:) = rave(2,:) / dble ( ncefg )
+    rave(3,:) = rave(3,:) / dble ( ncefg )
+
+    rgrid = rave
+
+  if ( ntype .eq. 1 ) then
+    natmi(0) = natm
+    natmi(1) = na
+    atypei(0)= 'ALL'
+    atypei(1)= 'A'
+    do ia = 1 , natm
+      qia(ia) = qit(1)
+    enddo
+  endif
+
+  if ( ntype .eq.  2 ) then
+    natmi(0)  = natm
+    natmi(1)  = na
+    natmi(2)  = natm-na
+    atypei(0) = 'ALL'
+    atypei(1) = 'A'
+    atypei(2) = 'B'
+    do ia = 1 , natm
+      if( itype(ia) .eq. 1 ) then
+        qia(ia) = qit(1)
+      endif
+      if( itype(ia) .eq. 2 ) then
+        qia(ia) = qit(2)
+      endif
+    enddo
+  endif
+
+  ! write average configuration
+  if ( ionode ) then
+  OPEN ( kunit_tmp ,file = 'CAVERFF',STATUS = 'UNKNOWN')
+      WRITE ( kunit_tmp,'(a)') system
+      WRITE ( kunit_tmp,'(f20.12,i4)') box,ntype
+      WRITE ( kunit_tmp,*) ( atypei(it) , it=1,ntype )
+      WRITE ( kunit_tmp,*) ( natmi (it) , it=1,ntype )
+      WRITE ( kunit_tmp,'(3f20.12)') ( rave ( 1, ia ) , rave ( 2 , ia ) , rave ( 3 , ia ) , ia = 1 , natm )
+  CLOSE (kunit_tmp )
+  endif
+  deallocate ( rave ) 
+
+  CLOSE ( kunit_TRAJFF )
+
+! we read the configuration again 
+
+ OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
+
+  READ ( kunit_TRAJFF, * )  natm
+  READ ( kunit_TRAJFF, * )  system
+  READ ( kunit_TRAJFF, * )  box,ntype
+
+  ! ============================================
+  ! LOOP OVER CONFIGURATIONS 
+  ! ============================================
+  do iconf = 1, ncefg
+    print*,iconf 
+    na = 0
+    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
+    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
+    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii
+    do i = 1,natm
+      READ ( kunit_TRAJFF, * ) atype(i),rx(i),ry(i),rz(i)
+      if(atype(i) .eq. 'A') na = na + 1
+      if(atype(i) .eq. 'A') itype(i)=1
+      if(atype(i) .eq. 'B') itype(i)=2
+    enddo
+
+  if ( ntype .eq.  1 ) then
+    natmi(0)=natm
+    natmi(1)=na
+    atypei(0)='ALL'
+    atypei(1)='A'
+    do ia = 1 , natm
+      qia(ia) = qit(1)
+    enddo
+  endif
+
+  if ( ntype .eq.  2 ) then
+    natmi(0)=natm
+    natmi(1)=na
+    natmi(2)=natm-na
+    atypei(0)='ALL'
+    atypei(1)='A'
+    atypei(2)='B'
+    do ia = 1 , natm
+      if(itype(ia) .eq. 1) then
+        qia(ia) = qit(1)
+      endif
+      if(itype(ia) .eq. 2) then
+        qia(ia) = qit(2)
+      endif
+    enddo
+  endif
+
+  ! ===============
+  ! use direct sum
+  ! ===============
+  if ( longrange .eq. 'direct' )  CALL efg_DS( iconf , iconf , iastart , iaend )
+  ! ===============
+  ! use ewald sum
+  ! ===============
+  if ( longrange .eq. 'ewald' )   CALL efg_ES( iconf , iconf )
+enddo
+
+  ! write average distribution output 
+  CALL efg_write_output( ncefg )
+
+  CLOSE(kunit_EFGALL)
+  CLOSE(kunit_EFGFF)
+  CLOSE ( kunit_TRAJFF )
+
+#endif
+
+
 
   return
 
@@ -1503,6 +1688,15 @@ SUBROUTINE efg_ES ( itime , nefg )
      rxi = rx(ia)
      ryi = ry(ia)
      rzi = rz(ia)
+!fix grid added 4-12-11
+#ifdef fix_grid
+     rxi = rgrid(1,ia)
+     ryi = rgrid(2,ia)
+     rzi = rgrid(3,ia) 
+#endif
+!fix grid
+
+
      do ja = 1, natm
 
        if(ja .ne. ia ) then
@@ -1563,6 +1757,13 @@ SUBROUTINE efg_ES ( itime , nefg )
     rxi = rx(ia)
     ryi = ry(ia)
     rzi = rz(ia)
+!fix grid added 4-12-11
+#ifdef fix_grid
+     rxi = rgrid(1,ia)
+     ryi = rgrid(2,ia)
+     rzi = rgrid(3,ia) 
+#endif
+!fix grid
     kpoint : do ik = 1, km_efg%nkcut 
       ! =================
       !   k-space  

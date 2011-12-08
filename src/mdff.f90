@@ -1,3 +1,6 @@
+! ===== fmV =====
+! ======================================================================================
+!
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -15,10 +18,8 @@
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-!#define MULTRUN
-!#define block
+! ======================================================================================
 
-! ===== fmV =====
 ! ===============================================================
 ! *      PARALLEL MOLECULAR DYNAMICS ...for fun                 *
 ! *      Version: 0.2.1 BMLJ  (q-p) LJ potential                *
@@ -46,7 +47,7 @@
 !
 ! * allocate local arrays
 ! * let some space in the operation at least ( var = var *...)
-!  -> better to follow when using grep or any script
+!  -> better to follow when using grep or any other script
 !
 ! ===============================================================
 !
@@ -79,6 +80,11 @@
 ! timing information at the end
 ! ===============================================================
 
+! HARDWARE      
+
+!add some comments !!!!!!!!
+!#define MULTRUN
+!#define block
 PROGRAM main_MDFF
 
   USE constants

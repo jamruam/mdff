@@ -1,3 +1,6 @@
+! ===== fmV =====
+! ===================================================================================
+!
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -15,14 +18,21 @@
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+! ===================================================================================
+
+! HARDWARE 
+
 !for debugging purpose
 !#define debug
 
 ! calculate the stress tensor at each time step
 !#define stress_t 
 
-!calculates efg at each time step
+! calculates efg at each time step
 !#define efg_t
+
+! calculates center of mass at each time step
+#define com_t
 
 !===============================
 !  experimental dev
@@ -33,6 +43,7 @@
 
 !multi_tau correlation
 !#define multi_tau
+
 !===============================
 
 !*********************** SUBROUTINE md_run **********************************
@@ -59,7 +70,7 @@
 SUBROUTINE md_run ( iastart , iaend , list , point , offset )
 
 
-  USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , write_CONTFF , box
+  USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , write_CONTFF , box , center_of_mass , ntypemax
   USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb
   USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
   USE prop,     ONLY :  lstrfac , lgr , lefg , lmsd , lvacf , nprop , nprop_start
@@ -87,9 +98,17 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   double precision :: ttt1, ttt2 
   double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
   integer :: itime, i ,ierr
-  integer :: nefg , ngr , nmsd , ntau
+  integer :: nefg , ngr , nmsd , ntau 
+  double precision :: com(0:ntypemax,3) !center of mass
   character*60 :: rescale_allowed(3)
   data rescale_allowed / 'nve-vv' , 'nve-be' , 'nve-vv_test' /
+ ! tmp 
+  double precision :: ddtt , sumcom1 , sumcom2, sumcom1sq , sumcom2sq 
+  double precision :: mcom1 , mcom2 , msqcom1 , msqcom2, scom1 , scom2 , modcom1 , modcom2      
+  integer :: comcount
+
+  comcount = 0
+  ddtt=0.0d0;sumcom1sq=0.0d0;sumcom2sq=0.0d0;sumcom1=0.0d0;sumcom2=0.0d0
 
   ! =========================================
   ! properties counter where is vacf ??? 
@@ -281,6 +300,36 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
   if ( lcoulomb ) CALL stress_coul 
 #endif
+       
+#ifdef com_t
+     if ( mod( itime , nprint ) .eq. 0 ) then
+        comcount = comcount + 1 
+       CALL center_of_mass ( rx , ry , rz , com )
+       write(*,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
+       write(*,'(a3,i10,3e18.6)') 'A  ',itime , com(1,:)
+       write(*,'(a3,i10,3e18.6)') 'B  ',itime , com(2,:)
+       modcom1=com(1,1)*com(1,1)+com(1,2)*com(1,2)+com(1,3)*com(1,3) 
+       modcom2=com(2,1)*com(2,1)+com(2,2)*com(2,2)+com(2,3)*com(2,3) 
+       ! sum 
+       sumcom1   = sumcom1 + dsqrt(modcom1)
+       sumcom2   = sumcom2 + dsqrt(modcom2)
+       ! sum od square
+       sumcom1sq = sumcom1sq + modcom1
+       sumcom2sq = sumcom2sq + modcom2
+       ! counting  
+       ddtt      =1.0D0/dble(comcount)
+       ! average
+       mcom1     = sumcom1*ddtt
+       mcom2     = sumcom2*ddtt 
+       ! average of square 
+       msqcom1   = sumcom1sq*ddtt 
+       msqcom2   = sumcom2sq*ddtt 
+       !fluctu
+       scom1     = msqcom1 - mcom1*mcom1
+       scom2     = msqcom2 - mcom2*mcom2
+       write(*,'(a3,i10,4e18.6)') 'MOY',itime,mcom1,mcom2,scom1,scom2
+    endif
+#endif
          ! =======================
          !  properties on-the-fly
          ! =======================
@@ -431,5 +480,4 @@ MAIN:  do itime = offset , npas + (offset-1)
   return 
 
 END SUBROUTINE md_run
-
 ! ===== fmV =====

@@ -18,7 +18,7 @@
 ! ===== fmV =====
 !*********************** MODULE CONF ******************************************
 !
-! This module should deal with everything related to the actual configuration
+! This module should deal with everything related to the current configuration
 ! positions, velocities, forces, density , box .... 
 !
 !******************************************************************************
@@ -541,7 +541,7 @@ SUBROUTINE read_pos
   implicit none
 
   ! local
-  integer :: i , it , ia,na
+  integer :: i , it , ia 
 
   IF ( ionode ) then
     WRITE ( kunit_OUTFF ,'(a)')       '=============================================================' 
@@ -598,6 +598,7 @@ SUBROUTINE read_pos
   natmi(0)=natm
 
 
+
   return
 
 END SUBROUTINE read_pos
@@ -624,7 +625,7 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  CALL  periodicbc ( natm , xxx , yyy , zzz , box )
+  !CALL  periodicbc ( natm , xxx , yyy , zzz , box )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -747,21 +748,28 @@ SUBROUTINE center_of_mass ( ax , ay , az , com )
 
   ! global
   double precision :: ax ( natm ) , ay ( natm ) , az ( natm )
-  double precision :: com ( 3 )
+  double precision :: com ( 0:ntypemax , 3 )
 
   ! local
-  integer :: i
+  integer :: i , it 
 
+  com = 0.0D0
 
   do i = 1, natm
-    com ( 1 ) = com ( 1 )  + ax ( i ) ! * m 
-    com ( 2 ) = com ( 2 )  + ay ( i ) ! * m
-    com ( 3 ) = com ( 3 )  + az ( i ) ! * m 
+    it=itype(i)    
+    com ( it, 1 ) = com ( it, 1 )  + ax ( i ) ! * m 
+    com ( it, 2 ) = com ( it, 2 )  + ay ( i ) ! * m
+    com ( it, 3 ) = com ( it, 3 )  + az ( i ) ! * m 
+    com ( 0, 1 ) = com ( 0, 1 )  + ax ( i ) ! * m 
+    com ( 0, 2 ) = com ( 0, 2 )  + ay ( i ) ! * m
+    com ( 0, 3 ) = com ( 0, 3 )  + az ( i ) ! * m 
   enddo
 
-  com ( 1 )  = com ( 1 ) / dble(natm)
-  com ( 2 )  = com ( 2 ) / dble(natm)
-  com ( 3 )  = com ( 3 ) / dble(natm)
+  do it = 0 , ntype
+    com ( it , 1 )  = com ( it , 1 ) / dble( natmi(it) )
+    com ( it , 2 )  = com ( it , 2 ) / dble( natmi(it) )
+    com ( it , 3 )  = com ( it , 3 ) / dble( natmi(it) )
+  enddo
 
   return
 
@@ -840,15 +848,15 @@ END SUBROUTINE angular_momentum
 SUBROUTINE ions_reference_positions
 
   implicit none
-  double precision :: com ( 3 )
+  double precision :: com ( 0:ntypemax, 3 )
   integer  :: ia
 
   CALL center_of_mass ( rx , ry , rz , com )
 
   do ia = 1, natm
-    rix ( ia ) = rx ( ia ) - com ( 1 )
-    riy ( ia ) = ry ( ia ) - com ( 1 )
-    riz ( ia ) = rz ( ia ) - com ( 1 )
+    rix ( ia ) = rx ( ia ) - com ( 0 , 1 )
+    riy ( ia ) = ry ( ia ) - com ( 0 , 1 )
+    riz ( ia ) = rz ( ia ) - com ( 0 , 1 )
   enddo
 
   return 
@@ -876,7 +884,7 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
   double precision, intent(in) :: ax(:) , ay(:) , az(:)
 
   ! local
-  double precision :: rdist(3), r2, com(3)
+  double precision :: rdist(3), r2, com(0:ntypemax,3)
   INTEGER  :: it, ia, isa
 
  
@@ -892,9 +900,9 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
     r2      = 0.0d0
     do ia = 1 , natmi(it)
       isa = isa + 1
-      rdist ( 1 ) = rx (isa) - com ( 1 ) 
-      rdist ( 2 ) = ry (isa) - com ( 2 )
-      rdist ( 3 ) = rz (isa) - com ( 3 )
+      rdist ( 1 ) = rx (isa) - com ( 0 , 1 ) 
+      rdist ( 2 ) = ry (isa) - com ( 0 , 2 )
+      rdist ( 3 ) = rz (isa) - com ( 0 , 3 )
       r2 = r2 + ( rdist( 1 ) - rix(isa) )**2  + ( rdist( 2 ) - riy(isa) )**2 + ( rdist( 3 ) - riz(isa) )**2 
     enddo 
     dis(it) = dis(it) + r2 / DBLE(natmi(it))

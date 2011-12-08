@@ -24,7 +24,7 @@
 
 SUBROUTINE init_velocities
 
-  USE config,   ONLY :  vx , vy , vz , natm 
+  USE config,   ONLY :  vx , vy , vz , natm , ntypemax , center_of_mass
   USE md,       ONLY :  nequil , setvel , temp
   USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
   USE control,  ONLY :  lrestart
@@ -33,6 +33,7 @@ SUBROUTINE init_velocities
 
   ! local
   double precision :: T, ekin 
+  double precision :: com ( 0:ntypemax , 3 )
   integer :: key , ia
 
   ! =======================================
@@ -107,6 +108,11 @@ SUBROUTINE init_velocities
     endif
 
   endif
+
+  CALL center_of_mass( vx , vy , vz , com )
+  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity ALL',com(0,:)
+  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity A  ',com(1,:)
+  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity B  ',com(2,:)
 
   return
 
