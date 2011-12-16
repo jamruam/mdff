@@ -102,7 +102,7 @@ SUBROUTINE opt_default_tag
   ! ================
   nmaxopt      = 1 
   nskipopt     = 0 
-  optalgo      = 'step' 
+  optalgo      = 'sastry' 
   ncopt        = 0
 
   return 
