@@ -24,7 +24,7 @@
 ! *      PARALLEL MOLECULAR DYNAMICS ...for fun                 *
 ! *      Version: 0.2.1 BMLJ  (q-p) LJ potential                *
 ! *      filipe.manuel.vasconcelos@gmail.com                    *
-! *      Based on different code or books by:                   *
+! *      Based on different codes or books by:                  *
 ! *      F. Affouard University of Lille                        *
 ! *      S. Sastry   JNCASR                                     *
 ! *      D. Frenkel and B. Smit   (book)                        *
@@ -117,7 +117,6 @@ PROGRAM main_MDFF
 #endif
   character*60 :: vib_allowed(5)                     
   data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
-! tmp removed 
 
   ! ====================================================
   ! MPI initialisation
@@ -131,7 +130,9 @@ PROGRAM main_MDFF
   ! ====================================================      
   ! random number generator init
   ! ====================================================      
-  ! CALL init_random_seed   ! MD is too sensitive to the initial velocities
+  ! CALL init_random_seed   ! MD is too sensitive to the initial velocities 
+                            ! for test purpose keep it commented
+                            ! uncomment it if you want uncorrelated runs  
   ! ====================================================
   ! gives rank index (myrank) 
   ! ====================================================
@@ -211,6 +212,7 @@ PROGRAM main_MDFF
       if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc ( iastart , iaend , list , point )
       if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc   ( iastart , iaend , list , point )       
     endif  
+
     !IF MD
     MDLOOP: if( calc .eq. 'md') then
 
@@ -244,7 +246,7 @@ PROGRAM main_MDFF
 
     ! ==================================================
     ! OUTSIDE LOOP (not USE yet)
-    ! can be useful for some applications #version 0.2
+    ! can be useful for some applications
     ! temperature variations or any other parameter
     ! as only one parameters will variate with time
     ! try to find a condensate way to write it
@@ -294,7 +296,7 @@ PROGRAM main_MDFF
      
     ! ==============================================
     ! IF OPT :
-    ! optimisation of structure read in TRAJFF 
+    ! optimisation of structures read in TRAJFF 
     ! ==============================================
     if ( calc .eq. 'opt' ) then  
       CALL opt_init
@@ -302,7 +304,8 @@ PROGRAM main_MDFF
     endif
   
     ! ==============================================
-    ! IF VIB :
+    ! IF VIB : 
+    ! phonon related calculations
     ! ==============================================
     if ( any( calc .eq. vib_allowed ) ) then       
       CALL vib_init
@@ -317,6 +320,11 @@ PROGRAM main_MDFF
       CALL efg_init
       CALL efgcalc 
     endif
+    ! ==============================================
+    ! IF EFG+ACF : 
+    ! calculates EFG auto-correlation functions from 
+    ! data in EFGALL    
+    ! ==============================================
     if ( calc .eq. 'efg+acf') then
       CALL efg_init
       CALL efg_acf 
@@ -356,19 +364,22 @@ PROGRAM main_MDFF
     ! ==============================================
     CALL config_dealloc
 
+! test
 #ifdef block
     CALL block_
 #endif
 
+  else
   ! =======================
   !  only for test purpose
   ! =======================
-  else
 
     if ( ionode ) WRITE ( stdout ,'(a)') ' ############################# '
     if ( ionode ) WRITE ( stdout ,'(a)') ' ### TEST PART OF THE CODE ###'
     if ( ionode ) WRITE ( stdout ,'(a)') ' ############################# '
-
+    ! 
+    !    WRITE HERE YOUR CODE TO BE TESTED 
+    ! 
 
   endif
 

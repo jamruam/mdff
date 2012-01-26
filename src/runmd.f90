@@ -32,7 +32,7 @@
 !#define efg_t
 
 ! calculates center of mass at each time step
-#define com_t
+!#define com_t
 
 !===============================
 !  experimental dev
@@ -99,16 +99,18 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
   integer :: itime, i ,ierr
   integer :: nefg , ngr , nmsd , ntau 
-  double precision :: com(0:ntypemax,3) !center of mass
   character*60 :: rescale_allowed(3)
   data rescale_allowed / 'nve-vv' , 'nve-be' , 'nve-vv_test' /
  ! tmp 
+#ifdef com_t
+  double precision :: com(0:ntypemax,3) !center of mass
   double precision :: ddtt , sumcom1 , sumcom2, sumcom1sq , sumcom2sq 
   double precision :: mcom1 , mcom2 , msqcom1 , msqcom2, scom1 , scom2 , modcom1 , modcom2      
   integer :: comcount
 
   comcount = 0
   ddtt=0.0d0;sumcom1sq=0.0d0;sumcom2sq=0.0d0;sumcom1=0.0d0;sumcom2=0.0d0
+#endif
 
   ! =========================================
   ! properties counter where is vacf ??? 
@@ -303,7 +305,7 @@ MAIN:  do itime = offset , npas + (offset-1)
        
 #ifdef com_t
      if ( mod( itime , nprint ) .eq. 0 ) then
-        comcount = comcount + 1 
+       comcount = comcount + 1 
        CALL center_of_mass ( rx , ry , rz , com )
        write(*,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
        write(*,'(a3,i10,3e18.6)') 'A  ',itime , com(1,:)

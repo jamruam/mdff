@@ -658,6 +658,10 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   double precision :: u , vir 
   double precision, dimension(:), allocatable :: fx_sum , fy_sum , fz_sum
 
+#ifdef debug
+  print*,'atype',atype
+  print*,'itype',itype
+#endif
 
   forcetime1 = MPI_WTIME(ierr) ! timing info
   

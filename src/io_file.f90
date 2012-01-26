@@ -101,6 +101,7 @@ MODULE io_file
 
   ! VIB "complete" density of states
   integer, PARAMETER :: kunit_DOSKFF    = 180
+  integer, PARAMETER :: kunit_DKFF      = 181
 
   ! VIB fvibcalc output
   integer, PARAMETER :: kunit_VIBFF     = 190

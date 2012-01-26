@@ -193,10 +193,10 @@ END SUBROUTINE vib_print_info
 
 SUBROUTINE vib_main 
 
-  USE config,           ONLY :  system , natm , rx , ry , rz , fx , fy , fz , atype , box , omega , rho , ntype, config_alloc , list , point
+  USE config,           ONLY :  system , natm , rx , ry , rz , fx , fy , fz , atype , itype , box , omega , rho , ntype, config_alloc , list , point
   USE md,               ONLY :  temp
   USE control,          ONLY :  calc , myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , kunit_DOSFF , kunit_MODFF, kunit_OUTFF
+  USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , kunit_DOSFF , kunit_MODFF, kunit_OUTFF, kunit_DOSKFF , kunit_IBZKPTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE field
 
@@ -204,16 +204,19 @@ SUBROUTINE vib_main
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , ia , ja , im , ic , PANdos , ka 
+  integer :: i , j , ik, ia , ja , im , ic , PANdos , ka 
   double precision :: pressure0, pot0, ak
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   integer, dimension(:), allocatable :: dostab
   integer, dimension(:), allocatable :: dostabtot
+  integer, dimension(:,:), allocatable :: dostabk
+  integer, dimension(:,:), allocatable :: dostabktot
   double precision, dimension(:,:), allocatable :: hess
   double precision, dimension(:), allocatable :: work, deig, ipiv !,deig_reorder(3 * n)
   CHARACTER * 1 jobz, uplo
   INTEGER * 4   info, lwork
   integer :: iastart , iaend
+  double precision ,dimension (:,:), allocatable :: eigenk
 
   ! trash 
   double precision :: aaaa
@@ -224,12 +227,16 @@ SUBROUTINE vib_main
 
   allocate(dostabtot(0:PANdos + 1))
   allocate(dostab(0:PANdos + 1))
+  allocate(dostabktot(0:PANdos + 1,0:3))
+  allocate(dostabk(0:PANdos + 1,0:3))
+  dostabktot = 0
   dostabtot = 0
  
   OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF'  )
   OPEN ( UNIT = kunit_EIGFF , FILE = 'EIGFF'  )
   OPEN ( UNIT = kunit_VECTFF, FILE = 'VECTFF' )
   OPEN ( UNIT = kunit_DOSFF , FILE = 'DOSFF'  )
+  OPEN ( UNIT = kunit_DOSKFF, FILE = 'DOSKFF'  )
 
   if(calc.ne.'vib+band'.and.calc.ne.'vib+dos') then 
   if ( ionode ) WRITE ( kunit_VECTFF ,'(a)') '       #rx               ry             dx              dy              rx              rz              dx             dz              ry              rz              dy             dz           eigenvalue'   
@@ -249,18 +256,19 @@ SUBROUTINE vib_main
   ! ================================== 
   CALL config_alloc 
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+  CALL field_init
   allocate(fx_sum(natm),fy_sum(natm),fz_sum(natm))
   allocate(hess(3 * natm,3 * natm))
   allocate(work(9 * natm))
   allocate(deig(3 * natm),ipiv(3 * natm))
-  WRITE ( stdout ,'(a)')         'Remind some parameters of the system:'
-  WRITE ( stdout ,'(a,i5)')      'natm  = ',natm
-  WRITE ( stdout ,'(a,i5)')      'ntype = ',ntype
-  WRITE ( stdout ,'(a,f6.3)')    'rho   = ',rho
-  WRITE ( stdout ,'(a,f6.3)')    'box   = ',box
-  WRITE ( stdout ,'(a,f6.3)')    'vol   = ',omega
-  WRITE ( stdout ,'(a)')         ''
-  WRITE ( stdout ,'(a,i5,a,i5)') 'hessian dimension',3 * natm,'x',3 * natm
+  WRITE ( stdout ,'(a)')          'Remind some parameters of the system:'
+  WRITE ( stdout ,'(a,i5)')       'natm  = ',natm
+  WRITE ( stdout ,'(a,i5)')       'ntype = ',ntype
+  WRITE ( stdout ,'(a,f10.3)')    'rho   = ',rho
+  WRITE ( stdout ,'(a,f10.3)')    'box   = ',box
+  WRITE ( stdout ,'(a,f10.3)')    'vol   = ',omega
+  WRITE ( stdout ,'(a)')          ''
+  WRITE ( stdout ,'(a,i5,a,i5)')  'hessian dimension',3 * natm,'x',3 * natm
 
   ! ===========================================
   !  LOOP OVER CONFIGURATIONS (AT EQUILIBRIUM)
@@ -273,7 +281,11 @@ SUBROUTINE vib_main
     if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) aaaa 
     do ia = 1,natm
       READ ( kunit_ISCFF , * ) atype(ia),rx(ia),ry(ia),rz(ia)
+    !if(atype(ia) .eq. 'A') na = na + 1
+    if(atype(ia) .eq. 'A') itype(ia)=1
+    if(atype(ia) .eq. 'B') itype(ia)=2
     enddo
+
 
     ! ==============================
     ! force ???? should not be here 
@@ -284,6 +296,9 @@ SUBROUTINE vib_main
     CALL calc_thermo
     pot0      = u_tot
     pressure0 = pressure_tot 
+    !print*,pot0,pressure0
+    !print*,iastart , iaend
+    !stop
 
     ! ========================
     !  get the hessian matrix
@@ -328,6 +343,7 @@ SUBROUTINE vib_main
         if(ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostab'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,deig(i)
+           STOP
         endif
         dostab(ka) = dostab(ka) + 1
         dostabtot(ka) = dostabtot(ka) + 1
@@ -372,11 +388,74 @@ SUBROUTINE vib_main
     ! ==============================================
     ! total dos for more than 3N k - vector
     ! ==============================================
-    if( calc .eq.'vib+dos'  ) CALL doskpt(hess)
+    if( calc .eq.'vib+dos'  ) then
+      
+      ! read number of kpoints in IBZKPTFF
+      OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
+      READ ( kunit_IBZKPTFF , * ) cccc
+      READ ( kunit_IBZKPTFF , * ) nkphon
+      READ ( kunit_IBZKPTFF , * ) cccc
+      CLOSE(kunit_IBZKPTFF)
+
+      allocate(eigenk(nkphon,3))
+      ! diagonalisation of the 3*nkphon states
+      CALL doskpt( hess , eigenk )
+      ! ==============================================
+      !  DOS: density of states of the 3*nkphon modes
+      ! ==============================================
+      dostabk = 0
+      do ik = 1, nkphon
+        ak = (eigenk(ik,1))/resdos
+        ka = int(ak) + 1
+        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+           WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
+           WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,1)
+           STOP
+        endif
+        dostabk(ka,1) = dostabk(ka,1) + 1
+        dostabk(ka,0) = dostabk(ka,0) + 1
+        dostabktot(ka,1) = dostabktot(ka,1) + 1
+        dostabktot(ka,0) = dostabktot(ka,0) + 1
+        ak = (eigenk(ik,2))/resdos
+        ka = int(ak) + 1
+        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+           WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
+           WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,2)
+           STOP
+        endif
+        dostabk(ka,2) = dostabk(ka,2) + 1
+        dostabk(ka,0) = dostabk(ka,0) + 1
+        dostabktot(ka,2) = dostabktot(ka,2) + 1
+        dostabktot(ka,0) = dostabktot(ka,0) + 1
+        ak = (eigenk(ik,3))/resdos
+        ka = int(ak) + 1
+        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+           WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
+           WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,3)
+           STOP
+        endif
+        dostabk(ka,3) = dostabk(ka,3) + 1
+        dostabk(ka,0) = dostabk(ka,0) + 1
+        dostabktot(ka,3) = dostabktot(ka,3) + 1
+        dostabktot(ka,0) = dostabktot(ka,0) + 1
+
+      enddo !ik loop
+
+      do i = 0,PANdos + 1
+        if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nkphon * resdos ),j=0,3) , (dostabktot(i,j) / ( 3.0 * nkphon * resdos * ic),j=0,3)
+      enddo
+      if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
+      if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
+      if ( ionode ) WRITE ( stdout ,'(a)') 'dos (k) ok'
+      if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'dos (k) ok'
+      deallocate(eigenk)  
+        
+    endif ! vib+dos
 
 
   enddo ! loop over configurations
 
+  CLOSE ( kunit_DOSKFF ) 
   CLOSE ( kunit_DOSFF ) 
   CLOSE ( kunit_VECTFF )
   CLOSE ( kunit_EIGFF )
@@ -402,7 +481,6 @@ SUBROUTINE vib_main
     CALL generate_modes(deig,hess,2040)
     CLOSE ( kunit_MODFF )
   endif 
-
   ! ====================================
   !  start vibrational free energy calc
   ! ====================================
@@ -416,13 +494,14 @@ SUBROUTINE vib_main
     STOP
   endif
 
+  deallocate(dostabktot)
+  deallocate(dostabk)
   deallocate(dostab)
   deallocate(dostabtot)
   deallocate(deig)
   deallocate(work)
   deallocate(hess) 
   deallocate(fx_sum,fy_sum,fz_sum)
-
   return
 
 END SUBROUTINE vib_main
@@ -976,18 +1055,19 @@ END SUBROUTINE band
 !
 !******************************************************************************
 
-SUBROUTINE doskpt ( hess )
+SUBROUTINE doskpt ( hess , eigenk )
 
   USE config,           ONLY :  natm , rx , ry , rz , box , ncell , itype
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
-  USE io_file,          ONLY :  stdout , kunit_IBZKPTFF , kunit_DOSKFF
+  USE io_file,          ONLY :  stdout , kunit_IBZKPTFF , kunit_DKFF
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , pp , qq
 
   implicit none
 
   ! global  
   double precision :: hess(3 * natm,3 * natm)
+  double precision :: eigenk(nkphon,3)
   ! local
   integer :: nxij,nyij,nzij
   double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
@@ -1003,15 +1083,15 @@ SUBROUTINE doskpt ( hess )
   ! trash
   character * 60 :: cccc
 
-  OPEN (UNIT = kunit_DOSKFF ,FILE = 'DOSKFF')
+  OPEN (UNIT = kunit_DKFF ,FILE = 'DKFF')
 
   lwork = 9
   jobz = 'V'
   uplo = 'U'
 
-  wi = 1
-  ak = (tpi * ncell)/(box)
-  akn = (tpi * ncell)/(box * nkphon)
+  wi  = 1
+  ak  = ( tpi * ncell ) / ( box )
+  akn = ( tpi * ncell ) / ( box * nkphon )
 
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
@@ -1019,7 +1099,7 @@ SUBROUTINE doskpt ( hess )
   READ ( kunit_IBZKPTFF , * ) nkphon
   READ ( kunit_IBZKPTFF , * ) cccc
 
-  WRITE ( kunit_DOSKFF , * ) nkphon,'20  0.0 30.0'
+  !WRITE ( kunit_DOSKFF , * ) nkphon,'20  0.0 30.0'
 
   wi = 1
   WRITE ( stdout ,'(a)') 'read kpoints in IBZKPTFF'
@@ -1034,16 +1114,15 @@ SUBROUTINE doskpt ( hess )
     kyi = (kyi * ak)
     kzi = (kzi * ak)
 
-
-    tmpxx = 0.0d0
-    tmpyy = 0.0d0
-    tmpzz = 0.0d0
-    tmpxy = 0.0d0
-    tmpxz = 0.0d0
-    tmpyz = 0.0d0
+    tmpxx  = 0.0d0
+    tmpyy  = 0.0d0
+    tmpzz  = 0.0d0
+    tmpxy  = 0.0d0
+    tmpxz  = 0.0d0
+    tmpyz  = 0.0d0
     hessij = 0.D0
-    work = 0.0d0
-    ww = 0.0d0
+    work   = 0.0d0
+    ww     = 0.0d0
 
     do ia = 1,natm
 
@@ -1098,17 +1177,21 @@ SUBROUTINE doskpt ( hess )
     CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
     do i = 1,wi
-      if(mod(ik + 1,kl).eq.0) then
-        WRITE ( stdout ,'(i7,3f12.4,3f18.6)')  ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
-        kl = kl * 2
+      if(mod(ik + 1,nkphon/20).eq.0) then
+        WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+        kl = kl * 1
       endif
-      WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+      WRITE ( kunit_DKFF ,'(i7,3f12.4,3f18.6)')  ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
       ck = ck + 1
     enddo
 
-  enddo
+   eigenk(ik+1,1)=dsqrt(ww(1))
+   eigenk(ik+1,2)=dsqrt(ww(2))
+   eigenk(ik+1,3)=dsqrt(ww(3))
+  enddo !ik loop
+
   CLOSE ( kunit_IBZKPTFF )
-  CLOSE ( kunit_DOSKFF )
+  CLOSE ( kunit_DKFF )
 
   return  
 

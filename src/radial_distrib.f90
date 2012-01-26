@@ -139,7 +139,7 @@ SUBROUTINE gr_default_tag
   ! ===============
   resg = 0.1d0
   nskip = 0
-  nc = 1
+  nc = 0
 
   return
 

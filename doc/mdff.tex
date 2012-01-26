@@ -5,11 +5,12 @@
 \usepackage{chngpage}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-%\usepackage[frenchb]{babel}
 \usepackage{multirow}
 \usepackage{array}
 \usepackage{longtable}
 \usepackage{color}
+\usepackage{amssymb}
+\usepackage{amsmath}
 
 
 %##############################################
@@ -33,6 +34,13 @@
 \addtolength{\leftmargin}{#1}%
 \addtolength{\rightmargin}{#2}%
 }\item }{\end{list}}
+
+
+% math symbol
+\def\nn{{\bf n}}
+\def\kk{{\bf k}}
+\def\rr{{\bf r}}
+\def\00{{\bf 0}}
 
 
 \title{Molecular Dynamics FF, Manual , version 0.2.2}
@@ -61,28 +69,164 @@ forc\'ement pr\'esents.
 
 \section{Theory}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Molecular Dynamics\label{sec:MD}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsubsection{Integration\label{sec:integrator}}
+\subsubsection{Force-Field}
+\paragraph{Binary Mixture Lennard-Jones\label{sec:BMLJ}}
+\paragraph{Kob-Andersen model\label{sec:KA}}
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Optimisation\label{sec:OPT}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Phonons\label{sec:VIB}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Electric-Field Gradient\label{sec:EFG}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsubsection{Some general definition: NMR oriented}
+
+In solid-state NMR, the  quadrupolar interaction is  characterised by two parameters:
+$C_Q$ and $\eta_Q$ (respectively the quadrupolar coupling constant, and  the
+quadrupolar asymmetry), which are both defined from the  three principal  components
+of the diagonal  EFG tensor  ($\bf{V}$), by relations:
+\begin{equation}
+  \label{eq:quad}
+ C_Q=\frac{e|Q|}{h}|V_{zz}| ,\;\;\;\;\;\; \eta_Q=\frac{V_{yy}-V_{xx}}{V_{zz}}
+\end{equation}
+where $e$ is the elementary charge, $h$ is the Planck's constant, $Q$
+is the quadrupolar  moment and the principal components $V_{ii},\ (i=x,y,z)$ are sorted
+such that  $|V_{zz}|  \geqslant |V_{xx}| \geqslant |V_{yy}|$. 
+We only consider the parameters $V_{zz}$ and $\eta_Q$ to report the principal
+components of the diagonal EFG tensor. Even if, NMR experiments at room temperature, are unable
+to determined the sign of the larger principal component~\cite{B-Abragam}, this sign property,
+which is explicitly available by DFT calculation, is important to characterise the distribution~\cite{VasconcelosPRB}
+
+In the general  case, the  zero trace  EFG tensor  is not
+diagonal,  and it  is  necessary to  defined  three others  parameters
+which  define the orientation  of the tensor in a fixed reference frame.
+Consequently, the EFG tensor is completely defined by five independent
+variables as expected by a symmetric second-rank tensor without trace.
+Following Czjzek at al.~\cite{PRB.23.2513}, we define five real parameters
+$U_i$ from the Cartesian components of the EFG tensor.
+\begin{equation}
+  \label{eq:U_i}
+  U_1=v_{zz}/2, U_2=\frac{v_{xz}}{\sqrt{3}},U_3=\frac{v_{yz}}{\sqrt{3}},U_4=\frac{v_{xy}}{\sqrt{3}},U_5=\frac{(v_{xx}-v_{yy})}{2\sqrt{3}}  
+\end{equation}
+The five-dimensional vector ${\bf{U}}=(U_1,\ldots,U_5)$ constitutes a random vector
+representative of the EFG tensor distribution of an amorphous solid in a fixed frame
+of reference for all the nuclei sites. To get access to the distribution of the two
+parameters $V_{zz}$ and $\eta_Q$, it is necessary to diagonalise the EFG tensor from
+site to site~\cite{JPCM.10.10715}.
+
+
+\subsubsection{EFG calculation: Implemented formulas}
+
+Consider a finite number $N$ of point charge particules, the EFG tensor
+($\bf{V}$) at the position $\rr_i$ of a particule $i$ due to the
+$N-1$ other point charges $q_j$ at distance $\rr_{ij}=\rr_i-\rr_j$.
+\begin{equation}
+V_{i,\alpha\beta} = - \sum_{j\ne i}^N q_j \bigg( \frac {3 r_{ij,\alpha} r_{ij,\beta} - r_{ij}^2\delta_{\alpha\beta} } {r_{ij}^5} \bigg )
+\label{eq:EFG}
+\end{equation}
+where  $\alpha$ end $\beta$ are the cartesian components, $\delta_{\alpha\beta}$
+is the Kronecker delta.
+In periodic boundaries conditions, a further summation is added to
+Eq.~\ref{eq:EFG} arising from the particules which belong to other cells.
+This method is called the direct summation. The EFG tensor by the direct
+summation technique is given by
+%\begin{widetext}
+\begin{equation}
+V^{DS}_{i,\alpha\beta} = - \sum_\nn^{n_{max}} \sideset{}{'}\sum^{N}_j \\ q_j\bigg(\frac{3 (r_{ij,\alpha}+n_\alpha) (r_{ij,\beta}+n_\beta) - |\rr_{ij}+\nn|^2\delta_{\alpha\beta} } { |\rr_{ij}+\nn|^5 } \bigg )
+\end{equation}
+%\end{widetext}
+where $\nn$ is an integer vector such $\nn=(n_x,n_y,n_z)L$, the prime indicates
+that the $j=i$ term is ommited when $\nn=\00$. In practice a further spherical
+radial cutoff $r^{cut}_{efg}$ is applied to the cubic cutoff $n_{max}$ which is set
+according to the ratio $r^{cut}_{efg}/L$.
+
+%As the EFG scales as $r^{-3}$, the direct summation technique converge relatively
+%fast. For a typical configurations discussed in that paper, we oberved that the EFG
+%tensor converged within a spherical radius cutoff of 40 $[\sigma_{AA}]$,
+%which corresponds to $n_{max}=$~4.
+
+The EFG tensor can be also obtained from an Ewald summation
+~\cite{ANDP:ANDP19213690304,B-ALLEN_TILDESLEY} like technique.
+The main advantage of this approach is the rapid convergence of
+the k-space summation compared to the direct summation only technique.
+%Ici on suit la notation de Nymand and Linse(en partie), mais les equations
+% correspondent aux equations implementees dans MDFF. 
+The EFG tensor of atom $i$ from the Ewald Sum $V^{ES}_{i,\alpha\beta}$ is
+\begin{equation}
+V^{ES}_{i,\alpha\beta} = V^{real}_{i,\alpha\beta} + V^{rec}_{i,\alpha\beta}
+\label{eq:EFG_ES}
+\end{equation}
+where $V^{real}_{i,\alpha\beta}$ is the real part contribution given by
+\begin{equation}
+V^{real}_{i,\alpha\beta} = - \sum^{N}_{j\ne i} q_j (3 r_{ij,\alpha}r_{ij,\beta} - r_{ij}^2\delta_{\alpha\beta} ) ( T_0 + T_1 + T_2 ) 
+\end{equation}
+with
+\begin{eqnarray}
+T_0&=& \frac{{\rm erfc}( \alpha r_{ij} )} {r_{ij}^5} \nonumber \\
+T_1&=& \frac{2 \alpha \exp(-\alpha^2 r_{ij}^2)}{\sqrt{\pi}r_{ij}^4}  \nonumber \\
+T_2&=& \frac{4 \alpha^3 \exp(-\alpha^2 r_{ij}^2)}{3\sqrt{\pi} r_{ij}^2};
+\end{eqnarray}
+and where $V^{rec}_{i,\alpha\beta}$ is the reciprocal contribution given by
+\begin{equation}
+V^{rec}_{i,\alpha\beta} = \frac{4\pi}{3V}\sum_{\kk\ne\00} A_k Re\Big[ \sum^N_j q_j e^{i\kk\cdot(\rr_i-\rr_j)} \Big] \Big( 3 k_\alpha k_\beta - k^2\delta_{\alpha\beta} \Big)
+\end{equation}
+with
+\begin{equation}
+A_k = \frac{\exp( - k^2 / 4\alpha^2 )}{k^2} 
+\end{equation}
+In practice, we calculate the charge density $\rho_N(\kk)$ defined in k-space by
+\begin{equation}
+\rho_N(\kk) = \sum^N_j q_j e^{i\kk\rr_j}
+\end{equation}
+only once at the beginning, and for each $i$ particule and k-point mesh
+we calculate $e^{i\kk\rr_i} \rho^*_N(\kk)$ where $*$ denotes the complex conjugate.
+The k-space summation runs over all k-points defined by the vector
+\begin{eqnarray}
+\kk=2\pi(n_x/L,n_y/L,n_z/L) \\
+{\rm with}\; |n_x|,|n_y|,|n_z| < n_{max}.
+\end{eqnarray}
+The convergence of the EFG obtained by the Ewald Summation technique
+depends on two main parameters, the Ewald screening parameter $\alpha$
+and on the k-space cut-off $k_{max}=2\pi n_{max}/L$.
+
+In the direct summation procedure, there is no need to use the minimum
+ image convention as all the neighbour cells are explicitely take into account.
+In the real part of the Ewald summation, however, the minimum image convention
+is used. the screening parameter $\alpha$ should choose such that that only particles
+in the primary box need to be considered when calculating the real space sum.
+This cutoff is then implictely set to half of the box size.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Radial distribution function\label{sec:GR}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Binary Mixture Lennar-Jones\label{sec:BMLJ}}
-
-\subsection{Kob-Andersen model\label{sec:KA}}
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Verlet list\label{sec:vnlist}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Units \label{sec:units}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Miscellaneous \label{sec:misc}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Usage}
 
-\MDFF only needs one input file usually called control.F~\footnote{the .F extension permits to get nice colors with vim} 
+\MDFF~only needs one input file usually called control.F~\footnote{the .F extension permits to get nice colors with vim} 
 
 \subsection{Minimum settings: the input file}
 
@@ -100,7 +244,6 @@ In \MDFF, five sections are always required :
 \item \&fieldtag ... \&end   $\rightarrow$ Set the Force-Field.
 \item \&proptag ... \&end    $\rightarrow$ Calculation of properties
 \end{itemize}
-
 
 Using this minimum settings (5 empty sections) the code runs with default values.
 It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc lennard-jones 
@@ -274,7 +417,7 @@ Parameter        &  Type              &          Short Description              
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?dgauss?    & (CHARACTER)        & \newline algorithm for gaussian distribution (no fondamental differences test purpose only) 
-                                        (see section~\ref{sec:rand}) \newline  
+                                        (see section~\ref{sec:misc}) \newline  
 
                                         \verb?'boxmuller_basic'? : also known as the cartesian form  \newline
 
@@ -468,7 +611,7 @@ Parameter          &  Type              &          Short Description            
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lKA?         &  (LOGICAL)         & use the Kob-Andersen model for BMLJ\ref{sec:KA}                                     & \verb?.FALSE.? \\
+\verb?lKA?         &  (LOGICAL)         & use the Kob-Andersen model for BMLJ (see \S \ref{sec:KA})                           & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?ctrunc?      &  (CHARACTER)       & \newline truncation and shift of the potential \newline 
@@ -490,28 +633,29 @@ Parameter          &  Type              &          Short Description            
 \verb?ncellewald?  &  (INTEGER)         & \newline number of kpoints in the reciprocal contribution of the Ewald summation
                                          (total number of cells $=ncellewald^3$ \newline                                      
 					 
-					 for \verb?lcoulomb=.TRUE.? and \verb?longrange='ewald'?  \newline                   & \verb?10? \\
+					 for \verb?lcoulomb=.TRUE.? and \verb?longrange='ewald'?  \newline                    & \verb?10? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?alphaES?     &  (DBLE)            & Ewald screening parameter                                                          & \verb?1.0? \\
+\verb?alphaES?     &  (DBLE)            & Ewald screening parameter                                                           & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?epsXY?       &  (DBLE)            & depth of the potential well of the Lennard jones potential. XY = AA, BB or AB      & \verb?1.0? \\
+\verb?epsXY?       &  (DBLE)            & depth of the potential well of the Lennard jones potential with XY = AA, BB or AB   & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?sigmaXY?     &  (DBLE)            & finite distance at which the inter-particle potential is zero. XY = AA, BB or AB   & \verb?1.0? \\
+\verb?sigmaXY?     &  (DBLE)            & finite distance at which the inter-particle potential is zero with 
+                                          XY = AA, BB or AB                                                                   & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?qljXY?       &  (DBLE)            & exponent of the repulsive part. XY = AA, BB or AB                                  & \verb?12? \\
+\verb?qljXY?       &  (DBLE)            & exponent of the repulsive part with XY = AA, BB or AB                               & \verb?12? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pljXY?       &  (DBLE)            & exponent of the attratcive part. XY = AA, BB or AB                                 & \verb?6? \\
+\verb?pljXY?       &  (DBLE)            & exponent of the attractive part with XY = AA, BB or AB                              & \verb?6? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?mX?          &  (DBLE)            & mass of the particule. X= A or B (not used)                                        & \verb?1.0? \\
+\verb?mX?          &  (DBLE)            & mass of the particule with X= A or B (not used)                                     & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?qX?          &  (DBLE)            & charge of the particule. X= A or B                                                 & \verb?qA = 1.0?\newline\verb?qB =-1.0?\\
+\verb?qX?          &  (DBLE)            & charge of the particule with X= A or B                                              & \verb?qA = 1.0?\newline\verb?qB =-1.0?\\
 \hline
 \hline
 \end{longtable}
@@ -587,7 +731,7 @@ Parameter        &  Type              &          Short Description              
 \verb?ncopt?     & (INTEGER)          & number of configurations in TRAJFF                                                   & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nskipopt?  & (INTEGER)          & number of configurations skipped in the beginning                                    & \verb?0? \\
+\verb?nskipopt?  & (INTEGER)          & number of configurations skipped in the beginning of TRAJFF                          & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?nmaxopt?   & (INTEGER)          & number of configurations to be optimize                                              & \verb?1? \\
@@ -688,16 +832,16 @@ Parameter              &  Type              &          Short Description        
 \verb?alphaES?         & (DBLE)             & Ewald sum screening parameter                                                        & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resvzz?          & (DBLE)             & resolution in vzz distribution                                                       & \verb?0.1? \\
+\verb?resvzz?          & (DBLE)             & resolution in $V_{zz}$ distribution                                                       & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?reseta?          & (DBLE)             & resolution in eta distribution                                                       & \verb?0.1? \\
+\verb?reseta?          & (DBLE)             & resolution in $\eta_Q$ distribution                                                       & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resu?            & (DBLE)             & resolution in Ui ditribution                                                         & \verb?0.1? \\
+\verb?resu?            & (DBLE)             & resolution in $U_i$ ditribution                                                         & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?vzzmin?          & (DBLE)             & minimum value of vzz distribution which is then between [vzzmin, -vzzmin]            & \verb?-4.0? \\ 
+\verb?vzzmin?          & (DBLE)             & minimum value of $V_{zz}$ distribution which is then between [vzzmin, -vzzmin]            & \verb?-4.0? \\ 
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?umin?            & (DBLE)             & minimum value of umin distribution which is then between [umin, -umin]               & \verb?-4.0? \\
@@ -749,7 +893,11 @@ Parameter        &  Type              &          Short Description              
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resg?      & (DBLE)             & resolution in the radial distribution function                                      & \verb?? \\
+\verb?resg?      & (DBLE)             & resolution in the radial distribution function                                      & \verb?0.1? \\
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nc?        & (DBLE)             & number of configurations to read in TRAJFF                                          & \verb?0? \\
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?nskip?     & (INTEGER)          & number of configurations skipped in the beginning of TRAJFF                         & \verb?0? \\
 \hline
 \hline
 \end{longtable}

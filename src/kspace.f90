@@ -19,15 +19,6 @@ MODULE kspace
 
   implicit none
 
-  ! ==================
-  !  ewald summation
-  ! ==================
-!  integer                                         :: ncellewald         ! number of k-points in each reciprocal direction for the ewald summation
-!  integer                                         :: nkcut              ! (internal) number of k-points in the ewald sum 
-!  double precision, dimension(:)    , allocatable :: kptk               ! ewald sum (kpoints vector)
-!  double precision, dimension(:,:)  , allocatable :: kpt                ! ewald sum (kpoints vector) dim = 3,nkcut
-!  double precision, dimension(:)    , allocatable :: strf_av            ! facteur de structure moyen
-
   TYPE :: kmesh
     integer                                         :: nkcut              ! (internal) number of k-points in the kmesh
     integer                                         :: ncell              ! number of k-points in each reciprocal direction for the ewald summation
@@ -103,7 +94,7 @@ END SUBROUTINE kpoint_sum_init
 
 !*********************** SUBROUTINE reorder_kpt *******************************
 !
-! this subroutine reorder kpt arrays (increasing k^2) (could be somewhere else) 
+! this subroutine reorder kpt arrays (increasing k^2)
 !
 !******************************************************************************
 

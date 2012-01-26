@@ -278,6 +278,11 @@ SUBROUTINE config_check_tag
   else if(box.ne.0.0d0.and.rho.eq.0.0d0)  then
     rho = dble(natm)/(box**3.0D0)
   endif
+  if(box.eq.0.0D0.and.rho.eq.0.0D0) then
+    if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be both zero --- choose one !!'
+    STOP
+  endif
+
   ! ===================
   !  check cutoff
   ! ===================
@@ -332,7 +337,7 @@ SUBROUTINE config_print_info(kunit)
   !  print minimum distance 
   !  and distance distribution
   ! ============================
-  call distance_tab( kunit )
+!  call distance_tab( kunit )
 
   return
   
