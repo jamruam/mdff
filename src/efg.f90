@@ -105,19 +105,19 @@ SUBROUTINE efg_init
   integer :: ioerr
   character * 132 :: filename
 
-  namelist /efgtag/  lefgprintall  , & 
-                     lefg_it_contrib, &
-                     ncelldirect   , &
-                     ncefg         , & 
-                     ncellewald    , &
-                     cutefg        , &
-                     alphaES       , &
-                     resvzz        , &
-                     reseta        , &
-                     resu          , &
-                     vzzmin        , &
-                     umin          , &
-                     ntcor 
+  namelist /efgtag/  lefgprintall    , & 
+                     lefg_it_contrib , &
+                     ncefg           , & 
+                     ntcor           , &
+                     ncellewald      , &
+                     ncelldirect     , &
+                     cutefg          , &
+                     alphaES         , &
+                     resvzz          , &
+                     reseta          , &
+                     resu            , &
+                     vzzmin          , &
+                     umin           
 
   if ( .not. lefg .and. calc .ne. 'efg' .and. calc .ne.'efg+acf' ) return 
 
@@ -195,7 +195,7 @@ END SUBROUTINE efg_default_tag
 
 SUBROUTINE efg_check_tag
 
-  USE field,    ONLY :  qa ,qb 
+  USE field,    ONLY :  qA ,qB 
   USE control,  ONLY :  calc , longrange
   USE io_file,  ONLY :  ionode , stdout
   USE prop,     ONLY :  lefg
@@ -210,7 +210,7 @@ SUBROUTINE efg_check_tag
 
   if ( calc .eq. 'efg+acf' ) return
 
-  if ( qa .eq. 0 .and. qb .ne. 0 ) then 
+  if ( qA .eq. 0 .and. qB .ne. 0 ) then 
     if ( ionode ) WRITE ( stdout ,'(a,2f8.3)') 'ERROR: who requested EFG calculation without charge definition, something must be wrong' 
     STOP
   endif
@@ -336,7 +336,7 @@ SUBROUTINE efg_alloc
   USE control,  ONLY :  calc , longrange
   USE config,   ONLY :  natm, ntype , qia , qit , itype
   USE prop,     ONLY :  lefg
-  USE field,    ONLY :  qa , qb
+  USE field,    ONLY :  qA , qB
 
   implicit none
 
@@ -350,8 +350,8 @@ SUBROUTINE efg_alloc
   ! ======
   if( .not. lefg .and. ( calc .ne. 'efg' ) ) return 
 
-  qit(1)=qa
-  qit(2)=qb
+  qit(1)=qA
+  qit(2)=qB
   
   if ( ntype .eq.  1 ) then
     do ia = 1 , natm
@@ -484,7 +484,7 @@ SUBROUTINE efgcalc
 
   USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , atypei , natmi, rho , box , omega , config_alloc , qia , qit
   USE control,  ONLY :  longrange , myrank , numprocs
-  USE field,    ONLY :  qa , qb, field_init
+  USE field,    ONLY :  qA , qB, field_init
 
   implicit none
 
@@ -527,8 +527,8 @@ SUBROUTINE efgcalc
     WRITE ( stdout , '(a,f12.5)')    'vol   = ',omega
     WRITE ( stdout , '(a)'      )    ''
   endif
-  qit(1)=qa
-  qit(2)=qb
+  qit(1)=qA
+  qit(2)=qB
 
 
 #ifndef fix_grid
@@ -778,7 +778,7 @@ SUBROUTINE efg_DS ( itime , nefg , iastart , iaend  )
   USE control,  ONLY :  myrank, numprocs, calc
   USE config,   ONLY :  system , natm , natmi , atype , atypei , box , itype , rx , ry , rz , ntype , qia , qit
   USE io_file,  ONLY :  ionode , stdout , kunit_EFGFF , kunit_EFGALL , kunit_EFGFFIT , kunit_EFGALLIT1 , kunit_EFGALLIT2
-  USE field,    ONLY :  qa , qb
+  USE field,    ONLY :  qA , qB
   USE prop,     ONLY :  nprop_print
   USE time
 
@@ -1562,7 +1562,7 @@ SUBROUTINE efg_ES ( itime , nefg )
   USE config,     ONLY :  system , natm , natmi , atype , atypei , box , omega , itype , rx , ry , rz , ntype , qia , qit
   USE io_file,    ONLY :  ionode , stdout , kunit_EFGFF , kunit_EFGALL
   USE constants,  ONLY :  pi , fpi , piroot , imag
-  USE field,      ONLY :  qa , qb
+  USE field,      ONLY :  qA , qB
   USE kspace,     ONLY :  struc_fact
   USE prop,       ONLY :  nprop_print , nprop
   USE time

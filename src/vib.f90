@@ -49,9 +49,9 @@ SUBROUTINE vib_init
   integer :: ioerr
   character*132 :: filename
 
-  namelist /vibtag/ ncvib         , & 
+  namelist /vibtag/ lwrite_vectff , &
+                    ncvib         , & 
                     ngconf        , & 
-                    lwrite_vectff , &
                     imod          , & 
                     nkphon        , &
                     resdos        , &

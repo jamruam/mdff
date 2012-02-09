@@ -61,7 +61,8 @@ SUBROUTINE vacf_init
   integer :: ioerr
   character * 132 :: filename
 
-  namelist /vacftag/ tdifmax , it0
+  namelist /vacftag/   it0     ,  &
+                       tdifmax 
 
   if ( .not. lvacf ) return
 

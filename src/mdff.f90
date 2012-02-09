@@ -32,49 +32,6 @@
 ! *      vasp: some features of the best code ever ;)           *
 ! *      dea-dec2007-janv2011                                   *
 ! ===============================================================
-!
-! ===============================================================
-! CHECK (optimise default value):
-!
-! * nuandersen
-! * skindiff
-! * Qnosehoover
-! * tauberendsen  
-!
-! ===============================================================
-! 
-! TODO when programming:
-!
-! * allocate local arrays
-! * let some space in the operation at least ( var = var *...)
-!  -> better to follow when using grep or any other script
-!
-! ===============================================================
-!
-! TODO:  
-! * add more comments ( in/out of subroutine and some comments)
-! * memory usage ?
-! * TRAJFF format BINARY 
-! * calculate average values (by block) remind use nequil                       
-! * implement nvt-nh 
-! * add WARNINGS for some tags where default value (???)
-! * add default values for secondary tags
-! * add some descriptions of gaussian distribution routine 
-!  -> (basically some refs to be able to find bugs)
-! * make the force field easier to read in control.F
-! * parallelization of reciprocal part (ewald sum) in efg at least
-!
-! not before version 0.3.0:
-! * ntype > 2 ( the complicated part will be how to read the force field )
-! * masses   
-! * write some manual (with theory, ref teaching oriented)
-!
-! * remove the TODO list ;)                                        
-!
-! ===============================================================
-
-
-! ===============================================================
 ! MAIN SUBROUTINE :                            
 ! set, read and check control parameters
 ! timing information at the end
@@ -85,6 +42,7 @@
 !add some comments !!!!!!!!
 !#define MULTRUN
 !#define block
+
 PROGRAM main_MDFF
 
   USE constants

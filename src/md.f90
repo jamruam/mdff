@@ -68,19 +68,19 @@ SUBROUTINE md_init
   character*132 :: filename
   integer :: ioerr
 
-  namelist /mdtag/    npas          , & 
+  namelist /mdtag/    ltraj         , &
                       integrator    , & 
-                      dt            , &
-                      temp          , & 
+                      setvel        , & 
+                      npas          , & 
                       nequil        , &
                       nequil_period , & 
                       nprint        , & 
                       fprint        , & 
-                      ltraj         , & 
                       itraj_start   , & 
                       itraj_period  , & 
                       spas          , & 
-                      setvel        , & 
+                      dt            , &
+                      temp          , & 
                       nuandersen    , & 
                       tauberendsen  , & 
                       Qnosehoover      

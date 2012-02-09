@@ -50,7 +50,9 @@ SUBROUTINE gr_init
   integer :: ioerr
   character * 132 :: filename
 
-  namelist /grtag/ resg, nskip , nc
+  namelist /grtag/   nc    , &
+                     nskip , &
+                     resg  
 
   if ( .not. lgr .and. calc .ne. 'gr' ) return
 

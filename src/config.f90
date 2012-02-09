@@ -90,19 +90,19 @@ SUBROUTINE config_init
   character * 132 :: filename
   integer :: ioerr
 
-  namelist /configtag/       system   , & 
-                             rho      , &
-                             box      , &
-                             ntype    , & 
-                             natm     , &
-                             struct   , & 
+  namelist /configtag/       lgenconf , &
                              lfcc     , &
                              lsc      , &
                              lbcc     , & 
+                             system   , & 
+                             struct   , & 
+                             ntype    , & 
+                             natm     , &
                              ncell    , &  
                              xna      , &
                              xnb      , &
-                             lgenconf 
+                             rho      , &
+                             box      
 
   ! ===============================
   ! defaults values for config tags
@@ -326,12 +326,12 @@ SUBROUTINE config_print_info(kunit)
 
   if( ionode ) then
                        WRITE ( kunit ,'(a,a)')          'system                               : ',system
-                       WRITE ( kunit ,'(a,i10)')        'natm                                 = ',natm
-       if(ntype.eq.2)  WRITE ( kunit ,'(a,i10,f8.2,a1)')'nA                                   = ',natmi(1),xna * 100,'%'
-       if(ntype.eq.2)  WRITE ( kunit ,'(a,i10,f8.2,a1)')'nB                                   = ',natm-natmi(1),xnb * 100,'%'
-                       WRITE ( kunit ,'(a,f10.4)')      'cell parameter                       = ',box
-                       WRITE ( kunit ,'(a,f10.4)')      'volume                               = ',omega
-                       WRITE ( kunit ,'(a,f10.4)')      'density                              = ',rho
+                       WRITE ( kunit ,'(a,i12)')        'natm                                 = ',natm
+       if(ntype.eq.2)  WRITE ( kunit ,'(a,i12,f8.2,a1)')'nA                                   = ',natmi(1),xna * 100,'%'
+       if(ntype.eq.2)  WRITE ( kunit ,'(a,i12,f8.2,a1)')'nB                                   = ',natm-natmi(1),xnb * 100,'%'
+                       WRITE ( kunit ,'(a,f12.4)')      'cell parameter                       = ',box
+                       WRITE ( kunit ,'(a,f12.4)')      'volume                               = ',omega
+                       WRITE ( kunit ,'(a,f12.4)')      'density                              = ',rho
   endif 
   ! ============================
   !  print minimum distance 
@@ -713,7 +713,7 @@ END SUBROUTINE config_alloc
 
 !*********************** SUBROUTINE config_dealloc ****************************
 !
-! deallocate config quantiteies (see config_alloc)
+! deallocate config quantities (see config_alloc)
 !
 !******************************************************************************
 

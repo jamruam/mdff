@@ -52,9 +52,9 @@ SUBROUTINE msd_init
   character * 132 :: filename
 
 
-  namelist /msdtag/ tdifmax , &
-                     nblock , & 
-                      ibmax
+  namelist /msdtag/  nblock  , &
+                     ibmax   , &
+                     tdifmax 
 
   if ( .not. lmsd ) return
 

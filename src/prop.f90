@@ -51,14 +51,14 @@ SUBROUTINE prop_init
   character * 132 :: filename
   integer :: ioerr       
 
-  namelist /proptag/   nprop_start , &
-                       nprop       , &
-                       nprop_print , &
-                       lefg        , &
+  namelist /proptag/   lefg        , &
                        lgr         , &
                        lstrfac     , &
                        lmsd        , &
-                       lvacf
+                       lvacf       , &
+                       nprop_start , &
+                       nprop       , &
+                       nprop_print 
  
   ! ==================== 
   !  set default values

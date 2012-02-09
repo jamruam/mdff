@@ -47,10 +47,10 @@ SUBROUTINE opt_init
   integer :: ioerr 
   character*132 :: filename
 
-  namelist /opttag/ ncopt         , & 
+  namelist /opttag/ optalgo       , &
+                    ncopt         , & 
                     nskipopt      , & 
-                    nmaxopt       , & 
-                    optalgo           
+                    nmaxopt       
 
   ! ===============================
   !  set default values to opttag

@@ -1,0 +1,44 @@
+#&controltag
+#        lstatic = .false.
+#        calc          = 'md'
+#        lreduced =.true.
+#        cutoff   = 3.0d0
+#        lrestart = .true.
+#
+#&end
+#&mdtag
+#        integrator    = 'nve-vv'
+#        npas          = 1000
+#        dt            = 0.001
+#        temp          = 1.0
+#        nprint        = 100
+#        fprint        = 100
+#        nequil        = 0
+#        nequil_period = 0
+#&end
+#&configtag
+#        lgenconf      = .true.
+#        lfcc = .true.
+#        ncell=$ncell
+#        rho=1.0d0
+#        ntype=1
+#&end
+#&fieldtag
+#&end
+#&proptag
+#&end
+
+#9/02/12
+#Results
+#ncell   natm         time np=1     time np=2      time np=4        time np=8
+  2       32            0.07         0.07            0.07            0.09 
+  3      108            0.44         0.30            0.20            0.18
+  4      256            2.16         1.16            0.65            0.42
+  5      500            4.20         2.22            1.21            0.78
+  6      864            7.30         3.79            2.05            1.30
+  7     1372           11.65         6.01            3.18            1.91
+  8     2048           17.43         9.00            4.79            2.79 
+ 10     4000           34.08        17.49            9.24            5.31
+ 12     6912           59.59        30.48           16.00            9.32
+ 14    10976           96.45        49.25           25.69           15.03
+ 16    16384          149.96        76.42           40.23           25.24      

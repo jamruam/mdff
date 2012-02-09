@@ -43,7 +43,7 @@ MODULE field
   double precision :: sigmaAA, sigmaAB, sigmaBB   
 
   double precision :: mA, mB                        ! masses ( not yet )
-  double precision :: qa, qb                        ! charges only for efg (no electrostatic interaction and forces)         
+  double precision :: qA, qB                        ! charges only for efg (no electrostatic interaction and forces)         
 
   double precision :: utail
 
@@ -102,8 +102,8 @@ SUBROUTINE field_default_tag
   mA            =  1.0D0
   mB            =  1.0D0
   ! Coulomb
-  qa            = -1.0d0
-  qb            =  1.0d0      
+  qA            = -1.0d0
+  qB            =  1.0d0      
   ncellewald    = 10
   alphaES       =  1.0d0
   ncelldirect   =  2
@@ -187,27 +187,27 @@ SUBROUTINE field_init
   character * 132 :: filename
   integer :: ioerr
 
-  namelist /fieldtag/    epsAA         , &
-                         epsAB         , & 
-                         epsBB         , & 
-                         sigmaAA       , & 
-                         sigmaAB       , & 
-                         sigmaBB       , & 
+  namelist /fieldtag/    lKA           , &       
                          ctrunc        , &
-                         qljAA         , & 
-                         pljAA         , & 
-                         qljAB         , & 
-                         pljAB         , & 
-                         qljBB         , & 
-                         pljBB         , & 
-                         mA            , & 
-                         mB            , & 
-                         qa            , & 
-                         qb            , & 
                          ncelldirect   , &
                          ncellewald    , &
-                         lKA           , &
-                         alphaES       
+                         alphaES       , &
+                         epsAA         , &
+                         epsBB         , & 
+                         epsAB         , & 
+                         sigmaAA       , & 
+                         sigmaBB       , & 
+                         sigmaAB       , & 
+                         qljAA         , & 
+                         qljBB         , & 
+                         qljAB         , & 
+                         pljAA         , & 
+                         pljBB         , & 
+                         pljAB         , & 
+                         mA            , & 
+                         mB            , & 
+                         qA            , & 
+                         qB          
                           
   ! ================================
   ! defaults values for field tags 
@@ -280,8 +280,8 @@ SUBROUTINE field_print_info(kunit)
                                WRITE ( kunit ,'(a)')       '=============================================================' 
                                WRITE ( kunit ,'(a)')       ''
     if( .not. lcoulomb )       WRITE ( kunit ,'(a)')       'discret charges: (no forces!)'
-                               WRITE ( kunit ,'(a,f10.5)') 'qA      = ',qa
-    if(ntype.eq.2)             WRITE ( kunit ,'(a,f10.5)') 'qB      = ',qb
+                               WRITE ( kunit ,'(a,f10.5)') 'qA      = ',qA
+    if(ntype.eq.2)             WRITE ( kunit ,'(a,f10.5)') 'qB      = ',qB
     if( lcoulomb )    then 
                                WRITE ( kunit ,'(a)')       'force field information :                      '
                                WRITE ( kunit ,'(a)')       'discret charges:'
@@ -1305,8 +1305,8 @@ SUBROUTINE initialize_coulomb
   ! local
   integer :: ia, nkcut , ncmax
 
-  qit(1)=qa
-  qit(2)=qb
+  qit(1)=qA
+  qit(2)=qB
 
   do ia = 1 , natm
       qia(ia) = qit(1) 

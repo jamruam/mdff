@@ -83,16 +83,16 @@ SUBROUTINE control_init
                          lcoulomb  , &
                          lvnlist   , &
                          lstatic   , &
-                         calc      , &
-                         dgauss    , &
                          lpbc      , &
-                         longrange , &
-                         cutoff    , &
-                         skindiff  , &
-                         lrestart   , &
                          lreduced  , & 
                          lshiftpot , &
-                         ltest      
+                         ltest     , &
+                         lrestart  , &
+                         calc      , &
+                         dgauss    , &
+                         longrange , &
+                         cutoff    , &
+                         skindiff  
 
   ! ======================
   !  set default values

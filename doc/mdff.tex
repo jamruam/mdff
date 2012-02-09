@@ -652,7 +652,7 @@ Parameter          &  Type              &          Short Description            
 \verb?pljXY?       &  (DBLE)            & exponent of the attractive part with XY = AA, BB or AB                              & \verb?6? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?mX?          &  (DBLE)            & mass of the particule with X= A or B (not used)                                     & \verb?1.0? \\
+\verb?mX?          &  (DBLE)            & mass of the particule with X= A or B (not used yet)                                 & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?qX?          &  (DBLE)            & charge of the particule with X= A or B                                              & \verb?qA = 1.0?\newline\verb?qB =-1.0?\\
@@ -856,7 +856,7 @@ Parameter              &  Type              &          Short Description        
 \subsubsection{\&msdtag}
 
 Where : \verb?SUBROUTINE msd_init? in \verb?msd.f90?
-BE CAREFUL !!!
+BE CAREFUL !!! NOT HEAVELY TESTED !
 \newline
 
 \begin{longtable}{l|c|m{8cm}|m{2cm}}
@@ -893,11 +893,11 @@ Parameter        &  Type              &          Short Description              
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resg?      & (DBLE)             & resolution in the radial distribution function                                      & \verb?0.1? \\
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?nc?        & (DBLE)             & number of configurations to read in TRAJFF                                          & \verb?0? \\
+\verb?nc?        & (INTEGER)          & number of configurations to read in TRAJFF                                          & \verb?0? \\
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?nskip?     & (INTEGER)          & number of configurations skipped in the beginning of TRAJFF                         & \verb?0? \\
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?resg?      & (DBLE)             & resolution in the radial distribution function                                      & \verb?0.1? \\
 \hline
 \hline
 \end{longtable}
