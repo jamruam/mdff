@@ -5,8 +5,11 @@
 ! ======================================================================
 &controltag
         calc          = 'md'      ! md calculation
-        lminimg =.false.
+      lstatic =.true.
+      lreduced =.false.
+      cutoff = 100.0d0
 &end
+
 ! ======================================================================
 ! parameters for the molecular dynamics 
 ! ======================================================================
@@ -25,7 +28,7 @@
 ! parameters for the force-field 
 ! ======================================================================
 &fieldtag
-        epslj(1,1)         = 1.0d0     ! lennard-jones potential
+        epslj(1,1)        = 1.0d0     ! lennard-jones potential
         sigmalj(1,1)      = 1.0d0     ! lennard-jones potential
 &end
 ! ======================================================================
