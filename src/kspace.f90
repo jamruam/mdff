@@ -20,11 +20,11 @@ MODULE kspace
   implicit none
 
   TYPE :: kmesh
-    integer                                         :: nkcut              ! (internal) number of k-points in the kmesh
-    integer                                         :: ncell              ! number of k-points in each reciprocal direction for the ewald summation
-    double precision, dimension(:,:)  , allocatable :: kpt  
-    double precision, dimension(:)    , allocatable :: kptk 
-    double complex  , dimension(:,:)  , allocatable :: strf               ! facteur de structure
+    integer                                        :: nkcut  ! (internal) number of k-points in the kmesh
+    integer                                        :: ncell  ! nb of kpts in each recip. direction in ewald sum.
+    double precision, dimension(:,:) , allocatable :: kpt  
+    double precision, dimension(:)   , allocatable :: kptk 
+    double complex  , dimension(:,:) , allocatable :: strf   ! facteur de structure
   END TYPE
 
 CONTAINS
@@ -63,7 +63,7 @@ SUBROUTINE kpoint_sum_init( km )
   do nx =  - ncell , ncell
     do ny = - ncell  , ncell
       do nz = - ncell , ncell
-        if( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
+        if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
           kx = dble(nx) * invbox 
           ky = dble(ny) * invbox  
@@ -79,7 +79,7 @@ SUBROUTINE kpoint_sum_init( km )
   enddo
  
   if ( nk .ne. km%nkcut ) then
-    if( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut
+    if ( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut
   endif
 
   ! ======================
@@ -151,8 +151,8 @@ SUBROUTINE reorder_kpt ( km )
   deallocate ( tkpt , labelkpt , labelt )
   deallocate ( tmpkx , tmpky , tmpkz    )
 
-  if( ionode ) WRITE ( stdout      ,'(a)') 'kpt arrays sorted'
-  if( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'kpt arrays sorted'
+  if ( ionode ) WRITE ( stdout      ,'(a)') 'kpt arrays sorted'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'kpt arrays sorted'
 
   return
 
@@ -162,7 +162,7 @@ END SUBROUTINE reorder_kpt
 !*********************** SUBROUTINE struct_fact *******************************
 !
 ! calculate the structure factors for each type of atoms in the unit cell
-! Baically used to calculate k-space charge density. 
+! Basically used to calculate k-space charge density. 
 !
 !******************************************************************************
 

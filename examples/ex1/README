@@ -1,7 +1,0 @@
-#Example 1: LJ fcc structure at low temperature
-
-#execute 
-../../bin/mdff.x control.F
-
-#and compare to files in 
-ref/

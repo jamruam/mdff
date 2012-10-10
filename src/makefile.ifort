@@ -35,8 +35,8 @@ time.o \
 functions.o \
 fft_t.o \
 rand.o \
-config.o \
 lattice.o \
+config.o \
 md.o \
 lbfgs.o \
 m1qn3.o \

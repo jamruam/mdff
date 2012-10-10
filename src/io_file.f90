@@ -133,7 +133,8 @@ CONTAINS
 !
 ! initialize the ionode logical variable and open OUTFF file
 !
-! if ( ionode ) WRITE(unit,*)  
+! usage :
+!         if ( ionode ) WRITE ( unit , * )   
 !
 !******************************************************************************
 SUBROUTINE io_init

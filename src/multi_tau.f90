@@ -154,15 +154,15 @@ SUBROUTINE multi_tau_main ( wx , wy , wz , ncall)
          if ( lv .eq. 0 ) then
            do j = 0 , p - 1
              CC ( lv , j , ia ) = CC ( lv , j , ia ) + DD ( 1 , lv , 0 , ia ) * DD ( 1 , lv , j , ia ) + &
-                                                               DD ( 2 , lv , 0 , ia ) * DD ( 2 , lv , j , ia ) + & 
-                                                               DD ( 3 , lv , 0 , ia ) * DD ( 3 , lv , j , ia )
+                                                       DD ( 2 , lv , 0 , ia ) * DD ( 2 , lv , j , ia ) + & 
+                                                       DD ( 3 , lv , 0 , ia ) * DD ( 3 , lv , j , ia )
              NN ( lv , j , ia ) = NN ( lv , j , ia ) + 1
            enddo
          else
            do j = p / m , p - 1 
              CC ( lv , j , ia ) = CC ( lv , j , ia ) + DD ( 1 , lv , 0 , ia ) * DD ( 1 , lv , j , ia ) + &
-                                                               DD ( 2 , lv , 0 , ia ) * DD ( 2 , lv , j , ia ) + &
-                                                               DD ( 3 , lv , 0 , ia ) * DD ( 3 , lv , j , ia )
+                                                       DD ( 2 , lv , 0 , ia ) * DD ( 2 , lv , j , ia ) + &
+                                                       DD ( 3 , lv , 0 , ia ) * DD ( 3 , lv , j , ia )
              NN ( lv , j , ia ) = NN ( lv , j , ia ) + 1
            enddo
          endif    

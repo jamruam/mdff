@@ -96,11 +96,11 @@ SUBROUTINE md_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , mdtag ,iostat =ioerr)
-  if( ioerr .lt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag section is absent'
+  if ( ioerr .lt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag section is absent'
     STOP
-  elseif( ioerr .gt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag wrong tag'
     STOP
   endif
   CLOSE  ( stdin )
@@ -143,7 +143,7 @@ SUBROUTINE md_default_tag
   fprint        = 1
   spas          = 1000           
   setvel        = 'MaxwBoltz'
-  tauberendsen  = 0.0d0	
+  tauberendsen  = 0.0d0
   nequil        = 10
   nequil_period = 1
   Qnosehoover   = 0.0d0 
@@ -175,7 +175,7 @@ SUBROUTINE md_check_tag
   !  scaling velocities berendsen, 
   !  if not defined simple velocity rescale 
   ! =========================================
-  if(tauberendsen.eq.0.0D0 ) tauberendsen = dt
+  if (tauberendsen.eq.0.0D0 ) tauberendsen = dt
 
   ! ====================
   !  check integrator
@@ -183,7 +183,7 @@ SUBROUTINE md_check_tag
   do i = 1 , size (integrator_allowed)
    if (trim (integrator) .eq. integrator_allowed(i) ) allowed = .true.
   enddo
-  if(  .not. allowed ) then
+  if (  .not. allowed ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: integrator should be ', integrator_allowed
     STOP 
   endif
@@ -194,7 +194,7 @@ SUBROUTINE md_check_tag
   do i = 1 , size (setvel_allowed)
    if (trim (setvel) .eq. setvel_allowed(i) ) allowed = .true.
   enddo
-  if(  .not. allowed ) then
+  if (  .not. allowed ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: setvel should be ', setvel_allowed
     STOP
   endif
@@ -207,7 +207,7 @@ SUBROUTINE md_check_tag
     STOP
   endif
 
-  if(integrator.eq.'nvt-nh' ) then
+  if (integrator.eq.'nvt-nh' ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: integrator = "nvt-nh" not yet implemented try nvt-nhc2 '
     if ( ionode )  WRITE ( stdout ,'(a)') integrator
     STOP 
@@ -238,7 +238,7 @@ END SUBROUTINE md_check_tag
 
 SUBROUTINE md_print_info(kunit)
 
-  USE control,  ONLY :  lpbc , lstatic , lvnlist , lreduced  
+  USE control,  ONLY :  lpbc , lstatic , lvnlist , lreduced , lminimg 
   USE io_file,  ONLY :  ionode 
 
   implicit none
@@ -246,63 +246,66 @@ SUBROUTINE md_print_info(kunit)
   !local
   integer :: kunit
 
-  if( ionode ) then 
-                                     WRITE ( kunit ,'(a)')       '=============================================================' 
-                                     WRITE ( kunit ,'(a)')       ''
-      if(lstatic) then
-                                     WRITE ( kunit ,'(a)')       'static  calculation ....boring                 '
+  if ( ionode ) then 
+                                          WRITE ( kunit ,'(a)')       '=============================================================' 
+                                          WRITE ( kunit ,'(a)')       ''
+      if (lstatic) then
+                                          WRITE ( kunit ,'(a)')       'static  calculation ....boring                 '
       else
-        if( .not. lpbc )             WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)    '
-        if( lpbc )                   WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell     '  
-        if( lvnlist )                WRITE ( kunit ,'(a)')       'verlet list used '  
-        if( lreduced )               WRITE ( kunit ,'(a)')       'units reduced by the number of atom'
-        if(.not.lstatic)             WRITE ( kunit ,'(a)')       'dynamic calculation'
-        if(integrator.eq.'nve-lf')   WRITE ( kunit ,'(a)')       'NVE ensemble --- leap-frog integrator          '
-        if(integrator.eq.'nve-be')   WRITE ( kunit ,'(a)')       'NVE ensemble --- beeman integrator             '
-        if(integrator.eq.'nve-vv' .and. & 
-           lleapequi )               WRITE ( kunit ,'(a)')       'NVE ensemble --- velocity verlet (equil) + leap-frog integrator        '
-        if(integrator.eq.'nve-vv'.and.  &
-          .not. lleapequi )          WRITE ( kunit ,'(a)')       'NVE ensemble --- velocity verlet integrator    '
-        if(integrator.eq.'nvt-and')  WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator    ' 
-        if(integrator.eq.'nvt-and')  WRITE ( kunit ,'(a)')       ' + Andersen thermostat'
-        if(integrator.eq.'nvt-and')  WRITE ( kunit ,'(a,f10.5)') 'nuandersen                         = ',nuandersen  
-        if(integrator.eq.'nvt-nh')   WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
-        if(integrator.eq.'nvt-nh')   WRITE ( kunit ,'(a)')       ' + Nose Hoover thermostat'
-        if(integrator.eq.'nvt-nhc2') WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
-        if(integrator.eq.'nvt-nhc2') WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
-        if(integrator.eq.'nvt-nhc2') WRITE ( kunit ,'(a,f10.5)') 'Qnosehoover                          = ',Qnosehoover
-        if( (integrator.ne.'nvt-and' ) .and. &
-            (integrator.ne.'nvt-nhc2') .and. &
-            (integrator.ne.'nvt-nh') ) then
-              if(nequil.eq.0) then
-                                     WRITE ( kunit ,'(a)')       'with no equilibration          '
+        if ( .not. lpbc )                 WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)    '
+        if ( lpbc )                       WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell     '  
+        if ( lminimg )                    WRITE ( kunit ,'(a)')       'using minimum image convention                 '  
+        if ( .not. lminimg )              WRITE ( kunit ,'(a)')       'no minimum image convention                    '  
+        if ( lvnlist )                    WRITE ( kunit ,'(a)')       'verlet list used '  
+        if ( lreduced )                   WRITE ( kunit ,'(a)')       'units reduced by the number of atom'
+        if ( .not.lstatic)                WRITE ( kunit ,'(a)')       'dynamic calculation'
+        if ( integrator .eq. 'nve-lf')    WRITE ( kunit ,'(a)')       'NVE ensemble --- leap-frog integrator          '
+        if ( integrator .eq. 'nve-be')    WRITE ( kunit ,'(a)')       'NVE ensemble --- beeman integrator             '
+
+        if ( integrator .eq. 'nve-vv' .and. lleapequi )   &
+                                          WRITE ( kunit ,'(a)')       'NVE ensemble --- velocity verlet (equil) + leap-frog integrator        '
+        if ( integrator .eq. 'nve-vv'.and.  .not. lleapequi )  &
+                                          WRITE ( kunit ,'(a)')       'NVE ensemble --- velocity verlet integrator    '
+        if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator    ' 
+        if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a)')       ' + Andersen thermostat'
+        if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a,f10.5)') 'nuandersen                         = ',nuandersen  
+        if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
+        if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       ' + Nose Hoover thermostat'
+        if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
+        if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
+        if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a,f10.5)') 'Qnosehoover                          = ',Qnosehoover
+        if ( ( integrator .ne. 'nvt-and' )  .and. &
+             ( integrator .ne. 'nvt-nhc2' ) .and. &
+             ( integrator .ne. 'nvt-nh' ) ) then
+              if ( nequil .eq. 0 ) then
+                                          WRITE ( kunit ,'(a)')       'with no equilibration          '
               else
-                                     WRITE ( kunit ,'(a)')       'with equilibration:             '
-                                     WRITE ( kunit ,'(a)')       'berendsen scaling ( is not canonical ...and so NVE)'
-               if(integrator.eq.'nve-lf') &
-                                     WRITE ( kunit ,'(a)')       'WARNING WITH nve-lf no equilibration possible'
+                                          WRITE ( kunit ,'(a)')       'with equilibration:             '
+                                          WRITE ( kunit ,'(a)')       'berendsen scaling ( is not canonical ...and so NVE)'
+               if ( integrator .eq. 'nve-lf' ) &
+                                          WRITE ( kunit ,'(a)')       'WARNING WITH nve-lf no equilibration possible'
               endif !nequil
         endif !integrator
       endif !static
-                                     WRITE ( kunit ,'(a,i10)')   'number of steps                      = ',npas
-                                     WRITE ( kunit ,'(a,e10.5)') 'timestep                             = ',dt
-                                     WRITE ( kunit ,'(a,e10.5)') 'time range                           = ',dt*npas
-                                     WRITE ( kunit ,'(a,f10.5)') 'temperature                          = ',temp
-      if(integrator.eq.'nve-vv'.and.nequil.ne.0) then           
-                                     WRITE ( kunit ,'(a,i10)')   'number of equilibration steps        = ',nequil
-                                     WRITE ( kunit ,'(a,i10)')   'equilibration period                 = ',nequil_period
+                                          WRITE ( kunit ,'(a,i10)')   'number of steps                      = ',npas
+                                          WRITE ( kunit ,'(a,e10.5)') 'timestep                             = ',dt
+                                          WRITE ( kunit ,'(a,e10.5)') 'time range                           = ',dt*npas
+                                          WRITE ( kunit ,'(a,f10.5)') 'temperature                          = ',temp
+      if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
+                                          WRITE ( kunit ,'(a,i10)')   'number of equilibration steps        = ',nequil
+                                          WRITE ( kunit ,'(a,i10)')   'equilibration period                 = ',nequil_period
       endif 
-      if(nequil.ne.0)                WRITE ( kunit ,'(a,e10.5)') 'Berendsen thermo time scale          = ',tauberendsen
-      if(nequil.ne.0.and.tauberendsen.eq.dt)   &
-                                     WRITE ( kunit ,'(a)')       'tauberendsen = dt -> simple rescale'
-                                     WRITE ( kunit ,'(a,i10)')   'print thermo  periodicity            = ',nprint
-      if(ltraj)                   then    
-                                     WRITE ( kunit ,'(a,i10)')   'save trajectory from step            = ',itraj_start
-                                     WRITE ( kunit ,'(a,i10)')   'saved trajectory periodicity         = ',itraj_period
-      if(itraj_format.eq.0)          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : BINARY'
-      if(itraj_format.ne.0)          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : FORMATTED'
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e10.5)') 'Berendsen thermo time scale          = ',tauberendsen
+      if ( nequil .ne. 0 .and. tauberendsen .eq. dt )   &
+                                          WRITE ( kunit ,'(a)')       'tauberendsen = dt -> simple rescale'
+                                          WRITE ( kunit ,'(a,i10)')   'print thermo  periodicity            = ',nprint
+      if ( ltraj )                   then    
+                                          WRITE ( kunit ,'(a,i10)')   'save trajectory from step            = ',itraj_start
+                                          WRITE ( kunit ,'(a,i10)')   'saved trajectory periodicity         = ',itraj_period
+      if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : BINARY'
+      if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : FORMATTED'
       endif       
-                                     WRITE ( kunit ,'(a)')       ''
+                                          WRITE ( kunit ,'(a)')       ''
   endif !ionode
 
 
@@ -320,22 +323,26 @@ END SUBROUTINE md_print_info
 SUBROUTINE write_traj_xyz 
 
   USE io_file,  ONLY :  ionode , kunit_TRAJFF
-  USE config,   ONLY :  system , natm , ntype , rx , ry , rz , vx , vy , vz , fx , fy , fz , atype, box 
+  USE config,   ONLY :  system , natm , natmi , ntype , &
+                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , box 
 
   implicit none
 
   ! local
-  integer :: i
+  integer :: ia , it
 
   CALL periodicbc ( natm , rx , ry , rz , box )
-
-  if( ionode ) then
-    WRITE ( kunit_TRAJFF, * ) natm
-    WRITE ( kunit_TRAJFF, * ) system
-    WRITE ( kunit_TRAJFF, * ) box , ntype
-    do i = 1,natm
-      if(atype(i) .eq. 'A') WRITE ( kunit_TRAJFF , 200 ) 'A', rx(i), ry(i), rz(i), vx(i), vy(i), vz(i), fx(i), fy(i), fz(i)
-      if(atype(i) .eq. 'B') WRITE ( kunit_TRAJFF , 200 ) 'B', rx(i), ry(i), rz(i), vx(i), vy(i), vz(i), fx(i), fy(i), fz(i)
+  if ( ionode ) then
+    WRITE ( kunit_TRAJFF , * ) natm
+    WRITE ( kunit_TRAJFF , * ) system
+    WRITE ( kunit_TRAJFF , * ) box , ntype
+    WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
+    WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+    
+    do ia = 1 , natm
+      WRITE ( kunit_TRAJFF , 200 ) atype(ia), rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                              vx ( ia ) , vy ( ia ) , vz ( ia ) , & 
+                                              fx ( ia ) , fy ( ia ) , fz ( ia )
     enddo
   endif
 
@@ -359,17 +366,23 @@ SUBROUTINE write_traj_xyz_test
   implicit none
 
   ! local
-  integer :: i
+  integer :: ia
 
   !CALL periodicbc ( n , rx , ry , rz , box )
 
-  if( ionode ) then
-    i = 2 
-      if(atype(i) .eq. 'A') WRITE ( kunit_TRAJFF , 200 ) 'A', rx(i), ry(i), rz(i), vx(i), vy(i), vz(i), fx(i), fy(i), fz(i)
-      if(atype(i) .eq. 'B') WRITE ( kunit_TRAJFF , 200 ) 'B', rx(i), ry(i), rz(i), vx(i), vy(i), vz(i), fx(i), fy(i), fz(i)
+  if ( ionode ) then
+    ia = 2 
+      if ( atype ( ia ) .eq. 'A' ) &
+      WRITE ( kunit_TRAJFF , 200 ) 'A', rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                        vx ( ia ) , vy ( ia ) , vz ( ia ) , & 
+                                        fx ( ia ) , fy ( ia ) , fz ( ia )
+      if ( atype ( ia ) .eq. 'B' ) &
+      WRITE ( kunit_TRAJFF , 200 ) 'B', rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                        vx ( ia ) , vy ( ia ) , vz ( ia ) , &
+                                        fx ( ia ) , fy ( ia ) , fz ( ia )
   endif
 
- 200 FORMAT(A2,9F20.12)
+ 200 FORMAT( A2 , 9F20.12 )
 
  return
 

@@ -245,7 +245,8 @@ In \MDFF, five sections are always required :
 \item \&proptag ... \&end    $\rightarrow$ Calculation of properties
 \end{itemize}
 
-Using this minimum settings (5 empty sections) the code runs with default values.
+see examples/ex0/control.F for the minimum settings example
+Using this minimum settings the code runs with default values.
 It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc lennard-jones 
 crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the standard output of this minimum setting. 
 
@@ -265,16 +266,18 @@ crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the st
 =============================================================
 
 MOLECULAR DYNAMICS ...for fun                 
-mdff.0.2.0
+mdff.0.3.1
 parallel version
 filipe.manuel.vasconcelos@gmail.com  
 Running on   1 nodes                  
-time     : 2011/11/05    15:50:14
+Host     : superbock
+time     : 2012/10/09    14:37:06
 calc     : md                                                          
 
 =============================================================
 
 periodic boundary conditions in cubic cell     
+using minimum image convention                 
 verlet list used 
 units reduced by the number of atom
 dynamic calculation
@@ -295,15 +298,16 @@ print thermo  periodicity            =          1
 
 structure generated from the code
 Face-centered cubic structure :  4x  4x  4  
-system                               : fcc                                                         
-natm                                 =        256
-cell parameter                       =     6.3496
-volume                               =   256.0000
-density                              =     1.0000
-distance check subroutine
-smallest distance =   1.12
-
+system                               : UNKNOWN                                                     
+natm                                 =              256
+nA                                   =              256  100.00%
+cell parameter                       =           6.3496
+volume                               =         256.0000
+density                              =           1.0000
 =============================================================
+
+discret charges: (no forces!)
+qA        =   -1.00000
 
 force field information :                      
 no masses are implemented                      
@@ -314,27 +318,70 @@ LENNARD-JONES
       q - p   \    \   r    /         \    r    /   /
 
 USER DEFINED MODEL                             
-cutoff  =    2.50000
+cutoff      =    2.50000
+truncation  = linear                                                      
 
+--------------------------------------------------------
 A-A interactions:
-sigmaAA =    1.00000
-epsAA   =    1.00000
-qAA     =   12.00000
-pAA     =    6.00000
+--------------------------------------------------------
+sigma                                =    1.00000
+eps                                  =    1.00000
+q                                    =   12.00000
+p                                    =    6.00000
+
 long range correction :         -0.535433102
  
+bmlj quantities initialized
 paralelisation - atom decomposition
 rank    0 atom    1 to  256
 =============================================================
-... MD output
+
+generate velocities
+Velocities from Maxwell-Boltzmann distribution
+normal distribution method = boxmuller_basic     
+Berendsen thermostat
+effective temperature      T        =     1.0072
+wanted temperature         T0       =     1.0000
+velocities rescaled by              =     0.9964
+
+center of mass velocity ALL     0.108420E-16    0.136609E-16    0.112757E-16
+center of mass velocity A       0.108420E-16    0.136609E-16    0.112757E-16
+=====================================================================================================================================
+properties at t=0
+        0  0.00000000E+00  Etot = -.58210321E+01  Ekin  = 0.15000000E+01  Utot  = -.73210321E+01  U_lj   = -.73210321E+01  U_coul   = 0.00000000E+00
+        0  0.00000000E+00  Temp = 0.10000000E+01  Press = -.93499015E-02  P_lj  = -.13256151E-01  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+ 
+stress tensor of initial configuration
+LJ : 
+                 x              y              z
+x                -3.39357478     0.00000000     0.00000000
+y                 0.00000000    -3.39357478    -0.00000000
+z                 0.00000000    -0.00000000    -3.39357478
+Press. iso =     -3.39357478     (    -0.01325615)
+
+
+starting main loop
+=====================================================================================================================================
+.... MD OUTPOUT
+=====================================================================================================================================
+end of the main loop
+ 
+stress tensor of final configuration
+LJ : 
+                 x              y              z
+x                -3.28236697    -0.00346038     0.00454895
+y                -0.00346038    -3.29751865     0.00222982
+z                 0.00454895     0.00222982    -3.29532761
+Press. iso =     -3.29173774     (    -0.01285835)
+
 =============================================================
 
-                 TOTAL :  cpu time     0.15
-                    MD :  cpu time     0.01
+                 TOTAL :  cpu time     0.04
+                    MD :  cpu time     0.02
 
 main subroutines:
 MD:
-    engforce_bmlj      :  cpu time     0.01
+    engforce_bmlj      :  cpu time     0.02
     engforce_coul_DS   :  cpu time     0.00
     vnlistcheck        :  cpu time     0.00
 =============================================================
@@ -639,23 +686,23 @@ Parameter          &  Type              &          Short Description            
 \verb?alphaES?     &  (DBLE)            & Ewald screening parameter                                                           & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?epsXY?       &  (DBLE)            & depth of the potential well of the Lennard jones potential with XY = AA, BB or AB   & \verb?1.0? \\
+\verb?epslj(X,Y)?       &  (DBLE)         & depth of the potential well of the Lennard jones potential with X,Y = 1 , 2 \ldots \verb?ntype?   & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?sigmaXY?     &  (DBLE)            & finite distance at which the inter-particle potential is zero with 
-                                          XY = AA, BB or AB                                                                   & \verb?1.0? \\
+\verb?sigmalj(X,Y)?     &  (DBLE)         & finite distance at which the inter-particle potential is zero with 
+                                          X,Y = 1 , 2 \ldots \verb?ntype?                                                     & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?qljXY?       &  (DBLE)            & exponent of the repulsive part with XY = AA, BB or AB                               & \verb?12? \\
+\verb?qlj(X,Y)?    &  (DBLE)            & exponent of the repulsive part with X,Y = 1 , 2 \ldots \verb?ntype?                 & \verb?12? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pljXY?       &  (DBLE)            & exponent of the attractive part with XY = AA, BB or AB                              & \verb?6? \\
+\verb?plj(X,Y)?    &  (DBLE)            & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?6? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?mX?          &  (DBLE)            & mass of the particule with X= A or B (not used yet)                                 & \verb?1.0? \\
+\verb?mass(X)?        &  (DBLE)         & mass of the particule type with X = 1 , 2 \ldots \verb?ntype? (not used yet)        & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?qX?          &  (DBLE)            & charge of the particule with X= A or B                                              & \verb?qA = 1.0?\newline\verb?qB =-1.0?\\
+\verb?qch(X)?          &  (DBLE)        & charge of the particule type with X = 1 , 2 \ldots \verb?ntype?                     & \verb?q(1) = 1.0?\newline\verb?q(2) =-1.0?\\
 \hline
 \hline
 \end{longtable}

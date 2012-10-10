@@ -74,11 +74,11 @@ SUBROUTINE vacf_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , vacftag,iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
    STOP
-  elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
    STOP
   endif
 
@@ -141,12 +141,12 @@ SUBROUTINE vacf_print_info(kunit)
   ! local
   integer :: kunit
 
-  if( ionode  ) then
-                               WRITE ( kunit ,'(a)')           ''
-                               WRITE ( kunit ,'(a)')           'velocity auto-correlation function   : '
-                               WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
-                               WRITE ( kunit ,'(a,i5)')        'it0                                  = ',it0
-                               WRITE ( kunit ,'(a)')           'output file                          : VACFFF'
+  if ( ionode ) then
+         WRITE ( kunit ,'(a)')           ''
+         WRITE ( kunit ,'(a)')           'velocity auto-correlation function   : '
+         WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
+         WRITE ( kunit ,'(a,i5)')        'it0                                  = ',it0
+         WRITE ( kunit ,'(a)')           'output file                          : VACFFF'
   endif
 
   return 
@@ -228,7 +228,7 @@ SUBROUTINE vacf_main
   INCLUDE 'mpif.h'
 
   ! local
-  integer :: i, dtt , t , ttel , ierr
+  integer :: ia , dtt , t , ttel , ierr
   ! timeinfo
   double precision :: ttt1 , ttt2 
 
@@ -246,18 +246,19 @@ SUBROUTINE vacf_main
     t0 = t0 + 1
     ttel = mod ( t0 - 1 , t0max ) + 1
     ttv0 ( ttel ) = tvacf
-    do i = 1 , natm 
-      vxt0 ( i , ttel ) = vx ( i )
-      vyt0 ( i , ttel ) = vy ( i )
-      vzt0 ( i , ttel ) = vz ( i )
+    do ia = 1 , natm 
+      vxt0 ( ia , ttel ) = vx ( ia )
+      vyt0 ( ia , ttel ) = vy ( ia )
+      vzt0 ( ia , ttel ) = vz ( ia )
     enddo 
   endif 
   do t = 1, MIN ( t0 , t0max )
     dtt = tvacf - ttv0( t ) + 1
     if ( dtt .lt. tmax .and. dtt * dtime .le. tdifmax) then 
       nvacf ( dtt ) = nvacf ( dtt ) + 1
-      do i = 1 , natm 
-        vacff ( dtt ) = vacff ( dtt ) + vx ( i ) * vxt0 ( i , t ) + vy ( i ) * vyt0 ( i , t ) + vz ( i ) * vzt0 ( i , t )
+      do ia = 1 , natm 
+        vacff ( dtt ) = vacff ( dtt ) + &
+        vx ( ia ) * vxt0 ( ia , t ) + vy ( ia ) * vyt0 ( ia , t ) + vz ( ia ) * vzt0 ( ia , t )
       enddo 
     endif 
   enddo 
@@ -372,7 +373,8 @@ SUBROUTINE vacf_write_output
 
   RETURN
 
-99001 FORMAT ('Number of samples for tmin = ', f8.3, ' is : ', i10, /, 'Number of samples for tmax = ', f8.3, ' is : ', i10)
+99001 FORMAT ('Number of samples for tmin = ', f8.3, ' is : ', i10, /, &
+              'Number of samples for tmax = ', f8.3, ' is : ', i10)
 99002 FORMAT ('Decorrelation time ', e12.4)
 99004 FORMAT ('Velocity auto correlation function and mean square dis.:',&
              /, '   Number of samples       : ', i8, /, &

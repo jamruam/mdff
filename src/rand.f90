@@ -27,9 +27,10 @@ SUBROUTINE init_random_seed
   implicit none
 
   ! local
-  integer :: i, n, clock
+  integer :: i , n , clock
   integer, dimension(:), allocatable :: seed
-         
+  
+  i=1       
   CALL RANDOM_SEED(size = n)
   allocate(seed(n))
           

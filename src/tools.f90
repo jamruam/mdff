@@ -53,17 +53,17 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
   y = mod(isteps,np)
 
   do me = 0,np-1
-     if((me.eq.0).or.(me.gt.y)) then
+     if ((me.eq.0).or.(me.gt.y)) then
         splitnumberV(me) = x
-     else if((me.gt.0).or.(me.lt.(y+1))) then
+     else if ((me.gt.0).or.(me.lt.(y+1))) then
         splitnumberV(me) = x+1
      endif
   enddo
   do me = 0,np-1
-     if(me.eq.0) then
+     if (me.eq.0) then
         istartV(0) = imin
         iendV(0)   = imin + ( x -1 )
-     else if(me.gt.0) then
+     else if (me.gt.0) then
         istartV(me) = iendV(me-1) + 1
         iendV(me)   = istartV(me) + splitnumberV(me) - 1
      endif
@@ -96,7 +96,7 @@ END SUBROUTINE do_split
 SUBROUTINE distance_tab ( kunit )
 
   USE config,   ONLY :  natm , box , rx , ry , rz
-  USE field,    ONLY :  sigmaAA
+  USE field,    ONLY :  sigmalj
   USE io_file,  ONLY :  ionode , stdout
 
   implicit none
@@ -108,7 +108,7 @@ SUBROUTINE distance_tab ( kunit )
   double precision :: rxi, ryi, rzi
   double precision :: rxij, ryij, rzij, rij, rijsq, norm
   integer :: nxij, nyij, nzij 
-  integer :: i, j, PANdis, kdis
+  integer :: ia , ja , PANdis, kdis
   integer, dimension (:) ,allocatable :: dist
   double precision :: resdis,mindis 
 
@@ -120,15 +120,15 @@ SUBROUTINE distance_tab ( kunit )
   dist = 0
   mindis = 100000.0D0
 
-  do i = 1 , natm - 1
-    rxi = rx(i)
-    ryi = ry(i)
-    rzi = rz(i)
-    do j = i+1,natm
-      if(i.ne.j) then
-        rxij = rxi - rx ( j )
-        ryij = ryi - ry ( j )
-        rzij = rzi - rz ( j )
+  do ia = 1 , natm - 1
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+    do ja = ia + 1 , natm
+      if ( ia .ne. ja ) then
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
         nxij = nint( rxij / box )
         nyij = nint( ryij / box )
         nzij = nint( rzij / box )
@@ -138,14 +138,16 @@ SUBROUTINE distance_tab ( kunit )
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
         rij = dsqrt ( rijsq )  
         mindis = min( mindis , rij )
-        if( rij .lt. sigmaAA * 0.001d0 ) then
-          if( ionode ) WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') 'ERROR: DISTANCE between atoms',i,' and ',j,' is very small',rij   
+        if ( rij .lt. sigmalj(1,1) * 0.001d0 ) then
+          if ( ionode ) &
+          WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
+          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij   
           STOP 
         endif
         rij = rij / resdis
         kdis = int( rij )
-        if( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          if( ionode ) WRITE ( stdout ,*) 'ERROR: out of bound dist in SUBROUTINE distance_tab'
+        if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
+          if ( ionode ) WRITE ( stdout ,*) 'ERROR: out of bound dist in SUBROUTINE distance_tab'
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -154,7 +156,7 @@ SUBROUTINE distance_tab ( kunit )
 
   norm = natm * ( natm - 1 ) / 2
  
-  if( ionode ) then
+  if ( ionode ) then
     WRITE ( kunit ,'(a)')       'distance check subroutine'
     WRITE ( kunit ,'(a,f6.2)')  'smallest distance = ',mindis
 !    WRITE ( kunit ,'(a)')       'distance ditribution:'
@@ -202,7 +204,7 @@ END SUBROUTINE distance_tab
 
 SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
 
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point 
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point, ntype 
   USE control,  ONLY :  skindiff , cutoff
 
   implicit none
@@ -212,48 +214,49 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
 !  integer , intent (out) :: list(natm*250), point(natm+1)
  
   ! local
-  integer :: icount,i,j,k
-  integer :: p1,p2
-  integer :: nxij,nyij,nzij
-  double precision  :: rskinsq(2,2), rcut(2,2), rskin(2,2)
-  double precision :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
+  integer :: icount , ia , ja , it , jt , k
+  integer :: p1 , p2
+  integer :: nxij , nyij , nzij
+  double precision  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
+  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq
 
-  do j = 1, 2
-    do i = 1, 2
-       rcut(i,j) = cutoff
-       rskin(i,j) = rcut(i,j) + skindiff
-       rskinsq(i,j) = rskin(i,j)*rskin(i,j)
+  do jt = 1, ntype 
+    do it = 1, ntype
+       rcut    ( it , jt ) = cutoff
+       rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
+       rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
   enddo
 
   icount = 1
-  do i = iastart , iaend
-    rxi = rx(i)
-    ryi = ry(i)
-    rzi = rz(i)
+  do ia = iastart , iaend
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
     k = 0
-    do j = 1,natm
-      if((i.gt.j.and.(mod(i+j,2).eq.0)).or.(i.lt.j.and.(mod(i+j,2).ne.0))) then
-        rxij = rxi-rx(j)
-        ryij = ryi-ry(j)
-        rzij = rzi-rz(j)
-        nxij = nint(rxij/box)
-        nyij = nint(ryij/box)
-        nzij = nint(rzij/box)
-        rxij = rxij-box*nxij
-        ryij = ryij-box*nyij
-        rzij = rzij-box*nzij
-        rijsq = rxij*rxij+ryij*ryij+rzij*rzij
-        p1 = itype(i)
-        p2 = itype(j)
-        if (rijsq .le. rskinsq(p1,p2)) then
+    do ja = 1 , natm
+      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( mod (ia + ja , 2 ) .ne.0 ) ) ) then
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        nxij = nint( rxij / box )
+        nyij = nint( ryij / box )
+        nzij = nint( rzij / box )
+        rxij = rxij - box * nxij
+        ryij = ryij - box * nyij
+        rzij = rzij - box * nzij
+        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+        p1 = itype ( ia )
+        p2 = itype ( ja )
+        if ( rijsq .le. rskinsq(p1,p2)) then
           icount = icount+1
           k = k+1
-          list(icount-1) = j
+          list(icount-1) = ja
         endif
       endif
     enddo
-    point(i) = icount-k
+    point(ia) = icount-k
   enddo
   point (iaend + 1 ) = icount
 
@@ -270,7 +273,7 @@ END SUBROUTINE vnlist_pbc
 
 SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
 
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype , list , point
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype , list , point , ntype
   USE control,  ONLY :  skindiff , cutoff
 
   implicit none
@@ -280,47 +283,138 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
 !  integer , intent (out) :: list(natm*250), point(natm+1)
 
   ! local
-  integer :: icount,i,j,k
+  integer :: icount , ia , ja , it , jt , k
   integer :: p1,p2
-  double precision  :: rskinsq(2,2), rcut(2,2), rskin(2,2)
+  double precision :: rskinsq ( ntype , ntype ) , rcut ( ntype , ntype ) , rskin ( ntype , ntype )
   double precision :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
 
-  do j = 1, 2
-    do i = 1, 2
-       rcut(i,j) = cutoff
-       rskin(i,j) = rcut(i,j) + skindiff
-       rskinsq(i,j) = rskin(i,j)*rskin(i,j)
+  do jt = 1, ntype
+    do it = 1, ntype
+       rcut    ( it , jt ) = cutoff
+       rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
+       rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
   enddo
 
   icount = 1
-  do i = iastart , iaend
-    rxi = rx(i)
-    ryi = ry(i)
-    rzi = rz(i)
+  do ia = iastart , iaend
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
     k = 0
-    do j = 1,natm
-      if((i.gt.j.and.(mod(i+j,2).eq.0)).or.(i.lt.j.and.(mod(i+j,2).ne.0))) then
-        rxij = rxi-rx(j)
-        ryij = ryi-ry(j)
-        rzij = rzi-rz(j)
-        rijsq = rxij*rxij+ryij*ryij+rzij*rzij
-        p1 = itype(i)
-        p2 = itype(j)
+    do ja = 1 , natm
+      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( mod ( ia + ja , 2 ) .ne. 0 ) ) ) then
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+        p1 = itype ( ia )
+        p2 = itype ( ja )
         if (rijsq .le. rskinsq(p1,p2)) then
-          icount = icount+1
-          k = k+1
-          list(icount-1) = j
+          icount = icount + 1
+          k = k + 1
+          list ( icount - 1 ) = ja
         endif
       endif
     enddo
-    point(i) = icount-k
+    point (ia ) = icount-k
   enddo
   point( iaend + 1 ) = icount
 
   return
 
 END SUBROUTINE vnlist_nopbc
+
+!*********************** SUBROUTINE vnlist_noimg ********************************
+!
+! verlet list subroutine :
+! Periodic boundaries condition version ( no minimum image convention ) 
+! !!!!test version 
+! 
+! input :
+!          iastart , iaend : index of atom decomposition ( parallel )
+!
+! output:
+!  
+!          point           : array of size natm+1 
+!                            gives the starting and finishing index of array list for a given atom i
+!                            jbegin = point(i)  jend = point(i+1) - 1
+!          list            : index list of neighboring atoms
+!
+! how to use it :
+!                          do ia = 1, natm
+!                            jbegin = point(i)
+!                            jend = point(i+1) - 1
+!                            do jvnl = jbegin , jend
+!                              ja = list ( jvnl ) 
+!                              then ia en ja are neighboors   
+!                            enddo
+!                          enddo
+!
+!******************************************************************************
+
+SUBROUTINE vnlist_noimg ( iastart , iaend )
+
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point, ntype
+  USE control,  ONLY :  skindiff , cutoff
+
+  implicit none
+
+  ! global
+  integer , intent (in)  :: iastart , iaend
+
+  ! local
+  integer :: icount, ia , ja , it , jt ,k
+  integer :: p1,p2
+  integer :: nxij,nyij,nzij
+  double precision  :: rskinsq ( ntype , ntype ) , rcut ( ntype , ntype ) , rskin ( ntype , ntype )
+  double precision :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
+
+  do jt = 1, ntype 
+    do it = 1, ntype
+       rcut    ( it , jt ) = cutoff
+       rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
+       rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
+    enddo
+  enddo
+
+  icount = 1
+  do ia = iastart , iaend
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+    k = 0
+    do ja = 1 , natm
+      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( mod ( ia + ja , 2 ) .ne. 0 ) ) ) then
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        nxij = nint ( rxij / box )
+        nyij = nint ( ryij / box )
+        nzij = nint ( rzij / box )
+        rxij = rxij - box * nxij
+        ryij = ryij - box * nyij
+        rzij = rzij - box * nzij
+        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+        p1 = itype ( ia )
+        p2 = itype ( ja )
+        if ( rijsq .le. rskinsq(p1,p2)) then
+          icount = icount+1
+          k = k+1
+          list(icount-1) = ja
+        endif
+      endif
+    enddo
+    point ( ia ) = icount-k
+  enddo
+  point (iaend + 1 ) = icount
+
+  return
+
+END SUBROUTINE vnlist_noimg
+
 
 !*********************** SUBROUTINE vnlistcheck *******************************
 !
@@ -331,7 +425,7 @@ END SUBROUTINE vnlist_nopbc
 SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
 
   USE config,   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
-  USE control,  ONLY :  lpbc , skindiff 
+  USE control,  ONLY :  lpbc , lminimg , skindiff 
   USE md,       ONLY :  updatevnl
   USE time,     ONLY :  vnlisttimetot
 
@@ -343,7 +437,7 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
 !  integer, intent (inout) :: list(natm*250), point(natm+1)
 
   ! local
-  integer :: i , ierr
+  integer :: ia , ierr
   double precision :: displ
   double precision :: rxsi,rysi,rzsi
   double precision :: ttt1 , ttt2
@@ -352,13 +446,13 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
   ttt1 = MPI_WTIME(ierr)
 
   displ = 0.0D0
-  do i = 1, natm
-    rxsi = dabs( rx(i) - xs(i) )
-    rysi = dabs( ry(i) - ys(i) )
-    rzsi = dabs( rz(i) - zs(i) )
-    if( rxsi .gt. DISPL ) DISPL = rxsi
-    if( rysi .gt. DISPL ) DISPL = rysi
-    if( rzsi .gt. DISPL ) DISPL = rzsi
+  do ia = 1, natm
+    rxsi = dabs( rx ( ia ) - xs ( ia ) )
+    rysi = dabs( ry ( ia ) - ys ( ia ) )
+    rzsi = dabs( rz ( ia ) - zs ( ia ) )
+    if ( rxsi .gt. DISPL ) DISPL = rxsi
+    if ( rysi .gt. DISPL ) DISPL = rysi
+    if ( rzsi .gt. DISPL ) DISPL = rzsi
   enddo 
         
   ! ========================================
@@ -367,18 +461,22 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
   !  It was in the very old version
   ! ========================================
 
-  if(displ.ge.skindiff*0.5d0) then
+  if ( displ .ge. skindiff * 0.5d0 ) then
     updatevnl = updatevnl + 1
-    if(lpbc) then
-    CALL vnlist_pbc( iastart, iaend )!, list , point )
+    if ( lpbc ) then
+      if ( lminimg ) then 
+        CALL vnlist_pbc ( iastart, iaend )!, list , point )
+      else
+        CALL vnlist_noimg ( iastart, iaend )
+      endif
     else
-    CALL vnlist_nopbc( iastart, iaend )!, list , point )
+    CALL vnlist_nopbc ( iastart, iaend )!, list , point )
     endif
      
-    do i = 1, natm 
-      xs(i) = rx(i)
-      ys(i) = ry(i)
-      zs(i) = rz(i)
+    do ia = 1, natm 
+      xs ( ia ) = rx ( ia )
+      ys ( ia ) = ry ( ia )
+      zs ( ia ) = rz ( ia )
     END do
   endif
 
@@ -534,17 +632,23 @@ SUBROUTINE print_config_sample ( time , rank )
   integer, intent(in) :: time
 
   ! local 
-  integer :: i,rank
+  integer :: ia , rank
 
-  if(myrank.eq.rank) then
-     WRITE ( stdout ,'(a5,i10)') 'time = ',time
-     WRITE ( stdout ,'(a)') 'debug SAMPLE OF THE CONFIGIURATION debug     '
-     WRITE ( stdout ,'(a1,2a10,a8,3a40)') 'i','atype(i)','itype(i)','q(i)','rx(i)','vx(i)','fx(i)'
-if(natm.ge.8)     WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') (i,atype(i),itype(i),qia(i),rx(i),vx(i),fx(i),i = 1,4)
-if(natm.ge.8)     WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') (i,atype(i),itype(i),qia(i),rx(i),vx(i),fx(i),i = natm-4,natm)
-if(natm.lt.8)     WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') (i,atype(i),itype(i),qia(i),rx(i),vx(i),fx(i),i = 1,natm)
-     WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
-     WRITE ( stdout ,'(a)') ' '
+  if ( myrank.eq.rank ) then
+       WRITE ( stdout ,'(a5,i10)') 'time = ',time
+       WRITE ( stdout ,'(a)') 'debug SAMPLE OF THE CONFIGIURATION debug     '
+       WRITE ( stdout ,'(a1,2a10,a8,3a40)') 'i','atype(i)','itype(i)','q(i)','rx(i)','vx(i)','fx(i)'
+    if ( natm .ge. 8)   &
+       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
+       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 4 )
+    if ( natm .ge. 8)   &
+       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
+       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 4 , natm)
+    if ( natm .lt. 8)   &
+       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
+       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm)
+       WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
+       WRITE ( stdout ,'(a)') ' '
   endif
 
   return

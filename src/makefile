@@ -1,6 +1,6 @@
-###################################################
-# MAKEFILE FOR MDFF ON LISA AMSTERDAM JUNE 2011
-################################################### 
+##########################################################
+# MAKEFILE FOR MDFF ON SUPERBOCK NIJMEGEN  DECEMBER 2011
+##########################################################
 
 # The compiler
 FC = mpif90 
@@ -13,18 +13,19 @@ INSTALL_DIR=../bin
 #FCFLAGS = -fpp -check all -warn all
 #FCFLAGS = -O3 -pg -warn all
 #FCFLAGS = -O5 -ip -xW -warn all
-FCFLAGS = -fpp -O3 -ip -xW
+#FCFLAGS = -fpp -O3 -ip -xW
 
 #on superbock
-#FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
+FCFLAGS = -cpp -O5 -ffree-line-length-0 -I/usr/include 
+#FCFLAGS = -cpp -Werror -Wall -ffree-line-length-0 -I/usr/include 
 
 EXE= mdff.x bins.x bins-dos.x gen-kpt.x
 
 # libraries needed 
 # on lisa
-LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
+#LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
 # on superbock
-#LDFLAGS= -lm -llapack -lfftw3
+LDFLAGS= -lm -llapack -lfftw3
 
 # List of executables to be built within the package
 OBJ= \
@@ -36,8 +37,8 @@ time.o \
 functions.o \
 fft_t.o \
 rand.o \
-config.o \
 lattice.o \
+config.o \
 md.o \
 lbfgs.o \
 m1qn3.o \

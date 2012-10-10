@@ -254,7 +254,7 @@
   10  ITER= 0
       IF(N.LE.0.OR.M.LE.0) GO TO 196
       IF(GTOL.LE.1.D-04) THEN
-        if(ionode) WRITE(stdout,245)
+        if ( ionode ) WRITE ( stdout , 245 )
         GTOL=9.D-01
       ENDIF
       NFUN= 1
@@ -414,13 +414,13 @@
 !C     ------------------------------------------------------------
 !C
  190  IFLAG=-1
-      IF(ionode) WRITE(stdout,200) INFO
+      IF ( ionode ) WRITE ( stdout , 200 ) INFO
       RETURN
  195  IFLAG=-2
-      IF(ionode) WRITE(stdout,235) I
+      IF ( ionode ) WRITE ( stdout , 235 ) I
       RETURN
  196  IFLAG= -3
-      IF(ionode) WRITE(stdout,240)
+      IF ( ionode ) WRITE ( stdout , 240 )
 !C
 !C     FORMATS
 !C     -------
@@ -459,43 +459,43 @@
       COMMON /LB3/GTOL,STPMIN,STPMAX
 !C
       IF (ITER.EQ.0)THEN
-           WRITE(stdout,10)
-           WRITE(stdout,20) N,M
-           WRITE(stdout,30)F,GNORM
+           WRITE ( stdout , 10 )
+           WRITE ( stdout , 20 ) N , M
+           WRITE ( stdout , 30 ) F  ,GNORM
                  IF (IPRINT(2).GE.1)THEN
-                     WRITE(stdout,40)
-                     WRITE(stdout,50) (X(I),I=1,N)
-                     WRITE(stdout,60)
-                     WRITE(stdout,50) (G(I),I=1,N)
+                     WRITE ( stdout ,40 )
+                     WRITE ( stdout ,50 ) (X(I),I=1,N)
+                     WRITE ( stdout ,60 )
+                     WRITE ( stdout ,50 ) (G(I),I=1,N)
                   ENDIF
-           WRITE(stdout,10)
-           WRITE(stdout,70)
+           WRITE ( stdout , 10 )
+           WRITE ( stdout , 70 )
       ELSE
           IF ((IPRINT(1).EQ.0).AND.(ITER.NE.1.AND..NOT.FINISH))RETURN
               IF (IPRINT(1).NE.0)THEN
                    IF(MOD(ITER-1,IPRINT(1)).EQ.0.OR.FINISH)THEN
-                         IF(IPRINT(2).GT.1.AND.ITER.GT.1) WRITE(stdout,70)
-                         WRITE(stdout,80)ITER,NFUN,F,GNORM,STP
+                         IF(IPRINT(2).GT.1.AND.ITER.GT.1) WRITE ( stdout , 70 )
+                         WRITE ( stdout , 80 ) ITER , NFUN , F ,GNORM , STP
                    ELSE
                          RETURN
                    ENDIF
               ELSE
-                   IF( IPRINT(2).GT.1.AND.FINISH) WRITE(stdout,70)
-                   WRITE(stdout,80)ITER,NFUN,F,GNORM,STP
+                   IF( IPRINT(2).GT.1.AND.FINISH) WRITE ( stdout , 70 )
+                   WRITE ( stdout , 80 ) ITER,NFUN,F,GNORM,STP
               ENDIF
               IF (IPRINT(2).EQ.2.OR.IPRINT(2).EQ.3)THEN
                     IF (FINISH)THEN
-                        WRITE(stdout,90)
+                        WRITE ( stdout , 90 )
                     ELSE
-                        WRITE(stdout,40)
+                        WRITE ( stdout , 40 )
                     ENDIF
-                      WRITE(stdout,50)(X(I),I=1,N)
+                      WRITE ( stdout , 50 ) ( X ( I ) , I = 1 , N )
                   IF (IPRINT(2).EQ.3)THEN
-                      WRITE(stdout,60)
-                      WRITE(stdout,50)(G(I),I=1,N)
+                      WRITE ( stdout , 60 )
+                      WRITE ( stdout , 50 ) ( G ( I ) , I = 1 , N )
                   ENDIF
               ENDIF
-            IF (FINISH) WRITE(stdout,100)
+            IF ( FINISH ) WRITE ( stdout , 100 )
       ENDIF
 !C
  10   FORMAT('*************************************************')
@@ -536,17 +536,17 @@
       double precision dx(1),dy(1),da
       integer i,incx,incy,ix,iy,m,mp1,n
 !c
-      if(n.le.0)return
+      if (n.le.0)return
       if (da .eq. 0.0d0) return
-      if(incx.eq.1.and.incy.eq.1)go to 20
+      if (incx.eq.1.and.incy.eq.1)go to 20
 !c
 !c        code for unequal increments or equal increments
 !c          not equal to 1
 !c
       ix = 1
       iy = 1
-      if(incx.lt.0)ix = (-n+1)*incx + 1
-      if(incy.lt.0)iy = (-n+1)*incy + 1
+      if (incx.lt.0)ix = (-n+1)*incx + 1
+      if (incy.lt.0)iy = (-n+1)*incy + 1
       do 10 i = 1,n
         dy(iy) = dy(iy) + da*dx(ix)
         ix = ix + incx
@@ -560,11 +560,11 @@
 !c        clean-up loop
 !c
    20 m = mod(n,4)
-      if( m .eq. 0 ) go to 40
+      if ( m .eq. 0 ) go to 40
       do 30 i = 1,m
         dy(i) = dy(i) + da*dx(i)
    30 continue
-      if( n .lt. 4 ) return
+      if ( n .lt. 4 ) return
    40 mp1 = m + 1
       do 50 i = mp1,n,4
         dy(i) = dy(i) + da*dx(i)
@@ -590,16 +590,16 @@
 !c
       ddot = 0.0d0
       dtemp = 0.0d0
-      if(n.le.0)return
-      if(incx.eq.1.and.incy.eq.1)go to 20
+      if (n.le.0)return
+      if (incx.eq.1.and.incy.eq.1)go to 20
 !c
 !c        code for unequal increments or equal increments
 !c          not equal to 1
 !c
       ix = 1
       iy = 1
-      if(incx.lt.0)ix = (-n+1)*incx + 1
-      if(incy.lt.0)iy = (-n+1)*incy + 1
+      if (incx.lt.0)ix = (-n+1)*incx + 1
+      if (incy.lt.0)iy = (-n+1)*incy + 1
       do 10 i = 1,n
         dtemp = dtemp + dx(ix)*dy(iy)
         ix = ix + incx
@@ -614,14 +614,15 @@
 !c        clean-up loop
 !c
    20 m = mod(n,5)
-      if( m .eq. 0 ) go to 40
+      if ( m .eq. 0 ) go to 40
       do 30 i = 1,m
         dtemp = dtemp + dx(i)*dy(i)
    30 continue
-      if( n .lt. 5 ) go to 60
+      if ( n .lt. 5 ) go to 60
    40 mp1 = m + 1
       do 50 i = mp1,n,5
-        dtemp = dtemp + dx(i)*dy(i) + dx(i + 1)*dy(i + 1) + dx(i + 2)*dy(i + 2) + dx(i + 3)*dy(i + 3) + dx(i + 4)*dy(i + 4)
+        dtemp = dtemp + dx(i)*dy(i) + dx(i + 1)*dy(i + 1) + dx(i + 2)*dy(i + 2) + &
+        dx(i + 3)*dy(i + 3) + dx(i + 4)*dy(i + 4)
    50 continue
    60 ddot = dtemp
       return

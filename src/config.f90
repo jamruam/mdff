@@ -27,7 +27,7 @@ MODULE config
 
   implicit none
 
-  integer, PARAMETER :: ntypemax=10
+  integer, PARAMETER :: ntypemax = 16
 
   character*60, SAVE :: system                                       ! system name                                              
 
@@ -45,7 +45,7 @@ MODULE config
   double precision :: box                                            ! cell dimension
   double precision :: omega                                          ! volume
   double precision :: rho                                            ! density  
-  double precision :: xna, xnb                                       ! relative composition 
+  double precision :: xn ( ntypemax )                                ! relative composition 
 
   double precision , dimension(:), allocatable :: rx  , ry  , rz     ! positions
   double precision , dimension(:), allocatable :: vx  , vy  , vz     ! velocities
@@ -56,10 +56,9 @@ MODULE config
   double precision , dimension(:), allocatable :: rix , riy , riz    ! positions in the center of mass reference 
 
   double precision , dimension(:), allocatable :: qia                ! charge of ion 
-  double precision , dimension(0:ntypemax)     :: qit                ! charge of ion type  
 
-  character*10, dimension(:), allocatable      :: atype              ! atom type A or B 
-  character*10, dimension(0:ntypemax)          :: atypei             ! type of atoms (per type)
+  character*3, dimension(:), allocatable      :: atype               ! atom type A or B 
+  character*3, dimension(0:ntypemax)          :: atypei              ! type of atoms (per type)
 
   character*60 :: struct                                             ! crystal structure for fcc
   character*60 :: struct_allowed(2)                     
@@ -99,8 +98,7 @@ SUBROUTINE config_init
                              ntype    , & 
                              natm     , &
                              ncell    , &  
-                             xna      , &
-                             xnb      , &
+                             xn       , &
                              rho      , &
                              box      
 
@@ -114,11 +112,11 @@ SUBROUTINE config_init
   CALL getarg (1,filename)
   OPEN  ( stdin , file = filename)
   READ  ( stdin , configtag , iostat= ioerr)
-  if( ioerr .lt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag section is absent'
+  if ( ioerr .lt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag section is absent'
     STOP
-  elseif( ioerr .gt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag wrong tag'
     STOP
   endif
   CLOSE ( stdin )
@@ -143,12 +141,12 @@ SUBROUTINE config_init
     ! read initial configuration only for calc = md
     ! for opt, vib and efg configuations are read in other files
     ! ===========================================================
-    if( calc .eq. 'md' ) then       
+    if ( calc .eq. 'md' ) then       
       CALL read_pos
     endif
   endif
 
-  if( calc .ne. 'md' ) return
+  if ( calc .ne. 'md' ) return
   ! ===============================
   ! print info for config tags
   ! ===============================
@@ -179,8 +177,8 @@ SUBROUTINE config_default_tag
   ! =================
   system   = 'UNKNOWN'
   lgenconf = .true.     
-  xna      = 1.0D0
-  xnb      = 0.0D0
+  xn       = 0.0D0
+  xn ( 1 ) = 1.0D0       ! particle A
   ntype    = 1
   ncell    = 4
   lfcc     = .true. 
@@ -215,9 +213,9 @@ SUBROUTINE config_check_tag
   integer :: i
  
   if ( .not. lgenconf ) then
-    if( ionode ) WRITE ( stdout ,'(a)') '============================================================='
-    if( ionode ) WRITE ( stdout ,'(a)') 'WARNING: with lgenconf=.false.'
-    if( ionode ) WRITE ( stdout ,'(a)') 'all other config flags are not used '
+    if ( ionode ) WRITE ( stdout ,'(a)') '============================================================='
+    if ( ionode ) WRITE ( stdout ,'(a)') 'WARNING: with lgenconf=.false.'
+    if ( ionode ) WRITE ( stdout ,'(a)') 'all other config flags are not used '
   endif
   ! ===================
   !   generate config
@@ -228,32 +226,33 @@ SUBROUTINE config_check_tag
   !  struct check
   ! ============
   do i = 1 , size (struct_allowed)
-   if (trim (struct) .eq. struct_allowed(i) ) allowed = .true.
+   if ( trim (struct) .eq. struct_allowed(i) ) allowed = .true.
   enddo
-  if(  .not. allowed ) then
+  if (  .not. allowed ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR configtag: struct should be ', struct_allowed
     STOP 
   endif
   ! ============
   !  lfcc check
   ! ============
-  if(lfcc .and. ncell.eq.0) then
-    if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with lfcc, ncell is needed'
+  if ( lfcc .and. ncell .eq. 0 ) then
+    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with lfcc, ncell is needed'
     STOP 
   endif 
-  if(struct.eq.'NaCl') then
+  if ( struct .eq. 'NaCl' ) then
      lfcc = .true.
-     xna = 0.5D0
-     xnb = 0.5D0
+     xn(1) = 0.5D0
+     xn(2) = 0.5D0
   endif
-  if(struct.eq.'random'.and.ntype.eq.2) then
-     if(xna.eq.0.0d0 .or. xnb .eq. 0.0d0) then
-        if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with struct = "random" and 2 types. xna and xnb are needed'
+  if ( struct .eq. 'random' .and. ntype .eq. 2 ) then
+     if ( xn(1) .eq. 0.0d0 .or. xn(2) .eq. 0.0d0 ) then
+        if ( ionode ) WRITE ( stdout ,'(a)') &
+                  'ERROR configtag: with struct = "random" and 2 types. xn(1) and xn(2) are needed'
         STOP 
      endif 
   endif
-  if(struct.eq.'NaCl'.and.ntype.ne.2) then
-    if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with struct = "NaCl" 2 types are needed'
+  if ( struct .eq. 'NaCl' .and. ntype .ne. 2 ) then
+    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with struct = "NaCl" 2 types are needed'
     STOP 
   endif
   if ( lfcc ) then
@@ -268,38 +267,40 @@ SUBROUTINE config_check_tag
   ! ===================
   !  box and rho check
   ! ===================
-  if(box.ne.0.0D0.and.rho.ne.0.0D0) then
-    if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be set together (no mass) --- choose one !!'
+  if ( box .ne. 0.0D0 .and. rho .ne. 0.0D0 ) then
+    if ( ionode ) WRITE ( stdout ,'(a)') &
+                 'ERROR configtag: box and rho cannot be set together (no mass) --- choose one !!'
     STOP 
   endif
-  if(rho.ne.0.0D0.and.box.eq.0.0d0) then
+  if ( rho .ne. 0.0D0 .and. box .eq. 0.0d0 ) then
     box = dble(natm) / rho
     box = box**(1.0D0 / 3.0D0 )
-  else if(box.ne.0.0d0.and.rho.eq.0.0d0)  then
+  else if ( box .ne. 0.0d0 .and. rho .eq. 0.0d0 )  then
     rho = dble(natm)/(box**3.0D0)
   endif
-  if(box.eq.0.0D0.and.rho.eq.0.0D0) then
-    if( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be both zero --- choose one !!'
+  if ( box .eq. 0.0D0 .and. rho .eq. 0.0D0 ) then
+    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be both zero --- choose one !!'
     STOP
   endif
 
   ! ===================
   !  check cutoff
   ! ===================
-  if(cutoff.gt.box*0.5D0) then
-    if( ionode )   WRITE ( stdout ,'(a)') ' '
-    if( ionode )   WRITE ( stdout ,'(a)') 'WARNING configtag: cutoff is greater than half of cell size'
-    if( ionode )   WRITE ( stdout ,'(a,f10.6,a2)') 'cutoff should be changed to a safer value, ex. ',box*0.499D0,' ?'
-    if( ionode )   WRITE ( stdout ,'(a,f10.6,a,f10.6)') 'box =  ',box,'  cutoff =  ',cutoff
+  if ( cutoff .gt. box * 0.5D0 ) then
+    if ( ionode )   WRITE ( stdout ,'(a)') ' '
+    if ( ionode )   WRITE ( stdout ,'(a)') 'WARNING configtag: cutoff is greater than half of cell size'
+    if ( ionode )   WRITE ( stdout ,'(a,f10.6,a2)') &
+                    'cutoff should be changed to a safer value, ex. ',box*0.499D0,' ?'
+    if ( ionode )   WRITE ( stdout ,'(a,f10.6,a,f10.6)') 'box =  ',box,'  cutoff =  ',cutoff
     cutoff = box*0.499D0
-    if( ionode )   WRITE ( stdout ,'(a,f10.6)') 'Cutoff have been changed to continue',box*0.499D0
-    if( ionode )   WRITE ( stdout ,'(a)') ' '
+    if ( ionode )   WRITE ( stdout ,'(a,f10.6)') 'Cutoff have been changed to continue',box*0.499D0
+    if ( ionode )   WRITE ( stdout ,'(a)') ' '
   endif
   ! ============
   !  natm check
   ! ============
   if ( natm .eq. 0 ) then
-    if( ionode )   WRITE ( stdout ,'(a)') 'ERROR configtag: natm is 0'      
+    if ( ionode )   WRITE ( stdout ,'(a)') 'ERROR configtag: natm is 0'      
   endif
 
   return
@@ -320,18 +321,20 @@ SUBROUTINE config_print_info(kunit)
   implicit none
 
   ! local
-  integer :: kunit
+  integer :: kunit , it
 
   omega = box * box * box
 
-  if( ionode ) then
-                       WRITE ( kunit ,'(a,a)')          'system                               : ',system
-                       WRITE ( kunit ,'(a,i12)')        'natm                                 = ',natm
-       if(ntype.eq.2)  WRITE ( kunit ,'(a,i12,f8.2,a1)')'nA                                   = ',natmi(1),xna * 100,'%'
-       if(ntype.eq.2)  WRITE ( kunit ,'(a,i12,f8.2,a1)')'nB                                   = ',natm-natmi(1),xnb * 100,'%'
-                       WRITE ( kunit ,'(a,f12.4)')      'cell parameter                       = ',box
-                       WRITE ( kunit ,'(a,f12.4)')      'volume                               = ',omega
-                       WRITE ( kunit ,'(a,f12.4)')      'density                              = ',rho
+  if ( ionode ) then
+    WRITE ( kunit ,'(a,a)')          'system                               : ',system
+    WRITE ( kunit ,'(a,i16)')        'natm                                 = ',natm
+    do it = 1 , ntype     
+      WRITE ( kunit ,'(a,a,a,i16,f8.2,a1)') &
+                          'n',atypei(it),'                                 = ',natmi(it),xn(1) * 100,'%'
+    enddo
+    WRITE ( kunit ,'(a,f16.4)')      'cell parameter                       = ',box
+    WRITE ( kunit ,'(a,f16.4)')      'volume                               = ',omega
+    WRITE ( kunit ,'(a,f16.4)')      'density                              = ',rho
   endif 
   ! ============================
   !  print minimum distance 
@@ -360,7 +363,7 @@ SUBROUTINE gen_pos
   implicit none
 
   ! local
-  integer :: i , natmtmp , na 
+  integer :: ia , natmtmp , na 
   double precision ,dimension (:) ,allocatable :: rxtmp,rytmp,rztmp
 
   IF ( ionode ) then
@@ -386,7 +389,7 @@ SUBROUTINE gen_pos
     ! if 2 types how to generate A/B 
     ! configuration according to xna and xnb
     ! ======================================      
-    if(ntype.eq.2) then 
+    if (ntype.eq.2) then 
 
 
       ! ========
@@ -394,13 +397,13 @@ SUBROUTINE gen_pos
       ! ========
       if (struct.eq.'random') then 
         CALL init_fcc('random', natm , ntype , ncell , rx , ry , rz , box , struct )
-        CALL random_config ( natm , atype , xna )
+        CALL random_config ( natm , atype , xn(1) )
 
 
       ! ========
       !  NaCl 
       ! ========
-      elseif(struct.eq.'NaCl') then
+      elseif (struct.eq.'NaCl') then
          
         ! store the number of atom 
         natmtmp = natm
@@ -409,32 +412,32 @@ SUBROUTINE gen_pos
         ! generate sites A 
         CALL init_fcc('AAAAAA', natm , ntype , ncell , rx , ry , rz , box , struct ) 
         ! store sites A 
-        do i = 1, natm
-          rxtmp(i) = rx(i)
-          rytmp(i) = ry(i)
-          rztmp(i) = rz(i)  
+        do ia = 1 , natm
+          rxtmp ( ia ) = rx ( ia )
+          rytmp ( ia ) = ry ( ia )
+          rztmp ( ia ) = rz ( ia )  
         enddo
         ! generate sites B (half of the total number of atoms) 
         CALL init_fcc('BBBBBB', natm , ntype , ncell , rx , ry , rz , box , struct )
         ! store sites B 
-        do i = 1, natm
-          rxtmp(i + natm) = rx(i) + (box/ncell) * 0.5D0
-          rytmp(i + natm) = ry(i) + (box/ncell) * 0.5D0
-          rztmp(i + natm) = rz(i) + (box/ncell) * 0.5D0
+        do ia = 1 , natm
+          rxtmp ( ia + natm) = rx ( ia ) + (box/ncell) * 0.5D0
+          rytmp ( ia + natm) = ry ( ia ) + (box/ncell) * 0.5D0
+          rztmp ( ia + natm) = rz ( ia ) + (box/ncell) * 0.5D0
         enddo
-        do i = 1, natm 
-          atype(i) = 'A'
-          itype(i) = 1
+        do ia = 1 , natm 
+          atype ( ia ) = 'A'
+          itype ( ia ) = 1
         enddo
-        do i = natm + 1, natmtmp
-          atype(i) = 'B'
-          itype(i) = 2
+        do ia = natm + 1, natmtmp
+          atype ( ia ) = 'B'
+          itype ( ia ) = 2
         enddo
         natm = natmtmp
-        do i = 1, natm
-          rx(i) = rxtmp(i)
-          ry(i) = rytmp(i)
-          rz(i) = rztmp(i)   
+        do ia = 1 , natm
+          rx ( ia ) = rxtmp ( ia )
+          ry ( ia ) = rytmp ( ia )
+          rz ( ia ) = rztmp ( ia )   
         enddo   
       endif
     ! ======================================      
@@ -442,9 +445,9 @@ SUBROUTINE gen_pos
     ! ======================================      
     else 
       CALL init_fcc('AAAAAA' , natm ,  ntype , ncell , rx , ry , rz , box , struct )      
-      do i = 1, natm
-        atype(i) = 'A'
-        itype(i) = 1
+      do ia = 1 , natm
+        atype ( ia ) = 'A'
+        itype ( ia ) = 1
       enddo
     endif
   ! ================================      
@@ -456,13 +459,13 @@ SUBROUTINE gen_pos
     ! if 2 types how to generate A/B 
     ! configuration according to xna and xnb
     ! ======================================      
-    if(ntype.eq.2) then 
+    if (ntype.eq.2) then 
       ! ========
       ! random 
       ! ========
       if (struct.eq.'random') then 
-        CALL init_sc
-        CALL random_config ( natm , atype , xna )
+        CALL init_sc ( natm , ntype , ncell , rx , ry , rz , box )
+        CALL random_config ( natm , atype , xn(1) )
         print*,'check init_sc compare to fcc'
         STOP 
       endif
@@ -471,9 +474,9 @@ SUBROUTINE gen_pos
     ! ======================================      
     else 
       CALL init_sc
-      do i = 1, natm
-        atype(i) = 'A'
-        itype(i) = 1 
+      do ia = 1 , natm
+        atype ( ia ) = 'A'
+        itype ( ia ) = 1 
       enddo
     endif
   ! ================================      
@@ -481,7 +484,7 @@ SUBROUTINE gen_pos
   ! ================================      
   ELSEIF (lbcc) THEN ! lbcc
 
-    if( ionode ) then
+    if ( ionode ) then
       WRITE ( stdout , * ) 'not yet'  
       STOP 
     endif
@@ -494,12 +497,12 @@ SUBROUTINE gen_pos
   ! ==============================      
   natmi = 0
   na = 0
-  do i = 1 , natm
-    if( atype(i) .eq. 'A' ) then 
+  do ia = 1 , natm
+    if ( atype ( ia ) .eq. 'A' ) then 
       na = na + 1
-      itype ( i ) = 1
+      itype ( ia ) = 1
     else
-      itype ( i ) = 2 
+      itype ( ia ) = 2 
     endif
   enddo
 
@@ -522,14 +525,108 @@ SUBROUTINE gen_pos
   ! ======================      
   ! recalculate xna,xnb  
   ! ======================
-  xna = dble(na)/dble(natm)
-  xnb = 1.0D0-xna
+  xn(1) = dble(na)/dble(natm)
+  xn(2) = 1.0D0-xn(1)
 
   deallocate(rxtmp,rytmp,rztmp)
 
   return
 
 END SUBROUTINE gen_pos
+
+!*********************** SUBROUTINE random_config *****************************
+!
+! this subroutine attributes randomly the atom type to a given configuration
+! when the starting configuration is completely generated by the code 
+!
+!******************************************************************************
+
+SUBROUTINE random_config ( natm , atype , xna )
+
+  implicit none
+
+  ! global
+  integer :: natm
+  double precision :: xna
+  character*10 , dimension ( natm )  :: atype , atmp
+
+  ! local
+  integer :: iseed
+  integer :: i , ia , k , nna, nnb
+  double precision :: X
+  double precision, dimension (:) , allocatable :: xtmp , ytmp , ztmp
+
+  allocate( xtmp(natm) , ytmp(natm) , ztmp(natm) )
+
+  nna = int( xna * natm )
+  nnb = natm - nna
+  ! ==================
+  !  initialize atype
+  ! ==================
+  do ia = 1 , natm
+   atype ( ia ) = 'C'
+  enddo
+
+  do i = 1 , nna
+    CALL RANDOM_SEED(SIZE = iseed)
+    CALL RANDOM_NUMBER(HARVEST = x)
+    k = int( X * natm ) + 1
+    do while ( atype(k) .eq. 'A' )
+      CALL RANDOM_SEED(SIZE = iseed)
+      CALL RANDOM_NUMBER(HARVEST = x)
+      k = int( X * natm ) + 1
+    enddo
+    atype(k) = 'A'
+  enddo
+
+  do ia = 1 , natm
+    if ( atype ( ia ) .ne. 'A' ) then
+      atype ( ia ) = 'B'
+    endif
+  enddo
+
+  ! ====================
+  !  reorganized atoms   
+  ! ====================
+  k = 0
+  do ia = 1 , natm
+   if ( atype ( ia ) .eq. 'A' ) then
+     k = k + 1
+     if ( k .gt. nna ) stop
+     atmp ( k ) = atype ( ia )
+     xtmp ( k ) = rx ( ia )
+     ytmp ( k ) = ry ( ia )
+     ztmp ( k ) = rz ( ia )
+   endif
+  enddo
+
+  do ia = 1 , natm
+   if ( atype ( ia ) .eq. 'B' ) then
+     k = k + 1
+     if ( k .gt. natm ) stop
+     atmp ( k ) = atype ( ia )
+     xtmp ( k ) = rx ( ia )
+     ytmp ( k ) = ry ( ia )
+     ztmp ( k ) = rz ( ia )
+   endif
+  enddo
+
+  do ia = 1 , natm
+   atype( ia ) = atmp ( ia )
+   rx ( ia ) = xtmp ( ia )
+   ry ( ia ) = ytmp ( ia )
+   rz ( ia ) = ztmp ( ia )
+  enddo
+
+  deallocate( xtmp , ytmp , ztmp )
+
+
+  return
+
+
+END SUBROUTINE random_config
+
+
 
 !*********************** SUBROUTINE read_pos **********************************
 !
@@ -546,7 +643,7 @@ SUBROUTINE read_pos
   implicit none
 
   ! local
-  integer :: i , it , ia 
+  integer :: it , ia  , cc  , ccs
 
   IF ( ionode ) then
     WRITE ( kunit_OUTFF ,'(a)')       '=============================================================' 
@@ -558,51 +655,65 @@ SUBROUTINE read_pos
   endif
 
   OPEN ( kunit_POSFF , file = 'POSFF' ) 
-  READ ( kunit_POSFF ,*) system
-  READ ( kunit_POSFF ,*) box , ntype 
-  READ( kunit_POSFF ,*) (atypei(it),it=1,ntype)
-  IF ( ionode ) WRITE( kunit_OUTFF ,'(A,20A3)') 'found type information on POSFF : ',atypei(1:ntype)
-  IF ( ionode ) WRITE( stdout      ,'(A,20A3)') 'found type information on POSFF : ',atypei(1:ntype)
+  READ ( kunit_POSFF ,* ) system
+  READ ( kunit_POSFF ,* ) box , ntype 
+  READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
+  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
+  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   READ( kunit_POSFF ,*) (natmi(it),it=1,ntype)
       
   omega = box * box * box
-  natm=0
-  do it=1,ntype
+
+  natm = 0
+
+  do it = 1 , ntype
     natm = natm + natmi(it)
   enddo
-  rho = dble(natm)/ omega
+  rho = dble( natm ) / omega
 
   call config_alloc 
 
   ! =========================================      
   ! read positions and velocities from disk 
   ! =========================================      
-  READ  ( kunit_POSFF , * ) ( rx ( ia ) , ry ( ia ) , rz ( ia ) , vx( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm )
+  READ  ( kunit_POSFF , * ) ( rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                              vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm )
   CLOSE ( kunit_POSFF )
 
   ! ==========================
   !  set some type parameters
   ! ==========================      
-  do i = 1 , natm
-    if ( i .le. natmi(1) )  then
-      atype ( i ) = 'A' 
-      itype ( i ) =  1
-    else
-      atype ( i ) = 'B' 
-      itype ( i ) =  2 
-     endif
+  natmi ( 0 ) = 0 
+  cc = 0
+  do it = 1 , ntype
+      ccs = cc
+      cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc 
+      atype ( ia ) = atypei ( it ) 
+      itype ( ia ) = it 
+    enddo
   enddo
+
+  ! old version with only 2 types obsolete 
+  !do ia = 1 , natm
+  !  if ( ia .le. natmi(1) )  then
+  !    atype ( ia ) = 'A' 
+  !  else
+  !    atype ( ia ) = 'B' 
+  !    itype ( ia ) =  2 
+  !   endif
+  !enddo
 
   ! ======================      
   ! recalculate xna,xnb  
   ! ======================
-  xna = dble(natmi(1))/dble(natm)
-  xnb = 1.0D0-xna
+  do it = 1 , ntype
+    xn(it)  = dble( natmi (it) ) /dble( natm )
+  end do
 
-  atypei(0)='ALL'
-  natmi(0)=natm
-
-
+  ! reset begining of tables atypei and natmi
+  atypei(0) = 'ALL'
+  natmi(0)  = natm
 
   return
 
@@ -638,7 +749,8 @@ SUBROUTINE write_CONTFF
       WRITE ( kunit_CONTFF,'(f20.12,i4)') box,ntype 
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
-      WRITE ( kunit_CONTFF,'(6f20.12)') ( xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm )
+      WRITE ( kunit_CONTFF,'(6f20.12)') ( xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
+                                           vx ( ia ) ,  vy ( ia ) ,  vz ( ia ) , ia = 1 , natm )
   CLOSE (kunit_CONTFF)
   endif
 
@@ -756,18 +868,18 @@ SUBROUTINE center_of_mass ( ax , ay , az , com )
   double precision :: com ( 0:ntypemax , 3 )
 
   ! local
-  integer :: i , it 
+  integer :: ia , it 
 
   com = 0.0D0
 
-  do i = 1, natm
-    it=itype(i)    
-    com ( it, 1 ) = com ( it, 1 )  + ax ( i ) ! * m 
-    com ( it, 2 ) = com ( it, 2 )  + ay ( i ) ! * m
-    com ( it, 3 ) = com ( it, 3 )  + az ( i ) ! * m 
-    com ( 0, 1 ) = com ( 0, 1 )  + ax ( i ) ! * m 
-    com ( 0, 2 ) = com ( 0, 2 )  + ay ( i ) ! * m
-    com ( 0, 3 ) = com ( 0, 3 )  + az ( i ) ! * m 
+  do ia = 1 , natm
+    it = itype ( ia )    
+    com ( it , 1 ) = com ( it , 1 )  + ax ( ia ) ! * m 
+    com ( it , 2 ) = com ( it , 2 )  + ay ( ia ) ! * m
+    com ( it , 3 ) = com ( it , 3 )  + az ( ia ) ! * m 
+    com ( 0  , 1 ) = com ( 0  , 1 )  + ax ( ia ) ! * m 
+    com ( 0  , 2 ) = com ( 0  , 2 )  + ay ( ia ) ! * m
+    com ( 0  , 3 ) = com ( 0  , 3 )  + az ( ia ) ! * m
   enddo
 
   do it = 0 , ntype
@@ -793,14 +905,14 @@ SUBROUTINE linear_momentum
   implicit none
 
   ! local
-  integer :: i
+  integer :: ia
   double precision :: Px, Py, Pz, normP
 
   
-  do i = 1,natm
-  Px = Px + vx(i)
-  Py = Py + vy(i) 
-  Pz = Pz + vz(i)
+  do ia = 1 , natm
+  Px = Px + vx ( ia )
+  Py = Py + vy ( ia ) 
+  Pz = Pz + vz ( ia )
   enddo
 
   normP = dsqrt(Px*Px + Py*Py + Pz*Pz)
@@ -821,19 +933,19 @@ SUBROUTINE angular_momentum ( Lx , Ly , Lz , normL )
   implicit none
 
   ! local
-  integer :: i
+  integer :: ia 
   double precision :: Lx, Ly, Lz, normL
 
   Lx = 0.0D0
   Ly = 0.0D0
   Lz = 0.0D0      
-  do i = 1,natm
-   Lx = Lx + ry(i)*vz(i)- rz(i)*vy(i) 
-   Ly = Ly + rz(i)*vx(i)- rx(i)*vz(i) 
-   Lz = Lz + rx(i)*vy(i)- ry(i)*vx(i)
+  do ia = 1 , natm
+   Lx = Lx + ry ( ia ) * vz ( ia ) - rz ( ia ) * vy ( ia ) 
+   Ly = Ly + rz ( ia ) * vx ( ia ) - rx ( ia ) * vz ( ia ) 
+   Lz = Lz + rx ( ia ) * vy ( ia ) - ry ( ia ) * vx ( ia )
   enddo
 
-  normL = dsqrt(Lx*Lx + Ly*Ly + Lz*Lz)
+  normL = dsqrt( Lx * Lx + Ly * Ly + Lz * Lz)
 
   return
 
@@ -858,7 +970,7 @@ SUBROUTINE ions_reference_positions
 
   CALL center_of_mass ( rx , ry , rz , com )
 
-  do ia = 1, natm
+  do ia = 1 , natm
     rix ( ia ) = rx ( ia ) - com ( 0 , 1 )
     riy ( ia ) = ry ( ia ) - com ( 0 , 1 )
     riz ( ia ) = rz ( ia ) - com ( 0 , 1 )
@@ -908,7 +1020,9 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
       rdist ( 1 ) = rx (isa) - com ( 0 , 1 ) 
       rdist ( 2 ) = ry (isa) - com ( 0 , 2 )
       rdist ( 3 ) = rz (isa) - com ( 0 , 3 )
-      r2 = r2 + ( rdist( 1 ) - rix(isa) )**2  + ( rdist( 2 ) - riy(isa) )**2 + ( rdist( 3 ) - riz(isa) )**2 
+      r2 = r2 + ( rdist( 1 ) - rix(isa) )**2 + &
+                ( rdist( 2 ) - riy(isa) )**2 + &
+                ( rdist( 3 ) - riz(isa) )**2 
     enddo 
     dis(it) = dis(it) + r2 / DBLE(natmi(it))
   enddo

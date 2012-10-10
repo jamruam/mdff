@@ -255,20 +255,28 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
 
   call calc_thermo
 
-  if( ionode ) then
-    if(present(dummy)) then
-      WRITE ( kunit , 200 ) step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r      , dummy
-      WRITE ( kunit , 201 ) step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
+  if ( ionode ) then
+    if (present(dummy)) then
+      WRITE ( kunit , 200 ) &
+      step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r      , dummy
+      WRITE ( kunit , 201 ) &
+      step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
     else
-      WRITE ( kunit , 100 ) step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r        
-      WRITE ( kunit , 101 ) step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
+      WRITE ( kunit , 100 ) &
+      step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r        
+      WRITE ( kunit , 101 ) &
+      step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
     endif
   endif
 
- 100 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8)
- 101 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8)
- 200 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8,'  dummy = ',E14.8)
- 201 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8,'  dummy = ',E14.8)
+ 100 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',&
+                E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8)
+ 101 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',&
+                E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8)
+ 200 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',&
+                E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8,'  dummy = ',E14.8)
+ 201 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',&
+                E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8,'  dummy = ',E14.8)
 
   return
 
@@ -302,15 +310,15 @@ SUBROUTINE write_average_thermo ( kunit )
   double precision :: e_tot_sig , e_kin_r_sig , u_tot_sig , u_lj_r_sig
   double precision :: u_coul_r_sig , temp_r_sig  , pressure_tot_sig , pressure_lj_sig  , pressure_coul_sig
  
-  if( acc_e_tot%counter         .eq. 0 ) return
-  if( acc_e_kin_r%counter       .eq. 0 ) return
-  if( acc_u_tot%counter         .eq. 0 ) return 
-  if( acc_u_lj_r%counter        .eq. 0 ) return
-  if( acc_u_coul_r%counter      .eq. 0 ) return
-  if( acc_temp_r%counter        .eq. 0 ) return
-  if( acc_pressure_tot%counter  .eq. 0 ) return
-  if( acc_pressure_lj%counter   .eq. 0 ) return
-  if( acc_pressure_coul%counter .eq. 0 ) return
+  if ( acc_e_tot%counter         .eq. 0 ) return
+  if ( acc_e_kin_r%counter       .eq. 0 ) return
+  if ( acc_u_tot%counter         .eq. 0 ) return 
+  if ( acc_u_lj_r%counter        .eq. 0 ) return
+  if ( acc_u_coul_r%counter      .eq. 0 ) return
+  if ( acc_temp_r%counter        .eq. 0 ) return
+  if ( acc_pressure_tot%counter  .eq. 0 ) return
+  if ( acc_pressure_lj%counter   .eq. 0 ) return
+  if ( acc_pressure_coul%counter .eq. 0 ) return
  
   ! ========
   !  < A >
@@ -352,7 +360,7 @@ SUBROUTINE write_average_thermo ( kunit )
   pressure_coul_sig = dsqrt ( pressure_coul_avsq - pressure_coul_av * pressure_coul_av )
 
 
-  if( ionode ) then
+  if ( ionode ) then
   !    write ( kunit , '(30i6)' )  acc_e_tot%counter , acc_e_kin_r%counter, acc_u_tot%counter , acc_u_lj_r%counter , acc_u_coul_r%counter , acc_temp_r%counter , acc_pressure_tot%counter , acc_pressure_lj%counter , acc_pressure_coul%counter 
 
       WRITE ( kunit , 100 ) e_tot_av    , e_kin_r_av       , u_tot_av         , u_lj_r_av         , u_coul_r_av        
@@ -361,10 +369,14 @@ SUBROUTINE write_average_thermo ( kunit )
       WRITE ( kunit , 103 ) temp_r_sig  , pressure_tot_sig , pressure_lj_sig  , pressure_coul_sig  
   endif
 
- 100 FORMAT(2X,'Aver. values:  <Etot>     = ',E14.8,'  <Ekin>      = ',E14.8,'  <Utot>      = ',E14.8,'  <U_lj>       = ',E14.8,'  <U_coul>       = ',E14.8)
- 101 FORMAT(2X,'Aver. values:  <Temp>     = ',E14.8,'  <Press>     = ',E14.8,'  <P_lj>      = ',E14.8,'  <P_coul>     = ',E14.8)
- 102 FORMAT(2X,'Var.  estim :  sig2(Etot) = ',E14.8,'  sig2(Ekin)  = ',E14.8,'  sig2(Utot)  = ',E14.8,'  sig2(U_lj)   = ',E14.8,'  sig2(U_coul)   = ',E14.8)
- 103 FORMAT(2X,'Var.  estim :  sig2(Temp) = ',E14.8,'  sig2(Press) = ',E14.8,'  sig2(P_lj)  = ',E14.8,'  sig2(P_coul) = ',E14.8)
+ 100 FORMAT(2X,'Aver. values:  <Etot>     = ',E14.8,'  <Ekin>      = ',&
+                     E14.8,'  <Utot>      = ',E14.8,'  <U_lj>      = ',E14.8,'  <U_coul>       = ',E14.8)
+ 101 FORMAT(2X,'Aver. values:  <Temp>     = ',E14.8,'  <Press>     = ',&
+                     E14.8,'  <P_lj>      = ',E14.8,'  <P_coul>    = ',E14.8)
+ 102 FORMAT(2X,'Var.  estim :  sig2(Etot) = ',E14.8,'  sig2(Ekin)  = ',&
+                     E14.8,'  sig2(Utot)  = ',E14.8,'  sig2(U_lj)  = ',E14.8,'  sig2(U_coul)   = ',E14.8)
+ 103 FORMAT(2X,'Var.  estim :  sig2(Temp) = ',E14.8,'  sig2(Press) = ',&
+                     E14.8,'  sig2(P_lj)  = ',E14.8,'  sig2(P_coul)= ',E14.8)
 
   return
 

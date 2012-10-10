@@ -16,15 +16,16 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 ! ===== fmV =====
+!#define debug
+
 !*********************** SUBROUTINE init_velocities ***************************
 ! 
 ! This routine initialize the velocities. 
 !
 !******************************************************************************
-
 SUBROUTINE init_velocities
 
-  USE config,   ONLY :  vx , vy , vz , natm , ntypemax , center_of_mass
+  USE config,   ONLY :  vx , vy , vz , natm , ntype , ntypemax , atypei , center_of_mass
   USE md,       ONLY :  nequil , setvel , temp
   USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
   USE control,  ONLY :  lrestart
@@ -34,7 +35,7 @@ SUBROUTINE init_velocities
   ! local
   double precision :: T, ekin 
   double precision :: com ( 0:ntypemax , 3 )
-  integer :: key , ia
+  integer :: key , ia , it 
 
   ! =======================================
   !  set key: 
@@ -54,7 +55,7 @@ SUBROUTINE init_velocities
   ! ===============================================
   if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0d0 .and. (nequil.ne.0)) then
 
-    if( ionode ) then
+    if ( ionode ) then
       WRITE ( kunit_OUTFF ,'(a)') '============================================================='
       WRITE ( kunit_OUTFF ,'(a)') ''
       WRITE ( kunit_OUTFF ,'(a)') 'generate velocities'
@@ -88,7 +89,7 @@ SUBROUTINE init_velocities
     ! =======================
     CALL calc_temp(T, ekin)
 
-    if( ionode ) then
+    if ( ionode ) then
       WRITE ( stdout      ,'(a,f10.4)') 'input temperature                    = ',T
       WRITE ( kunit_OUTFF ,'(a,f10.4)') 'input temperature                    = ',T
     endif
@@ -102,17 +103,18 @@ SUBROUTINE init_velocities
     vy = 0.0d0
     vz = 0.0d0
 
-    if( ionode ) then 
-      WRITE( stdout      , '(a)' ) 'no initial kinetic energy' 
-      WRITE( kunit_OUTFF , '(a)' ) 'no initial kinetic energy' 
+    if ( ionode ) then 
+      WRITE ( stdout      , '(a)' ) 'no initial kinetic energy' 
+      WRITE ( kunit_OUTFF , '(a)' ) 'no initial kinetic energy' 
     endif
 
   endif
 
-  CALL center_of_mass( vx , vy , vz , com )
-  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity ALL',com(0,:)
-  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity A  ',com(1,:)
-  if ( ionode ) WRITE( stdout ,'(a,4e16.6)') 'center of mass velocity B  ',com(2,:)
+  CALL center_of_mass ( vx , vy , vz , com )
+    if ( ionode ) WRITE ( stdout ,'(a,4e16.6)') 'center of mass velocity ALL ',com( 0 , :)
+  do it = 1 , ntype
+    if ( ionode ) WRITE ( stdout ,'(a,a,a,4e16.6)') 'center of mass velocity ', atypei( it ),' ',com( it , :)
+  enddo
 
   return
 
@@ -138,30 +140,35 @@ SUBROUTINE rescale_velocities (quite)
   integer, intent(in) :: quite
 
   ! local
-  integer :: i 
+  integer :: ia
   double precision :: T, lambda, ekin
 
   CALL calc_temp(T,ekin)
 
   lambda = ( 1.0D0 + (dt / tauberendsen) * (  (temp / T) - 1.0D0) ) ** 0.5D0
 
-  do i = 1, natm
-     VX(I) = VX(I) * lambda
-     VY(I) = VY(I) * lambda
-     VZ(I) = VZ(I) * lambda
+  do ia = 1 , natm
+     vx ( ia ) = vx ( ia ) * lambda
+     vy ( ia ) = vy ( ia ) * lambda
+     vz ( ia ) = vz ( ia ) * lambda
   enddo
 
-  if( ionode .and. quite .eq. 1) then
+  if ( ionode .and. quite .eq. 1) then
     WRITE ( kunit_OUTFF ,'(a,f10.4)') 'Berendsen thermostat'
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
     WRITE ( kunit_OUTFF ,'(a,f10.4)') 'effective temperature      T        = ',T
+    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
+    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
     WRITE ( kunit_OUTFF ,'(a)')       ''
     WRITE ( stdout ,'(a,f10.4)') 'Berendsen thermostat'
-    WRITE ( stdout ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
-    WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
     WRITE ( stdout ,'(a,f10.4)') 'effective temperature      T        = ',T
+    WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
+    WRITE ( stdout ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
+#ifdef debug    
+    CALL calc_temp(T,ekin)
+    WRITE ( stdout ,'(a,f10.4)') 'rescaled temperature       = ',T
+#endif    
     WRITE ( stdout ,'(a)')       ''
+    
   endif
 
 
@@ -185,38 +192,38 @@ SUBROUTINE andersen_velocities
   implicit none
 
   ! local
-  integer :: i, iseed
+  integer :: ia , iseed
   double precision :: T, ekin, sigma, U, G
   
   
   CALL calc_temp(T,ekin)
   sigma = dsqrt( temp ) 
  
-  do i = 1, natm
+  do ia = 1, natm
   CALL RANDOM_SEED(SIZE = ISEED)
   CALL RANDOM_NUMBER(HARVEST = U)
      if ( U .lt. nuandersen * dt) then  
        if ( dgauss .eq. 'boxmuller_basic' ) then
          CALL boxmuller_basic(G,0.0D0,sigma)
-         vx(i) = G
+         vx ( ia ) = G
          CALL boxmuller_basic(G,0.0D0,sigma)
-         vy(i) = G
+         vy ( ia ) = G
          CALL boxmuller_basic(G,0.0D0,sigma)
-         vz(i) = G
+         vz ( ia ) = G
        elseif ( dgauss .eq. 'boxmuller_polar' ) then
          CALL boxmuller_polar(G,0.0D0,sigma)
-         vx(i) = G
+         vx ( ia ) = G
          CALL boxmuller_polar(G,0.0D0,sigma)
-         vy(i) = G
+         vy ( ia ) = G
          CALL boxmuller_polar(G,0.0D0,sigma)
-         vz(i) = G
+         vz ( ia ) = G
        elseif ( dgauss .eq. 'knuth' ) then
          CALL knuth(G,0.0D0,sigma)
-         vx(i) = G
+         vx ( ia ) = G
          CALL knuth(G,0.0D0,sigma)
-         vy(i) = G
+         vy ( ia ) = G
          CALL knuth(G,0.0D0,sigma)
-         vz(i) = G
+         vz ( ia ) = G
        endif
      endif
   enddo
@@ -303,13 +310,13 @@ SUBROUTINE uniform_random_velocities
   Vy0t = Vy0t/natm
   Vz0t = Vz0t/natm
   Temp = v2
-  if( ionode ) WRITE ( stdout , 99001) v2
-  if( ionode ) WRITE ( stdout , 99002) Vx0t, Vy0t, Vz0t
+  if ( ionode ) WRITE ( stdout , 99001) v2
+  if ( ionode ) WRITE ( stdout , 99002) Vx0t, Vy0t, Vz0t
 
   return
 
-99001 FORMAT ('Initial temperature     : ', f5.3)
-99002 FORMAT ('Velocity centre of mass : ', /, '          x = ', e8.2, /, '          y = ', e8.2, /, '          z = ', e8.2)
+99001 FORMAT('Initial temperature     : ',f5.3)
+99002 FORMAT('Velocity centre of mass : ',/,'          x = ',e8.2,/, '          y = ',e8.2,/, '          z = ',e8.2)
 
 END SUBROUTINE uniform_random_velocities
 
@@ -331,12 +338,12 @@ SUBROUTINE maxwellboltzmann_velocities
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i
+  integer :: ia
   double precision :: RTEMP, SUMX, SUMY, SUMZ
   double precision :: G
 
 #ifdef fun
-  if( ionode ) then
+  if ( ionode ) then
     WRITE ( kunit_OUTFF ,'(a)') 'Heat:Hot, as _____:Cold'
     WRITE ( kunit_OUTFF ,'(a)') ''
     WRITE ( kunit_OUTFF ,'(a)') 'a poem by Roald Hoffman'
@@ -374,28 +381,28 @@ SUBROUTINE maxwellboltzmann_velocities
 
   RTEMP = DSQRT ( temp )
 
-  do i = 1, natm
+  do ia = 1 , natm
      if ( dgauss .eq. 'boxmuller_basic' ) then
        CALL boxmuller_basic(G,0.0D0,1.0D0)
-       vx(i) = RTEMP * G
+       vx ( ia ) = RTEMP * G
        CALL boxmuller_basic(G,0.0D0,1.0D0)
-       vy(i) = RTEMP * G
+       vy ( ia ) = RTEMP * G
        CALL boxmuller_basic(G,0.0D0,1.0D0)
-       vz(i) = RTEMP * G
+       vz ( ia ) = RTEMP * G
      elseif ( dgauss .eq. 'boxmuller_polar' ) then
        CALL boxmuller_polar(G,0.0D0,1.0D0)
-       vx(i) = RTEMP * G
+       vx ( ia ) = RTEMP * G
        CALL boxmuller_polar(G,0.0D0,1.0D0)
-       vy(i) = RTEMP * G
+       vy ( ia ) = RTEMP * G
        CALL boxmuller_polar(G,0.0D0,1.0D0)
-       vz(i) = RTEMP * G
+       vz ( ia ) = RTEMP * G
      elseif ( dgauss .eq. 'knuth' ) then
        CALL knuth(G,0.0D0,1.0D0)
-       vx(i) = RTEMP * G 
+       vx ( ia ) = RTEMP * G 
        CALL knuth(G,0.0D0,1.0D0)
-       vy(i) = RTEMP * G
+       vy ( ia ) = RTEMP * G
        CALL knuth(G,0.0D0,1.0D0)
-       vz(i) = RTEMP * G
+       vz ( ia ) = RTEMP * G
      endif
   enddo
 
@@ -403,20 +410,20 @@ SUBROUTINE maxwellboltzmann_velocities
   SUMY = 0.0d0
   SUMZ = 0.0d0
 
-  do i = 1, natm
-    SUMX = SUMX + vx(i)
-    SUMY = SUMY + vy(i)
-    SUMZ = SUMZ + vz(i)
+  do ia = 1 , natm
+    SUMX = SUMX + vx ( ia )
+    SUMY = SUMY + vy ( ia )
+    SUMZ = SUMZ + vz ( ia )
   enddo
 
   SUMX = SUMX / dble( natm )
   SUMY = SUMY / dble( natm )
   SUMZ = SUMZ / dble( natm )
 
-  do i = 1, natm
-     vx(i) = vx(i) - SUMX
-     vy(i) = vy(i) - SUMY
-     vz(i) = vz(i) - SUMZ
+  do ia  = 1 , natm
+     vx ( ia ) = vx ( ia ) - SUMX
+     vy ( ia ) = vy ( ia ) - SUMY
+     vz ( ia ) = vz ( ia ) - SUMZ
   enddo
   
   return
@@ -439,11 +446,11 @@ SUBROUTINE calc_temp (T, ekin)
   double precision, intent(out) :: ekin , T
 
   ! local
-  integer :: i
+  integer :: ia
 
   ekin = 0.D0
-  do i = 1,natm
-    ekin =  ekin + vx(i) ** 2 + vy(i) ** 2 + vz(i) ** 2
+  do ia = 1 , natm
+    ekin =  ekin + vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2
   enddo
   ekin = ekin * 0.5d0
   T = (2.0D0/3.0D0) * ekin

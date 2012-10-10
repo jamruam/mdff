@@ -1054,7 +1054,7 @@
  1005 format (4x," mlis3",14x,1pd18.8,2x,d21.14,2x,d11.4)
  1006 format (4x," mlis3",14x,1pd18.8,"      indic=",i3)
  1007 format (/4x," mlis3",10x,"tmin forced to tmax")
- 1008 format (/4x," mlis3",10x,"inconsistent call")
+ !1008 format (/4x," mlis3",10x,"inconsistent call")
 !c
 !c --- possible jump
 !c
@@ -1107,7 +1107,7 @@
       enddo
       if (t_increased .and. (imp.ge.4)) write (io,'(a,1pd10.3)') ' mlis3: initial step-size increased to ',t
 !c>
-   30 indica=1
+   !30 indica=1
       logic=0
       if (t.gt.tmax) then
           t=tmax
@@ -1127,7 +1127,7 @@
 !c --- boucle
 !c
   100 nap=nap+1
-      if(nap.gt.napmax) then
+      if (nap.gt.napmax) then
           logic=4
           fn=fg
           do i=1,n
@@ -1157,7 +1157,7 @@
   170     continue
           go to 999
       endif
-      if(indic.lt.0) then
+      if (indic.lt.0) then
 !c
 !c         --- les calculs n ont pas pu etre effectues par le simulateur
 !c
@@ -1177,20 +1177,20 @@
 !c     --- premier test de Wolfe
 !c
       ffn=f-fn
-      if(ffn.gt.t*tesf) then
+      if (ffn.gt.t*tesf) then
           td=t
           fd=f
           fpd=fp
           indicd=indic
           logic=0
-          if(imp.ge.4) write (io,1002) t,ffn,fp
+          if (imp.ge.4) write (io,1002) t,ffn,fp
           go to 500
       endif
 !c
 !c     --- test 1 ok, donc deuxieme test de Wolfe
 !c
-      if(imp.ge.4) write (io,1003) t,ffn,fp
-      if(fp.gt.tesd) then
+      if (imp.ge.4) write (io,1003) t,ffn,fp
+      if (fp.gt.tesd) then
           logic=0
           go to 320
       endif
@@ -1209,7 +1209,7 @@
   350 tg=t
       fg=f
       fpg=fp
-      if(td.ne.0.d0) go to 500
+      if (td.ne.0.d0) go to 500
 !c
 !c              extrapolation
 !c
@@ -1218,14 +1218,14 @@
       droite=10.d0*t
       call ecube (t,f,fp,ta,fa,fpa,gauche,droite)
       ta=taa
-      if(t.lt.tmax) go to 900
+      if (t.lt.tmax) go to 900
       logic=1
       t=tmax
       go to 900
 !c
 !c              interpolation
 !c
-  500 if(indica.le.0) then
+  500 if (indica.le.0) then
           ta=t
           t=0.9d0*tg+0.1d0*td
           go to 900

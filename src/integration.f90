@@ -48,7 +48,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
   integer, intent(inout) :: iastart , iaend !, list(250 * natm) , point(natm + 1)
 
   ! local
-  integer :: i
+  integer :: ia 
   double precision, dimension (:), allocatable :: urx , ury , urz
   double precision :: idt , dtsq
   double precision :: tempi , kin
@@ -70,19 +70,19 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
   ! ================================================= 
   !  r(t+dt) = 2 r(t) - r (t-dt) + f(t) dt*dt
   ! ================================================= 
-  do i = 1, natm
-    urx(i) = 2.0D0 * rx(i) - rxs(i) + fx(i) * dtsq
-    ury(i) = 2.0D0 * ry(i) - rys(i) + fy(i) * dtsq
-    urz(i) = 2.0D0 * rz(i) - rzs(i) + fz(i) * dtsq 
+  do ia = 1 , natm
+    urx ( ia ) = 2.0D0 * rx ( ia ) - rxs ( ia ) + fx ( ia ) * dtsq
+    ury ( ia ) = 2.0D0 * ry ( ia ) - rys ( ia ) + fy ( ia ) * dtsq
+    urz ( ia ) = 2.0D0 * rz ( ia ) - rzs ( ia ) + fz ( ia ) * dtsq 
   enddo
 
   ! =====================================
   !  v(t) = ( r(t+dt) - r(t) ) / ( 2 dt) 
   ! =====================================
-  do i = 1, natm
-    vx(i) = idt * ( urx(i) - rxs(i) )
-    vy(i) = idt * ( ury(i) - rys(i) )
-    vz(i) = idt * ( urz(i) - rzs(i) )       
+  do ia = 1, natm
+    vx ( ia ) = idt * ( urx ( ia ) - rxs ( ia ) )
+    vy ( ia ) = idt * ( ury ( ia ) - rys ( ia ) )
+    vz ( ia ) = idt * ( urz ( ia ) - rzs ( ia ) )       
   enddo
 
   ! ==========================================================
@@ -95,13 +95,13 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
   ! =========================================================
   !  updated positions r(t-dt) <= r(t)  and r(t) <= r (t+dt)
   ! =========================================================
-  do i = 1, natm
-    rxs(i) = rx(i)
-    rys(i) = ry(i)
-    rzs(i) = rz(i)
-    rx(i) = urx(i)
-    ry(i) = ury(i)
-    rz(i) = urz(i)
+  do ia = 1, natm
+    rxs ( ia ) = rx  ( ia )
+    rys ( ia ) = ry  ( ia )
+    rzs ( ia ) = rz  ( ia )
+    rx  ( ia ) = urx ( ia )
+    ry  ( ia ) = ury ( ia )
+    rz  ( ia ) = urz ( ia )
   enddo
 
   deallocate ( urx , ury , urz )
@@ -131,7 +131,7 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   integer, intent(inout) :: iastart , iaend !, list(250 * natm) , point(natm + 1)
 
   ! local
-  integer :: i
+  integer :: ia
   double precision :: dtsq2 , dt2
   double precision, dimension (:), allocatable :: fsx , fsy , fsz
   double precision :: tempi , kin
@@ -149,13 +149,13 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   !  r(t+dt) = r(t) + v(t)*dt + f(t) * dt*dt/2 
   !  store forces of the previous step  
   ! =================================================
-  do i = 1 , natm
-    rx(i) = rx(i) + vx(i) * dt + fx(i) * dtsq2
-    ry(i) = ry(i) + vy(i) * dt + fy(i) * dtsq2
-    rz(i) = rz(i) + vz(i) * dt + fz(i) * dtsq2
-    fsx(i) = fx(i)
-    fsy(i) = fy(i)
-    fsz(i) = fz(i)
+  do ia = 1 , natm
+    rx  ( ia ) = rx ( ia ) + vx ( ia ) * dt + fx ( ia ) * dtsq2
+    ry  ( ia ) = ry ( ia ) + vy ( ia ) * dt + fy ( ia ) * dtsq2
+    rz  ( ia ) = rz ( ia ) + vz ( ia ) * dt + fz ( ia ) * dtsq2
+    fsx ( ia ) = fx ( ia )
+    fsy ( ia ) = fy ( ia )
+    fsz ( ia ) = fz ( ia )
   enddo
 
   ! ==========================
@@ -166,10 +166,10 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   ! ==============================================
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
   ! ==============================================
-  do i = 1,natm
-    vx(i) = vx(i) + ( fsx(i) + fx(i) ) * dt2
-    vy(i) = vy(i) + ( fsy(i) + fy(i) ) * dt2
-    vz(i) = vz(i) + ( fsz(i) + fz(i) ) * dt2
+  do ia = 1 , natm
+    vx ( ia ) = vx ( ia ) + ( fsx ( ia ) + fx ( ia ) ) * dt2
+    vy ( ia ) = vy ( ia ) + ( fsy ( ia ) + fy ( ia ) ) * dt2
+    vz ( ia ) = vz ( ia ) + ( fsz ( ia ) + fz ( ia ) ) * dt2
   enddo
 
   CALL calc_temp(tempi, kin)
@@ -312,7 +312,7 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
   double precision, intent (inout) :: kin, vxi1, vxi2, xi1, xi2
 
   ! local
-  integer :: i
+  integer :: ia
   double precision :: G1, G2, Q1, Q2  
   double precision :: dt2, dt4, dt8
   double precision :: s, L
@@ -335,10 +335,10 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
   xi2 = xi2 + vxi2 * dt2
   s = dexp( - vxi1 * dt2 )
 
-  do i = 1, natm
-    vx(i) = s * vx(i)
-    vy(i) = s * vy(i)
-    vz(i) = s * vz(i)
+  do ia = 1, natm
+    vx ( ia ) = s * vx ( ia )
+    vy ( ia ) = s * vy ( ia )
+    vz ( ia ) = s * vz ( ia )
   enddo
   
   kin = kin * s * s
@@ -374,7 +374,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   integer, intent(inout) :: iastart , iaend 
 
   ! local
-  integer :: i
+  integer :: ia
   double precision :: dt2
 
   dt2 = dt * 0.5d0
@@ -382,10 +382,10 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   ! ================================
   !  r(t+dt) = r(t) + v(t) * dt / 2
   ! ================================
-  do i = 1,natm  
-    rx(i) = rx(i) + vx(i) * dt2
-    ry(i) = ry(i) + vy(i) * dt2
-    rz(i) = rz(i) + vz(i) * dt2 
+  do ia = 1 , natm  
+    rx ( ia ) = rx ( ia ) + vx ( ia ) * dt2
+    ry ( ia ) = ry ( ia ) + vy ( ia ) * dt2
+    rz ( ia ) = rz ( ia ) + vz ( ia ) * dt2 
   enddo
 
   ! ==========================
@@ -394,14 +394,14 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   CALL engforce ( iastart , iaend )!, list , point )
 
   kin  = 0.0d0
-  do i = 1,natm
-    vx(i) = vx(i) + fx(i) * dt
-    vy(i) = vy(i) + fy(i) * dt
-    vz(i) = vz(i) + fz(i) * dt
-    rx(i) = rx(i) + vx(i) * dt2
-    ry(i) = ry(i) + vy(i) * dt2
-    rz(i) = rz(i) + vz(i) * dt2
-    kin = kin + vx(i) * vx(i) +  vy(i) * vy(i) + vz(i) * vz(i)
+  do ia = 1 , natm
+    vx ( ia ) = vx ( ia ) + fx ( ia ) * dt
+    vy ( ia ) = vy ( ia ) + fy ( ia ) * dt
+    vz ( ia ) = vz ( ia ) + fz ( ia ) * dt
+    rx ( ia ) = rx ( ia ) + vx ( ia ) * dt2
+    ry ( ia ) = ry ( ia ) + vy ( ia ) * dt2
+    rz ( ia ) = rz ( ia ) + vz ( ia ) * dt2
+    kin = kin + vx ( ia ) * vx ( ia ) +  vy ( ia ) * vy ( ia ) + vz ( ia ) * vz ( ia )
   enddo      
   kin = kin * 0.5D0  
 

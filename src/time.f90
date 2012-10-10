@@ -103,40 +103,40 @@ SUBROUTINE print_time_info ( kunit )
   fcoultime_ds = fcoultimetot1 
 
   !timing information at the end
-  if( ionode ) then
-                                    WRITE ( kunit ,110)             'TOTAL'  , timetot
-    if( mdsteptimetot .ne. 0.0d0 )  WRITE ( kunit ,110)             'MD'     , mdsteptimetot
-    if( opttimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'OPT'    , opttimetot
-    if( vibtimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'VIB'    , vibtimetot
-    if( fvibtimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'FVIB'   , fvibtimetot
-    if( dstime .ne.0.0d0 .and. &
-        efgtimetot2   .eq. 0.0d0 )  WRITE ( kunit ,110)             'EFG_DS' , dstime
-    if( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'EFG_ES' , estime
-    if( grtimetot     .ne. 0.0d0 )  WRITE ( kunit ,110)             'GR'     , grtimetot 
-    if( msdtimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'MSD'    , msdtimetot
-    if( vacftimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'VACF'   , vacftimetot
-    if( vacftimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)            'VACF2'  , vacftimetot2
-                                    WRITE ( kunit ,'(a)')           ''
-                                    WRITE ( kunit ,'(a)')           'main subroutines:'
-                                    WRITE ( kunit ,'(a)')           'MD:'
-    if( forcetimetot  .ne. 0.0d0 )  WRITE ( kunit ,110)             'engforce_bmlj     ' , forcetimetot         
-    if( fcoultimetot2 .ne. 0.0d0 )  WRITE ( kunit ,110)             'engforce_coul_ES  ' , fcoultime_es         
-    if( fcoultimetot2 .eq. 0.0d0 )  WRITE ( kunit ,110)             'engforce_coul_DS  ' , fcoultime_ds         
-    if( vnlisttimetot .ne. 0.0d0 )  WRITE ( kunit ,110)             'vnlistcheck       ' , vnlisttimetot
+  if ( ionode ) then
+                                     WRITE ( kunit ,110)             'TOTAL'  , timetot
+    if ( mdsteptimetot .ne. 0.0d0 )  WRITE ( kunit ,110)             'MD'     , mdsteptimetot
+    if ( opttimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'OPT'    , opttimetot
+    if ( vibtimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'VIB'    , vibtimetot
+    if ( fvibtimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'FVIB'   , fvibtimetot
+    if ( dstime .ne.0.0d0 .and. &
+         efgtimetot2   .eq. 0.0d0 )  WRITE ( kunit ,110)             'EFG_DS' , dstime
+    if ( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'EFG_ES' , estime
+    if ( grtimetot     .ne. 0.0d0 )  WRITE ( kunit ,110)             'GR'     , grtimetot 
+    if ( msdtimetot    .ne. 0.0d0 )  WRITE ( kunit ,110)             'MSD'    , msdtimetot
+    if ( vacftimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'VACF'   , vacftimetot
+    if ( vacftimetot2  .ne. 0.0d0 )  WRITE ( kunit ,110)            'VACF2'  , vacftimetot2
+                                     WRITE ( kunit ,'(a)')           ''
+                                     WRITE ( kunit ,'(a)')           'main subroutines:'
+                                     WRITE ( kunit ,'(a)')           'MD:'
+    if ( forcetimetot  .ne. 0.0d0 )  WRITE ( kunit ,110)             'engforce_bmlj     ' , forcetimetot         
+    if ( fcoultimetot2 .ne. 0.0d0 )  WRITE ( kunit ,110)             'engforce_coul_ES  ' , fcoultime_es         
+    if ( fcoultimetot2 .eq. 0.0d0 )  WRITE ( kunit ,110)             'engforce_coul_DS  ' , fcoultime_ds         
+    if ( vnlisttimetot .ne. 0.0d0 )  WRITE ( kunit ,110)             'vnlistcheck       ' , vnlisttimetot
     
-    if( longrange .eq. 'direct' )   then
-    if( dstime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
-    if( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_DS(efg  only) ', efgtimetot1 
-    if( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_DS(dist only) ', efgtimetot3
+    if ( longrange .eq. 'direct' )   then
+    if ( dstime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
+    if ( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_DS(efg  only) ', efgtimetot1 
+    if ( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_DS(dist only) ', efgtimetot3
     endif
-    if( longrange .eq. 'ewald')   then
-    if( estime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
-    if( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(real  part)', efgtimetot1
-    if( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(recip part)', efgtimetot2 
-    if( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(dist  only)', efgtimetot3
-    if( fcoultime_es  .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'Coulomb:'
-    if( fcoultimetot1 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(real  part)', fcoultimetot1
-    if( fcoultimetot2 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(recip part)', fcoultimetot2 
+    if ( longrange .eq. 'ewald')   then
+    if ( estime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
+    if ( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(real  part)', efgtimetot1
+    if ( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(recip part)', efgtimetot2 
+    if ( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(dist  only)', efgtimetot3
+    if ( fcoultime_es  .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'Coulomb:'
+    if ( fcoultimetot1 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(real  part)', fcoultimetot1
+    if ( fcoultimetot2 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(recip part)', fcoultimetot2 
     endif
 
     WRITE ( kunit ,'(a)') '============================================================='

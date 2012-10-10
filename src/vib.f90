@@ -69,11 +69,11 @@ SUBROUTINE vib_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , vibtag,iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag section is absent'
    STOP
- elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag wrong tag'
+ elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag wrong tag'
    STOP
  endif
 
@@ -148,33 +148,34 @@ SUBROUTINE vib_print_info(kunit)
   ! local
   integer :: kunit
 
-  if( ionode ) then
-                               WRITE ( kunit ,'(a)')       ''
-                               WRITE ( kunit ,'(a)')       'NORMAL MODE ANALYSIS             '
-                               WRITE ( kunit ,'(a)')       'Hessian calc. and generation of config.' 
-                               WRITE ( kunit ,'(a)')       'for a given mode'
-                               WRITE ( kunit ,'(a)')       ''
-     if(calc.eq.'vib + fvib')  then  
-                               WRITE ( kunit ,'(a)')       'Fvibcalc:'
-                               WRITE ( kunit ,'(a)')       'This program reads in the vibrational frequencies '
-                               WRITE ( kunit ,'(a)')       'and calculates the frequency dependent part of    ' 
-                               WRITE ( kunit ,'(a)')       'the vibrational free energy fvib.                 ' 
-                               WRITE ( kunit ,'(a)')       'It also histograms the fvib according to the energy'
-                               WRITE ( kunit ,'(a)')       'of the minima. ener are energies that are READ  in,'
-                               WRITE ( kunit ,'(a)')       'eigval are eigen values, fvib is calculated in the' 
-                               WRITE ( kunit ,'(a)')       'program, and so is fvibhist.'
-                               WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR and probably F. Affouard'
+  if ( ionode ) then
+                      WRITE ( kunit ,'(a)')       ''
+                      WRITE ( kunit ,'(a)')       'NORMAL MODE ANALYSIS             '
+                      WRITE ( kunit ,'(a)')       'Hessian calc. and generation of config.' 
+                      WRITE ( kunit ,'(a)')       'for a given mode'
+                      WRITE ( kunit ,'(a)')       ''
+     if (calc.eq.'vib + fvib')  then  
+                      WRITE ( kunit ,'(a)')       'Fvibcalc:'
+                      WRITE ( kunit ,'(a)')       'This program reads in the vibrational frequencies '
+                      WRITE ( kunit ,'(a)')       'and calculates the frequency dependent part of    ' 
+                      WRITE ( kunit ,'(a)')       'the vibrational free energy fvib.                 ' 
+                      WRITE ( kunit ,'(a)')       'It also histograms the fvib according to the energy'
+                      WRITE ( kunit ,'(a)')       'of the minima. ener are energies that are READ  in,'
+                      WRITE ( kunit ,'(a)')       'eigval are eigen values, fvib is calculated in the' 
+                      WRITE ( kunit ,'(a)')       'program, and so is fvibhist.'
+                      WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR and probably F. Affouard'
      endif
-     if(.not.lpbc)             WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)'
-     if(lpbc)                  WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
-                               WRITE ( kunit ,'(a)')       ''
-                               WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
-                               WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',ncvib
-                               WRITE ( kunit ,'(a)')       ''
-                               WRITE ( kunit ,'(a)')       'START HESSIAN CALCULATION            '
-                               WRITE ( kunit ,'(a)')       'save eingenvalues                     : EIGFF'
-    if ( lwrite_vectff )       WRITE ( kunit ,'(a)')       'save eingenvectors                    : VECTFF'
-                               WRITE ( kunit ,'(a)')       ''   
+     if (.not.lpbc)   WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)'
+     if (lpbc)        WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+                      WRITE ( kunit ,'(a)')       ''
+                      WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
+                      WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',ncvib
+                      WRITE ( kunit ,'(a)')       ''
+                      WRITE ( kunit ,'(a)')       'START HESSIAN CALCULATION            '
+                      WRITE ( kunit ,'(a)')       'save eingenvalues                     : EIGFF'
+    if ( lwrite_vectff )  & 
+                      WRITE ( kunit ,'(a)')       'save eingenvectors                    : VECTFF'
+                      WRITE ( kunit ,'(a)')       ''   
   endif
 
 
@@ -193,10 +194,13 @@ END SUBROUTINE vib_print_info
 
 SUBROUTINE vib_main 
 
-  USE config,           ONLY :  system , natm , rx , ry , rz , fx , fy , fz , atype , itype , box , omega , rho , ntype, config_alloc , list , point
+  USE config,           ONLY :  system , natm , natmi , rx , ry , rz , fx ,  & 
+                                fy , fz , atype , atypei , itype , box , omega , & 
+                                rho , ntype, config_alloc , list , point
   USE md,               ONLY :  temp
   USE control,          ONLY :  calc , myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , kunit_DOSFF , kunit_MODFF, kunit_OUTFF, kunit_DOSKFF , kunit_IBZKPTFF
+  USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
+                                kunit_DOSFF , kunit_MODFF, kunit_OUTFF, kunit_DOSKFF , kunit_IBZKPTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE field
 
@@ -204,7 +208,7 @@ SUBROUTINE vib_main
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , j , ik, ia , ja , im , ic , PANdos , ka 
+  integer :: i , j , ik, ia , ja , im , ic , PANdos , ka , it , cc , ccs 
   double precision :: pressure0, pot0, ak
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   integer, dimension(:), allocatable :: dostab
@@ -238,8 +242,9 @@ SUBROUTINE vib_main
   OPEN ( UNIT = kunit_DOSFF , FILE = 'DOSFF'  )
   OPEN ( UNIT = kunit_DOSKFF, FILE = 'DOSKFF'  )
 
-  if(calc.ne.'vib+band'.and.calc.ne.'vib+dos') then 
-  if ( ionode ) WRITE ( kunit_VECTFF ,'(a)') '       #rx               ry             dx              dy              rx              rz              dx             dz              ry              rz              dy             dz           eigenvalue'   
+  if (calc.ne.'vib+band'.and.calc.ne.'vib+dos') then 
+  if ( ionode ) WRITE ( kunit_VECTFF ,'(a)') & 
+  '       #rx               ry             dx              dy              rx              rz              dx             dz              ry              rz              dy             dz           eigenvalue'   
   endif
 
   ! ==============================
@@ -248,6 +253,10 @@ SUBROUTINE vib_main
   READ ( kunit_ISCFF , * ) natm  
   READ ( kunit_ISCFF , * ) system 
   READ ( kunit_ISCFF , * ) box,ntype
+  READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
+  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
   omega = box * box * box      
   rho = dble ( natm ) / omega 
   ! ===================================
@@ -262,13 +271,13 @@ SUBROUTINE vib_main
   allocate(work(9 * natm))
   allocate(deig(3 * natm),ipiv(3 * natm))
   WRITE ( stdout ,'(a)')          'Remind some parameters of the system:'
-  WRITE ( stdout ,'(a,i5)')       'natm  = ',natm
-  WRITE ( stdout ,'(a,i5)')       'ntype = ',ntype
-  WRITE ( stdout ,'(a,f10.3)')    'rho   = ',rho
-  WRITE ( stdout ,'(a,f10.3)')    'box   = ',box
-  WRITE ( stdout ,'(a,f10.3)')    'vol   = ',omega
+  WRITE ( stdout ,'(a,i5)')       'natm  = ', natm
+  WRITE ( stdout ,'(a,i5)')       'ntype = ', ntype
+  WRITE ( stdout ,'(a,f10.3)')    'rho   = ', rho
+  WRITE ( stdout ,'(a,f10.3)')    'box   = ', box
+  WRITE ( stdout ,'(a,f10.3)')    'vol   = ', omega
   WRITE ( stdout ,'(a)')          ''
-  WRITE ( stdout ,'(a,i5,a,i5)')  'hessian dimension',3 * natm,'x',3 * natm
+  WRITE ( stdout ,'(a,i5,a,i5)')  'hessian dimension', 3 * natm , 'x' , 3 * natm
 
   ! ===========================================
   !  LOOP OVER CONFIGURATIONS (AT EQUILIBRIUM)
@@ -278,14 +287,26 @@ SUBROUTINE vib_main
     write( kunit_OUTFF ,'(a,i5)') 'read config',ic
     if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) iiii
     if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) cccc
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) aaaa 
-    do ia = 1,natm
-      READ ( kunit_ISCFF , * ) atype(ia),rx(ia),ry(ia),rz(ia)
-    !if(atype(ia) .eq. 'A') na = na + 1
-    if(atype(ia) .eq. 'A') itype(ia)=1
-    if(atype(ia) .eq. 'B') itype(ia)=2
+    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) aaaa , iiii
+    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) ( cccc , it = 1 , ntype )
+    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) ( iiii , it = 1 , ntype )
+    
+    do ia = 1 , natm
+      READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
-
+    ! ==========================
+    !  set some type parameters
+    ! ==========================      
+    natmi ( 0 ) = 0 
+    cc = 0
+    do it = 1 , ntype
+        ccs = cc
+        cc = cc + natmi ( it )
+      do ia = ccs + 1 , cc 
+        atype ( ia ) = atypei ( it ) 
+        itype ( ia ) = it 
+      enddo
+    enddo
 
     ! ==============================
     ! force ???? should not be here 
@@ -308,7 +329,7 @@ SUBROUTINE vib_main
     ! ===========================
     !  real space dos: 3N modes
     ! ===========================
-    if(calc.ne.'vib+band'.and.calc.ne.'vib+dos') then
+    if (calc.ne.'vib+band'.and.calc.ne.'vib+dos') then
 
       ! ===========================
       !  diagonalisation of hess
@@ -319,7 +340,7 @@ SUBROUTINE vib_main
       jobz = 'V'
       uplo = 'U'
       CALL DSYEV( jobz , uplo , 3 * natm , hess ,3 * natm , deig , work , lwork , info )
-      if(info.ne.0)then
+      if (info.ne.0)then
         if ( ionode ) WRITE ( stdout ,'(a,i5)') 'ERROR: Improper termination. of DSYEV info = ',info
         STOP 
       else
@@ -340,7 +361,7 @@ SUBROUTINE vib_main
       do i = 4,3 * natm
         ak = (dsqrt(deig(i)))/resdos
         ka = int(ak) + 1
-        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+        if (ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostab'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,deig(i)
            STOP
@@ -351,8 +372,9 @@ SUBROUTINE vib_main
       dostab(0) = 3
       dostabtot(0) = dostabtot(0) + 3
 
-      do i = 0,PANdos + 1
-        if ( ionode ) WRITE ( kunit_DOSFF ,'(3f16.8)') dble(i) * resdos,dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
+      do i = 0 , PANdos + 1
+        if ( ionode ) WRITE ( kunit_DOSFF ,'(3f16.8)') &
+        dble(i) * resdos,dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
       enddo
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
@@ -366,10 +388,11 @@ SUBROUTINE vib_main
       if ( lwrite_vectff ) then
         do im = 1,3 * natm
           do ja = 1, natm
-            if ( ionode ) WRITE  ( kunit_VECTFF ,'(13f16.8)') rx(ja),ry(ja),hess(ja,im),hess(ja + natm,im), &
-                                                              ry(ja),rz(ja),hess(ja + natm,im),hess(ja + 2 * natm,im), &
-                                                              rx(ja),rz(ja),hess(ja,im),hess(ja + 2 * natm,im), &
-                                                              deig(im)
+            if ( ionode ) &
+            WRITE  ( kunit_VECTFF ,'(13f16.8)') rx(ja),ry(ja),hess(ja,im),hess(ja + natm,im), &
+                                                ry(ja),rz(ja),hess(ja + natm,im),hess(ja + 2 * natm,im), &
+                                                rx(ja),rz(ja),hess(ja,im),hess(ja + 2 * natm,im), &
+                                                deig(im)
           enddo
           if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '
           if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '
@@ -384,11 +407,11 @@ SUBROUTINE vib_main
     ! ==============================================
     !  band structure    
     ! ==============================================
-    if( calc .eq.'vib+band' ) CALL band(hess)
+    if ( calc .eq.'vib+band' ) CALL band(hess)
     ! ==============================================
     ! total dos for more than 3N k - vector
     ! ==============================================
-    if( calc .eq.'vib+dos'  ) then
+    if ( calc .eq.'vib+dos'  ) then
       
       ! read number of kpoints in IBZKPTFF
       OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
@@ -407,7 +430,7 @@ SUBROUTINE vib_main
       do ik = 1, nkphon
         ak = (eigenk(ik,1))/resdos
         ka = int(ak) + 1
-        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+        if (ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,1)
            STOP
@@ -418,7 +441,7 @@ SUBROUTINE vib_main
         dostabktot(ka,0) = dostabktot(ka,0) + 1
         ak = (eigenk(ik,2))/resdos
         ka = int(ak) + 1
-        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+        if (ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,2)
            STOP
@@ -429,7 +452,7 @@ SUBROUTINE vib_main
         dostabktot(ka,0) = dostabktot(ka,0) + 1
         ak = (eigenk(ik,3))/resdos
         ka = int(ak) + 1
-        if(ka.gt.PANdos + 1.or.ka.lt.0) then
+        if (ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,3)
            STOP
@@ -442,7 +465,9 @@ SUBROUTINE vib_main
       enddo !ik loop
 
       do i = 0,PANdos + 1
-        if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nkphon * resdos ),j=0,3) , (dostabktot(i,j) / ( 3.0 * nkphon * resdos * ic),j=0,3)
+        if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') &
+        dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nkphon * resdos ),j=0,3) , &
+        (dostabktot(i,j) / ( 3.0 * nkphon * resdos * ic),j=0,3)
       enddo
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
@@ -464,8 +489,8 @@ SUBROUTINE vib_main
   ! ===================================
   !  generate config from a given mode
   ! ===================================
-  if(calc.eq.'vib+gmod') then
-    if( ionode ) then
+  if (calc.eq.'vib+gmod') then
+    if ( ionode ) then
       WRITE ( kunit_OUTFF ,'(a)')            ''
       WRITE ( kunit_OUTFF ,'(a,i4,a,f8.3)')  'generate ', ngconf ,' configurations at temp  = ', temp
       WRITE ( kunit_OUTFF ,'(a)')            'save configurations in file          : MODFF'
@@ -484,8 +509,8 @@ SUBROUTINE vib_main
   ! ====================================
   !  start vibrational free energy calc
   ! ====================================
-  if(calc.eq.'vib+fvib') then
-    if( ionode ) then
+  if (calc.eq.'vib+fvib') then
+    if ( ionode ) then
       WRITE ( kunit_OUTFF ,'(a)')       ''    
       WRITE ( kunit_OUTFF ,'(a)')       'read thermo (Fvibcalc)              : ISTHFF'
       WRITE ( kunit_OUTFF ,'(a)')       'WARNING !!!! DEV. STATE !!!! WARNING !!! NEED TO BE TESTED!!!'
@@ -515,47 +540,49 @@ END SUBROUTINE vib_main
 
 SUBROUTINE hessian ( hess )
 
-  USE config,   ONLY :  natm, rx, ry, rz, box, itype 
+  USE config,   ONLY :  natm, rx, ry, rz, box, itype  , ntype
   USE io_file,  ONLY :  ionode , stdout
-  USE field,    ONLY :  rcutsq , sigsq , epsp , fc , uc , pp , qq
+  USE field,    ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
 
   implicit none
   ! global
   double precision :: hess(3 * natm,3 * natm)
 
   ! local
-  integer i, j, p1, p2, ia, ja
+  integer it , jt , p1, p2, ia, ja
   integer :: nxij,nyij,nzij
   double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
   double precision :: sr2,sr,srp2,srp4,srq2,srq4,c1,c2        
   double precision :: txx,txy,tyy,tyz,tzz,txz
-  integer np2(2,2),nq2(2,2),np4(2,2),nq4(2,2)
+  double precision :: np2 (ntype , ntype ) 
+  double precision :: nq2 (ntype , ntype ) 
+  double precision :: np4 (ntype , ntype ) 
+  double precision :: nq4 (ntype , ntype ) 
 
-
-  do i = 1,2
-    do j = 1,2
-      np2(i,j) = pp(i,j) 
-      nq2(i,j) = qq(i,j) 
-      np4(i,j) = pp(i,j) 
-      nq4(i,j) = qq(i,j) 
-      np2(i,j) = np2(i,j) + 2
-      nq2(i,j) = nq2(i,j) + 2
-      np4(i,j) = np4(i,j) + 4
-      nq4(i,j) = nq4(i,j) + 4
+  do it = 1 , ntype
+    do jt = 1 , ntype
+      np2 ( it , jt ) = plj ( it , jt ) 
+      nq2 ( it , jt ) = qlj ( it , jt ) 
+      np4 ( it , jt ) = plj ( it , jt ) 
+      nq4 ( it , jt ) = qlj ( it , jt ) 
+      np2 ( it , jt ) = np2 ( it , jt ) + 2
+      nq2 ( it , jt ) = nq2 ( it , jt ) + 2
+      np4 ( it , jt ) = np4 ( it , jt ) + 4
+      nq4 ( it , jt ) = nq4 ( it , jt ) + 4
     enddo
   enddo
 
   hess = 0.0D0
 
 
-  do ia = 1,natm - 1
-    rxi = rx(ia)
-    ryi = ry(ia)
-    rzi = rz(ia)
-    do ja = ia + 1,natm
-      rxij = rxi - rx(ja)
-      ryij = ryi - ry(ja)
-      rzij = rzi - rz(ja)
+  do ia = 1 , natm - 1
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+    do ja = ia + 1 , natm
+      rxij = rxi - rx ( ja )
+      ryij = ryi - ry ( ja )
+      rzij = rzi - rz ( ja )
       nxij = nint( rxij / box )
       nyij = nint( ryij / box )
       nzij = nint( rzij / box )
@@ -564,8 +591,8 @@ SUBROUTINE hessian ( hess )
       rzij = rzij - box * nzij
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
-      p1 = itype(ia)
-      p2 = itype(ja)
+      p1 = itype ( ia )
+      p2 = itype ( ja )
 
       if (rijsq .lt. rcutsq(p1,p2)) then
         sr2 = sigsq(p1,p2)/rijsq
@@ -578,37 +605,37 @@ SUBROUTINE hessian ( hess )
         ! ===========
         !  Hessian 
         ! ===========
-        c1 = (fc(p1,p2)/sigsq(p1,p2)) * ((pp(p1,p2) + 2.0D0) * srp4 - (qq(p1,p2) + 2.0D0) * srq4)
+        c1 = (fc(p1,p2)/sigsq(p1,p2)) * ((plj(p1,p2) + 2.0D0) * srp4 - (qlj(p1,p2) + 2.0D0) * srq4)
         c2 = fc(p1,p2) * (srq2 - srp2)
 
 
-        hess( ia , ja ) = rxij * rxij * c1 + c2                        ! x,x
-        hess( ia , natm + ja ) = rxij * ryij * c1                      ! x,y
-        hess( ia , 2 * natm + ja ) = rxij * rzij * c1                  ! x,z  
+        hess( ia , ja )                       = rxij * rxij * c1 + c2  ! x,x
+        hess( ia , natm + ja )                = rxij * ryij * c1       ! x,y
+        hess( ia , 2 * natm + ja )            = rxij * rzij * c1       ! x,z  
 
-        hess( natm + ia,ja) = ryij * rxij * c1                         ! x,y
-        hess( natm + ia,natm + ja) = ryij * ryij * c1 + c2             ! y,y  
-        hess( natm + ia,2 * natm + ja) = ryij * rzij * c1              ! y,z
+        hess( natm + ia , ja )                = ryij * rxij * c1       ! x,y
+        hess( natm + ia , natm + ja )         = ryij * ryij * c1 + c2  ! y,y  
+        hess( natm + ia , 2 * natm + ja )     = ryij * rzij * c1       ! y,z
 
-        hess( 2 * natm + ia , ja ) = rzij * rxij * c1                  ! x,z
-        hess( 2 * natm + ia , natm + ja ) = rzij * ryij * c1           ! y,z
+        hess( 2 * natm + ia , ja )            = rzij * rxij * c1       ! x,z
+        hess( 2 * natm + ia , natm + ja )     = rzij * ryij * c1       ! y,z
         hess( 2 * natm + ia , 2 * natm + ja ) = rzij * rzij * c1 + c2  ! z,z 
 
         ! ====================== 
         !  hessian is symmetric 
         ! ====================== 
 
-        hess(ja,ia) = hess(ia,ja) 
-        hess(natm + ja,ia) = hess(ia,natm + ja) 
-        hess(2 * natm + ja,ia) = hess(ia,2 * natm + ja) 
+        hess( ja , ia )                       = hess( ia , ja ) 
+        hess( natm + ja , ia )                = hess( ia , natm + ja ) 
+        hess( 2 * natm + ja , ia )            = hess( ia , 2 * natm + ja ) 
 
-        hess(ja,natm + ia) = hess(natm + ia,ja) 
-        hess(natm + ja,natm + ia) = hess(natm + ia,natm + ja) 
-        hess(2 * natm + ja,natm + ia) = hess(natm + ia,2 * natm + ja) 
+        hess( ja , natm + ia )                = hess( natm + ia , ja ) 
+        hess( natm + ja , natm + ia )         = hess( natm + ia , natm + ja ) 
+        hess( 2 * natm + ja , natm + ia )     = hess( natm + ia , 2 * natm + ja ) 
 
-        hess(ja,2 * natm + ia) = hess(2 * natm + ia,ja) 
-        hess(natm + ja,2 * natm + ia) = hess(2 * natm + ia,natm + ja) 
-        hess(2 * natm + ja,2 * natm + ia) = hess(2 * natm + ia,2 * natm + ja) 
+        hess( ja , 2 * natm + ia )            = hess( 2 * natm + ia , ja ) 
+        hess( natm + ja , 2 * natm + ia )     = hess( 2 * natm + ia , natm + ja) 
+        hess( 2 * natm + ja , 2 * natm + ia ) = hess( 2 * natm + ia , 2 * natm + ja ) 
 
       endif
     enddo
@@ -635,34 +662,37 @@ SUBROUTINE hessian ( hess )
     tyz = 0.0D0
     tzz = 0.0D0
     do ja = 1, natm
-      if((ia.eq.ja).and.(hess(ia,ja).ne.0.0D0))then
+      if ((ia.eq.ja).and.(hess(ia,ja).ne.0.0D0))then
         if ( ionode ) WRITE ( stdout , * )'Error! ',ia,ja,hess(ia,ja)
       endif
-      txx = txx + hess(ia,ja)
-      txy = txy + hess(ia,natm + ja)
-      txz = txz + hess(ia,2 * natm + ja)
-      tyy = tyy + hess(natm + ia,natm + ja)
-      tyz = tyz + hess(natm + ia,2 * natm + ja)
-      tzz = tzz + hess(2 * natm + ia,2 * natm + ja)
+      txx = txx + hess ( ia , ja )
+      txy = txy + hess ( ia , natm + ja )
+      txz = txz + hess ( ia , 2 * natm + ja )
+      tyy = tyy + hess ( natm + ia , natm + ja )
+      tyz = tyz + hess ( natm + ia , 2 * natm + ja )
+      tzz = tzz + hess ( 2 * natm + ia , 2 * natm + ja )
        
     enddo
     ! diagonal = - sum i,j
-    hess(ia,ia) = - txx
-    hess(ia,natm + ia) = - txy
-    hess(ia,2 * natm + ia) = - txz
-    hess(natm + ia,natm + ia) = - tyy
-    hess(natm + ia,2 * natm + ia) = - tyz
-    hess(2 * natm + ia,2 * natm + ia) = - tzz
+    hess ( ia , ia )                       = - txx
+    hess ( ia , natm + ia)                 = - txy
+    hess ( ia , 2 * natm + ia )            = - txz
+    hess ( natm + ia , natm + ia )         = - tyy
+    hess ( natm + ia , 2 * natm + ia )     = - tyz
+    hess ( 2 * natm + ia , 2 * natm + ia ) = - tzz
    
     !symetry
-    hess(natm + ia,ia) = hess(ia,natm + ia)
-    hess(2 * natm + ia,ia) = hess(i,2 * natm + ia)
-    hess(2 * natm + ia,natm + ia) = hess(natm + ia,2 * natm + ia)
+    hess ( natm + ia , ia ) = hess ( ia , natm + ia )
+    hess ( 2 * natm + ia , ia ) = hess ( ia , 2 * natm + ia )
+    hess ( 2 * natm + ia , natm + ia) = hess ( natm + ia , 2 * natm + ia )
         
 
-    if(hess(ia,ia).eq.0.0D0.and. ionode )                       WRITE ( stdout , * )'in forcehes zero at ',ia
-    if(hess(ia + natm,ia + natm).eq.0.0D0.and. ionode )         WRITE ( stdout , * )'in forcehes zero at ',natm + ia
-    if(hess(ia + 2 * natm,ia + 2 * natm).eq.0.0D0.and. ionode ) WRITE ( stdout , * )'in forcehes zero at ',2 * natm + ia
+    if ( hess ( ia , ia ) .eq. 0.0D0 .and. ionode )                       &
+    WRITE ( stdout , * ) 'in forcehes zero at ', ia
+    if ( hess ( ia + natm , ia + natm ) .eq. 0.0D0 .and. ionode )         &
+    WRITE ( stdout , * ) 'in forcehes zero at ', natm + ia
+    if ( hess ( ia + 2 * natm , ia + 2 * natm ) .eq. 0.0D0 .and. ionode ) & 
+    WRITE ( stdout , * ) 'in forcehes zero at ', 2 * natm + ia
   enddo
 
 
@@ -682,8 +712,8 @@ END SUBROUTINE hessian
 
 SUBROUTINE fvibcalc
 
-  USE config, 	ONLY : 	natm
-  USE io_file,	ONLY :	ionode , stdout , kunit_ISTHFF , kunit_EIGFF , kunit_VIBFF
+  USE config,   ONLY :  natm
+  USE io_file,  ONLY :  ionode , stdout , kunit_ISTHFF , kunit_EIGFF , kunit_VIBFF
 
   implicit none
 
@@ -713,8 +743,8 @@ SUBROUTINE fvibcalc
   READ ( kunit_ISTHFF , * ) header
   DO i = 1,ncvib
     READ ( kunit_ISTHFF , * ) iiii, enerind, xxxx, pres, iiii, iiii, xxxx
-    if(enerind .gt. emax) emax = enerind
-    if(enerind .lt. emin) emin = enerind
+    if ( enerind .gt. emax) emax = enerind
+    if ( enerind .lt. emin) emin = enerind
   ENDDO
   CLOSE ( kunit_ISTHFF )
 
@@ -753,7 +783,7 @@ SUBROUTINE fvibcalc
 
   do i = 1, ncvib
     READ ( kunit_ISTHFF , * ) iiii, enerind, xxxx, pres, iiii, iiii, xxxx
-    if(mod(i,ncs).eq.0)then
+    if ( mod ( i , ncs ) .eq. 0 )then
       ifv = ifv + 1
       ener(ifv) = enerind 
 
@@ -763,16 +793,16 @@ SUBROUTINE fvibcalc
 
       nskip = 3
       do j = 4, 3 * natm 
-        if(eigval(j).lt.0.0D0)then
+        if ( eigval ( j ) .lt. 0.0D0 ) then
           nskip = nskip + 1 
         else 
-          fvib(ifv) = fvib(ifv) + log(eigval(j))
+          fvib ( ifv ) = fvib ( ifv ) + log ( eigval ( j ) )
         endif
       enddo 
 
-      if(nskip.gt.3.and. ionode ) WRITE ( stdout , * ) ifv, nskip 
+      if ( nskip .gt. 3 .and. ionode ) WRITE ( stdout , * ) ifv , nskip 
 
-      fvib(ifv) = fvib(ifv) * (3.0d0 * natm)/((2.0d0 * natm) * (3.0d0 * natm - nskip * 1.0d0))
+      fvib ( ifv ) = fvib ( ifv ) * ( 3.0d0 * natm )/ ( ( 2.0d0 * natm ) * ( 3.0d0 * natm - nskip * 1.0d0 ) )
     endif 
   enddo
 
@@ -789,8 +819,9 @@ SUBROUTINE fvibcalc
   enddo 
 
   do i = 1, nbin 
-    if(fvibhist(i,2).ne.0.0) then
-      if( ionode ) WRITE ( kunit_VIBFF ,'(3(2x,e14.6))') fvibhist(i,1),fvibhist(i,3)/fvibhist(i,2),fvibhist(i,2)/(de * ncvib)
+    if ( fvibhist ( i , 2 ) .ne. 0.0d0 ) then
+      if ( ionode ) WRITE ( kunit_VIBFF ,'(3(2x,e14.6))') &
+      fvibhist(i,1),fvibhist(i,3)/fvibhist(i,2),fvibhist(i,2)/(de * ncvib)
     endif
   enddo
 
@@ -800,13 +831,13 @@ SUBROUTINE fvibcalc
 
   do i = 1, nbin 
 
-    if(fvibhist(i,2).ne.0.0) then
-      fvibav = fvibav + fvibhist(i,3)
-      pofet = pofet + fvibhist(i,2)
+    if ( fvibhist ( i , 2 ) .ne. 0.0d0 ) then
+      fvibav = fvibav + fvibhist ( i , 3 )
+      pofet  = pofet  + fvibhist ( i , 2 )
     endif 
   enddo
 
-  if( ionode ) WRITE ( stdout , * ) fvibav/pofet, pofet
+  if ( ionode ) WRITE ( stdout , * ) fvibav/pofet, pofet
 
   return
 
@@ -851,8 +882,11 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   ! ===========================================
 !  qx = 0.0D0
 !  do i = 1,3 * natm
-    do ja = 1,natm
-      qx(imod) = qx(imod) + hess(ja,imod) * rx(ja) + hess(ja + natm,imod) * ry(ja) + hess(ja + 2 * natm,imod) * rz(ja)
+    do ja = 1 , natm
+      qx ( imod ) = qx ( imod ) + &
+      hess ( ja , imod ) * rx ( ja ) + &
+      hess ( ja + natm , imod ) * ry ( ja ) + &
+      hess ( ja + 2 * natm , imod) * rz ( ja )
     enddo
 !  enddo
 
@@ -864,18 +898,18 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   ! ===========================================
 
 !  do i = 1,3 * natm ! loop over modes
-    omeg = dsqrt(deig(imod))
-    dexpo = dexp( - omeg/temp)
-    xsq(imod) = 1.0d0 + dexpo
-    xsq(imod) = xsq(imod) / (2.0d0 * omeg * (1.0d0 - dexpo) )
+    omeg  = dsqrt( deig ( imod ) )
+    dexpo = dexp ( - omeg / temp )
+    xsq ( imod ) = 1.0d0 + dexpo
+    xsq ( imod ) = xsq ( imod ) / ( 2.0d0 * omeg * ( 1.0d0 - dexpo ) )
 !  enddo
 
   ! =============================================
   !  generate ngconf configurations of mode imod
   ! =============================================
-  do igconf = 1,ngconf
+  do igconf = 1 , ngconf
 
-    if( ionode ) WRITE ( stdout ,'(a,i4,a,i4)') 'conf = ',igconf,' of mode',imod
+    if ( ionode ) WRITE ( stdout ,'(a,i4,a,i4)') 'conf = ',igconf,' of mode',imod
 
         ! ========================================================================
         ! gaussian distribution: 
@@ -892,16 +926,16 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
       rrx = 0.0d0
       rry = 0.0d0
       rrz = 0.0d0
-      do ia = 1,natm
+      do ia = 1 , natm
           rrx(ia) = rrx(ia) + hess(ia,imod) * qxd(imod)
           rry(ia) = rry(ia) + hess(ia + natm,imod) * qxd(imod)
           rrz(ia) = rrz(ia) + hess(ia + 2 * natm,imod) * qxd(imod)
       enddo
 
-      if( ionode ) then
+      if ( ionode ) then
         WRITE (kunit, * ) natm
         WRITE (kunit, * ) system  
-        do ia  = 1,natm
+        do ia  = 1 , natm
           WRITE (kunit,'(a,3f16.10)') atype(ia),rx(ia) + rrx(ia),ry(ia) + rry(ia),rz(ia) + rrz(ia)
         enddo
       endif
@@ -929,7 +963,7 @@ SUBROUTINE band ( hess )
   USE control,      ONLY :  calc
   USE constants,    ONLY :  tpi , pi
   USE io_file,      ONLY :  stdout , kunit_DOSKFF
-  USE field,        ONLY :  rcutsq , sigsq , epsp , fc , uc , pp , qq
+  USE field,        ONLY :  rcutsq , sigsq , epsp , fc , uc 
 
   implicit none
 
@@ -985,11 +1019,11 @@ SUBROUTINE band ( hess )
       work = 0.0d0
       ww = 0.0d0
 
-    do ia = 1,natm
+    do ia = 1 , natm
       rxi = rx(ia)
       ryi = ry(ia)
       rzi = rz(ia)
-      do ja = 1,natm
+      do ja = 1 , natm
         rxij = rxi - rx(ja)
         ryij = ryi - ry(ja)
         rzij = rzi - rz(ja)
@@ -1023,21 +1057,22 @@ SUBROUTINE band ( hess )
         endif
       enddo  ! j atom loop
     enddo ! i atom loop
-       hessij(1,1) = - tmpxx * 2.0d0 / natm
-       hessij(2,2) = - tmpyy * 2.0d0 / natm
-       hessij(3,3) = - tmpzz * 2.0d0 / natm
+       hessij ( 1 , 1 ) = - tmpxx * 2.0d0 / natm
+       hessij ( 2 , 2 ) = - tmpyy * 2.0d0 / natm
+       hessij ( 3 , 3 ) = - tmpzz * 2.0d0 / natm
 
-       hessij(1,2) = - tmpxy * 2.0d0 / natm
-       hessij(1,3) = - tmpxz * 2.0d0 / natm
-       hessij(2,3) = - tmpyz * 2.0d0 / natm
+       hessij ( 1 , 2 ) = - tmpxy * 2.0d0 / natm
+       hessij ( 1 , 3 ) = - tmpxz * 2.0d0 / natm
+       hessij ( 2 , 3 ) = - tmpyz * 2.0d0 / natm
  
-       hessij(2,1) = hessij(1,2)
-       hessij(3,1) = hessij(1,3)
-       hessij(3,2) = hessij(2,3)
+       hessij ( 2 , 1 ) = hessij ( 1 , 2 )
+       hessij ( 3 , 1 ) = hessij ( 1 , 3 )
+       hessij ( 3 , 2 ) = hessij ( 2 , 3 )
 
        CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
-       if(mod(ik + 1,10).eq.0) WRITE ( * ,'(i7,3f12.4,3f18.6)')  ik, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+       if (mod(ik + 1,10).eq.0) &
+       WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
        WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
 
   enddo
@@ -1061,7 +1096,7 @@ SUBROUTINE doskpt ( hess , eigenk )
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  stdout , kunit_IBZKPTFF , kunit_DKFF
-  USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , pp , qq
+  USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc 
 
   implicit none
 
@@ -1124,12 +1159,12 @@ SUBROUTINE doskpt ( hess , eigenk )
     work   = 0.0d0
     ww     = 0.0d0
 
-    do ia = 1,natm
+    do ia = 1 , natm
 
-      rxi = rx(ia)
-      ryi = ry(ia)
-      rzi = rz(ia)
-      do ja = 1,natm
+      rxi = rx ( ia )
+      ryi = ry ( ia )
+      rzi = rz ( ia )
+      do ja = 1 , natm
 
         rxij = rxi - rx(ja)
         ryij = ryi - ry(ja)
@@ -1177,7 +1212,7 @@ SUBROUTINE doskpt ( hess , eigenk )
     CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
     do i = 1,wi
-      if(mod(ik + 1,nkphon/20).eq.0) then
+      if (mod(ik + 1,nkphon/20).eq.0) then
         WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
         kl = kl * 1
       endif

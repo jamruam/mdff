@@ -28,9 +28,6 @@ TODO:
  -> (basically some refs to be able to find bugs)
 * make the force field easier to read in control.F
 * parallelization of reciprocal part (ewald sum) in efg at least
-
-not before version 0.3.0:
-* ntype > 2 ( the complicated part will be how to read the force field )
 * masses   
 * write some manual (with theory, ref teaching oriented)
 

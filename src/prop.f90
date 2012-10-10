@@ -70,11 +70,11 @@ SUBROUTINE prop_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , proptag, iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag section is absent'
+  if ( ioerr .lt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag section is absent'
     STOP
-  elseif( ioerr .gt. 0 )  then
-    if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : proptag wrong tag'
     STOP
   endif
   CLOSE ( stdin )
@@ -150,12 +150,12 @@ SUBROUTINE prop_print_info(kunit)
   
   if ( lefg .or. lgr .or. lmsd .or. lvacf ) then
     if ( ionode ) then
-      WRITE( kunit , '(a)')             '=============================================================' 
-      WRITE( kunit , '(a)')             ''
-      WRITE( kunit , '(a)')             'properties on-the-fly'
-      WRITE( kunit , '(a,i6,a)')        'calculate properties each ', nprop, ' steps '
-      WRITE( kunit , '(a,i6)')          'calculate properties from step ', nprop_start
-      WRITE( kunit , '(a,i6,a)')        'print properties each ', nprop_print, ' steps '
+      WRITE ( kunit , '(a)'     )        '=============================================================' 
+      WRITE ( kunit , '(a)'     )        ''
+      WRITE ( kunit , '(a)'     )        'properties on-the-fly'
+      WRITE ( kunit , '(a,i6,a)')        'calculate properties each ', nprop, ' steps '
+      WRITE ( kunit , '(a,i6)'  )        'calculate properties from step ', nprop_start
+      WRITE ( kunit , '(a,i6,a)')        'print properties each ', nprop_print, ' steps '
     endif
   endif
 

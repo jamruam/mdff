@@ -29,8 +29,8 @@
 SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
 
   USE control,  ONLY :  lvnlist
-  USE config,   ONLY :  natm , fx , fy , fz , rx , ry , rz , box , omega , atype , itype , list , point
-  USE field,    ONLY :  rcutsq ,  sigsq , epsp , fc , pp , qq
+  USE config,   ONLY :  natm , fx , fy , fz , rx , ry , rz , box , omega , atype , itype , list , point , ntype
+  USE field,    ONLY :  rcutsq ,  sigsq , epsp , fc , plj , qlj
   USE io_file,  ONLY :  ionode , stdout , kunit_OUTFF
 
   implicit none
@@ -48,14 +48,14 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
   double precision :: rxi , ryi , rzi
   double precision :: rxij, ryij , rzij , sr2 , srp , srq
   double precision :: wij , fxij , fyij , fzij
-  double precision, dimension(3,3) :: tau
-  double precision, dimension(3)   :: taux , tauxx
-  double precision :: ptwo(2,2),qtwo(2,2)
+  double precision, dimension ( 3 , 3 ) :: tau
+  double precision, dimension ( 3 )   :: taux , tauxx
+  double precision :: ptwo ( ntype , ntype ) , qtwo ( ntype , ntype )
 
-  do j = 1,2
-    do i = 1,2
-      ptwo(i,j) = pp(i,j) * 0.5d0
-      qtwo(i,j) = qq(i,j) * 0.5d0
+  do j = 1 , ntype 
+    do i = 1 , ntype
+      ptwo(i,j) = plj(i,j) * 0.5d0
+      qtwo(i,j) = qlj(i,j) * 0.5d0
     enddo
   enddo
  
@@ -74,7 +74,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
       je = point( ia + 1 ) - 1
       do j1 = jb , je
         ja = list ( j1 )
-        if( ja .ne. ia ) then
+        if ( ja .ne. ia ) then
           rxij = rxi - rx ( ja )
           ryij = ryi - ry ( ja )
           rzij = rzi - rz ( ja )
@@ -87,7 +87,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
           rijsq = rxij * rxij + ryij * ryij + rzij * rzij
           p1 = itype ( ja )
           p2 = itype ( ia )
-          if( rijsq .lt. rcutsq(p1,p2) ) then
+          if ( rijsq .lt. rcutsq(p1,p2) ) then
             sr2 = sigsq(p1,p2) / rijsq
             srp = sr2 ** ( ptwo(p1,p2) )
             srq = sr2 ** ( qtwo(p1,p2) )
@@ -119,7 +119,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
       ryi = ry ( ia )
       rzi = rz ( ia )
       do ja = 1, natm
-        if( ja .gt. ia ) then
+        if ( ja .gt. ia ) then
           rxij = rxi - rx ( ja )
           ryij = ryi - ry ( ja )
           rzij = rzi - rz ( ja )
@@ -132,7 +132,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
           rijsq = rxij  * rxij + ryij * ryij + rzij * rzij
           p1 = itype (j)
           p2 = itype (i)
-          if( rijsq .lt. rcutsq(p1,p2) ) then
+          if ( rijsq .lt. rcutsq(p1,p2) ) then
             sr2 = sigsq(p1,p2) / rijsq
             srp = sr2 ** ( ptwo(p1,p2) )
             srq = sr2 ** ( qtwo(p1,p2) )
@@ -177,14 +177,18 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
     WRITE ( stdout ,'(a,3f15.8)')         'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
     WRITE ( stdout ,'(a,3f15.8)')         'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
     WRITE ( stdout ,'(a,3f15.8)')         'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
-    WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)')    'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
     WRITE ( stdout ,'(a)')                ''
     WRITE ( kunit_OUTFF ,'(a)' )          'LJ : '
     WRITE ( kunit_OUTFF ,'(a,2a15)' )     '                 x' , 'y' , 'z'
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
-    WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)')    'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)')  &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
     WRITE ( kunit_OUTFF ,'(a)')                ''
   endif
 
@@ -200,11 +204,11 @@ END SUBROUTINE stress_bmlj
 SUBROUTINE stress_coul
 
   USE control,          ONLY :  longrange
-  USE config,           ONLY :  qit , qia , ntype , natm , omega , rx , ry , rz , box 
+  USE config,           ONLY :  qia , ntype , natm , omega , rx , ry , rz , box 
   USE io_file,          ONLY :  ionode , stdout , kunit_OUTFF
   USE constants,        ONLY :  imag , tpi , piroot 
   USE kspace,           ONLY :  struc_fact     
-  USE field,            ONLY :  alphaES , km_coul
+  USE field,            ONLY :  alphaES , km_coul , qch
   USE time
 
   implicit none
@@ -243,6 +247,8 @@ SUBROUTINE stress_coul
   invbox = 1.0d0 / box
   ! related ewald parameter
   alpha2 = alphaES * alphaES      
+  tau_dir = 0.0d0
+  tau_rec = 0.0d0
 
 
 ! ==============================================
@@ -256,7 +262,7 @@ SUBROUTINE stress_coul
      qi = qia(ia)
      do ja = 1, natm
 
-       if(ja .gt. ia ) then
+       if ( ja .gt. ia ) then
          qj = qia(ja)
          rxij = rxi - rx(ja)
          ryij = ryi - ry(ja)
@@ -324,7 +330,7 @@ SUBROUTINE stress_coul
       ! ===============================
       rhon = (0.d0, 0.d0)
       do it = 1, ntype
-        rhon = rhon + qit(it) * CONJG( km_coul%strf ( ik , it ) )
+        rhon = rhon + qch(it) * CONJG( km_coul%strf ( ik , it ) )
       enddo
       kri = ( kx * rxi + ky * ryi + kz * rzi ) 
       carg = EXP ( imag * kri )
@@ -355,14 +361,18 @@ SUBROUTINE stress_coul
     WRITE ( stdout      ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
     WRITE ( stdout      ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
     WRITE ( stdout      ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
-    WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)')    'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
     WRITE ( stdout      ,'(a)'       )    ''
     WRITE ( kunit_OUTFF ,'(a)'       )    'Coulomb : '
     WRITE ( kunit_OUTFF ,'(a,2a15)'  )    '                 x' , 'y' , 'z'
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
-    WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)')    'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)') &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
     WRITE ( kunit_OUTFF ,'(a)'       )    ''
   endif
 
@@ -372,4 +382,125 @@ SUBROUTINE stress_coul
 
 
 END SUBROUTINE stress_coul
+
+!*********************** SUBROUTINE stress_coulombi_direct *************************
+!
+!
+!******************************************************************************
+SUBROUTINE stress_coul_direct
+
+  USE control,          ONLY :  longrange
+  USE config,           ONLY :  qia , ntype , natm , omega , rx , ry , rz , box 
+  USE io_file,          ONLY :  ionode , stdout , kunit_OUTFF
+  USE constants,        ONLY :  imag , tpi , piroot 
+  USE kspace,           ONLY :  struc_fact     
+  USE field,            ONLY :  alphaES , km_coul , qch
+  USE time
+
+  implicit none
+
+  INCLUDE 'mpif.h'
+
+  ! local
+  integer :: ia, ja , it , ierr
+  integer :: ik
+  integer :: nxij , nyij , nzij
+  double precision :: rij , rijsq , expon , invbox
+  double precision :: alpha2
+  double precision :: qi , qj , qij , qijf
+  double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
+  double precision :: wij0 , wij , fxij , fyij , fzij 
+  double precision :: ak, kx, ky, kz, kk , kcoe
+  double precision :: kri , str
+  double complex   :: rhon , carg 
+  double precision, dimension(3,3) :: tau , tau_dir
+  double precision, external :: errfc 
+  double precision :: ttt1 , ttt2 , ttt3 
+
+
+  if ( longrange .eq. 'ewald' ) return
+
+  ttt1 = MPI_WTIME(ierr)
+  tau_dir = 0.0d0
+
+! ==============================================
+!        direct space part
+! ==============================================
+
+   do ia = 1 , natm 
+     rxi = rx(ia)
+     ryi = ry(ia)
+     rzi = rz(ia)
+     qi = qia(ia)
+     do ja = 1, natm
+
+       if ( ja .ne. ia ) then
+         qj = qia(ja)
+         rxij = rxi - rx(ja)
+         ryij = ryi - ry(ja)
+         rzij = rzi - rz(ja)
+         nxij = nint( rxij * invbox )
+         nyij = nint( ryij * invbox )
+         nzij = nint( rzij * invbox )
+         rxij = rxij - box * nxij
+         ryij = ryij - box * nyij
+         rzij = rzij - box * nzij
+         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+         rij = dsqrt( rijsq )
+
+         qij  = qi * qj / rij
+         qijf = qij / rijsq      
+
+         wij0 = errfc( alphaES * rij ) 
+         expon = dexp( - alpha2 * rijsq ) / piroot
+         wij  = qijf * ( wij0 + 2.0d0 * rij * alphaES * expon )
+         fxij = wij * rxij
+         fyij = wij * ryij
+         fzij = wij * rzij
+         tau_dir(1,1) = tau_dir(1,1) + rxij * fxij 
+         tau_dir(1,2) = tau_dir(1,2) + rxij * fyij
+         tau_dir(1,3) = tau_dir(1,3) + rxij * fzij
+         tau_dir(2,1) = tau_dir(2,1) + ryij * fxij
+         tau_dir(2,2) = tau_dir(2,2) + ryij * fyij
+         tau_dir(2,3) = tau_dir(2,3) + ryij * fzij 
+         tau_dir(3,1) = tau_dir(3,1) + rzij * fxij
+         tau_dir(3,2) = tau_dir(3,2) + rzij * fyij 
+         tau_dir(3,3) = tau_dir(3,3) + rzij * fzij
+       endif
+     enddo
+  enddo
+
+  ttt2 = MPI_WTIME(ierr)
+
+  tau = tau_dir 
+
+   if ( ionode ) then
+    WRITE ( stdout      ,'(a)'       )    ' WARNING not complete test version'
+    WRITE ( stdout      ,'(a)'       )    'Coulomb : '
+    WRITE ( stdout      ,'(a,2a15)'  )    '                 x' , 'y' , 'z' 
+    WRITE ( stdout      ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
+    WRITE ( stdout      ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
+    WRITE ( stdout      ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
+    WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( stdout      ,'(a)'       )    ''
+    WRITE ( kunit_OUTFF ,'(a)'       )    ' WARNING not complete test version'
+    WRITE ( kunit_OUTFF ,'(a)'       )    'Coulomb : '
+    WRITE ( kunit_OUTFF ,'(a,2a15)'  )    '                 x' , 'y' , 'z'
+    WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
+    WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
+    WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
+    WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)') &
+                                          'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( kunit_OUTFF ,'(a)'       )    ''
+  endif
+
+  ttt3 = MPI_WTIME(ierr)
+  
+  return
+
+
+END SUBROUTINE stress_coul_direct
 ! ===== fmV =====

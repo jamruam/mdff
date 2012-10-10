@@ -11,16 +11,18 @@
 =============================================================
 
 MOLECULAR DYNAMICS ...for fun                 
-mdff.0.2.0
+mdff.0.3.1
 parallel version
 filipe.manuel.vasconcelos@gmail.com  
 Running on   1 nodes                  
-time     : 2011/12/02    18:34:51
+Host     : superbock
+time     : 2012/10/10    17:10:14
 calc     : md                                                          
 
 =============================================================
 
 periodic boundary conditions in cubic cell     
+no minimum image convention                    
 verlet list used 
 units reduced by the number of atom
 dynamic calculation
@@ -42,17 +44,16 @@ print thermo  periodicity            =        100
 config from file POSFF
 found type information on POSFF : A  
 system                               : UNKNOWN                                                     
-natm                                 =        256
-cell parameter                       =     6.3496
-volume                               =   256.0000
-density                              =     1.0000
-distance check subroutine
-smallest distance =   1.12
-
+natm                                 =              256
+nA                                   =              256  100.00%
+cell parameter                       =           6.3496
+volume                               =         256.0000
+density                              =           1.0000
 =============================================================
 
 discret charges: (no forces!)
-qA      =   -1.00000
+qA        =   -1.00000
+
 force field information :                      
 no masses are implemented                      
 LENNARD-JONES                  
@@ -65,11 +66,14 @@ USER DEFINED MODEL
 cutoff      =    2.50000
 truncation  = linear                                                      
 
+--------------------------------------------------------
 A-A interactions:
-sigmaAA =    1.00000
-epsAA   =    1.00000
-qAA     =   12.00000
-pAA     =    6.00000
+--------------------------------------------------------
+sigma                                =    1.00000
+eps                                  =    1.00000
+q                                    =   12.00000
+p                                    =    6.00000
+
 long range correction :         -0.535433102
  
 paralelisation - atom decomposition
@@ -80,9 +84,9 @@ generate velocities
 Velocities from Maxwell-Boltzmann distribution
 normal distribution method = boxmuller_basic     
 Berendsen thermostat
-velocities rescaled by              =     0.9697
+effective temperature      T        =     0.8058
 wanted temperature         T0       =     0.8000
-effective temperature      T        =     0.8507
+velocities rescaled by              =     0.9964
 
 =====================================================================================================================================
 properties at t=0
@@ -98,45 +102,45 @@ Press. iso =     -3.39357478     (    -0.01325615)
 
 starting main loop
 =====================================================================================================================================
-      100  0.10000000E+00  Etot = -.60950370E+01  Ekin  = 0.43681641E+00  Utot  = -.65318534E+01  U_lj   = -.65318534E+01  U_coul   = 0.00000000E+00
-      100  0.10000000E+00  Temp = 0.29121094E+00  Press = 0.47888030E-02  P_lj  = 0.36512602E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      200  0.20000000E+00  Etot = -.60950315E+01  Ekin  = 0.57370223E+00  Utot  = -.66687337E+01  U_lj   = -.66687337E+01  U_coul   = 0.00000000E+00
-      200  0.20000000E+00  Temp = 0.38246815E+00  Press = 0.20718198E-02  P_lj  = 0.57780361E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      300  0.30000000E+00  Etot = -.60950352E+01  Ekin  = 0.63325338E+00  Utot  = -.67282886E+01  U_lj   = -.67282886E+01  U_coul   = 0.00000000E+00
-      300  0.30000000E+00  Temp = 0.42216892E+00  Press = 0.89567280E-03  P_lj  = -.75342455E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      400  0.40000000E+00  Etot = -.60950343E+01  Ekin  = 0.62964924E+00  Utot  = -.67246836E+01  U_lj   = -.67246836E+01  U_coul   = 0.00000000E+00
-      400  0.40000000E+00  Temp = 0.41976616E+00  Press = 0.83496211E-03  P_lj  = -.80474944E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      500  0.50000000E+00  Etot = -.60950363E+01  Ekin  = 0.65933328E+00  Utot  = -.67543695E+01  U_lj   = -.67543695E+01  U_coul   = 0.00000000E+00
-      500  0.50000000E+00  Temp = 0.43955552E+00  Press = 0.29242407E-03  P_lj  = -.14245897E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      600  0.60000000E+00  Etot = -.60950362E+01  Ekin  = 0.60085271E+00  Utot  = -.66958889E+01  U_lj   = -.66958889E+01  U_coul   = 0.00000000E+00
-      600  0.60000000E+00  Temp = 0.40056847E+00  Press = 0.14467499E-02  P_lj  = -.11797067E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      700  0.70000000E+00  Etot = -.60950377E+01  Ekin  = 0.63659889E+00  Utot  = -.67316366E+01  U_lj   = -.67316366E+01  U_coul   = 0.00000000E+00
-      700  0.70000000E+00  Temp = 0.42439926E+00  Press = 0.77218882E-03  P_lj  = -.88562079E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      800  0.80000000E+00  Etot = -.60950398E+01  Ekin  = 0.62448426E+00  Utot  = -.67195241E+01  U_lj   = -.67195241E+01  U_coul   = 0.00000000E+00
-      800  0.80000000E+00  Temp = 0.41632284E+00  Press = 0.83633370E-03  P_lj  = -.78992739E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-      900  0.90000000E+00  Etot = -.60950449E+01  Ekin  = 0.68042980E+00  Utot  = -.67754747E+01  U_lj   = -.67754747E+01  U_coul   = 0.00000000E+00
-      900  0.90000000E+00  Temp = 0.45361987E+00  Press = 0.33724394E-04  P_lj  = -.17382282E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
-     1000  0.10000000E+01  Etot = -.60950410E+01  Ekin  = 0.61744134E+00  Utot  = -.67124823E+01  U_lj   = -.67124823E+01  U_coul   = 0.00000000E+00
-     1000  0.10000000E+01  Temp = 0.41162756E+00  Press = 0.11967365E-02  P_lj  = -.41118364E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      100  0.10000000E+00  Etot = -.60950631E+01  Ekin  = 0.41719221E+00  Utot  = -.65122553E+01  U_lj   = -.65122553E+01  U_coul   = 0.00000000E+00
+      100  0.10000000E+00  Temp = 0.27812814E+00  Press = 0.51305169E-02  P_lj  = 0.40440788E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      200  0.20000000E+00  Etot = -.60950583E+01  Ekin  = 0.57489683E+00  Utot  = -.66699551E+01  U_lj   = -.66699551E+01  U_coul   = 0.00000000E+00
+      200  0.20000000E+00  Temp = 0.38326455E+00  Press = 0.18812070E-02  P_lj  = 0.38407988E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      300  0.30000000E+00  Etot = -.60950622E+01  Ekin  = 0.66124227E+00  Utot  = -.67563045E+01  U_lj   = -.67563045E+01  U_coul   = 0.00000000E+00
+      300  0.30000000E+00  Temp = 0.44082818E+00  Press = 0.21970846E-03  P_lj  = -.15022766E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      400  0.40000000E+00  Etot = -.60950641E+01  Ekin  = 0.66283225E+00  Utot  = -.67578963E+01  U_lj   = -.67578963E+01  U_coul   = 0.00000000E+00
+      400  0.40000000E+00  Temp = 0.44188817E+00  Press = 0.18108444E-03  P_lj  = -.15450412E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      500  0.50000000E+00  Etot = -.60950605E+01  Ekin  = 0.63371275E+00  Utot  = -.67287732E+01  U_lj   = -.67287732E+01  U_coul   = 0.00000000E+00
+      500  0.50000000E+00  Temp = 0.42247517E+00  Press = 0.74036117E-03  P_lj  = -.90993246E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      600  0.60000000E+00  Etot = -.60950653E+01  Ekin  = 0.67032293E+00  Utot  = -.67653882E+01  U_lj   = -.67653882E+01  U_coul   = 0.00000000E+00
+      600  0.60000000E+00  Temp = 0.44688195E+00  Press = 0.76355585E-04  P_lj  = -.16692771E-02  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      700  0.70000000E+00  Etot = -.60950660E+01  Ekin  = 0.62104005E+00  Utot  = -.67161061E+01  U_lj   = -.67161061E+01  U_coul   = 0.00000000E+00
+      700  0.70000000E+00  Temp = 0.41402670E+00  Press = 0.92097861E-03  P_lj  = -.69631319E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      800  0.80000000E+00  Etot = -.60950663E+01  Ekin  = 0.63239858E+00  Utot  = -.67274649E+01  U_lj   = -.67274649E+01  U_coul   = 0.00000000E+00
+      800  0.80000000E+00  Temp = 0.42159905E+00  Press = 0.78128420E-03  P_lj  = -.86558710E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+      900  0.90000000E+00  Etot = -.60950631E+01  Ekin  = 0.63147147E+00  Utot  = -.67265345E+01  U_lj   = -.67265345E+01  U_coul   = 0.00000000E+00
+      900  0.90000000E+00  Temp = 0.42098098E+00  Press = 0.83563454E-03  P_lj  = -.80882240E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
+     1000  0.10000000E+01  Etot = -.60950604E+01  Ekin  = 0.62179009E+00  Utot  = -.67168505E+01  U_lj   = -.67168505E+01  U_coul   = 0.00000000E+00
+     1000  0.10000000E+01  Temp = 0.41452673E+00  Press = 0.10332406E-02  P_lj  = -.58600445E-03  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
 =====================================================================================================================================
 end of the main loop
  
 stress tensor of final configuration
 LJ : 
                  x              y              z
-x                -0.11958322     0.00409339    -0.12849307
-y                 0.00409339     0.01624769     0.12052674
-z                -0.12849307     0.12052674    -0.21245351
-Press. iso =     -0.10526301     (    -0.00041118)
+x                -0.13831541    -0.05696208    -0.04629742
+y                -0.05696208    -0.23358619     0.10974797
+z                -0.04629742     0.10974797    -0.07814981
+Press. iso =     -0.15001714     (    -0.00058600)
 
 =============================================================
 
-                 TOTAL :  cpu time     1.43
-                    MD :  cpu time     1.18
+                 TOTAL :  cpu time     2.05
+                    MD :  cpu time     1.98
 
 main subroutines:
 MD:
-    engforce_bmlj      :  cpu time     1.17
+    engforce_bmlj      :  cpu time     1.97
     engforce_coul_DS   :  cpu time     0.00
-    vnlistcheck        :  cpu time     0.06
+    vnlistcheck        :  cpu time     0.10
 =============================================================

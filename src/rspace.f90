@@ -23,13 +23,11 @@ MODULE rspace
   ! ===================
 
   TYPE rmesh
-    integer                                         :: ncell              ! numberof cell in the direct calculation in each direction ncell x ncell x ncell 
-    integer                                         :: ncmax              ! (internal) number of cell in direct summation
-    double precision, dimension(:,:)  , allocatable :: boxxyz
-    integer         , dimension(:)    , allocatable :: lcell
+    integer                                        :: ncell   ! nb of cell in the direct calc. in each direction  
+    integer                                        :: ncmax   ! (internal) number of cell in direct summation
+    double precision, dimension(:,:) , allocatable :: boxxyz  ! vectors in real space
+    integer         , dimension(:)   , allocatable :: lcell   ! lcell is 1 in the central box 
   END TYPE rmesh
-
-
 
 CONTAINS
 
@@ -68,16 +66,15 @@ SUBROUTINE direct_sum_init ( rm )
         rm%boxxyz(1,nc) = box * dble(ncellx)
         rm%boxxyz(2,nc) = box * dble(ncelly)
         rm%boxxyz(3,nc) = box * dble(ncellz)
-        if(ncellx .ne. 0 .or. ncelly .ne. 0 .or. ncellz .ne. 0) then
+        if (ncellx .ne. 0 .or. ncelly .ne. 0 .or. ncellz .ne. 0) then
           rm%lcell(nc) = 1
         endif
       enddo
     enddo
   enddo
 
-
   if ( nc .ne. rm%ncmax ) then
-    if( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax
+    if ( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax
   endif
 
   return

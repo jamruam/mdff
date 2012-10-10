@@ -66,11 +66,11 @@ SUBROUTINE msd_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , msdtag, iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag section is absent'
    STOP
-  elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag wrong tag'
    STOP
   endif
 
@@ -136,7 +136,7 @@ SUBROUTINE msd_print_info(kunit)
   !local
   integer :: kunit
 
-  if( ionode  ) then
+  if ( ionode  ) then
                                WRITE ( kunit ,'(a)')           ''
                                WRITE ( kunit ,'(a)')           'mean square displacement:'
                                WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
@@ -365,7 +365,8 @@ SUBROUTINE msd_write_output ( quite )
     do ib = 1 , MIN( ibmax , iblm )
       do j = 2, MIN( ibl ( ib ), nblock)
         if (telav(ib,j).ne.0) then
-          WRITE ( kunit_MSDFF , 99002 ) j * dtime * ( nblock ** ( ib - 1 ) ), avb ( ib , j ) / telav ( ib , j ) , telav ( ib , j )
+          WRITE ( kunit_MSDFF , 99002 ) &
+          j * dtime * ( nblock ** ( ib - 1 ) ), avb ( ib , j ) / telav ( ib , j ) , telav ( ib , j )
           if ( j * dtime * ( nblock ** ( ib - 1 ) ) .gt. thmax ) then
             ihbmax = telav ( ib , j )
             thmax  = j * dtime * ( nblock ** ( ib - 1 ) )
@@ -377,7 +378,7 @@ SUBROUTINE msd_write_output ( quite )
   endif
 
   if ( quite .eq. 1 ) then
-    if( ionode ) then
+    if ( ionode ) then
       WRITE ( stdout , '(a)') 'Diffusion calculated with order-n scheme '
       WRITE ( stdout , 99001) 2*dtime, telav(1, 2), thmax, ihbmax
       WRITE ( kunit_OUTFF , '(a)') 'Diffusion calculated with order-n scheme '

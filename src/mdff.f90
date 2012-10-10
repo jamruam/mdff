@@ -22,7 +22,7 @@
 
 ! ===============================================================
 ! *      PARALLEL MOLECULAR DYNAMICS ...for fun                 *
-! *      Version: 0.2.1 BMLJ  (q-p) LJ potential                *
+! *      Version: 0.3.1 BMLJ  (q-p) LJ potential                *
 ! *      filipe.manuel.vasconcelos@gmail.com                    *
 ! *      Based on different codes or books by:                  *
 ! *      F. Affouard University of Lille                        *
@@ -72,6 +72,7 @@ PROGRAM main_MDFF
   double precision :: ttt2, ttt1
 #ifdef MULTRUN
   integer :: irun          
+  double precision :: tempi
 #endif
   character*60 :: vib_allowed(5)                     
   data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
@@ -84,7 +85,7 @@ PROGRAM main_MDFF
   ! time information init 
   ! ====================================================
   CALL time_init
-  ttt1 = MPI_WTIME(ierr)
+  ttt1 = MPI_WTIME ( ierr ) 
   ! ====================================================      
   ! random number generator init
   ! ====================================================      
@@ -106,12 +107,12 @@ PROGRAM main_MDFF
   ! ====================================================
   ! VERSION 
   ! ====================================================
-  VERSION = '0.2.0'
+  VERSION = '0.3.1'
   
   ! ========================================
   ! reads command line
   ! ========================================
-  argc = iargc()
+  argc = iargc ( )
   if ( argc .ne. 1 ) then
     if (  ionode  ) WRITE ( stdout , * ) '* command: mdff.x <input_file>'
     STOP 
@@ -166,13 +167,13 @@ PROGRAM main_MDFF
     ! mmmmh only md ? 
     ! vnlist should be test with opt too 
     ! =====================================
-    if( calc .eq. 'md' ) then 
-      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc ( iastart , iaend , list , point )
-      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc   ( iastart , iaend , list , point )       
+    if ( calc .eq. 'md' ) then 
+      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   ( iastart , iaend , list , point )
+      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc ( iastart , iaend , list , point )       
     endif  
 
     !IF MD
-    MDLOOP: if( calc .eq. 'md') then
+    MDLOOP: if ( calc .eq. 'md') then
 
     ! ===============================================
     ! some initialization of on-the-fly properties
@@ -209,19 +210,20 @@ PROGRAM main_MDFF
     ! as only one parameters will variate with time
     ! try to find a condensate way to write it
     ! ==================================================
+
 #ifdef MULTRUN
-    RUN: DO irun = 1, 1
+    RUN: DO irun = 1 , 1
     tempi = temp
     RUN: DO irun = 0 , 2
         temp = ( 0.1d0 * irun  ) + tempi
-        if(  ionode  ) WRITE ( stdout ,'(a)') ''
-        if(  ionode  ) WRITE ( stdout , '(a,f8.5)' ) 'T = ' , temp
+        if (  ionode  ) WRITE ( stdout ,'(a)') ''
+        if (  ionode  ) WRITE ( stdout , '(a,f8.5)' ) 'T = ' , temp
 #endif
   
          ! =======================
          !        static 
          ! =======================
-           if( lstatic ) then  
+           if ( lstatic ) then  
              offset = 1
              npas = 0
              integrator = 'nve-vv' 
@@ -274,7 +276,7 @@ PROGRAM main_MDFF
     ! IF EFG : 
     !  calculates EFG of structures read in TRAJFF   
     ! ==============================================
-    if ( calc .eq. 'efg') then
+    if ( calc .eq. 'efg' ) then
       CALL efg_init
       CALL efgcalc 
     endif
@@ -283,7 +285,7 @@ PROGRAM main_MDFF
     ! calculates EFG auto-correlation functions from 
     ! data in EFGALL    
     ! ==============================================
-    if ( calc .eq. 'efg+acf') then
+    if ( calc .eq. 'efg+acf' ) then
       CALL efg_init
       CALL efg_acf 
     endif
@@ -293,14 +295,14 @@ PROGRAM main_MDFF
     ! calculates radial distribution  of structures 
     ! read in TRAJFF   
     ! ==============================================
-    if ( calc .eq. 'gr') then
+    if ( calc .eq. 'gr' ) then
       CALL grcalc 
     endif
 
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
-    if( calc.eq. 'md' ) then 
+    if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
     endif
  
@@ -343,10 +345,10 @@ PROGRAM main_MDFF
 
 
   if (ionode ) then
-    WRITE ( stdout ,'(a)')      '============================================================='
-    WRITE ( stdout ,'(a)')      ''
-    WRITE ( kunit_OUTFF ,'(a)') '============================================================='
-    WRITE ( kunit_OUTFF ,'(a)') ''
+    WRITE ( stdout      , '(a)' ) '============================================================='
+    WRITE ( stdout      , '(a)' ) ''
+    WRITE ( kunit_OUTFF , '(a)' ) '============================================================='
+    WRITE ( kunit_OUTFF , '(a)' ) ''
   endif
   ttt2 = MPI_WTIME(ierr)
   timetot = ttt2 - ttt1

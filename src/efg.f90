@@ -35,10 +35,10 @@ MODULE efg
 
   implicit none
 
-  logical :: lefgprintall                                               ! whether or not we want to print all the efg for each atoms and configurations in file EFGALL
-  logical :: lefg_it_contrib                                            ! if ones want to get the contributions to EFG separated in types
-  integer :: ncefg                                                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
-  integer :: ntcor                                                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
+  logical :: lefgprintall               ! print ( or not ) all the efg for each atoms and configs to file EFGALL
+  logical :: lefg_it_contrib            ! if ones want to get the contributions to EFG separated in types
+  integer :: ncefg                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
+  integer :: ntcor                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
 
 
   double precision, dimension ( : , : ) , allocatable :: rgrid
@@ -47,37 +47,38 @@ MODULE efg
   !  direct summation
   ! ===================
   integer                                           :: ncelldirect
-  double precision                                  :: cutefg             ! cut-off distance for efg calculation in the direct 
-  double precision, dimension(:,:,:), allocatable   :: efg_ia             ! efg_tensor
-  double precision, dimension(:,:,:,:), allocatable :: efg_ia_it          ! efg_tensor (it contribution)
+  double precision                                  :: cutefg       ! cut-off distance for efg calc (direct dimension) 
+  double precision, dimension(:,:,:)  , allocatable :: efg_ia       ! efg_tensor
+  double precision, dimension(:,:,:,:), allocatable :: efg_ia_it    ! efg_tensor (it contribution)
   TYPE ( rmesh ) :: rm_efg
 
   ! ==================
   !  ewald summation
   ! ==================
   integer                                         :: ncellewald
-  double precision                                :: alphaES            ! Ewald sum parameter 
-  double precision, dimension(:,:,:), allocatable :: efg_ia_real        ! efg_tensor
-  double complex  , dimension(:,:,:), allocatable :: efg_ia_dual        ! efg_tensor
+  double precision                                :: alphaES        ! Ewald sum parameter 
+  double precision, dimension(:,:,:), allocatable :: efg_ia_real    ! efg_tensor
+  double complex  , dimension(:,:,:), allocatable :: efg_ia_dual    ! efg_tensor
   double precision, dimension(:,:,:), allocatable :: efg_ia_dual_real   ! efg_tensor
-  double precision, dimension(:,:,:), allocatable :: efg_ia_total       ! efg_tensor
+  double precision, dimension(:,:,:), allocatable :: efg_ia_total   ! efg_tensor
 
   TYPE ( kmesh ) :: km_efg
 
   ! ==============
   !  distribution
   ! ==============
-  integer         , dimension(:,:)  , allocatable :: dibvzztot          ! vzz distribution dimension = (ntype , PAN)
-  integer         , dimension(:,:)  , allocatable :: dibetatot          ! eta distribution dimension = (ntype , PAN) 
-  integer         , dimension(:,:,:), allocatable :: dibUtot            ! U_i distribution dimension = ( 1:6 , ntype , PAN ) (Czjzek components)
-  double precision                                :: resvzz             ! resolution in vzz distribution
-  double precision                                :: reseta             ! resolution in eta distribution
-  double precision                                :: resu               ! resolution in Ui ditribution
-  double precision                                :: vzzmin             ! minimum value for vzz (distribution between [vzzmin, -vzzmin]
-  double precision                                :: umin               ! minimum value of umin
-  integer                                         :: PANeta             ! (internal) number of bins in eta distribution (related reseta)
-  integer                                         :: PANvzz             ! (internal) number of bins in vzz distribution (related resvzz)
-  integer                                         :: PANU               ! (internal) number of bins in Ui distribution (related resu)
+  integer         , dimension(:,:)  , allocatable :: dibvzztot ! vzz distrib. dim. = (ntype , PAN)
+  integer         , dimension(:,:)  , allocatable :: dibetatot ! eta distrib. dim. = (ntype , PAN) 
+  integer         , dimension(:,:,:), allocatable :: dibUtot   ! U_i distrib. dim. = ( 1:6 , ntype , PAN ) 
+
+  double precision                                :: resvzz    ! resolution in vzz distribution
+  double precision                                :: reseta    ! resolution in eta distribution
+  double precision                                :: resu      ! resolution in Ui ditribution
+  double precision                                :: vzzmin    ! minimum value for vzz (distrib. in [vzzmin, -vzzmin]
+  double precision                                :: umin      ! minimum value of umin
+  integer                                         :: PANeta    ! nb of bins in eta distrib. (related reseta)
+  integer                                         :: PANvzz    ! nb of bins in vzz distrib. (related resvzz)
+  integer                                         :: PANU      ! nb of bins in Ui  distrib. (related resu)
 
 !added 19-11-11
   integer         , dimension(:,:,:)  , allocatable :: dibvzztot_it     ! vzz distribution dimension = (ntype , PAN)
@@ -131,11 +132,11 @@ SUBROUTINE efg_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , efgtag,iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag section is absent'
    STOP
- elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag wrong tag'
+ elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag wrong tag'
    STOP
  endif
 
@@ -195,7 +196,7 @@ END SUBROUTINE efg_default_tag
 
 SUBROUTINE efg_check_tag
 
-  USE field,    ONLY :  qA ,qB 
+  USE field,    ONLY :  qch 
   USE control,  ONLY :  calc , longrange
   USE io_file,  ONLY :  ionode , stdout
   USE prop,     ONLY :  lefg
@@ -204,14 +205,15 @@ SUBROUTINE efg_check_tag
   implicit none
 
   if ( calc .eq. 'efg+acf' .and. ntype .gt. 2 ) then
-    if ( ionode ) WRITE( stdout , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
+    if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
     STOP 
   endif
 
   if ( calc .eq. 'efg+acf' ) return
 
-  if ( qA .eq. 0 .and. qB .ne. 0 ) then 
-    if ( ionode ) WRITE ( stdout ,'(a,2f8.3)') 'ERROR: who requested EFG calculation without charge definition, something must be wrong' 
+  if ( qch(1) .eq. 0 .and. qch(2) .ne. 0 ) then 
+    if ( ionode ) WRITE ( stdout ,'(a,2f8.3)') &
+    'ERROR: who requested EFG calculation without charge definition, something must be wrong' 
     STOP
   endif
 
@@ -238,7 +240,7 @@ SUBROUTINE efg_check_tag
   ! ==================================
   !  check vzzmin and Umin .ne. 0
   ! ==================================
-  if( vzzmin .eq. 0d0 .or. umin .eq. 0d0 ) then
+  if ( vzzmin .eq. 0d0 .or. umin .eq. 0d0 ) then
     if ( ionode ) WRITE ( stdout ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin   
     STOP
   endif             
@@ -270,51 +272,56 @@ SUBROUTINE efg_print_info(kunit)
 
   !local
   integer :: kunit
-  if( ionode ) then
-    if( calc .eq. 'efg' .or. lefg ) then
-                               WRITE ( kunit ,'(a)')           '=============================================================' 
-                               WRITE ( kunit ,'(a)')           ''
-                               WRITE ( kunit ,'(a)')           'electric field gradient:'
-                               WRITE ( kunit ,'(a)')           'point charges calculation'
-      if(longrange .eq. 'direct')  then
-                               WRITE ( kunit ,'(a)')           'direct summation'
-                               WRITE ( kunit ,'(a)')           'cubic cutoff in real space'
-                               WRITE ( kunit ,'(a,f10.5)')     'distance cutoff           cutefg = ',cutefg
-                               WRITE ( kunit ,'(a,i10)')       '-ncelldirect ... ncelldirect     = ',ncelldirect
-                               WRITE ( kunit ,'(a,i10)')       'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
+  if ( ionode ) then
+    if ( calc .eq. 'efg' .or. lefg ) then
+      WRITE ( kunit ,'(a)')           '=============================================================' 
+      WRITE ( kunit ,'(a)')           ''
+      WRITE ( kunit ,'(a)')           'electric field gradient:'
+      WRITE ( kunit ,'(a)')           'point charges calculation'
+      if ( longrange .eq. 'direct' )  then
+        WRITE ( kunit ,'(a)')         'direct summation'
+        WRITE ( kunit ,'(a)')         'cubic cutoff in real space'
+        WRITE ( kunit ,'(a,f10.5)')   'distance cutoff           cutefg = ',cutefg
+        WRITE ( kunit ,'(a,i10)')     '-ncelldirect ... ncelldirect     = ',ncelldirect
+        WRITE ( kunit ,'(a,i10)')     'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
       endif     
-      if(longrange .eq. 'ewald')  then
-                               WRITE ( kunit ,'(a)')           'ewald summation'
-                               WRITE ( kunit ,'(a,f10.5)')     'alpha                            = ',alphaES
-                               WRITE ( kunit ,'(a,f10.5)')     'cutoff in real part              = ',cutefg
-                               WRITE ( kunit ,'(a,i10)')       'ncellewald x ncellewald x ncellewald               = ',ncellewald
-                               WRITE ( kunit ,'(a,i10)')       '' 
-                               WRITE ( kunit ,'(a,f10.5)')     'Note:this should hold alpha^2 * box^2 >> 1',alphaES*alphaES*box*box
+      if ( longrange .eq. 'ewald' )  then
+        WRITE ( kunit ,'(a)')         'ewald summation'
+        WRITE ( kunit ,'(a,f10.5)')   'alpha                            = ',alphaES
+        WRITE ( kunit ,'(a,f10.5)')   'cutoff in real part              = ',cutefg
+        WRITE ( kunit ,'(a,i10)')     'ncellewald x ncellewald x ncellewald               = ',ncellewald
+        WRITE ( kunit ,'(a,i10)')     '' 
+        WRITE ( kunit ,'(a,f10.5)')   'Note:this should hold alpha^2 * box^2 >> 1',alphaES*alphaES*box*box
       endif
-      if( calc .eq. 'efg')     WRITE ( kunit ,'(a)')           'read config from file            : TRAJFF'
-      if( calc .eq. 'efg')     WRITE ( kunit ,'(a,i10)')       'numbers of config read ncefg     = ',ncefg 
-                               WRITE ( kunit ,'(a)')           'write averages values in file    : EFGFF '          
+      if ( calc .eq. 'efg')  then 
+        WRITE ( kunit ,'(a)')         'read config from file            : TRAJFF'
+        WRITE ( kunit ,'(a,i10)')     'numbers of config read ncefg     = ',ncefg 
+      endif
+      WRITE ( kunit ,'(a)')           'write averages values in file    : EFGFF '          
 
-                               WRITE ( kunit ,'(a)')           'Distributions:'
-                               WRITE ( kunit ,'(a)')           'eta distrib                : DTETAFF'
-                               WRITE ( kunit ,'(a)')           'Vzz distrib                : DTVZZFF'
-                               WRITE ( kunit ,'(a)')           'Ui components distrib      : DTIBUFF'           
-     if(lefgprintall)          WRITE ( kunit ,'(a)')           'EFG for all atoms          : EFGALL '
-                               WRITE ( kunit ,'(a)')           ''
-                               WRITE ( kunit ,'(a)')                                 'distributions parameters:'
-                               WRITE ( kunit ,'(a,f10.5)')                           'eta between    0.00000 and    1.00000 with resolution ',reseta
-                               WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)')           'vzz between ',vzzmin,' and ',-vzzmin,' with resolution ',resvzz
-                               WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)')           'Ui  between ',  umin,' and ',  -umin,' with resolution ',resu
+      WRITE ( kunit ,'(a)')           'Distributions:'
+      WRITE ( kunit ,'(a)')           'eta distrib                : DTETAFF'
+      WRITE ( kunit ,'(a)')           'Vzz distrib                : DTVZZFF'
+      WRITE ( kunit ,'(a)')           'Ui components distrib      : DTIBUFF'           
+      if ( lefgprintall )  then
+        WRITE ( kunit ,'(a)')         'EFG for all atoms          : EFGALL '
+      endif
+      WRITE ( kunit ,'(a)')           ''
+      WRITE ( kunit ,'(a)')           'distributions parameters:'
+      WRITE ( kunit ,'(a,f10.5)')     'eta between    0.00000 and    1.00000 with resolution ',reseta
+      WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)') &
+                                      'vzz between ',vzzmin,' and ',-vzzmin,' with resolution ',resvzz
+      WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)') &
+                                      'Ui  between ',  umin,' and ',  -umin,' with resolution ',resu
     endif
     if ( calc .eq. 'efg+acf' ) then
-                              WRITE ( kunit ,'(a)')           '============================================================='
-                              WRITE ( kunit ,'(a)')           ''
-                              WRITE ( kunit ,'(a)')           'electric field gradient auto-correlation function:'                    
-                              WRITE ( kunit ,'(a)')           'data from file EFGALL'
-                              WRITE ( kunit ,'(a,i10)')       'numbers of config read ncefg           = ',ncefg 
-                              WRITE ( kunit ,'(a,i10)')       'maximum of evaluated correlation step  = ',ntcor
-                              WRITE ( kunit ,'(a)')           'output file                            : EFGACFFF'
-      
+      WRITE ( kunit ,'(a)')           '============================================================='
+      WRITE ( kunit ,'(a)')           ''
+      WRITE ( kunit ,'(a)')           'electric field gradient auto-correlation function:'                    
+      WRITE ( kunit ,'(a)')           'data from file EFGALL'
+      WRITE ( kunit ,'(a,i10)')       'numbers of config read ncefg           = ',ncefg 
+      WRITE ( kunit ,'(a,i10)')       'maximum of evaluated correlation step  = ',ntcor
+      WRITE ( kunit ,'(a)')           'output file                            : EFGACFFF'
     endif
   endif
 
@@ -334,9 +341,9 @@ SUBROUTINE efg_alloc
 
   USE io_file,  ONLY :  kunit_EFGFF , kunit_EFGALL , kunit_EFGFFIT , kunit_EFGALLIT1 , kunit_EFGALLIT2
   USE control,  ONLY :  calc , longrange
-  USE config,   ONLY :  natm, ntype , qia , qit , itype
+  USE config,   ONLY :  natm, ntype , qia , itype
   USE prop,     ONLY :  lefg
-  USE field,    ONLY :  qA , qB
+  USE field,    ONLY :  qch
 
   implicit none
 
@@ -348,24 +355,21 @@ SUBROUTINE efg_alloc
   ! ======
   !  lefg
   ! ======
-  if( .not. lefg .and. ( calc .ne. 'efg' ) ) return 
+  if ( .not. lefg .and. ( calc .ne. 'efg' ) ) return 
 
-  qit(1)=qA
-  qit(2)=qB
-  
   if ( ntype .eq.  1 ) then
     do ia = 1 , natm
-      qia(ia) = qit(1)
+      qia(ia) = qch(1)
     enddo
   endif
 
   if ( ntype .eq.  2 ) then
     do ia = 1 , natm
-      if(itype(ia) .eq. 1) then
-        qia(ia) = qit(1)
+      if (itype(ia) .eq. 1) then
+        qia(ia) = qch(1)
       endif
-      if(itype(ia) .eq. 2) then
-        qia(ia) = qit(2)
+      if (itype(ia) .eq. 2) then
+        qia(ia) = qch(2)
       endif
     enddo
   endif
@@ -400,7 +404,7 @@ SUBROUTINE efg_alloc
   ! ============
   !  direct sum
   ! ============
-  if( longrange .eq. 'direct' ) then
+  if ( longrange .eq. 'direct' ) then
     ncmax = ( 2 * ncelldirect + 1 ) ** 3
     rm_efg%ncmax=ncmax
     rm_efg%ncell=ncelldirect
@@ -415,7 +419,7 @@ SUBROUTINE efg_alloc
   ! ============
   !  ewald sum
   ! ============
-  if( longrange .eq. 'ewald')  then
+  if ( longrange .eq. 'ewald')  then
     allocate( efg_ia_real( natm , 3 , 3 ) )
     allocate( efg_ia_dual( natm , 3 , 3 ) ) 
     allocate( efg_ia_dual_real( natm , 3 , 3 ) ) 
@@ -441,7 +445,7 @@ SUBROUTINE efg_dealloc
 
   implicit none
 
-  if( .not. lefg .and. ( calc .ne. 'efg' ) ) return
+  if ( .not. lefg .and. ( calc .ne. 'efg' ) ) return
 
   deallocate( dibUtot )
   deallocate( dibvzztot )
@@ -451,12 +455,12 @@ SUBROUTINE efg_dealloc
     deallocate( dibvzztot_it )
     deallocate( dibetatot_it )
   endif
-  if( longrange .eq. 'direct' ) then 
+  if ( longrange .eq. 'direct' ) then 
     deallocate( rm_efg%boxxyz , rm_efg%lcell )
     deallocate( efg_ia )  
     deallocate( efg_ia_it )  
   endif
-  if( longrange .eq. 'ewald' )  then
+  if ( longrange .eq. 'ewald' )  then
     deallocate( efg_ia_real )
     deallocate( efg_ia_dual ) 
     deallocate( efg_ia_total )
@@ -480,28 +484,36 @@ END SUBROUTINE efg_dealloc
 
 SUBROUTINE efgcalc 
 
-  USE io_file,  ONLY :  ionode , stdout , kunit_TRAJFF, kunit_EFGFF, kunit_EFGALL, kunit_OUTFF , kunit_tmp , kunit_EFGALLIT1 , kunit_EFGALLIT2 , kunit_EFGFFIT
+  USE io_file,  ONLY :  ionode , stdout , kunit_TRAJFF, kunit_EFGFF, kunit_EFGALL, & 
+                        kunit_OUTFF , kunit_tmp , kunit_EFGALLIT1 , kunit_EFGALLIT2 , kunit_EFGFFIT
 
-  USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , atypei , natmi, rho , box , omega , config_alloc , qia , qit
+  USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
+                        atypei , natmi, rho , box , omega , config_alloc , qia 
   USE control,  ONLY :  longrange , myrank , numprocs
-  USE field,    ONLY :  qA , qB, field_init
+  USE field,    ONLY :  qch , field_init
 
   implicit none
 
   ! local
   integer :: iastart , iaend
-  integer :: i, ia, iconf , na , it
+  integer :: ia, iconf , na , it , cc , ccs
   double precision :: aaaa 
   integer :: iiii
   character * 60 :: cccc 
-  double precision, dimension ( : , : ) , allocatable :: rave !average positions
 
+#ifdef fix_grid
+  double precision, dimension ( : , : ) , allocatable :: rave !average positions
+#endif
 
   OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
 
   READ ( kunit_TRAJFF, * )  natm 
   READ ( kunit_TRAJFF, * )  system
   READ ( kunit_TRAJFF, * )  box,ntype
+  READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
+  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
   omega = box * box * box
   rho = natm / omega
   ! ===================================
@@ -518,7 +530,7 @@ SUBROUTINE efgcalc
   ! =============
   CALL efg_print_info(stdout)
   CALL efg_print_info(kunit_OUTFF)
-  if( ionode ) then
+  if ( ionode ) then
     WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
     WRITE ( stdout , '(a,i12)'  )    'natm  = ',natm
     WRITE ( stdout , '(a,i12)'  )    'ntype = ',ntype
@@ -527,12 +539,10 @@ SUBROUTINE efgcalc
     WRITE ( stdout , '(a,f12.5)')    'vol   = ',omega
     WRITE ( stdout , '(a)'      )    ''
   endif
-  qit(1)=qA
-  qit(2)=qB
 
 
 #ifndef fix_grid
-    WRITE(stdout,'(a)') 'not fix_grid' 
+    WRITE ( stdout , '(a)' ) 'not fix_grid' 
 ! =============================================
 !  not fix_grid: we calculate efg at 
 !  each atom positions which are moving.
@@ -543,42 +553,31 @@ SUBROUTINE efgcalc
   ! ============================================
   do iconf = 1, ncefg
     na = 0
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii 
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii 
-    do i = 1,natm
-      READ ( kunit_TRAJFF, * ) atype(i),rx(i),ry(i),rz(i)
-      if(atype(i) .eq. 'A') na = na + 1  
-      if(atype(i) .eq. 'A') itype(i)=1
-      if(atype(i) .eq. 'B') itype(i)=2
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii 
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii 
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    do ia = 1 , natm
+      READ ( kunit_TRAJFF, * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
   
-  if ( ntype .eq.  1 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    atypei(0)='ALL'
-    atypei(1)='A'
-    do ia = 1 , natm
-      qia(ia) = qit(1)
+  ! ==========================
+  !  set some type parameters
+  ! ==========================      
+  natmi ( 0 ) = 0 
+  cc = 0
+  do it = 1 , ntype
+      ccs = cc
+      cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc 
+      atype ( ia ) = atypei ( it ) 
+      itype ( ia ) = it
+      qia   ( ia ) = qch (it) 
     enddo
-  endif
-
-  if ( ntype .eq.  2 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    natmi(2)=natm-na
-    atypei(0)='ALL'
-    atypei(1)='A'
-    atypei(2)='B'
-    do ia = 1 , natm
-      if(itype(ia) .eq. 1) then
-        qia(ia) = qit(1)
-      endif
-      if(itype(ia) .eq. 2) then
-        qia(ia) = qit(2)
-      endif
-    enddo
-  endif
+  enddo
+  natmi  ( 0 ) = natm
+  atypei ( 0 ) = 'ALL'
 
   ! ===============
   ! use direct sum
@@ -603,7 +602,7 @@ SUBROUTINE efgcalc
   endif
 
 #else
-  WRITE(stdout,'(a)') 'fix_grid used' 
+  WRITE ( stdout , '(a)' ) 'fix_grid used' 
 
   allocate ( rave ( 3 , natm ) )
   rave = 0.0D0
@@ -620,22 +619,22 @@ do iconf = 1, ncefg
     if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
     if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
     if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa , iiii
-    do i = 1,natm
-      READ ( kunit_TRAJFF, * ) atype(i),rx(i),ry(i),rz(i)
-      if(atype(i) .eq. 'A') na = na + 1
-      if(atype(i) .eq. 'A') itype(i)=1
-      if(atype(i) .eq. 'B') itype(i)=2
-      if( iconf .eq. 1) then
-        rave(1,i) = rave(1,i) + rx(i) 
-        rave(2,i) = rave(2,i) + ry(i) 
-        rave(3,i) = rave(3,i) + rz(i) 
+    do ia = 1 , natm
+      READ ( kunit_TRAJFF, * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
+      if ( atype ( ia ) .eq. 'A' ) na = na + 1
+      if ( atype ( ia ) .eq. 'A' ) itype ( ia ) = 1
+      if ( atype ( ia ) .eq. 'B' ) itype ( ia ) = 2
+      if ( iconf .eq. 1) then
+        rave ( 1 , ia ) = rave ( 1 , ia ) + rx ( ia ) 
+        rave ( 2 , ia ) = rave ( 2 , ia ) + ry ( ia ) 
+        rave ( 3 , ia ) = rave ( 3 , ia ) + rz ( ia ) 
       else
-        if ( rave(1,i) .gt. 0 ) rave(1,i) = rave(1,i) + abs(rx(i))
-        if ( rave(2,i) .gt. 0 ) rave(2,i) = rave(2,i) + abs(ry(i))
-        if ( rave(3,i) .gt. 0 ) rave(3,i) = rave(3,i) + abs(rz(i))
-        if ( rave(1,i) .lt. 0 ) rave(1,i) = rave(1,i) - abs(rx(i))
-        if ( rave(2,i) .lt. 0 ) rave(2,i) = rave(2,i) - abs(ry(i))
-        if ( rave(3,i) .lt. 0 ) rave(3,i) = rave(3,i) - abs(rz(i))
+        if ( rave ( 1 , ia ) .gt. 0 ) rave ( 1 , ia ) = rave ( 1 , ia ) + abs( rx ( ia ) )
+        if ( rave ( 2 , ia ) .gt. 0 ) rave ( 2 , ia ) = rave ( 2 , ia ) + abs( ry ( ia ) )
+        if ( rave ( 3 , ia ) .gt. 0 ) rave ( 3 , ia ) = rave ( 3 , ia ) + abs( rz ( ia ) )
+        if ( rave ( 1 , ia ) .lt. 0 ) rave ( 1 , ia ) = rave ( 1 , ia ) - abs( rx ( ia ) )
+        if ( rave ( 2 , ia ) .lt. 0 ) rave ( 2 , ia ) = rave ( 2 , ia ) - abs( ry ( ia ) )
+        if ( rave ( 3 , ia ) .lt. 0 ) rave ( 3 , ia ) = rave ( 3 , ia ) - abs( rz ( ia ) )
       endif
     enddo
 enddo ! ifconf
@@ -646,32 +645,22 @@ enddo ! ifconf
 
     rgrid = rave
 
-  if ( ntype .eq. 1 ) then
-    natmi(0) = natm
-    natmi(1) = na
-    atypei(0)= 'ALL'
-    atypei(1)= 'A'
-    do ia = 1 , natm
-      qia(ia) = qit(1)
+  ! ==========================
+  !  set some type parameters
+  ! ==========================      
+  natmi ( 0 ) = 0 
+  cc = 0
+  do it = 1 , ntype
+      ccs = cc
+      cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc 
+      atype ( ia ) = atypei ( it ) 
+      itype ( ia ) = it
+      qia   ( ia ) = qch (it) 
     enddo
-  endif
-
-  if ( ntype .eq.  2 ) then
-    natmi(0)  = natm
-    natmi(1)  = na
-    natmi(2)  = natm-na
-    atypei(0) = 'ALL'
-    atypei(1) = 'A'
-    atypei(2) = 'B'
-    do ia = 1 , natm
-      if( itype(ia) .eq. 1 ) then
-        qia(ia) = qit(1)
-      endif
-      if( itype(ia) .eq. 2 ) then
-        qia(ia) = qit(2)
-      endif
-    enddo
-  endif
+  enddo
+  natmi  ( 0 ) = natm
+  atypei ( 0 ) = 'ALL'
 
   ! write average configuration
   if ( ionode ) then
@@ -701,42 +690,31 @@ enddo ! ifconf
   do iconf = 1, ncefg
     print*,iconf 
     na = 0
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
-    if( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii
-    do i = 1,natm
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    do ia = 1 , natm
       READ ( kunit_TRAJFF, * ) atype(i),rx(i),ry(i),rz(i)
-      if(atype(i) .eq. 'A') na = na + 1
-      if(atype(i) .eq. 'A') itype(i)=1
-      if(atype(i) .eq. 'B') itype(i)=2
     enddo
 
-  if ( ntype .eq.  1 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    atypei(0)='ALL'
-    atypei(1)='A'
-    do ia = 1 , natm
-      qia(ia) = qit(1)
+  ! ==========================
+  !  set some type parameters
+  ! ==========================      
+  natmi ( 0 ) = 0 
+  cc = 0
+  do it = 1 , ntype
+      ccs = cc
+      cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc 
+      atype ( ia ) = atypei ( it ) 
+      itype ( ia ) = it
+      qia   ( ia ) = qch (it) 
     enddo
-  endif
-
-  if ( ntype .eq.  2 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    natmi(2)=natm-na
-    atypei(0)='ALL'
-    atypei(1)='A'
-    atypei(2)='B'
-    do ia = 1 , natm
-      if(itype(ia) .eq. 1) then
-        qia(ia) = qit(1)
-      endif
-      if(itype(ia) .eq. 2) then
-        qia(ia) = qit(2)
-      endif
-    enddo
-  endif
+  enddo
+  natmi  ( 0 ) = natm
+  atypei ( 0 ) = 'ALL'
 
   ! ===============
   ! use direct sum
@@ -776,9 +754,10 @@ END SUBROUTINE efgcalc
 SUBROUTINE efg_DS ( itime , nefg , iastart , iaend  )
 
   USE control,  ONLY :  myrank, numprocs, calc
-  USE config,   ONLY :  system , natm , natmi , atype , atypei , box , itype , rx , ry , rz , ntype , qia , qit
-  USE io_file,  ONLY :  ionode , stdout , kunit_EFGFF , kunit_EFGALL , kunit_EFGFFIT , kunit_EFGALLIT1 , kunit_EFGALLIT2
-  USE field,    ONLY :  qA , qB
+  USE config,   ONLY :  system , natm , natmi , atype , atypei , box , itype , rx , ry , rz , ntype , qia 
+  USE io_file,  ONLY :  ionode , stdout , kunit_EFGFF , kunit_EFGALL , &
+                                          kunit_EFGFFIT , kunit_EFGALLIT1 , kunit_EFGALLIT2
+  USE field,    ONLY :  qch
   USE prop,     ONLY :  nprop_print
   USE time
 
@@ -819,7 +798,8 @@ SUBROUTINE efg_DS ( itime , nefg , iastart , iaend  )
   double precision, dimension (:,:), allocatable :: vzzmin_sum , vzzmax_sum
   double precision, dimension (:),   allocatable :: vzzmin2_sum , vzzmax2_sum
   !  added 19-11-11
-  double precision, dimension (:,:), allocatable :: pvzzit , vzzsqit , etamit , vzzmait , vzzmit , sigmavzzit , rho_zit
+  double precision, dimension (:,:), allocatable :: pvzzit , vzzsqit , etamit , vzzmait , &
+                                                    vzzmit , sigmavzzit , rho_zit
   
   double precision :: vzzk , etak
   integer :: ku,uk
@@ -922,7 +902,7 @@ atom : do ia = iastart , iaend
          ! ==============================
          !  ia and ja in different cells
          ! ==============================
-         if( rm_efg%lcell(ncell) .eq. 1) then
+         if ( rm_efg%lcell(ncell) .eq. 1) then
 
           do ja = 1 , natm
             rxj  = rx(ja) + rm_efg%boxxyz(1,ncell)
@@ -933,7 +913,7 @@ atom : do ia = iastart , iaend
             rzij = rzi - rzj
             d2   = rxij * rxij + ryij * ryij + rzij * rzij
 
-            if( d2 .lt. cutefgsq ) then
+            if ( d2 .lt. cutefgsq ) then
               d = dsqrt(d2)
               d5 = d2 * d2 * d
               dm5 = 1.0d0/d5
@@ -964,11 +944,11 @@ atom : do ia = iastart , iaend
          ! =======================================
          !  ia and ja in the same cell (ia.ne.ja)
          ! =======================================
-        if( rm_efg%lcell(ncell) .eq. 0) then
+        if ( rm_efg%lcell(ncell) .eq. 0) then
 
           do ja = 1,natm
 
-            if(ja.ne.ia) then
+            if (ja.ne.ia) then
               rxj  = rx(ja)
               ryj  = ry(ja)
               rzj  = rz(ja)
@@ -977,7 +957,7 @@ atom : do ia = iastart , iaend
               rzij = rzi - rzj
               d2   = rxij * rxij + ryij * ryij + rzij * rzij
  
-              if(d2.lt.cutefgsq) then
+              if (d2.lt.cutefgsq) then
                 d = dsqrt(d2)
                 d5 = d2 * d2 * d
                 dm5 = 1.0d0/d5
@@ -1026,11 +1006,11 @@ atom : do ia = iastart , iaend
     endif
 
 #ifdef debug
-     if(ia.eq.1) CALL print_tensor(EFGT,'DIREC')
+     if (ia.eq.1) CALL print_tensor(EFGT,'DIREC')
      if ( lefg_it_contrib ) then
-       if(ia.eq.1) CALL print_tensor(EFGTIT(1,:,:),'DRITA')
-       if(ia.eq.1) CALL print_tensor(EFGTIT(2,:,:),'DRITB')
-       if(ia.eq.1) CALL print_tensor(EFGTIT(2,:,:)+EFGTIT(1,:,:),'DITAB')
+       if (ia.eq.1) CALL print_tensor(EFGTIT(1,:,:),'DRITA')
+       if (ia.eq.1) CALL print_tensor(EFGTIT(2,:,:),'DRITB')
+       if (ia.eq.1) CALL print_tensor(EFGTIT(2,:,:)+EFGTIT(1,:,:),'DITAB')
      endif
 #endif 
 
@@ -1048,7 +1028,7 @@ atom : do ia = iastart , iaend
     ! =================
     CALL DSYEV('N','U',3,EFGT,3,w,work,3 * lwork,ifail)
     if (ifail.ne.0) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGT)'
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGT)'
       STOP 
     endif
     ! added 19-11-11
@@ -1056,13 +1036,13 @@ atom : do ia = iastart , iaend
       work=0.0d0
       CALL DSYEV('N','U',3,EFGTIT(1,:,:),3,wit(1,:),work,3 * lwork,ifail)    
       if (ifail.ne.0) then
-        if( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGTIT1)'
+        if ( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGTIT1)'
         STOP 
       endif
       work=0.0d0
       CALL DSYEV('N','U',3,EFGTIT(2,:,:),3,wit(2,:),work,3 * lwork,ifail)    
       if (ifail.ne.0) then
-        if( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGTIT2)'
+        if ( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (EFGTIT2)'
         STOP 
       endif
     endif
@@ -1094,20 +1074,20 @@ atom : do ia = iastart , iaend
     vzzm(0) = vzzm(0) + nmr(ia,3)
     etam(0) = etam(0) + nmr(ia,4)
     vzzma(0) = vzzma(0) + dabs(nmr(ia,3))
-    if(nmr(ia,3).le.vzzmini(0,myrank))  vzzmini(0,myrank) = nmr(ia,3)
-    if(nmr(ia,3).ge.vzzmaxi(0,myrank))  vzzmaxi(0,myrank) = nmr(ia,3)
-    if(nmr(ia,3).ge.0) pvzz(0) = pvzz(0) + 1.d0
+    if (nmr(ia,3).le.vzzmini(0,myrank))  vzzmini(0,myrank) = nmr(ia,3)
+    if (nmr(ia,3).ge.vzzmaxi(0,myrank))  vzzmaxi(0,myrank) = nmr(ia,3)
+    if (nmr(ia,3).ge.0) pvzz(0) = pvzz(0) + 1.d0
     vzzsq(0) = vzzsq(0) + nmr(ia,3) * nmr(ia,3)
         
     do it = 1 , ntype 
-      if(itype(ia).eq.it) then
+      if (itype(ia).eq.it) then
         vzzm(it)  = vzzm(it)  + nmr(ia,3)
         vzzma(it) = vzzma(it) + dabs(nmr(ia,3))
         etam(it)  = etam(it)  + nmr(ia,4)
-        if(nmr(ia,3).le.vzzmini(it,myrank))  vzzmini(it,myrank) = nmr(ia,3)
-        if(nmr(ia,3).ge.vzzmaxi(it,myrank))  vzzmaxi(it,myrank) = nmr(ia,3)
+        if (nmr(ia,3).le.vzzmini(it,myrank))  vzzmini(it,myrank) = nmr(ia,3)
+        if (nmr(ia,3).ge.vzzmaxi(it,myrank))  vzzmaxi(it,myrank) = nmr(ia,3)
         vzzsq(it) = vzzsq(it) + nmr(ia,3) * nmr(ia,3)
-        if(nmr(ia,3).ge.0.0d0 ) then
+        if (nmr(ia,3).ge.0.0d0 ) then
           pvzz(it) = pvzz(it) + 1.d0
         endif
       endif ! it 
@@ -1119,16 +1099,16 @@ atom : do ia = iastart , iaend
         vzzmit(itja,0) = vzzmit(itja,0) + nmrit(ia,itja,3)
         etamit(itja,0) = etamit(itja,0) + nmrit(ia,itja,4)
         vzzmait(itja,0) = vzzmait(itja,0) + dabs(nmrit(ia,itja,3))
-        if(nmrit(ia,itja,3).ge.0) pvzzit(itja,0) = pvzzit(itja,0) + 1.d0
+        if (nmrit(ia,itja,3).ge.0) pvzzit(itja,0) = pvzzit(itja,0) + 1.d0
         vzzsqit(itja,0) = vzzsqit(itja,0) + nmrit(ia,itja,3) * nmrit(ia,itja,3)
             
         do it = 1 , ntype 
-          if(itype(ia).eq.it) then
+          if (itype(ia).eq.it) then
             vzzmit(itja,it)  = vzzmit(itja,it)  + nmrit(ia,itja,3)
             vzzmait(itja,it) = vzzmait(itja,it) + dabs(nmrit(ia,itja,3))
             etamit(itja,it)  = etamit(itja,it)  + nmrit(ia,itja,4)
             vzzsqit(itja,it) = vzzsqit(itja,it) + nmrit(ia,itja,3) * nmrit(ia,itja,3)
-            if(nmrit(ia,itja,3).ge.0.0d0 ) then
+            if (nmrit(ia,itja,3).ge.0.0d0 ) then
               pvzzit(itja,it) = pvzzit(itja,it) + 1.d0
             endif
           endif ! it 
@@ -1145,7 +1125,8 @@ atom : do ia = iastart , iaend
 !  MERGE, CALCULATE DISTRIBUTION AND OUTPUT 
 ! ==========================================
 
-  allocate( vzzmin_sum(0:ntype,0:numprocs-1) , vzzmax_sum(0:ntype,0:numprocs-1) , vzzmax2_sum(0:numprocs-1) , vzzmin2_sum(0:numprocs-1) )
+  allocate( vzzmin_sum(0:ntype,0:numprocs-1) , vzzmax_sum(0:ntype,0:numprocs-1) )
+  allocate( vzzmax2_sum(0:numprocs-1) , vzzmin2_sum(0:numprocs-1) )
   allocate( vzzmaxi2(0:numprocs-1) , vzzmini2(0:numprocs-1) )
 
   do it = 0,ntype 
@@ -1160,17 +1141,18 @@ atom : do ia = iastart , iaend
   enddo
 
   do i = 0,numprocs-1
-    if(vzzmin_sum(0,i).le.npvzzmin(0)) npvzzmin(0) = vzzmin_sum(0,i)
-    if(vzzmax_sum(0,i).ge.npvzzmax(0)) npvzzmax(0) = vzzmax_sum(0,i)
+    if (vzzmin_sum(0,i).le.npvzzmin(0)) npvzzmin(0) = vzzmin_sum(0,i)
+    if (vzzmax_sum(0,i).ge.npvzzmax(0)) npvzzmax(0) = vzzmax_sum(0,i)
     do it=1,ntype
-      if(vzzmin_sum(it,i).le.npvzzmin(it)) npvzzmin(it) = vzzmin_sum(it,i)
-      if(vzzmax_sum(it,i).ge.npvzzmax(it)) npvzzmax(it) = vzzmax_sum(it,i)
+      if (vzzmin_sum(it,i).le.npvzzmin(it)) npvzzmin(it) = vzzmin_sum(it,i)
+      if (vzzmax_sum(it,i).ge.npvzzmax(it)) npvzzmax(it) = vzzmax_sum(it,i)
     enddo
   enddo
 
   deallocate( vzzmaxi2 , vzzmini2 )
-  deallocate (vzzmin_sum , vzzmax_sum , vzzmin2_sum, vzzmax2_sum) 
-  allocate ( vzzm_sum ( 0:ntype ) , vzzma_sum ( 0:ntype ) , vzzsq_sum ( 0:ntype ) , etam_sum ( 0:ntype ) , pvzz_sum ( 0:ntype ) )
+  deallocate( vzzmin_sum , vzzmax_sum , vzzmin2_sum, vzzmax2_sum) 
+  allocate( vzzm_sum ( 0:ntype ) , vzzma_sum ( 0:ntype ) , vzzsq_sum ( 0:ntype ) )
+  allocate( etam_sum ( 0:ntype ) , pvzz_sum ( 0:ntype ) )
   pvzz_sum=0.0d0
  
   do it = 0 , ntype
@@ -1212,7 +1194,7 @@ atom : do ia = iastart , iaend
 
   deallocate ( vzzm_sum , vzzma_sum , vzzsq_sum  , etam_sum , pvzz_sum )
 
-  if(ntype.eq.1) then
+  if (ntype.eq.1) then
     vzzm  = vzzm  / dble( natm )
     vzzsq = vzzsq / dble( natm )
     vzzma = vzzma / dble( natm )
@@ -1262,16 +1244,24 @@ atom : do ia = iastart , iaend
 ! ================================
 !  output average values ( time )
 ! ================================
-    if( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,'(a)') 'ALL TYPES'
+    if ( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,'(a)') 'ALL TYPES'
   do it=1,ntype
-    if( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,100) &
-                     itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z(it)
-    if( ionode ) WRITE ( kunit_EFGFF,100) &
-                     itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z(it)
+
+    if ( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,100) &
+                     itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , &
+                     vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z(it)
+
+    if ( ionode ) WRITE ( kunit_EFGFF,100) &
+                     itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , &
+                     vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z(it)
   enddo
-  if( ionode  .and. ntype .ne. 1 .and. (mod(nefg,nprop_print).eq.0) ) WRITE ( stdout ,100) &
-                                                             itime , atypei(0) , npvzzmin(0) , npvzzmax(0) , vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
-  if( ionode  .and. ntype .ne. 1 ) WRITE ( kunit_EFGFF ,100) itime , atypei(0) , npvzzmin(0) , npvzzmax(0) , vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
+  if ( ionode  .and. ntype .ne. 1 .and. (mod(nefg,nprop_print).eq.0) ) WRITE ( stdout ,100) &
+                     itime , atypei(0) , npvzzmin(0) , npvzzmax(0) , & 
+                     vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
+
+  if ( ionode  .and. ntype .ne. 1 ) WRITE ( kunit_EFGFF ,100) & 
+                     itime , atypei(0) , npvzzmin(0) , npvzzmax(0) , & 
+                     vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
 
 
 ! added 19-11-11
@@ -1279,10 +1269,12 @@ atom : do ia = iastart , iaend
   do itja=1,ntype
     if ( ionode .and. (mod(nefg,nprop_print).eq.0) )  WRITE ( stdout ,'(a,i5)') 'ITJA = ',itja
     do it=1,ntype
-      if( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,100) &
-                        itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , vzzmit(itja,it) , vzzmait(itja,it) , etamit(itja,it) , pvzzit(itja,it) , rho_zit(itja,it)
-      if( ionode ) WRITE ( kunit_EFGFFIT,100) &
-                        itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , vzzmit(itja,it) , vzzmait(itja,it) , etamit(itja,it) , pvzzit(itja,it) , rho_zit(itja,it)
+      if ( ionode .and. (mod(nefg,nprop_print).eq.0)) WRITE ( stdout ,100) &
+                        itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , &
+                        vzzmit(itja,it) , vzzmait(itja,it) , etamit(itja,it) , pvzzit(itja,it) , rho_zit(itja,it)
+      if ( ionode ) WRITE ( kunit_EFGFFIT,100) &
+                        itime , atypei(it) , npvzzmin(it) , npvzzmax(it) , & 
+                        vzzmit(itja,it) , vzzmait(itja,it) , etamit(itja,it) , pvzzit(itja,it) , rho_zit(itja,it)
     enddo
   enddo
   endif
@@ -1297,9 +1289,9 @@ do ia=iastart , iaend
   do ui=1,5
     uk = (U(ia,ui)-umin)/resu
     ku = int(uk) + 1
-    if(ku.lt.0.or.ku.gt.PANU) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound dibU1'
-      if( ionode ) WRITE ( stdout ,310) i,ku,U(i,ui),umin,dabs(umin)
+    if (ku.lt.0.or.ku.gt.PANU) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound dibU1'
+      if ( ionode ) WRITE ( stdout ,310) i,ku,U(i,ui),umin,dabs(umin)
       STOP 
     endif
     dibUtot(ui,0,ku) = dibUtot(ui,0,ku) + 1
@@ -1329,26 +1321,28 @@ do ia=iastart , iaend
   ! ====================
   !  test out of bound
   ! ====================
-  if( keta .eq. PANeta + 1) then
+  if ( keta .eq. PANeta + 1) then
     print*,'str',keta,etak,nmr(ia,4)
     keta = PANeta
   endif
-  if( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
-    if(  ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
-    if(  ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
-    if(  ionode ) WRITE ( stdout ,200) ia,kvzz,nmr(ia,3),npvzzmin(itype(ia)),npvzzmax(itype(ia)),nmr(ia,4),nmr(ia,1),nmr(ia,2),nmr(ia,3)
+  if ( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
+    if (  ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
+    if (  ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
+    if (  ionode ) WRITE ( stdout ,200) &
+    ia , kvzz , nmr ( ia , 3 ) , npvzzmin ( itype ( ia ) ) , npvzzmax ( itype ( ia ) ) , & 
+    nmr ( ia , 4 ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
     STOP 
   endif
-  if( keta .lt. 0 .or. keta .gt. PANeta + 1) then
-    if( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
-    if( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
+  if ( keta .lt. 0 .or. keta .gt. PANeta + 1) then
+    if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
+    if ( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
     STOP 
   endif
 
   dibvzztot(0,kvzz) = dibvzztot(0,kvzz) + 1
   dibetatot(0,keta) = dibetatot(0,keta) + 1
   do it=1,ntype
-    if( itype(ia) .eq. it ) then
+    if ( itype(ia) .eq. it ) then
       dibvzztot(it,kvzz) = dibvzztot(it,kvzz) + 1
       dibetatot(it,keta) = dibetatot(it,keta) + 1
     endif
@@ -1369,26 +1363,28 @@ do ia=iastart , iaend
       ! ====================
       !  test out of bound
       ! ====================
-      if( keta .eq. PANeta + 1) then
+      if ( keta .eq. PANeta + 1) then
         print*,'str',keta,etak,nmr(ia,4)
         keta = PANeta
       endif
-      if( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
-        if(  ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
-        if(  ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
-        if(  ionode ) WRITE ( stdout ,200) ia,kvzz,nmr(ia,3),npvzzmin(itype(ia)),npvzzmax(itype(ia)),nmr(ia,4),nmr(ia,1),nmr(ia,2),nmr(ia,3)
+      if ( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
+        if (  ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
+        if (  ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
+        if (  ionode ) WRITE ( stdout ,200) & 
+        ia , kvzz , nmr ( ia , 3 ) , npvzzmin ( itype ( ia ) ) , npvzzmax ( itype ( ia ) ) , & 
+        nmr ( ia , 4 ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
         STOP 
       endif
-      if( keta .lt. 0 .or. keta .gt. PANeta + 1) then
-        if( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
-        if( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
+      if ( keta .lt. 0 .or. keta .gt. PANeta + 1) then
+        if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
+        if ( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
         STOP 
       endif
 
       dibvzztot_it(0,itja,kvzz) = dibvzztot_it(0,itja,kvzz) + 1
       dibetatot_it(0,itja,keta) = dibetatot_it(0,itja,keta) + 1
       do it=1,ntype
-        if( itype(ia) .eq. it ) then
+        if ( itype(ia) .eq. it ) then
           dibvzztot_it(it,itja,kvzz) = dibvzztot_it(it,itja,kvzz) + 1
           dibetatot_it(it,itja,keta) = dibetatot_it(it,itja,keta) + 1
         endif
@@ -1425,12 +1421,15 @@ enddo  !ia
   nmr(:,3) = vzz_sum
   nmr(:,4) = eta_sum
 
-  if( ionode  .and. lefgprintall .and. itime.ne.0 ) then
+  if ( ionode  .and. lefgprintall .and. itime.ne.0 ) then
     WRITE ( kunit_EFGALL ,'(i5,f14.8,i5)') natm,box,ntype 
     WRITE ( kunit_EFGALL ,'(a10,i5)')  system,itime
-    WRITE ( kunit_EFGALL ,'(a)') '      ia  type     vxx           vyy          vzz           eta           rx            ry            rz'
-    do i = 1,natm
-      WRITE ( kunit_EFGALL ,'(i8,2x,a3,7f14.8)') i,atype(i),nmr(i,1),nmr(i,2),nmr(i,3),nmr(i,4),rx(i),ry(i),rz(i)
+    WRITE ( kunit_EFGALL ,'(a)') & 
+    '      ia  type     vxx           vyy          vzz           eta           rx            ry            rz'
+    do ia = 1 , natm
+      WRITE ( kunit_EFGALL ,'(i8,2x,a3,7f14.8)') & 
+      ia , atype ( ia ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 ) , nmr ( ia , 4 ) , & 
+      rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
   endif
 
@@ -1459,9 +1458,13 @@ enddo  !ia
 
     WRITE ( kunit_EFGALLIT1 ,'(i5,f14.8,i5)') natm,box,ntype
     WRITE ( kunit_EFGALLIT1 ,'(a10,i5)')  system,itime
-    WRITE ( kunit_EFGALLIT1 ,'(a)') '      ia  type     vxx           vyy        vzz           eta           rx            ry            rz'
-    do i = 1,natm
-      WRITE ( kunit_EFGALLIT1 ,'(i8,2x,a3,7f14.8)') i,atype(i),nmrit(i,itja,1),nmrit(i,itja,2),nmrit(i,itja,3),nmrit(i,itja,4),rx(i),ry(i),rz(i)
+    WRITE ( kunit_EFGALLIT1 ,'(a)') & 
+    '      ia  type     vxx           vyy        vzz           eta           rx            ry            rz'
+    do ia = 1 , natm
+      WRITE ( kunit_EFGALLIT1 ,'(i8,2x,a3,7f14.8)') & 
+      ia , atype ( ia ) , nmrit ( ia , itja , 1 ) , & 
+      nmrit ( ia , itja , 2 ) , nmrit ( ia , itja , 3 ) , nmrit ( ia , itja , 4 ) , & 
+      rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
     itja=2
     eta_sum = 0.0D0
@@ -1486,9 +1489,13 @@ enddo  !ia
     nmrit(:,itja,4) = eta_sum
     WRITE ( kunit_EFGALLIT2 ,'(i5,f14.8,i5)') natm,box,ntype
     WRITE ( kunit_EFGALLIT2 ,'(a10,i5)')  system,itime
-    WRITE ( kunit_EFGALLIT2 ,'(a)') '      ia  type     vxx           vyy        vzz           eta           rx            ry            rz'
-    do i = 1,natm
-      WRITE ( kunit_EFGALLIT2 ,'(i8,2x,a3,7f14.8)') i,atype(i),nmrit(i,itja,1),nmrit(i,itja,2),nmrit(i,itja,3),nmrit(i,itja,4),rx(i),ry(i),rz(i)
+    WRITE ( kunit_EFGALLIT2 ,'(a)') & 
+    '      ia  type     vxx           vyy        vzz           eta           rx            ry            rz'
+    do ia = 1 , natm
+      WRITE ( kunit_EFGALLIT2 ,'(i8,2x,a3,7f14.8)') & 
+      ia , atype ( ia ) , nmrit ( ia , itja , 1 ) , & 
+      nmrit ( ia , itja , 2 ) , nmrit ( ia , itja , 3 ) , nmrit ( ia , itja , 4 ) , & 
+      rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
   endif
 
@@ -1525,7 +1532,7 @@ enddo  !ia
 !  no accumulation for the firts step
 ! ====================================
 
-  if(itime .eq. 0 .and. calc.ne.'efg' ) then
+  if (itime .eq. 0 .and. calc.ne.'efg' ) then
     dibvzztot = 0
     dibetatot = 0
     dibUtot   = 0
@@ -1536,9 +1543,17 @@ enddo  !ia
 
   return
 
-100 FORMAT(I7,1X,' ATOM ',A3,'  minVZZ = ',F7.3,' maxVZZ = ',F7.3,' <VZZ> = ',F10.5,' <|VZZ|> =  ',F10.5,' mETA =  ',F10.5,' P(Vzz>0) =  ',F10.5, ' RHO_Z = ',F10.5)
-200 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F7.3,' max =  ',F7.3,' vaa{a = xx,yy,zz}, eta = ',4F14.8)
-210 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  0.0D0    max =  1.0D0',' vaa{a = xx,yy,zz}, eta = ',4F14.8)
+100 FORMAT(I7,1X,' ATOM ',A3,'  minVZZ = ',F7.3,&
+             ' maxVZZ = ',F7.3,' <VZZ> = ',F10.5,&
+           ' <|VZZ|> =  ',F10.5,' mETA =  ',F10.5,&
+          ' P(Vzz>0) =  ',F10.5, ' RHO_Z = ',F10.5)
+
+200 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,&
+          ' min =  ',F7.3,' max =  ',F7.3,' vaa{a = xx,yy,zz}, eta = ',4F14.8)
+
+210 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,&
+           ' min =  0.0D0    max =  1.0D0',' vaa{a = xx,yy,zz}, eta = ',4F14.8)
+
 310 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F7.3,' max =  ',F7.3)
 
 
@@ -1559,10 +1574,11 @@ END SUBROUTINE efg_DS
 SUBROUTINE efg_ES ( itime , nefg )
 
   USE control,    ONLY :  myrank , numprocs, calc
-  USE config,     ONLY :  system , natm , natmi , atype , atypei , box , omega , itype , rx , ry , rz , ntype , qia , qit
+  USE config,     ONLY :  system , natm , natmi , atype , atypei , box , &
+                          omega , itype , rx , ry , rz , ntype , qia 
   USE io_file,    ONLY :  ionode , stdout , kunit_EFGFF , kunit_EFGALL
   USE constants,  ONLY :  pi , fpi , piroot , imag
-  USE field,      ONLY :  qA , qB
+  USE field,      ONLY :  qch
   USE kspace,     ONLY :  struc_fact
   USE prop,       ONLY :  nprop_print , nprop
   USE time
@@ -1575,11 +1591,11 @@ SUBROUTINE efg_ES ( itime , nefg )
   integer, intent(in) :: itime , nefg 
 
   ! local
-  integer :: i, ia, ja, k, nb, ierr , it , ui , na
-  integer :: kvzz, keta
+  integer :: i , ia , ja ,  k , nb , ierr , it , ui , na
+  integer :: kvzz , keta
   integer :: nxij , nyij , nzij
-  double precision :: d, d2, d4, d3 , d5 , expon, TMPW
-  double precision :: alpha2, alpha3
+  double precision :: d , d2 , d4 , d3 , d5 , expon , TMPW
+  double precision :: alpha2 , alpha3
   double precision :: allrealpart
   double precision :: T0 , T1 , T2  ! real part 
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
@@ -1594,11 +1610,11 @@ SUBROUTINE efg_ES ( itime , nefg )
   double precision :: ak, kx, ky, kz, kk
   integer :: ik
   double precision, dimension (:,:), allocatable :: nmr
-  double precision, dimension (:),   allocatable :: npvzzmin , npvzzmax ! ntype 
-  double precision, dimension (:), allocatable :: vzzmini , vzzmaxi ! ntype
-  double precision, dimension (:),   allocatable :: vzzm, vzzma , etam , pvzz, rho_z, sigmavzz, vzzsq ! ntype
+  double precision, dimension (:)  , allocatable :: npvzzmin , npvzzmax ! ntype 
+  double precision, dimension (:)  , allocatable :: vzzmini , vzzmaxi ! ntype
+  double precision, dimension (:)  , allocatable :: vzzm, vzzma , etam , pvzz, rho_z, sigmavzz, vzzsq ! ntype
   double precision :: vzzk , etak 
-  integer :: ku,uk
+  integer :: ku , uk
   double precision :: kri , onethird
   double precision :: ttt1 , ttt2 , ttt3 , ttt4 , ttt5
   double complex   :: rhon , carg , recarg , recarg_dgg 
@@ -1699,7 +1715,7 @@ SUBROUTINE efg_ES ( itime , nefg )
 
      do ja = 1, natm
 
-       if(ja .ne. ia ) then
+       if (ja .ne. ia ) then
 
          rxij = rxi - rx(ja)
          ryij = ryi - ry(ja)
@@ -1712,7 +1728,7 @@ SUBROUTINE efg_ES ( itime , nefg )
          rzij = rzij - box * nzij
   
          d2 = rxij * rxij + ryij * ryij + rzij * rzij
-         !if( d2 .lt. cutoffsq ) then
+         !if ( d2 .lt. cutoffsq ) then
            d = dsqrt( d2 )
            d3 = d2 * d
            d4 = d2 * d2
@@ -1723,12 +1739,12 @@ SUBROUTINE efg_ES ( itime , nefg )
            T2 = ( 4.0d0 * alpha3 * expon ) / d2 / 3.0d0
            allrealpart = qia(ja) * ( T0 + T1 + T2 )
 
-           efg_ia_real(ia, 1, 1) = efg_ia_real(ia, 1, 1) - ( 3.0D0 * rxij * rxij - d2 ) * allrealpart
-           efg_ia_real(ia, 2, 2) = efg_ia_real(ia, 2, 2) - ( 3.0D0 * ryij * ryij - d2 ) * allrealpart
-           efg_ia_real(ia, 3, 3) = efg_ia_real(ia, 3, 3) - ( 3.0D0 * rzij * rzij - d2 ) * allrealpart
-           efg_ia_real(ia, 1, 2) = efg_ia_real(ia, 1, 2) -   3.0d0 * rxij * ryij * allrealpart
-           efg_ia_real(ia, 1, 3) = efg_ia_real(ia, 1, 3) -   3.0d0 * rxij * rzij * allrealpart
-           efg_ia_real(ia, 2, 3) = efg_ia_real(ia, 2, 3) -   3.0d0 * ryij * rzij * allrealpart
+           efg_ia_real( ia , 1 , 1 ) = efg_ia_real( ia , 1 , 1 ) - ( 3.0D0 * rxij * rxij - d2 ) * allrealpart
+           efg_ia_real( ia , 2 , 2 ) = efg_ia_real( ia , 2 , 2 ) - ( 3.0D0 * ryij * ryij - d2 ) * allrealpart
+           efg_ia_real( ia , 3 , 3 ) = efg_ia_real( ia , 3 , 3 ) - ( 3.0D0 * rzij * rzij - d2 ) * allrealpart
+           efg_ia_real( ia , 1 , 2 ) = efg_ia_real( ia , 1 , 2 ) -   3.0d0 * rxij * ryij * allrealpart
+           efg_ia_real( ia , 1 , 3 ) = efg_ia_real( ia , 1 , 3 ) -   3.0d0 * rxij * rzij * allrealpart
+           efg_ia_real( ia , 2 , 3 ) = efg_ia_real( ia , 2 , 3 ) -   3.0d0 * ryij * rzij * allrealpart
          !endif
 
        endif
@@ -1739,9 +1755,9 @@ SUBROUTINE efg_ES ( itime , nefg )
   efg_ia_real(:, 3, 2) = efg_ia_real(:, 2, 3)
 
 #ifdef debug  
-!  do i=1,natm
-  i=1
-  call print_tensor(efg_ia_real(i,:,:),' REAL')
+!  do ka=1,natm
+  ka=1
+  call print_tensor(efg_ia_real(ka,:,:),' REAL')
 !  enddo
 #endif   
 
@@ -1785,24 +1801,24 @@ SUBROUTINE efg_ES ( itime , nefg )
       ! ===============================
       rhon = (0.d0, 0.d0)
       do it = 1, ntype
-        rhon = rhon + qit(it) * CONJG( km_efg%strf ( ik , it ) )
+        rhon = rhon + qch(it) * CONJG( km_efg%strf ( ik , it ) )
       enddo
       kri = ( kx * rxi + ky * ryi + kz * rzi ) 
       carg = EXP ( imag * kri )
       recarg_dgg =  rhon*carg*ak / kk 
       recarg = recarg_dgg * kk 
-      efg_ia_dual ( ia , 1, 1) = efg_ia_dual ( ia , 1 , 1) +  3.0d0 * kx * kx * recarg_dgg - recarg
-      efg_ia_dual ( ia , 2, 2) = efg_ia_dual ( ia , 2 , 2) +  3.0d0 * ky * ky * recarg_dgg - recarg
-      efg_ia_dual ( ia , 3, 3) = efg_ia_dual ( ia , 3 , 3) +  3.0d0 * kz * kz * recarg_dgg - recarg
-      efg_ia_dual ( ia , 1, 2) = efg_ia_dual ( ia , 1 , 2) +  3.0d0 * kx * ky * recarg_dgg
-      efg_ia_dual ( ia , 1, 3) = efg_ia_dual ( ia , 1 , 3) +  3.0d0 * kx * kz * recarg_dgg
-      efg_ia_dual ( ia , 2, 3) = efg_ia_dual ( ia , 2 , 3) +  3.0d0 * ky * kz * recarg_dgg
+      efg_ia_dual ( ia , 1 , 1 ) = efg_ia_dual ( ia , 1 , 1 ) +  3.0d0 * kx * kx * recarg_dgg - recarg
+      efg_ia_dual ( ia , 2 , 2 ) = efg_ia_dual ( ia , 2 , 2 ) +  3.0d0 * ky * ky * recarg_dgg - recarg
+      efg_ia_dual ( ia , 3 , 3 ) = efg_ia_dual ( ia , 3 , 3 ) +  3.0d0 * kz * kz * recarg_dgg - recarg
+      efg_ia_dual ( ia , 1 , 2 ) = efg_ia_dual ( ia , 1 , 2 ) +  3.0d0 * kx * ky * recarg_dgg
+      efg_ia_dual ( ia , 1 , 3 ) = efg_ia_dual ( ia , 1 , 3 ) +  3.0d0 * kx * kz * recarg_dgg
+      efg_ia_dual ( ia , 2 , 3 ) = efg_ia_dual ( ia , 2 , 3 ) +  3.0d0 * ky * kz * recarg_dgg
     enddo kpoint
   enddo 
 
-  efg_ia_dual ( : , 2, 1) = efg_ia_dual ( : , 1, 2)
-  efg_ia_dual ( : , 3, 1) = efg_ia_dual ( : , 1, 3)
-  efg_ia_dual ( : , 3, 2) = efg_ia_dual ( : , 2, 3)
+  efg_ia_dual ( : , 2 , 1 ) = efg_ia_dual ( : , 1 , 2 )
+  efg_ia_dual ( : , 3 , 1 ) = efg_ia_dual ( : , 1 , 3 )
+  efg_ia_dual ( : , 3 , 2 ) = efg_ia_dual ( : , 2 , 3 )
 
   efg_ia_dual_real( : , :, :) = dble( efg_ia_dual( : , :, :)  ) 
 
@@ -1812,9 +1828,9 @@ SUBROUTINE efg_ES ( itime , nefg )
   efg_ia_dual_real =  efg_ia_dual_real * fpi / omega / 3.0d0
 
 #ifdef debug
-!  do i=1,natm
-i=1
-  call print_tensor(efg_ia_dual_real(i,:,:),'RECIP')
+!  do ka=1,natm
+ka=1
+  call print_tensor(efg_ia_dual_real(ka,:,:),'RECIP')
 !  enddo      
 #endif
   
@@ -1824,9 +1840,9 @@ i=1
   efg_ia_total = efg_ia_dual_real + efg_ia_real 
 
 #ifdef debug
-!  do i=1,natm
-i=1
-  call print_tensor(efg_ia_total(i,:,:),'TOTAL')
+!  do ka=1,natm
+ka=1
+  call print_tensor(efg_ia_total(ka,:,:),'TOTAL')
 !  enddo      
 #endif
 
@@ -1836,7 +1852,7 @@ i=1
 !=========================================================
 !      STATISTICS on NMR parameters
 !=========================================================
-  atom: do ia = 1, natm  
+  atom: do ia = 1 , natm  
 
     do ialpha = 1 , 3
       do ibeta = 1 , 3
@@ -1847,18 +1863,18 @@ i=1
     ! ===================================================================== 
     !  Czjzek components (see J. Phys.: Condens. Matter 10 (1998). p10719)
     ! =====================================================================
-    U( ia, 1) = EFGT(3,3) * 0.5d0
-    U( ia, 2) = EFGT(1,3) * sq3
-    U( ia, 3) = EFGT(2,3) * sq3
-    U( ia, 4) = EFGT(1,2) * sq3
-    U( ia, 5) = ( EFGT(1,1) - EFGT(2,2) ) * sq32
+    U ( ia , 1 ) = EFGT ( 3 , 3 ) * 0.5d0
+    U ( ia , 2 ) = EFGT ( 1 , 3 ) * sq3
+    U ( ia , 3 ) = EFGT ( 2 , 3 ) * sq3
+    U ( ia , 4 ) = EFGT ( 1 , 2 ) * sq3
+    U ( ia , 5 ) = ( EFGT ( 1 , 1 ) - EFGT ( 2 , 2 ) ) * sq32
 
     ! =================
     !  diagonalisation
     ! =================
-    CALL DSYEV('N','U',3,EFGT,3,w,work,3 * lwork,ifail)
-    if (ifail.ne.0) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
+    CALL DSYEV ( 'N' , 'U' , 3 , EFGT , 3 , w , work , 3 * lwork , ifail )
+    if ( ifail .ne. 0 ) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
       STOP 
     endif
 
@@ -1866,22 +1882,22 @@ i=1
    !  NMR convention: |Vzz| > |Vyy| > |Vxx|
    ! =======================================
     DO K = 1,2
-      IF (abs(W(1))>abs(W(2))) THEN
-        TMPW = W(2)
-        W(2) = W(1)
-        W(1) = TMPW
+      IF ( abs( W ( 1 ) )> abs ( W ( 2 ) ) ) THEN
+        TMPW    = W ( 2 )
+        W ( 2 ) = W ( 1 )
+        W ( 1 ) = TMPW
       ENDIF
-      IF (abs(W(2))>abs(W(3))) THEN
-        TMPW = W(3)
-        W(3) = W(2)
-        W(2) = TMPW
+      IF ( abs( W ( 2 ) ) > abs ( W ( 3 ) ) ) THEN
+        TMPW    = W ( 3 )
+        W ( 3 ) = W ( 2 )
+        W ( 2 ) = TMPW
       ENDIF
     ENDDO
 
-    nmr(ia,3) = W(3) !ZZ
-    nmr(ia,2) = W(1) !YY
-    nmr(ia,1) = W(2) !XX
-    nmr(ia,4) = (nmr(ia,2)-nmr(ia,1))/nmr(ia,3) !ETA
+    nmr ( ia , 3 ) = W ( 3 ) !ZZ
+    nmr ( ia , 2 ) = W ( 1 ) !YY
+    nmr ( ia , 1 ) = W ( 2 ) !XX
+    nmr ( ia , 4 ) = ( nmr ( ia , 2 ) - nmr ( ia , 1 ) ) / nmr ( ia , 3 ) !ETA
 
     ! ===================            
     !  test rearangement
@@ -1889,24 +1905,24 @@ i=1
     ! be aware that this is just a convention 
     ! because if all quantities are very small etaQ can be anything
     ! ===============================================================
-    if(dabs(nmr(ia,3)).lt.dabs(nmr(ia,2))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |nmr| < |nmr|',nmr(ia,1),nmr(ia,2),nmr(ia,3)
+    if ( dabs ( nmr ( ia , 3 ) ) .lt. dabs ( nmr ( ia , 2 ) ) ) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |vzz| < |vyy|', nmr( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
       STOP 
     endif
-    if(dabs(nmr(ia,3)).lt.dabs(nmr(ia,1))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |nmr| < |nmr|',nmr(ia,1),nmr(ia,2),nmr(ia,3)
+    if ( dabs ( nmr ( ia , 3 ) ) .lt. dabs ( nmr ( ia , 1 ) ) ) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |vzz| < |vxx|', nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
       STOP 
     endif
-    if(dabs(nmr(ia,1)).lt.dabs(nmr(ia,2))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |nmr| < |nmr|',nmr(ia,1),nmr(ia,2),nmr(ia,3)
+    if ( dabs ( nmr ( ia , 1 ) ) .lt. dabs ( nmr ( ia , 2 ) ) ) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |vxx| < |vzz|', nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
       STOP 
     endif
 
-    if( nmr(ia,1) .eq. nmr(ia,2) )  nmr(ia,4) = 0.0D0
-    if( nmr(ia,3) .eq. 0.0 )  nmr(ia,4) = 0.0D0
-    if( nmr(ia,1) .lt. 1.0E-08 .and. nmr(ia,2) .lt. 1.0E-8 .and. nmr(ia,3) .lt. 1.0E-8 ) nmr(ia,4) = 0.0D0
-    if( nmr(ia,4) .gt. 1.0d0 .or. nmr(ia,4) .lt. 0.0d0) then
-      if( ionode ) WRITE ( stdout ,'(a,4f48.24)') 'ERROR: eta > 1.0d0 or eta < 0.0d0',nmr(ia,4),nmr(ia,1),nmr(ia,2),nmr(ia,3)
+    if ( nmr ( ia , 1 ) .eq. nmr ( ia , 2 ) )  nmr ( ia , 4 ) = 0.0D0
+    if ( nmr ( ia , 3 ) .eq. 0.0 )  nmr ( ia , 4 ) = 0.0D0
+    if ( nmr ( ia , 1 ) .lt. 1.0E-08 .and. nmr ( ia , 2 ) .lt. 1.0E-8 .and. nmr( ia , 3 ) .lt. 1.0E-8 ) nmr ( ia , 4 ) = 0.0D0
+    if ( nmr ( ia , 4) .gt. 1.0d0 .or. nmr ( ia , 4 ) .lt. 0.0d0) then
+      if ( ionode ) WRITE ( stdout ,'(a,4f48.24)') 'ERROR: eta > 1.0d0 or eta < 0.0d0', nmr ( ia , 4 ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
       STOP 
     endif
 
@@ -1914,26 +1930,26 @@ i=1
     !  stat for all sites index 0 in array of size ntype
     ! ===================================================
 
-    vzzm (0)  =  vzzm (0) +       nmr(ia,3)
-    etam (0)  =  etam (0) +       nmr(ia,4)
-    vzzma(0)  =  vzzma(0) + dabs( nmr(ia,3) )
-    if( nmr(ia,3) .le. vzzmini(0) )  vzzmini(0) = nmr(ia,3)
-    if( nmr(ia,3) .ge. vzzmaxi(0) )  vzzmaxi(0) = nmr(ia,3)
-    if( nmr(ia,3) .ge. 0.0d0 ) then
-      pvzz(0) = pvzz(0) + 1.d0
+    vzzm  ( 0 )  =  vzzm ( 0 ) +       nmr ( ia , 3 )
+    etam  ( 0 )  =  etam ( 0 ) +       nmr ( ia , 4 )
+    vzzma ( 0 )  =  vzzma( 0 ) + dabs( nmr ( ia , 3 ) )
+    if ( nmr ( ia , 3 ) .le. vzzmini ( 0 ) )  vzzmini ( 0 ) = nmr ( ia , 3 )
+    if ( nmr ( ia , 3 ) .ge. vzzmaxi ( 0 ) )  vzzmaxi ( 0 ) = nmr ( ia , 3 )
+    if ( nmr ( ia , 3 ) .ge. 0.0d0 ) then
+      pvzz ( 0 ) = pvzz ( 0 ) + 1.d0
     endif 
 
-    vzzsq(0) = vzzsq(0) + nmr(ia,3) * nmr(ia,3)
+    vzzsq ( 0 ) = vzzsq ( 0 ) + nmr ( ia , 3 ) * nmr ( ia , 3 )
         
     do it = 1 , ntype 
-      if(itype(ia).eq.it) then
-        vzzm (it) = vzzm(it)  + nmr(ia,3)
-        vzzma(it) = vzzma(it) + dabs(nmr(ia,3))
-        etam (it) = etam(it)  + nmr(ia,4)
-        if(nmr(ia,3).le.vzzmini(it))  vzzmini(it) = nmr(ia,3)
-        if(nmr(ia,3).ge.vzzmaxi(it))  vzzmaxi(it) = nmr(ia,3)
+      if (itype(ia).eq.it) then
+        vzzm ( it ) = vzzm ( it )  + nmr ( ia , 3 )
+        vzzma( it ) = vzzma( it )  + dabs( nmr (ia , 3 ) )
+        etam ( it ) = etam ( it )  + nmr ( ia , 4 )
+        if (nmr(ia,3).le.vzzmini(it))  vzzmini(it) = nmr(ia,3)
+        if (nmr(ia,3).ge.vzzmaxi(it))  vzzmaxi(it) = nmr(ia,3)
         vzzsq(it) = vzzsq(it) + nmr(ia,3) * nmr(ia,3)
-        if(nmr(ia,3).ge.0.0d0 ) then 
+        if (nmr(ia,3).ge.0.0d0 ) then 
           pvzz(it) = pvzz(it) + 1.d0
         endif
       endif ! it 
@@ -1941,7 +1957,7 @@ i=1
 
   enddo atom
 
-  if(ntype.eq.1) then
+  if (ntype.eq.1) then
     vzzm  = vzzm  / dble( natm )
     vzzsq = vzzsq / dble( natm )
     vzzma = vzzma / dble( natm )
@@ -1972,14 +1988,17 @@ i=1
 !  output average values ( instantaneous )
 ! ========================================
   do it=1,ntype
-    if( ( ionode ) .and. (mod(nefg,nprop_print) .eq. 0) ) & 
-    WRITE ( stdout ,100) itime , atypei(it) , vzzmini(it) , vzzmaxi(it) , vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z ( it)
-    if(   ionode ) WRITE ( kunit_EFGFF,100) &
+    if ( ( ionode ) .and. (mod(nefg,nprop_print) .eq. 0) ) & 
+    WRITE ( stdout ,100) &
+    itime , atypei(it) , vzzmini(it) , vzzmaxi(it) , vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z ( it)
+    if (   ionode ) WRITE ( kunit_EFGFF,100) &
     itime , atypei(it) , vzzmini(it) , vzzmaxi(it) , vzzm(it) , vzzma(it) , etam(it) , pvzz(it) , rho_z(it)
   enddo
-  if( ionode .and. ntype .ne. 1 .and. (mod(nefg,nprop_print) .eq. 0) ) & 
-  WRITE ( stdout ,100) itime , atypei(0) , vzzmini(0) , vzzmaxi(0) , vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
-  if( ionode .and. ntype .ne. 1 ) WRITE ( kunit_EFGFF ,100) &
+  if ( ionode .and. ntype .ne. 1 .and. (mod(nefg,nprop_print) .eq. 0) ) & 
+  WRITE ( stdout ,100) &
+  itime , atypei(0) , vzzmini(0) , vzzmaxi(0) , vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
+  if ( ionode .and. ntype .ne. 1 ) &
+  WRITE ( kunit_EFGFF ,100) &
   itime , atypei(0) , vzzmini(0) , vzzmaxi(0) , vzzm(0) , vzzma(0) , etam(0) , pvzz(0) , rho_z(0)
 
   do ia=1 , natm
@@ -1990,9 +2009,9 @@ i=1
     do ui=1,5
       uk = (U(ia,ui)-umin)/resu
       ku = int(uk) + 1
-      if(ku.lt.0.or.ku.gt.PANU) then
-        if( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound dibU1'
-        if( ionode ) WRITE ( stdout ,310) i,ku,U(i,ui),umin,dabs(umin)
+      if (ku.lt.0.or.ku.gt.PANU) then
+        if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound dibU1'
+        if ( ionode ) WRITE ( stdout ,310) i,ku,U(i,ui),umin,dabs(umin)
         STOP 
       endif
       dibUtot(ui,0,ku) = dibUtot(ui,0,ku) + 1
@@ -2021,21 +2040,23 @@ i=1
     ! ====================== 
     !  test out of bound
     ! ====================== 
-    if( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
-      if( ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
-      if( ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
-      if( ionode ) WRITE ( stdout ,200) ia,kvzz,nmr(ia,3),npvzzmin(itype(ia)),npvzzmax(itype(ia)),nmr(ia,4),nmr(ia,1),nmr(ia,2),nmr(ia,3)
+    if ( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
+      if ( ionode .and. itype(ia) .eq. 1 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
+      if ( ionode .and. itype(ia) .eq. 2 ) WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
+      if ( ionode ) WRITE ( stdout ,200) & 
+      ia , kvzz , nmr(ia,3) , npvzzmin( itype ( ia ) ) , npvzzmax ( itype ( ia ) ) , & 
+      nmr ( ia , 4 ), nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
       STOP 
     endif
-    if( keta .lt. 0 .or. keta .gt. PANeta ) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
-      if( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
+    if ( keta .lt. 0 .or. keta .gt. PANeta ) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
+      if ( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), nmr(ia,1), nmr(ia,2), nmr(ia,3)
       STOP 
     endif
     dibvzztot(0,kvzz) = dibvzztot(0,kvzz) + 1
     dibetatot(0,keta) = dibetatot(0,keta) + 1
     do it=1,ntype
-      if( itype(ia) .eq. it ) then
+      if ( itype(ia) .eq. it ) then
         dibvzztot(it,kvzz) = dibvzztot(it,kvzz) + 1
         dibetatot(it,keta) = dibetatot(it,keta) + 1
       endif
@@ -2048,12 +2069,15 @@ i=1
   ! =======================================
   ! write efg for each atom in file EFGALL 
   ! =======================================
-  if( ionode  .and. lefgprintall .and. itime.ne.0) then
+  if ( ionode  .and. lefgprintall .and. itime.ne.0) then
     WRITE ( kunit_EFGALL ,'(i5,f14.8,i5)') natm,box,ntype 
     WRITE ( kunit_EFGALL ,'(a10,i5)')  system,itime
-    WRITE ( kunit_EFGALL ,'(a)') '      ia  type     vxx           vyy          vzz           eta           rx            ry            rz'
-    do i = 1,natm
-      WRITE ( kunit_EFGALL ,'(i8,2x,a3,7f14.8)') i,atype(i),nmr(i,1),nmr(i,2),nmr(i,3),nmr(i,4),rx(i),ry(i),rz(i)
+    WRITE ( kunit_EFGALL ,'(a)') &
+    '      ia  type     vxx           vyy          vzz           eta           rx            ry            rz'
+    do ia = 1 , natm
+      WRITE ( kunit_EFGALL ,'(i8,2x,a3,7f14.8)') &
+      ia , atype ( ia ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , & 
+      nmr ( ia , 3 ) , nmr ( ia , 4 ) , rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
   endif
 
@@ -2075,7 +2099,7 @@ i=1
 ! ====================================
 !  no accumulation for the first step
 ! ====================================
-  if( itime .eq. 0 .and. calc.ne.'efg') then
+  if ( itime .eq. 0 .and. calc.ne.'efg') then
     dibvzztot = 0
     dibetatot = 0
     dibUtot   = 0
@@ -2089,9 +2113,13 @@ i=1
 
   return
 
-100 FORMAT(I7,1X,' ATOM ',A3,'  minVZZ = ',F7.3,' maxVZZ = ',F7.3,' <VZZ> =  ',F10.5,' <|VZZ|> =  ',F10.5,' mETA =  ',F10.5,' P(Vzz>0) =  ',F10.5, ' RHO_Z = ',F10.5)
-200 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F7.3,' max =  ',F7.3,' vaa{a = xx,yy,zz}, eta = ',4F14.8)
-210 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  0.0D0    max =  1.0D0',' vaa{a = xx,yy,zz}, eta = ',4F14.8)
+100 FORMAT(I7,1X,' ATOM ',A3,'  minVZZ = ',F7.3,' maxVZZ = ',F7.3,& 
+             ' <VZZ> =  ',F10.5,' <|VZZ|> =  ',F10.5,' mETA =  ',F10.5, &
+          ' P(Vzz>0) =  ',F10.5, ' RHO_Z = ',F10.5)
+200 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,&
+           ' min =  ',F7.3,' max =  ',F7.3,' vaa{a = xx,yy,zz}, eta = ',4F14.8)
+210 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,& 
+           ' min =  0.0D0    max =  1.0D0',' vaa{a = xx,yy,zz}, eta = ',4F14.8)
 310 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F7.3,' max =  ',F7.3)
 
 
@@ -2150,7 +2178,7 @@ SUBROUTINE efg_write_output ( iefgcount )
       CALL MPI_ALLREDUCE(dibvzztot(it,:),dibvzztot_sum(it,:),PANvzz + 1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       CALL MPI_ALLREDUCE(dibetatot(it,:),dibetatot_sum(it,:),PANeta + 1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       do ui=1,6
-        CALL MPI_ALLREDUCE(dibUtot(ui,it,:),dibUtot_sum(ui,it,:),PANU + 1,  MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(dibUtot(ui,it,:),dibUtot_sum(ui,it,:),PANU + 1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       enddo
     enddo 
     ! added 19-11-11
@@ -2159,8 +2187,10 @@ SUBROUTINE efg_write_output ( iefgcount )
         dibetatot_sum = 0
         dibvzztot_sum = 0
         do it=0,ntype
-          CALL MPI_ALLREDUCE(dibvzztot_it(it,itja,:),dibvzztot_sum(it,:),PANvzz + 1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(dibetatot_it(it,itja,:),dibetatot_sum(it,:),PANeta + 1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL MPI_ALLREDUCE(dibvzztot_it(it,itja,:),dibvzztot_sum(it,:),&
+                           PANvzz+1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL MPI_ALLREDUCE(dibetatot_it(it,itja,:),dibetatot_sum(it,:),&
+                           PANeta+1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
         enddo
         dibvzztot_it(:,itja,:) = dibvzztot_sum
         dibetatot_it(:,itja,:) = dibetatot_sum
@@ -2176,21 +2206,25 @@ SUBROUTINE efg_write_output ( iefgcount )
    enddo
   endif
 
-  if( ionode ) then
+  if ( ionode ) then
    ! ======================== 
    !  write eta distributions
    ! ======================== 
    WRITE (kunit_DTETAFF,'(a,4f15.8)') '#',reseta,dble(natmi(1)),dble(natmi(2)),dble(iefgcount)  
-   if( ntype .eq. 1 ) WRITE (kunit_DTETAFF,'(4f15.8)') dzero,dzero,dzero
-   if( ntype .eq. 2 ) WRITE (kunit_DTETAFF,'(4f15.8)') dzero,dzero,dzero,dzero
+   if ( ntype .eq. 1 ) WRITE (kunit_DTETAFF,'(4f15.8)') dzero,dzero,dzero
+   if ( ntype .eq. 2 ) WRITE (kunit_DTETAFF,'(4f15.8)') dzero,dzero,dzero,dzero
    do i = 0 , PANeta-1 
-     WRITE (kunit_DTETAFF,'(4f15.8)') dble((i+1-0.5D0) * reseta ), ( dble(dibetatot_sum(it,i)) / (reseta * dble(natmi(it)) * dble(iefgcount)), it = 0 , ntype )  
+     WRITE (kunit_DTETAFF,'(4f15.8)') &
+     dble((i+1-0.5D0) * reseta ), &
+   ( dble(dibetatot_sum(it,i)) / (reseta * dble(natmi(it)) * dble(iefgcount)), it = 0 , ntype )  
    enddo
    ! ========================
    !  write Vzz distribution
    ! ========================
    do i = 0 , PANvzz 
-     WRITE (kunit_DTVZZFF,'(4f15.8)') vzzmin + dble(i * resvzz), ( dble(dibvzztot_sum(it,i))/(resvzz * dble(natmi(it)) * dble(iefgcount)), it = 0 ,ntype ) 
+     WRITE (kunit_DTVZZFF,'(4f15.8)') &
+     vzzmin + dble(i * resvzz), &
+   ( dble(dibvzztot_sum(it,i))/(resvzz * dble(natmi(it)) * dble(iefgcount)), it = 0 ,ntype ) 
    enddo
 
    ! =================================================
@@ -2199,7 +2233,8 @@ SUBROUTINE efg_write_output ( iefgcount )
    do i = 0 , PANU 
    WRITE (kunit_DTIBUFF,'(7f15.8)') umin + dble(i * resu), &
                               ( dble(dibUtot_sum(1,it,i)) / ( resu * dble(natmi(it)) * dble(iefgcount)), & 
-                                dble(dibUtot_sum(6,it,i)) / ( resu * 4.0d0*dble(natmi(it)) * dble(iefgcount)), it = 0 ,ntype )
+                                dble(dibUtot_sum(6,it,i)) / ( resu * 4.0d0*dble(natmi(it)) * dble(iefgcount)), &
+                                it = 0 ,ntype )
    enddo
 
  !added 19-11-11
@@ -2213,13 +2248,17 @@ SUBROUTINE efg_write_output ( iefgcount )
      WRITE (kunit_DTETAFFIT,'(a,4f15.8)') '#',reseta,dble(natmi(1)),dble(natmi(2)),dble(iefgcount)
      WRITE (kunit_DTETAFFIT,'(4f15.8)') dzero,dzero,dzero,dzero
      do i = 0 , PANeta-1
-       WRITE (kunit_DTETAFFIT,'(4f15.8)') dble((i+1-0.5D0) * reseta ), ( dble(dibetatot_it(it,itja,i)) / (reseta * dble(natmi(it)) * dble(iefgcount)), it = 0 , ntype )
+       WRITE (kunit_DTETAFFIT,'(4f15.8)') &
+       dble((i+1-0.5D0) * reseta ),&
+     ( dble(dibetatot_it(it,itja,i)) / (reseta * dble(natmi(it)) * dble(iefgcount)), it = 0 , ntype )
      enddo
      ! ========================
      !  write Vzz distribution IT
      ! ========================
      do i = 0 , PANvzz
-       WRITE (kunit_DTVZZFFIT,'(4f15.8)') vzzmin + dble(i * resvzz), ( dble(dibvzztot_it(it,itja,i))/(resvzz * dble(natmi(it)) * dble(iefgcount)), it = 0 ,ntype )
+       WRITE (kunit_DTVZZFFIT,'(4f15.8)') &
+       vzzmin + dble(i * resvzz),&
+     ( dble(dibvzztot_it(it,itja,i))/(resvzz * dble(natmi(it)) * dble(iefgcount)), it = 0 ,ntype )
      enddo
 
    WRITE (kunit_DTETAFFIT,'(a)') ''
@@ -2283,7 +2322,7 @@ SUBROUTINE efg_acf
   rho = natm / omega
   CALL config_alloc 
 
-  if( ionode ) then
+  if ( ionode ) then
     WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
     WRITE ( stdout , '(a,a12)'  )    'system    = ',system
     WRITE ( stdout , '(a,i12)'  )    'natm      = ',natm
@@ -2296,7 +2335,8 @@ SUBROUTINE efg_acf
 
   allocate ( vxxt(natm,ncefg) , vyyt(natm,ncefg)      , vzzt(natm,ncefg)        , etat(natm,ncefg)                                                            )
   allocate ( vxx0(natm)       , vyy0(natm)            , vzz0(natm)              , eta0(natm)                                                                  )
-  allocate ( timeo (ncefg)    , norm(0:ntype,0:ntcor) , acfxx (0:ntype,0:ntcor) , acfyy (0:ntype,0:ntcor) , acfzz (0:ntype,0:ntcor) , acfet (0:ntype,0:ntcor) )
+  allocate ( timeo (ncefg)    , norm(0:ntype,0:ntcor) , &
+             acfxx (0:ntype,0:ntcor) , acfyy (0:ntype,0:ntcor) , acfzz (0:ntype,0:ntcor) , acfet (0:ntype,0:ntcor) )
  
   acfxx = 0.0d0
   acfyy = 0.0d0
@@ -2304,18 +2344,19 @@ SUBROUTINE efg_acf
   acfet = 0.0d0
   
   do t0 = 1 , ncefg 
-    if( t0 .ne. 1 ) then
+    if ( t0 .ne. 1 ) then
       READ(kunit_EFGALL,*) natm,box,ntype
       READ(kunit_EFGALL,*) system,iiii
       READ(kunit_EFGALL,*) XXXX
     endif
     do ia = 1 , natm
-      READ(kunit_EFGALL,*) iiii , atype(ia) , vxxt( ia , t0 ) , vyyt( ia , t0 ) , vzzt( ia , t0 ), etat( ia , t0 ) , aaaa , aaaa , aaaa
+      READ(kunit_EFGALL,*) iiii , atype(ia) , vxxt( ia , t0 ) , vyyt( ia , t0 ) &
+                                            , vzzt( ia , t0 ) , etat( ia , t0 ) , aaaa , aaaa , aaaa
     enddo
   enddo
   CLOSE(kunit_EFGALL)
  
-  if( ionode ) WRITE ( stdout , '(a)' ) 'EFGALL successfully readed'
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'EFGALL successfully readed'
 
   do t0 = 1 , ncefg 
     do ia = 1 ,natm
@@ -2359,10 +2400,12 @@ SUBROUTINE efg_acf
       acfet( it , t ) = acfet( it , t ) / norm( it , t )
     enddo
     if ( ionode ) then
-    if ( ntype .eq. 2 ) WRITE( kunit_EFGACFFF , '(i12,12f20.10)' ) t , acfxx(1,t) , acfyy(1,t) , acfzz(1,t) , acfet(1,t) , &
-                                                                       acfxx(2,t) , acfyy(2,t) , acfzz(2,t) , acfet(2,t) , &
-                                                                       acfxx(0,t) , acfyy(0,t) , acfzz(0,t) , acfet(0,t)
-    if ( ntype .eq. 1 ) WRITE( kunit_EFGACFFF , '(i12,8f20.10)' )  t , acfxx(1,t) , acfyy(1,t) , acfzz(1,t) , acfet(1,t)
+    if ( ntype .eq. 2 ) &
+    WRITE ( kunit_EFGACFFF , '(i12,12f20.10)' ) t , acfxx(1,t) , acfyy(1,t) , acfzz(1,t) , acfet(1,t) , &
+                                                    acfxx(2,t) , acfyy(2,t) , acfzz(2,t) , acfet(2,t) , &
+                                                    acfxx(0,t) , acfyy(0,t) , acfzz(0,t) , acfet(0,t)
+    if ( ntype .eq. 1 ) &
+    WRITE ( kunit_EFGACFFF , '(i12,8f20.10)' )  t , acfxx(1,t) , acfyy(1,t) , acfzz(1,t) , acfet(1,t)
     endif
   enddo
 
@@ -2410,23 +2453,24 @@ SUBROUTINE nmr_convention( w , nmr , ia )
     ! ===================
     !  test rearangement
     ! ===================
-    if( nmr(1) .eq. nmr(2) )  nmr(4) = 0.0D0
-    if( nmr(3) .eq. 0.0 )  nmr(4) = 0.0D0
-    if( nmr(1) .lt. 1.0E-08 .and. nmr(2) .lt. 1.0E-8 .and. nmr(3) .lt. 1.0E-8 ) nmr(4) = 0.0D0
-    if(dabs(nmr(3)).lt.dabs(nmr(2))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    if ( nmr(1) .eq. nmr(2) )  nmr(4) = 0.0D0
+    if ( nmr(3) .eq. 0.0 )  nmr(4) = 0.0D0
+    if ( nmr(1) .lt. 1.0E-08 .and. nmr(2) .lt. 1.0E-8 .and. nmr(3) .lt. 1.0E-8 ) nmr(4) = 0.0D0
+    if (dabs(nmr(3)).lt.dabs(nmr(2))) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
      STOP
     endif
-    if(dabs(nmr(3)).lt.dabs(nmr(1))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
+    if (dabs(nmr(3)).lt.dabs(nmr(1))) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
       STOP
     endif
-    if(dabs(nmr(1)).lt.dabs(nmr(2))) then
-      if( ionode ) WRITE ( stdout , * ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    if (dabs(nmr(1)).lt.dabs(nmr(2))) then
+      if ( ionode ) WRITE ( stdout , * ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
       STOP
     endif
-    if( nmr(4) .gt. 1.0d0 .or. nmr(4) .lt. 0.0d0) then
-      if( ionode ) WRITE ( stdout ,'(a,4f48.24)') 'ERROR: eta > 1.0d0 or eta < 0.0d0',ia,nmr(4),nmr(1),nmr(2),nmr(3)
+    if ( nmr(4) .gt. 1.0d0 .or. nmr(4) .lt. 0.0d0) then
+      if ( ionode ) &
+      WRITE ( stdout ,'(a,4f48.24)') 'ERROR: eta > 1.0d0 or eta < 0.0d0',ia,nmr(4),nmr(1),nmr(2),nmr(3)
       STOP
     endif
 

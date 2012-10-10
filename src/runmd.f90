@@ -70,9 +70,11 @@
 SUBROUTINE md_run ( iastart , iaend , list , point , offset )
 
 
-  USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , write_CONTFF , box , center_of_mass , ntypemax
+  USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
+                        write_CONTFF , box , center_of_mass , ntypemax
   USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb
-  USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
+  USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
+                        kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
   USE prop,     ONLY :  lstrfac , lgr , lefg , lmsd , lvacf , nprop , nprop_start
   USE md,       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
                         fprint, spas , dt,  temp , updatevnl , write_traj_xyz , write_traj_xyz_test , integrator
@@ -97,7 +99,7 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   double precision :: tempi , kin 
   double precision :: ttt1, ttt2 
   double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
-  integer :: itime, i ,ierr
+  integer :: itime , ierr , ia 
   integer :: nefg , ngr , nmsd , ntau 
   character*60 :: rescale_allowed(3)
   data rescale_allowed / 'nve-vv' , 'nve-be' , 'nve-vv_test' /
@@ -127,12 +129,14 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   call alloc
 #endif
 
-  if( ionode ) WRITE ( stdout , '(a)' ) &
-  '====================================================================================================================================='
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) &
-  '====================================================================================================================================='
-  if( ionode ) WRITE ( stdout , '(a)' )      'properties at t=0'
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'properties at t=0'
+  if ( ionode ) WRITE ( stdout , '(a,a)' ) &
+  '===============================================================================================', &
+  '======================================'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a,a)' ) &
+  '===============================================================================================', &
+  '======================================'
+  if ( ionode ) WRITE ( stdout , '(a)' )      'properties at t=0'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'properties at t=0'
  
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
 
@@ -146,8 +150,8 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   !  lefg at t=0
   ! =============
   if ( lefg ) then
-    if( longrange .eq. 'direct' )  CALL efg_DS ( 0 , 0 , iastart , iaend )
-    if( longrange .eq. 'ewald'  )  CALL efg_ES ( 0 , 0 )
+    if ( longrange .eq. 'direct' )  CALL efg_DS ( 0 , 0 , iastart , iaend )
+    if ( longrange .eq. 'ewald'  )  CALL efg_ES ( 0 , 0 )
   endif
   ! ===================================
   !  calc. kinetic temperature at t=0
@@ -181,10 +185,10 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
     xtmp = rx
     ytmp = ry
     ztmp = rz
-    do i = 1 , natm
-      rxs ( i )  = rx ( i ) - vx ( i ) * dt
-      rys ( i )  = ry ( i ) - vy ( i ) * dt
-      rzs ( i )  = rz ( i ) - vz ( i ) * dt
+    do ia = 1 , natm
+      rxs ( ia )  = rx ( ia ) - vx ( ia ) * dt
+      rys ( ia )  = ry ( ia ) - vy ( ia ) * dt
+      rzs ( ia )  = rz ( ia ) - vz ( ia ) * dt
     enddo
     rx = rxs 
     ry = rys
@@ -207,22 +211,27 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   ! =======================
   !  stress tensor at t=0
   ! =======================
-  if( ionode ) WRITE ( stdout , '(a)' ) ' ' 
-  if( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
   if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
-  if ( lcoulomb ) CALL stress_coul 
+  if ( lcoulomb ) then 
+    if ( longrange .eq. 'ewald' )  CALL stress_coul 
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+  endif 
 
   ! =========================
   !   MAIN LOOP ( TIME )
   ! =========================
-  if( ionode ) WRITE ( stdout , '(a)' ) ''
-  if( ionode ) WRITE ( stdout , '(a)' ) 'starting main loop'
-  if( ionode ) WRITE ( stdout , '(a)' ) &
-  '====================================================================================================================================='
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ''
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'starting main loop'
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) &
-  '====================================================================================================================================='
+  if ( ionode ) WRITE ( stdout , '(a)' ) ''
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'starting main loop'
+  if ( ionode ) WRITE ( stdout , '(a,a)' ) &
+  '===============================================================================================', &
+  '======================================'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ''
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'starting main loop'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a,a)' ) &
+  '===============================================================================================', &
+  '======================================'
 ! be careful with the offset !!!!
 MAIN:  do itime = offset , npas + (offset-1)        
 
@@ -239,27 +248,27 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( lleapequi .and. itime .ge. nequil ) then
            integrator = 'nve-lf'
            lleapequi  = .false.   
-           do i = 1, natm
-             rxs ( i )  = rx ( i ) - vx ( i ) * dt
-             rys ( i )  = ry ( i ) - vy ( i ) * dt
-             rzs ( i )  = rz ( i ) - vz ( i ) * dt
+           do ia = 1 , natm
+             rxs ( ia )  = rx ( ia ) - vx ( ia ) * dt
+             rys ( ia )  = ry ( ia ) - vy ( ia ) * dt
+             rzs ( ia )  = rz ( ia ) - vz ( ia ) * dt
            enddo
          endif
          
          ! ===========
          !  time info
          ! ===========
-         ttt1 = MPI_WTIME(ierr)
+         ttt1 = MPI_WTIME ( ierr )
 
          ! =========================    
          !  integration t -> t + dt 
          ! =========================
-         if ( integrator.eq.'nve-lf'  )         CALL prop_leap_frog ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-be'  )         CALL beeman ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-vv'  )         CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nvt-and' )         CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nvt-nhc2')         CALL nose_hoover_chain2 ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-vv_test' )     CALL prop_velocity_verlet_test ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nve-vv_test' )  CALL prop_velocity_verlet_test ( iastart , iaend )!, list , point )
 
 #ifdef debug
          CALL print_config_sample(itime,0)
@@ -274,19 +283,21 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! ================================
          !  rescale velocities (NVE equil)
          ! ================================
-         if( (any(integrator.eq.rescale_allowed)).and.((itime.le.nequil.and.mod(itime,nequil_period).eq.0).and.(itime.ne.npas+(offset-1).and.itime.ne.offset)) ) then
+         if ( (any(integrator.eq.rescale_allowed)) .and.  &
+                  ((itime.le.nequil.and.mod(itime,nequil_period).eq.0) .and. &
+                   (itime.ne.npas+(offset-1).and.itime.ne.offset)) ) then
            CALL rescale_velocities(0)
          endif
 
          ! ===================================
          !  rescale velocities (NVT Andersen)
          ! ===================================
-         if( (integrator.eq.'nvt-and') ) CALL andersen_velocities
+         if ( (integrator.eq.'nvt-and') ) CALL andersen_velocities
 
          ! ===================
          !  print trajectory 
          ! ===================
-         if( ltraj .and. (itime .gt. itraj_start ) .and. mod(itime,itraj_period) .eq. 0 ) then
+         if ( ltraj .and. (itime .gt. itraj_start ) .and. mod(itime,itraj_period) .eq. 0 ) then
            xtmp = rx
            ytmp = ry
            ztmp = rz
@@ -300,7 +311,10 @@ MAIN:  do itime = offset , npas + (offset-1)
          endif
 #ifdef stress_t
   if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
-  if ( lcoulomb ) CALL stress_coul 
+  if ( lcoulomb ) then 
+    if ( longrange .eq. 'ewald' )  CALL stress_coul 
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+  endif 
 #endif
        
 #ifdef com_t
@@ -336,7 +350,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          !  properties on-the-fly
          ! =======================
          ! -----------------------------------------------------------------------------------------
-         if( mod(itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
+         if ( mod(itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
 
            ! =======
            !  lvacf
@@ -415,19 +429,27 @@ MAIN:  do itime = offset , npas + (offset-1)
         endif 
   enddo MAIN
   
-  if( ionode .and. .not. lstatic ) WRITE ( stdout , '(a)' ) &
-  '====================================================================================================================================='
-  if( ionode ) WRITE ( stdout , '(a)' ) 'end of the main loop'
-  if( ionode .and. .not. lstatic ) WRITE ( kunit_OUTFF , '(a)' ) &
-  '====================================================================================================================================='
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'end of the main loop'
-  if( ionode ) WRITE ( stdout , '(a)' ) ' '
-  if( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration'
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ' '
-  if( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'stress tensor of final configuration'
+  if ( ionode .and. .not. lstatic ) WRITE ( stdout , '(a,a)' ) &
+  '===============================================================================================', &
+  '======================================'
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'end of the main loop'
+  if ( ionode .and. .not. lstatic ) WRITE ( kunit_OUTFF , '(a,a)' ) &
+  '===============================================================================================', & 
+  '======================================'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'end of the main loop'
+  if ( ionode ) WRITE ( stdout , '(a)' ) ' '
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration'
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ' '
+  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'stress tensor of final configuration'
 
+  ! ===================================
+  !  stress tensor 
+  ! ===================================
   if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
-  if ( lcoulomb ) CALL stress_coul 
+  if ( lcoulomb ) then 
+    if ( longrange .eq. 'ewald' )  CALL stress_coul 
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+  endif 
 
 
   CALL  write_average_thermo ( stdout ) 

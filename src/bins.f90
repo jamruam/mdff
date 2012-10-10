@@ -48,7 +48,7 @@
         do i = 1, N
           ak = ( a(i) - amin ) * ( 1.0d0 / ia )
           ka = int( ak ) + 1
-          if( ka .gt. PAN+1 ) then
+          if ( ka .gt. PAN+1 ) then
              WRITE (6, * ) 'ERROR out of bound in distrib_a'
              WRITE (6, * ) i , ka , PAN+1     
              STOP 

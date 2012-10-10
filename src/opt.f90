@@ -62,11 +62,11 @@ SUBROUTINE opt_init
   CALL getarg ( 1 , filename )
   OPEN ( stdin , file = filename )
   READ ( stdin , opttag ,iostat=ioerr)
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag section is absent'
    STOP
-  elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag wrong tag'
    STOP
   endif
 
@@ -127,7 +127,7 @@ SUBROUTINE opt_check_tag
   integer :: i
 
   do i = 1 , size ( optalgo_allowed )
-    if( TRIM(optalgo) == optalgo_allowed(i) ) allowed = .TRUE.
+    if ( TRIM(optalgo) == optalgo_allowed(i) ) allowed = .TRUE.
   enddo
   if ( .not. allowed ) then
     if ( ionode ) WRITE ( stdout ,'(a,a)') 'ERROR optag: optalgo should be ',optalgo_allowed
@@ -135,7 +135,7 @@ SUBROUTINE opt_check_tag
   endif
 
   nperiodopt = (ncopt - nskipopt)/nmaxopt
-  if( nperiodopt .lt. 1) nperiodopt = 1
+  if ( nperiodopt .lt. 1) nperiodopt = 1
 
   return
 
@@ -157,12 +157,12 @@ SUBROUTINE opt_print_info(kunit)
   ! local
   integer :: kunit       
 
-  if( ionode ) then
+  if ( ionode ) then
                                WRITE ( kunit ,'(a)')       '=============================================================' 
                                WRITE ( kunit ,'(a)')       ''
                                WRITE ( kunit ,'(a)')       'minimisation (Inherent Structures)                           ' 
                                WRITE ( kunit ,'(a)')       ''
-       if( optalgo .eq. 'sastry' )  then
+       if ( optalgo .eq. 'sastry' )  then
                                WRITE ( kunit ,'(a)')       'Line mini. via cubic extrapolation of potential '
                                WRITE ( kunit ,'(a)')       'Determines IS via unconstrained optimization    '
                                WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR '
@@ -170,12 +170,12 @@ SUBROUTINE opt_print_info(kunit)
                                WRITE ( kunit ,'(a)')       ''
                                WRITE ( kunit ,'(a)')       'Steppest Method '
        endif
-       if( optalgo .eq. 'lbfgs' )  then
+       if ( optalgo .eq. 'lbfgs' )  then
                                WRITE ( kunit ,'(a)')       'Limited memory BFGS method for large scale optimisation'
                                WRITE ( kunit ,'(a)')       'Author: J. Nocedal   *** July 1990 ***'
                                WRITE ( kunit ,'(a)')       'driver by FMV'
        endif
-       if( optalgo .eq. 'm1qn3' )  then
+       if ( optalgo .eq. 'm1qn3' )  then
                                WRITE ( kunit ,'(a)')       'M1QN3, Version 3.3, October 2009'
                                WRITE ( kunit ,'(a)')       'Authors: Jean Charles Gilbert, Claude Lemarechal, INRIA.'
                                WRITE ( kunit ,'(a)')       'Copyright 2008, 2009, INRIA.'
@@ -185,8 +185,8 @@ SUBROUTINE opt_print_info(kunit)
        endif
 
                                WRITE ( kunit ,'(a)')       ''  
-     if(.not.lpbc)             WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic box wall)'
-     if(lpbc)                  WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+     if (.not.lpbc)             WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic box wall)'
+     if (lpbc)                  WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
                                WRITE ( kunit ,'(a)')       ''
                                WRITE ( kunit ,'(a)')       'read configuration from file          :   TRAJFF'
                                WRITE ( kunit ,'(a)')       'save IS thermo. properties into file  :   ISTHFF' 
@@ -214,7 +214,7 @@ END SUBROUTINE opt_print_info
 
 SUBROUTINE opt_main 
 
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , atype , rho , config_alloc , list , point , box , omega , atypei , itype, natmi
+  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , atype , rho , config_alloc , list , point , box , omega , atypei , itype, natmi 
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF, kunit_OUTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
@@ -226,7 +226,7 @@ SUBROUTINE opt_main
   INCLUDE 'mpif.h'
 
   ! local 
-  integer :: i, ic, neng, iter, na, nopt
+  integer :: ia , it , ic, neng, iter, nopt , cc , ccs
   integer :: iastart , iaend , ierr
   double precision :: phigrad, pressure0, pot0, Eis
   double precision :: ttt1,ttt2
@@ -244,21 +244,27 @@ SUBROUTINE opt_main
   OPEN (UNIT = kunit_ISCFF  ,FILE = 'ISCFF') 
 
     
-  if( ionode ) WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
-  if( ionode ) WRITE ( kunit_ISTHFF , '(a8,3a20,2a6,2a18)') "# config","eIS","grad","Pres","Iter","Neng","u_initial","Press_initial"
+  if ( ionode ) WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
+  if ( ionode ) WRITE ( kunit_ISTHFF , '(a8,3a20,2a6,2a18)') &
+  "# config","eIS","grad","Pres","Iter","Neng","u_initial","Press_initial"
        
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
   READ ( kunit_TRAJFF , * ) box , ntype
+  READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
+  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+
   omega = box * box * box
   rho = dble ( natm )  / omega 
- if( ionode ) then
+ if ( ionode ) then
     WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
-    WRITE ( stdout , '(a,i12)'  )    'natm  = ',natm
-    WRITE ( stdout , '(a,i12)'  )    'ntype = ',ntype
-    WRITE ( stdout , '(a,f12.5)')    'rho   = ',rho
-    WRITE ( stdout , '(a,f12.5)')    'box   = ',box
-    WRITE ( stdout , '(a,f12.5)')    'vol   = ',omega
+    WRITE ( stdout , '(a,i12)'  )    'natm  = ' , natm
+    WRITE ( stdout , '(a,i12)'  )    'ntype = ' , ntype
+    WRITE ( stdout , '(a,f12.5)')    'rho   = ' , rho
+    WRITE ( stdout , '(a,f12.5)')    'box   = ' , box
+    WRITE ( stdout , '(a,f12.5)')    'vol   = ' , omega
     WRITE ( stdout , '(a)'      )    ''
   endif
 
@@ -275,13 +281,17 @@ SUBROUTINE opt_main
   ! ==========================================   
   !  skip the first nskipopt configurations 
   ! ==========================================
-  if(nskipopt.gt.0) then
-    do ic = 1,nskipopt
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) iiii   
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) cccc
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) aaaa   ,iiii
-      do i = 1,natm 
-        READ ( kunit_TRAJFF , * ) atype(i),rx(i),ry(i),rz(i),aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+  if (nskipopt.gt.0) then
+
+    do ic = 1 , nskipopt
+
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) iiii   
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) cccc
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) aaaa   , iiii
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+      do ia = 1 , natm 
+        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
     enddo
   endif
@@ -291,31 +301,49 @@ SUBROUTINE opt_main
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    if( ic .ne. (nskipopt + 1) .or. nskipopt.ne.0) READ ( kunit_TRAJFF , * ) iiii
-    if( ic .ne. (nskipopt + 1) .or. nskipopt.ne.0) READ ( kunit_TRAJFF , * ) cccc
-    if( ic .ne. (nskipopt + 1) .or. nskipopt.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
-    do i = 1,natm
-      READ ( kunit_TRAJFF , * ) atype(i),rx(i),ry(i),rz(i),aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      if(atype(i) .eq. 'A') na = na + 1
-      if(atype(i) .eq. 'A') itype(i)=1
-      if(atype(i) .eq. 'B') itype(i)=2
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) iiii
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) cccc
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) aaaa , iiii
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    do ia = 1 , natm
+      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
-    if ( ntype .eq.  1 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      atypei(0)='ALL'
-      atypei(1)='A'
-    endif
-    if ( ntype .eq.  2 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      natmi(2)=natm-na
-      atypei(0)='ALL'
-      atypei(1)='A'
-      atypei(2)='B'
-    endif
 
-    if( ((mod(ic,nperiodopt) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
+  ! ==========================
+  !  set some type parameters
+  ! ==========================      
+  natmi ( 0 ) = 0 
+  cc = 0
+  do it = 1 , ntype
+      ccs = cc
+      cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc 
+      atype ( ia ) = atypei ( it ) 
+      itype ( ia ) = it 
+    enddo
+  enddo
+
+! old version
+!    if ( ntype .eq.  1 ) then
+!      natmi ( 0 ) = natm
+!      natmi ( 1 ) = na
+!      atypei ( 0 )= 'ALL'
+!      atypei ( 1 )= 'A'
+!    endif
+!    if ( ntype .eq.  2 ) then
+!      natmi  (0) = natm
+!      natmi  (1) = na
+!      natmi  (2) = natm-na
+!      atypei (0) = 'ALL'
+!      atypei (1) = 'A'
+!      atypei (2) = 'B'
+!    endif
+
+!    call set_type_parameters_from_atype
+
+
+    if ( ((mod(ic,nperiodopt) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
       ! =======================
       !  calc initial thermo  
@@ -329,8 +357,8 @@ SUBROUTINE opt_main
       ! ====================================
       !  main routine for the optimisation
       ! ====================================
-      if(optalgo.eq.'sastry') then 
-        if( ionode ) then
+      if (optalgo.eq.'sastry') then 
+        if ( ionode ) then
           WRITE ( stdout ,'(a)')             ''
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its  nstep          grad              ener'
@@ -340,8 +368,8 @@ SUBROUTINE opt_main
       endif
 
 
-      if(optalgo.eq.'lbfgs') then
-        if( ionode ) then
+      if (optalgo.eq.'lbfgs') then
+        if ( ionode ) then
           WRITE ( stdout ,'(a)')             ''
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
@@ -352,8 +380,8 @@ SUBROUTINE opt_main
       endif
 
 
-       if(optalgo.eq.'m1qn3') then
-        if( ionode ) then
+       if (optalgo.eq.'m1qn3') then
+        if ( ionode ) then
           WRITE ( stdout ,'(a)')             ''
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  =',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad    ener'
@@ -367,10 +395,11 @@ SUBROUTINE opt_main
       ! ================================
       !  write final thermodynamic info 
       ! ================================
-      if( ionode ) then
+      if ( ionode ) then
         WRITE ( stdout , '(a,2f16.8)' )      'final energy&Pressure = ',Eis,pressure_tot
         WRITE ( kunit_OUTFF , '(a,2f16.8)' ) 'final energy&Pressure = ',Eis,pressure_tot
-        WRITE ( kunit_ISTHFF , '(i8,3f20.12,2i8,2f20.12)' ) ic , Eis , phigrad , pressure_tot , iter , neng , pot0 , pressure0
+        WRITE ( kunit_ISTHFF , '(i8,3f20.12,2i8,2f20.12)' ) &
+        ic , Eis , phigrad , pressure_tot , iter , neng , pot0 , pressure0
         WRITE ( stdout,'(a)') ''
         WRITE ( stdout,'(a)') ''  
       endif
@@ -383,12 +412,15 @@ SUBROUTINE opt_main
       !  write IS structures
       !  new configurations are stored in rx ,ry ,rz, fx , fy ,fz
       ! =============================================         
-      if( ionode ) then   
+      if ( ionode ) then   
         WRITE ( kunit_ISCFF , * ) natm 
         WRITE ( kunit_ISCFF , * ) system 
         WRITE ( kunit_ISCFF , * ) box,ntype 
-        do i = 1,natm 
-          WRITE ( kunit_ISCFF ,'(A2,9F20.12)') atype(i),rx(i),ry(i),rz(i),dzero,dzero,dzero,fx(i),fy(i),fz(i)
+        WRITE ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
+        WRITE ( kunit_ISCFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+        do ia = 1 , natm 
+          WRITE ( kunit_ISCFF ,'(A2,9F20.12)') &
+          atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , dzero,dzero,dzero, fx ( ia ) , fy ( ia ) , fz ( ia )
         enddo       
       endif
 
@@ -430,7 +462,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   double precision :: Eis, phigrad, vir
   
   ! local 
-  integer :: i , j , kl
+  integer :: ia , ja , kl
   integer :: itmax , nskp , ik , its , nstep
   double precision ftol , epsilon
   double precision umag ,ds , dsk , dutol , ukeep , x0 , u0 , f1d0
@@ -458,27 +490,27 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   neng = neng + 1
 
   umag = 0.0D0
-  do j = 1,natm
-    xix(j) = - fx(j)
-    xiy(j) = - fy(j)
-    xiz(j) = - fz(j)
-    gx(j) = - xix(j)          
-    gy(j) = - xiy(j)
-    gz(j) = - xiz(j)
-    hx(j) = gx(j)
-    hy(j) = gy(j)
-    hz(j) = gz(j)
-    xix(j) = hx(j)
-    xiy(j) = hy(j)
-    xiz(j) = hz(j)
-    umag = umag + xix(j) * xix(j) + xiy(j) * xiy(j) + xiz(j) * xiz(j)
+  do ja = 1 , natm
+    xix ( ja ) = - fx  ( ja )
+    xiy ( ja ) = - fy  ( ja )
+    xiz ( ja ) = - fz  ( ja )
+    gx  ( ja ) = - xix ( ja )          
+    gy  ( ja ) = - xiy ( ja )
+    gz  ( ja ) = - xiz ( ja )
+    hx  ( ja ) =   gx  ( ja )
+    hy  ( ja ) =   gy  ( ja )
+    hz  ( ja ) =   gz  ( ja )
+    xix ( ja ) =   hx  ( ja )
+    xiy ( ja ) =   hy  ( ja )
+    xiz ( ja ) =   hz  ( ja )
+    umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
   enddo
 
   umag = dsqrt(umag)
-  do j = 1, natm
-    xix(j) = xix(j)/umag
-    xiy(j) = xiy(j)/umag
-    xiz(j) = xiz(j)/umag
+  do ja = 1, natm
+    xix ( ja ) = xix ( ja ) / umag
+    xiy ( ja ) = xiy ( ja ) / umag
+    xiz ( ja ) = xiz ( ja ) / umag
   END do
 
   ik = 0
@@ -490,11 +522,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   do its = 1,itmax
 
     phigrad = 0.0D0
-    do i = 1, natm
-      phigrad = phigrad + fx(i) * fx(i) + fy(i) * fy(i) + fz(i) * fz(i)
+    do ia = 1, natm
+      phigrad = phigrad + fx ( ia ) * fx ( ia ) + fy ( ia ) * fy ( ia ) + fz ( ia ) * fz ( ia )
     enddo!
 
-    if( ionode .and.mod(its,kl).eq.0) then
+    if ( ionode .and.mod(its,kl).eq.0) then
       WRITE (stdout,'(2i6,2E20.8,i6)') its , nstep , phigrad , u_tot
       kl = 2 * kl 
     endif
@@ -507,43 +539,43 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     x0 = 0.0D0
     u0 = u_tot
     f1d0 = 0.0D0
-    do i = 1, natm
-      f1d0 = f1d0 + fx(i) * xix(i) + fy(i) * xiy(i) + fz(i) * xiz(i)
+    do ia = 1, natm
+      f1d0 = f1d0 + fx ( ia ) * xix ( ia ) + fy ( ia ) * xiy ( ia ) + fz ( ia ) * xiz ( ia )
     enddo
     f1d0 = - f1d0
 
 
 !C  reset search direction to steepest descent direction 
-    if(f1d0.ge.0.0) then
-      if( ionode ) WRITE (stdout, * ) 'RESETTING SEARCH DIRECTION'
+    if (f1d0.ge.0.0) then
+      if ( ionode ) WRITE (stdout, * ) 'RESETTING SEARCH DIRECTION'
       umag = 0.0D0
-      do j = 1,natm
-        xix(j) = - fx(j)
-        xiy(j) = - fy(j)
-        xiz(j) = - fz(j)
-        gx(j) = - xix(j)          
-        gy(j) = - xiy(j)
-        gz(j) = - xiz(j)
-        hx(j) = gx(j)
-        hy(j) = gy(j)
-        hz(j) = gz(j)
-        xix(j) = hx(j)
-        xiy(j) = hy(j)
-        xiz(j) = hz(j)
-        umag = umag + xix(j) * xix(j) + xiy(j) * xiy(j) + xiz(j) * xiz(j)
+      do ja = 1 , natm
+        xix ( ja ) = - fx  ( ja )
+        xiy ( ja ) = - fy  ( ja )
+        xiz ( ja ) = - fz  ( ja )
+        gx  ( ja ) = - xix ( ja )          
+        gy  ( ja ) = - xiy ( ja )
+        gz  ( ja ) = - xiz ( ja )
+        hx  ( ja ) =   gx  ( ja )
+        hy  ( ja ) =   gy  ( ja )
+        hz  ( ja ) =   gz  ( ja )
+        xix ( ja ) =   hx  ( ja )
+        xiy ( ja ) =   hy  ( ja )
+        xiz ( ja ) =   hz  ( ja )
+        umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
       enddo
       umag = dsqrt(umag)
-      do j = 1, natm
-        xix(j) = xix(j)/umag
-        xiy(j) = xiy(j)/umag
-        xiz(j) = xiz(j)/umag
+      do ja = 1, natm
+        xix ( ja ) = xix ( ja ) / umag
+        xiy ( ja ) = xiy ( ja ) / umag
+        xiz ( ja ) = xiz ( ja ) / umag
       enddo
       ukeep = u_tot
       x0 = 0.0D0
       u0 = u_tot
       f1d0 = 0.0D0
-      do i = 1, natm
-        f1d0 = f1d0 + fx(i) * xix(i) + fy(i) * xiy(i) + fz(i) * xiz(i)
+      do ia = 1, natm
+        f1d0 = f1d0 + fx ( ia ) * xix ( ia ) + fy ( ia ) * xiy ( ia ) + fz ( ia ) * xiz ( ia )
       enddo
       f1d0 = - f1d0
     endif
@@ -559,14 +591,14 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     dx2 = dx * dx
     dx3 = dx * dx2
 
-    if(nstep.gt.100) then !nstep
+    if (nstep.gt.100) then !nstep
 
-      if( min ( u0 , u1 ) .gt. ukeep ) then
+      if ( min ( u0 , u1 ) .gt. ukeep ) then
         Eis = u0
         deallocate( fx_sum, fy_sum, fz_sum )
         return
       else 
-        if( u0 .lt. u1 ) then
+        if ( u0 .lt. u1 ) then
           CALL eforce1d ( x0 , u0 , vir , iastart , iaend , f1d0 , xix , xiy , xiz , neng )
           xsol = x0 
           u_tot = u0 
@@ -577,10 +609,10 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
           f1ds = f1d1 
         endif
 
-        do i = 1, natm
-          rx(i) = rx(i) + xsol * xix(i)
-          ry(i) = ry(i) + xsol * xiy(i)
-          rz(i) = rz(i) + xsol * xiz(i)
+        do ia = 1 , natm
+          rx ( ia ) = rx ( ia ) + xsol * xix ( ia)
+          ry ( ia ) = ry ( ia ) + xsol * xiy ( ia)
+          rz ( ia ) = rz ( ia ) + xsol * xiz ( ia )
         enddo
 
       endif
@@ -588,7 +620,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     endif
 
 
-    if(f1d0 * f1d1.lt.0.0D0) then !f1d0 * f1d1.lt.0.0D0
+    if (f1d0 * f1d1.lt.0.0D0) then !f1d0 * f1d1.lt.0.0D0
       uppcub = (2.0D0/dx2) * (3.0D0 * (u1 - u0) - (f1d1 + 2.0D0 * f1d0) * dx)
       u3pcub = ( - 12.0D0/(dx3)) * ((u1 - u0) - (f1d1 + f1d0) * (dx/2.0D0))
 
@@ -600,8 +632,8 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       curv1 = uppcub + u3pcub * x1sol 
       curv2 = uppcub + u3pcub * x2sol 
 
-      if(curv1.gt.0.0D0) xsol = x1sol + x0
-      if(curv2.gt.0.0D0) xsol = x2sol + x0
+      if (curv1.gt.0.0D0) xsol = x1sol + x0
+      if (curv2.gt.0.0D0) xsol = x2sol + x0
 
       dx = xsol - x0 
       dx2 = dx * dx
@@ -613,26 +645,26 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 524   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , f1ds , xix , xiy , xiz , neng ) 
 
 
-      if(u2.gt.ukeep) then
+      if (u2.gt.ukeep) then
         xsol = x0 + (xsol - x0)/2.0D0
         goto 524
       endif
 
-      if((abs((uprev - u2)/u2)).lt.dutol) then
+      if ((abs((uprev - u2)/u2)).lt.dutol) then
 
-        do i = 1, natm
-          rx(i) = rx(i) + xsol * xix(i)
-          ry(i) = ry(i) + xsol * xiy(i)
-          rz(i) = rz(i) + xsol * xiz(i)
+        do ia = 1 , natm
+          rx ( ia ) = rx ( ia ) + xsol * xix ( ia )
+          ry ( ia ) = ry ( ia ) + xsol * xiy ( ia )
+          rz ( ia ) = rz ( ia ) + xsol * xiz ( ia )
         enddo
 
         u_tot = u2 
         ds = xsol
-        if(xsol.le.1.0e-8) ds = 1.0e-8
+        if (xsol.le.1.0e-8) ds = 1.0e-8
         goto 676
       else 
 
-        if(f1d0 * f1ds.le.0.0D0) then
+        if (f1d0 * f1ds.le.0.0D0) then
           x1 = xsol 
           u1 = u2 
           f1d1 = f1ds
@@ -650,9 +682,9 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       u2pdis = (f1d1 - f1d0)/(x1 - x0)
       adx = abs(x1 - x0)
 
-      if(u2pdis.gt.0.0D0) then
+      if (u2pdis.gt.0.0D0) then
         xsol = x0 -  f1d0/u2pdis
-        if(abs(xsol - x0).gt.3.0D0 * adx)then
+        if (abs(xsol - x0).gt.3.0D0 * adx)then
           xsol = x0 + 3.0D0 * adx
         endif
       else
@@ -666,31 +698,31 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 525   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , f1ds , xix , xiy , xiz , neng )
 
 
-      if(u2.gt.ukeep)then
+      if (u2.gt.ukeep)then
         xsol = x0 + (xsol - x0)/2.0D0
         goto 525
       endif
 
 
-      if((abs((uprev - u2)/u2).lt.dutol)) then
+      if ((abs((uprev - u2)/u2).lt.dutol)) then
 
-        do i = 1, natm
-          rx(i) = rx(i) + xsol * xix(i)
-          ry(i) = ry(i) + xsol * xiy(i)
-          rz(i) = rz(i) + xsol * xiz(i)
+        do ia = 1, natm
+          rx ( ia ) = rx ( ia ) + xsol * xix ( ia )
+          ry ( ia ) = ry ( ia ) + xsol * xiy ( ia )
+          rz ( ia ) = rz ( ia ) + xsol * xiz ( ia )
         END do
 
         u_tot = u2
         ds = xsol
 
-        if(xsol.le.1.0e-8) ds = 1.0e-8
+        if (xsol.le.1.0e-8) ds = 1.0e-8
 
         goto 676
       END if
 
 !C    next pick x0 to be lowest x with negative f 
 
-      if(u1.lt.u0)then
+      if (u1.lt.u0)then
         x0 = x1
         u0 = u1
         f1d0 = f1d1
@@ -718,57 +750,57 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
       Eis = u_tot
       phigrad = 0.0D0
-      do i = 1, natm
-        phigrad = phigrad + fx(i) * fx(i) + fy(i) * fy(i) + fz(i) * fz(i)
+      do ia = 1, natm
+        phigrad = phigrad + fx ( ia ) * fx ( ia ) + fy ( ia ) * fy ( ia ) + fz ( ia ) * fz ( ia )
       enddo
 
-      if( ionode ) then
+      if ( ionode ) then
         WRITE ( stdout,'(2i6,2E20.8,i6)') its,nstep,phigrad,u_tot
         WRITE ( stdout , '(a,i5,a)' ) 'minimum reached in ',its,' iterations'
       endif
       deallocate( fx_sum, fy_sum, fz_sum )
       return
     else
-      if(abs(1.0D0 - u_tot/ukeep).lt.dutol)then
+      if (abs(1.0D0 - u_tot/ukeep).lt.dutol)then
         dutol = abs(1.0D0 - u_tot/ukeep)
       endif
     endif
            
     gg = 0.0D0
     dgg = 0.0D0
-    do j = 1,natm
-      xix(j) = - fx(j)
-      xiy(j) = - fy(j)
-      xiz(j) = - fz(j)
-      gg = gg + gx(j) * gx(j) + gy(j) * gy(j) + gz(j) * gz(j)
-      dgg = dgg + (xix(j) + gx(j)) * xix(j) +  &
-              (xiy(j) + gy(j)) * xiy(j) +  &
-              (xiz(j) + gz(j)) * xiz(j)
+    do ja = 1 , natm
+      xix ( ja ) = - fx ( ja )
+      xiy ( ja ) = - fy ( ja )
+      xiz ( ja ) = - fz ( ja )
+      gg = gg + gx ( ja ) * gx ( ja ) + gy ( ja ) * gy ( ja ) + gz ( ja ) * gz ( ja )
+      dgg = dgg + ( xix ( ja ) + gx ( ja ) ) * xix ( ja ) +  &
+              ( xiy ( ja ) + gy ( ja ) ) * xiy ( ja ) +  &
+              ( xiz ( ja ) + gz ( ja ) ) * xiz ( ja )
     enddo
     if (gg .eq. 0.0D0) then 
       deallocate( fx_sum, fy_sum, fz_sum )
       return
     endif
-    gam = dgg/gg
+    gam = dgg / gg
     umag = 0.0D0
-    do j = 1,natm
-      gx(j) = - xix(j)
-      gy(j) = - xiy(j)
-      gz(j) = - xiz(j)
-      hx(j) = gx(j) + gam * hx(j)
-      hy(j) = gy(j) + gam * hy(j)
-      hz(j) = gz(j) + gam * hz(j)
-      xix(j) = hx(j)
-      xiy(j) = hy(j)
-      xiz(j) = hz(j)
-      umag = umag + xix(j) * xix(j) + xiy(j) * xiy(j) + xiz(j) * xiz(j)
+    do ja = 1 , natm
+      gx  ( ja ) = - xix ( ja )
+      gy  ( ja ) = - xiy ( ja )
+      gz  ( ja ) = - xiz ( ja )
+      hx  ( ja ) =   gx  ( ja ) + gam * hx ( ja )
+      hy  ( ja ) =   gy  ( ja ) + gam * hy ( ja )
+      hz  ( ja ) =   gz  ( ja ) + gam * hz ( ja )
+      xix ( ja ) =   hx  ( ja )
+      xiy ( ja ) =   hy  ( ja )
+      xiz ( ja ) =   hz  ( ja )
+      umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
     enddo
            
     umag = dsqrt(umag)
-    do j = 1, natm
-      xix(j) = xix(j)/umag
-      xiy(j) = xiy(j)/umag
-      xiz(j) = xiz(j)/umag
+    do ja = 1, natm
+      xix ( ja ) = xix ( ja ) / umag
+      xiy ( ja ) = xiy ( ja ) / umag
+      xiz ( ja ) = xiz ( ja ) / umag
     enddo
 
   enddo 
@@ -806,7 +838,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   double precision :: xix(natm),xiy(natm),xiz(natm)
   
   ! local
-  integer :: i
+  integer :: ia 
   integer :: neng
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   double precision, dimension(:), allocatable :: rxt, ryt, rzt
@@ -829,11 +861,11 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   ! ===============
   !  search in 1D
   ! ===============
-  do i = 1, natm
-    rxt(i) = rx(i) + x * xix(i)
-    ryt(i) = ry(i) + x * xiy(i)
-    rzt(i) = rz(i) + x * xiz(i)
-  END do
+  do ia = 1 , natm
+    rxt ( ia ) = rx ( ia ) + x * xix ( ia )
+    ryt ( ia ) = ry ( ia ) + x * xiy ( ia )
+    rzt ( ia ) = rz ( ia ) + x * xiz ( ia )
+  end do
    
   tmpx = rx
   tmpy = ry
@@ -856,9 +888,9 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   rz = tmpz
 
   f1d = 0.0D0
-  do i = 1, natm
-    f1d = f1d + fx(i) * xix(i) + fy(i) * xiy(i) + fz(i) * xiz(i)
-  enddo
+  do ia = 1 , natm
+    f1d = f1d + fx ( ia ) * xix ( ia ) + fy ( ia ) * xiy ( ia ) + fz ( ia ) * xiz ( ia )
+  end do
   f1d = - f1d
 
 
@@ -1063,7 +1095,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
     ! ===============================
     !  set the gradient to fx,fy,fz
     ! ===============================
-    DO ia=1,natm
+    DO ia=1 , natm
       G( ia           ) =   - fx( ia ) 
       G( natm + ia    ) =   - fy( ia ) 
       G( 2* natm + ia ) =   - fz( ia ) 
@@ -1079,7 +1111,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
     IF(IFLAG.LE.0) THEN 
       Eis=u_tot 
       IF(IFLAG.EQ.0) THEN
-        if( ionode ) then
+        if ( ionode ) then
           WRITE ( stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
           WRITE ( stdout , '(a,i5,a)' ) 'minimum reached in ',icall,' iterations'
         endif
@@ -1094,10 +1126,11 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
       rx( ia )   = X ( ia )
       ry( ia )   = X ( natm + ia )
       rz( ia )   = X ( 2* natm + ia )
-      phigrad=phigrad+ G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
+      phigrad = phigrad + &
+      G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
     enddo  
 
-    if( ionode .and.mod(icall,kl).eq.0) then
+    if ( ionode .and.mod(icall,kl).eq.0) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
     endif
@@ -1175,7 +1208,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   ! ===============================
   !  set the gradient to fx,fy,fz
   ! ===============================
-  DO ia=1,natm
+  DO ia=1 , natm
     G( ia           ) =  - fx( ia )
     G( natm + ia    ) =  - fy( ia )
     G( 2* natm + ia ) =  - fz( ia )
@@ -1228,15 +1261,16 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     !  set the gradient to fx,fy,fz
     ! ===============================
     phigrad=0.d0
-    DO ia=1,natm
+    DO ia=1 , natm
       G( ia           ) =  - fx( ia )
       G( natm + ia    ) =  - fy( ia )
       G( 2* natm + ia ) =  - fz( ia )
-      phigrad=phigrad+ G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
+      phigrad = phigrad + &
+      G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
     ENDDO
 
     ! write step information
-    if( ionode .and.mod(icall,kl).eq.0) then
+    if ( ionode .and.mod(icall,kl).eq.0) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
     endif
@@ -1245,12 +1279,12 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     goto 100
   101 continue
 
-  if( ionode ) then
+  if ( ionode ) then
     WRITE ( stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
     WRITE ( stdout , '(a,i5,a)' ) 'minimum reached in ',icall,' iterations'
   endif
-  if( omode .ne. 0 .and. omode .ne. 1 ) then
-    if( ionode) WRITE ( stdout , '(a,i5)' ) 'm1qn3 did not properly terminate ',omode
+  if ( omode .ne. 0 .and. omode .ne. 1 ) then
+    if ( ionode) WRITE ( stdout , '(a,i5)' ) 'm1qn3 did not properly terminate ',omode
     stop
   endif  
 

@@ -64,11 +64,11 @@ SUBROUTINE gr_init
   CALL getarg (1,filename)
   OPEN ( stdin , file = filename)
   READ ( stdin , grtag , iostat=ioerr )
-  if( ioerr .lt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
+  if ( ioerr .lt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
    STOP
-  elseif( ioerr .gt. 0 )  then
-   if( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
+  elseif ( ioerr .gt. 0 )  then
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
    STOP
   endif
 
@@ -185,15 +185,15 @@ SUBROUTINE gr_print_info(kunit)
   ! local
   integer :: kunit
 
-   if( ionode ) then
-                               WRITE ( kunit ,'(a,f10.5)')           'resolution of g(r) function resg     = ',resg
-                               WRITE ( kunit ,'(a)')                 'save radial_distribution in file     :    GRTFF' 
-      if( calc .eq. 'gr' )     then 
-                               WRITE ( kunit ,'(a)')                 'read configuration from file          :   TRAJFF'
-                               WRITE ( kunit ,'(a)')                 ''
-                               WRITE ( kunit ,'(a,i5)')              'number of config. in TRAJFF         =     ',nc        
-                               WRITE ( kunit ,'(a,i5)')              'number of config. to be skipped     =     ',nskip
-                               WRITE ( kunit ,'(a)')                 ''
+   if ( ionode ) then
+                  WRITE ( kunit ,'(a,f10.5)')           'resolution of g(r) function resg     = ',resg
+                  WRITE ( kunit ,'(a)')                 'save radial_distribution in file     :    GRTFF' 
+      if ( calc .eq. 'gr' )     then 
+                  WRITE ( kunit ,'(a)')                 'read configuration from file          :   TRAJFF'
+                  WRITE ( kunit ,'(a)')                 ''
+                  WRITE ( kunit ,'(a,i5)')              'number of config. in TRAJFF         =     ',nc        
+                  WRITE ( kunit ,'(a,i5)')              'number of config. to be skipped     =     ',nskip
+                  WRITE ( kunit ,'(a)')                 ''
       endif
    endif 
   return
@@ -224,7 +224,7 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   integer, intent(in) :: ngr  
 
   ! local
-  integer :: i , j , k , ierr , ii 
+  integer :: i , ia , ja , k , ierr , ii 
   integer :: igr , na , nb 
   integer :: nxij , nyij , nzij
   double precision :: cut2 , rr , rijsq , vol
@@ -245,23 +245,23 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
 
   allocate(gr_sum(4,0:PANGR))
   gr_sum = 0
-  do i=1,natm
-  if(i.gt.iaend) then
+  do ia = 1 , natm
+  if ( ia .gt. iaend ) then
     gr=0
     !write(stdout,*) 'clean part of the array'
   endif
   enddo
 
-  cut2 = box*box*0.25D0    
-  do i = iastart , iaend
-    rxi = rx(i)
-    ryi = ry(i)
-    rzi = rz(i)
-    do j = 1, natm
-      if(j.ne.i) then  
-      rxij = rxi - rx(j)
-      ryij = ryi - ry(j)
-      rzij = rzi - rz(j)
+  cut2 = box * box * 0.25D0    
+  do ia = iastart , iaend
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+    do ja = 1, natm
+      if ( ja .ne. ia ) then  
+      rxij = rxi - rx ( ja )
+      ryij = ryi - ry ( ja )
+      rzij = rzi - rz ( ja )
       nxij = nint( rxij / box )
       nyij = nint( ryij / box )
       nzij = nint( rzij / box )
@@ -269,18 +269,18 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
       ryij = ryij - box *nyij
       rzij = rzij - box *nzij
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-      if( rijsq.lt.cut2 ) then
+      if ( rijsq.lt.cut2 ) then
         rr = dsqrt(rijsq)
         igr = int(rr/resg)
         gr(4,igr)  = gr(4,igr)+1  ! all average
-        if(atype(i).eq.'A'.and.atype(j).eq.'A') then
-          gr(1,igr)  = gr(1,igr)+1   ! AA average
+        if ( atype ( ia ) .eq. 'A' .and. atype ( ja ) .eq. 'A' ) then
+          gr ( 1 , igr )  = gr ( 1 , igr ) + 1   ! AA average
         endif
-        if(atype(i).eq.'B'.and.atype(j).eq.'B') then
-          gr(2,igr)  = gr(2,igr)+1   ! BB average
+        if ( atype ( ia ) .eq. 'B' .and. atype ( ja ) .eq. 'B' ) then
+          gr ( 2 , igr )  = gr ( 2 , igr ) + 1   ! BB average
         endif
-        if((atype(i).eq.'A'.and.atype(j).eq.'B')) then!.or.(atype(i).eq.'B'.and.atype(j).eq.'A' )) then 
-          gr(3,igr)  = gr(3,igr)+1  ! AB or BA average
+        if ( atype ( ia ) .eq.'A' .and. atype ( ja ) .eq. 'B' ) then!.or.(atype(i).eq.'B'.and.atype(j).eq.'A' )) then 
+          gr ( 3 , igr )  = gr ( 3 , igr ) + 1  ! AB or BA average
         endif
       endif
      endif
@@ -304,12 +304,16 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
       grr2   = dble(gr_sum(2,i))/(ngr*vol*nb*nb)
       grr3   = dble(gr_sum(3,i))/(ngr*vol*na*nb)
       grrtot = dble(gr_sum(4,i))/(ngr*vol*natm*natm)
-      if( ionode ) then  
+      if ( ionode ) then  
         WRITE (kunit_GRTFF,'(5f15.10)') rr , grr1 , grr2 , grr3 , grrtot 
-        WRITE (kunit_NRTFF,'(5f20.10)') rr , dble(gr(1,i))*4.0d0*pi*rr*rr/dble(ngr*na), dble(gr(2,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , dble(gr(3,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , dble(gr(4,i))*4.0d0*pi*rr*rr/dble(ngr*natm) 
+        WRITE (kunit_NRTFF,'(5f20.10)') &
+        rr , dble(gr(1,i))*4.0d0*pi*rr*rr/dble(ngr*na) , &
+             dble(gr(2,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , &
+             dble(gr(3,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , &
+             dble(gr(4,i))*4.0d0*pi*rr*rr/dble(ngr*natm) 
       endif
     else
-      if( ionode ) then  
+      if ( ionode ) then  
         WRITE (kunit_GRTFF,'(2f15.10,i10)') rr , grr1
         WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(1,i) 
       endif
@@ -342,7 +346,8 @@ END SUBROUTINE gr_main
 !******************************************************************************
 SUBROUTINE grcalc
 
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , rho , config_alloc , box , omega , atypei , itype, natmi
+  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
+                                rho , config_alloc , box , omega , atypei , itype, natmi
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_GRTFF
   USE time
@@ -351,7 +356,7 @@ SUBROUTINE grcalc
   INCLUDE 'mpif.h'
 
   ! local 
-  integer :: i, ic, ngr, na
+  integer :: ia , ic , ngr , na
   integer :: iastart , iaend 
   ! trash 
   double precision :: aaaa
@@ -366,13 +371,13 @@ SUBROUTINE grcalc
   omega = box * box * box
   rho = dble ( natm )  / omega 
   CALL gr_init
- if( ionode ) then
+ if ( ionode ) then
     WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
-    WRITE ( stdout , '(a,i12)'  )    'natm  = ',natm
-    WRITE ( stdout , '(a,i12)'  )    'ntype = ',ntype
-    WRITE ( stdout , '(a,f12.5)')    'rho   = ',rho
-    WRITE ( stdout , '(a,f12.5)')    'box   = ',box
-    WRITE ( stdout , '(a,f12.5)')    'vol   = ',omega
+    WRITE ( stdout , '(a,i12)'  )    'natm  = ' , natm
+    WRITE ( stdout , '(a,i12)'  )    'ntype = ' , ntype
+    WRITE ( stdout , '(a,f12.5)')    'rho   = ' , rho
+    WRITE ( stdout , '(a,f12.5)')    'box   = ' , box
+    WRITE ( stdout , '(a,f12.5)')    'vol   = ' , omega
     WRITE ( stdout , '(a)'      )    ''
   endif
 
@@ -389,32 +394,32 @@ SUBROUTINE grcalc
   ! ==========================================   
   !  skip the first nskip configurations 
   ! ==========================================
-  if(nskip.gt.0) then
+  if (nskip.gt.0) then
     do ic = 1,nskip
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) iiii   
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) cccc
-      if(ic.ne.1 ) READ ( kunit_TRAJFF , * ) aaaa   ,iiii
-      do i = 1,natm 
-        READ ( kunit_TRAJFF , * ) atype(i),rx(i),ry(i),rz(i),aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) iiii   
+      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) cccc
+      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) aaaa   ,iiii
+      do ia = 1 , natm 
+        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
     enddo
   endif
 
   ngr = 0
   do ic = nskip + 1, nc
-    if(ionode)print*,ic
+    if (ionode)print*,ic
     na = 0
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    if( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) iiii
-    if( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) cccc
-    if( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
-    do i = 1,natm
-      READ ( kunit_TRAJFF , * ) atype(i),rx(i),ry(i),rz(i),aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      if(atype(i) .eq. 'A') na = na + 1
-      if(atype(i) .eq. 'A') itype(i)=1
-      if(atype(i) .eq. 'B') itype(i)=2
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) iiii
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) cccc
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
+    do ia = 1 , natm
+      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+      if ( atype ( ia ) .eq. 'A') na = na + 1
+      if ( atype ( ia ) .eq. 'A') itype(ia)=1
+      if ( atype ( ia ) .eq. 'B') itype(ia)=2
     enddo
     if ( ntype .eq.  1 ) then
       natmi(0)=natm
@@ -487,7 +492,7 @@ SUBROUTINE static_struc_fac ( ngr )
   !stat_str = 1.0d0 + rho * stat_str
 
   do i = 1,PANGR-1
-    if( ionode ) then
+    if ( ionode ) then
       WRITE ( kunit_STRFACFF ,'(2f15.10,i10)') q , stat_str(i) 
     endif
   enddo

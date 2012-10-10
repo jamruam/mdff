@@ -84,8 +84,9 @@ SUBROUTINE block_
   OPEN ( UNIT = kunit_EQUILFF , FILE='EQUILFF') 
   do i = 1 , nstep 
     nblock = nblock + 1
-    READ( kunit_EQUILFF , * )          iiii     , aaaa , ( dname ( j ) , cccc , bdata( i , j ) , j = 1, 5 ) 
-    READ( kunit_EQUILFF , * )          istep(i) , aaaa , aaaa , cccc , aaaa , ( dname ( j ) , cccc , bdata( i , j ) , j = 6, 8 )
+    READ( kunit_EQUILFF , * )  iiii     , aaaa , ( dname ( j ) , cccc , bdata( i , j ) , j = 1, 5 ) 
+    READ( kunit_EQUILFF , * )  istep(i) , aaaa , aaaa , cccc , aaaa , & 
+                               ( dname ( j ) , cccc , bdata( i , j ) , j = 6, 8 )
     do j = 1, nquan
       av(j)  = av(j)  + bdata(i, j)
       sav(j) = sav(j) + bdata(i, j)*bdata(i, j)
@@ -113,7 +114,7 @@ SUBROUTINE block_
     do i = 1, nb20
       idum = idum + 1
       if ( idum .gt. nstep ) then
-        if ( ionode ) WRITE( stdout , '(a)' ) 'ERROR in block_ : out of bound bdata',idum,nstep
+        if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR in block_ : out of bound bdata',idum,nstep
         STOP 
       endif  
       do j = 1, nquan
@@ -129,7 +130,8 @@ SUBROUTINE block_
     enddo
 
     if ( ionode ) WRITE ( stdout , 99004) ii, ( sum( j ) / dble ( nb20 ) , j=1, nquan )
-    if ( ionode ) WRITE ( stdout , 99004) ii, ( dsqrt ( ssum ( j ) / dble ( nb20 ) - sum( j ) * sum( j ) / dble ( nb20 ) / dble ( nb20 ) )  , j=1, nquan )
+    if ( ionode ) WRITE ( stdout , 99004) ii, ( dsqrt ( ssum ( j ) / dble ( nb20 ) - &
+                                          sum( j ) * sum( j ) / dble ( nb20 ) / dble ( nb20 ) )  , j=1, nquan )
 
   enddo
 
@@ -205,7 +207,7 @@ SUBROUTINE block_
 
   return
  
-99001 FORMAT (i10,30(e12.4))
+!99001 FORMAT (i10,30(e12.4))
 99002 FORMAT (i4, 30(f10.6))
 99003 FORMAT (' ######', 1x, a6, 2x, f16.8, '   ', f16.8)
 99004 FORMAT (' block data ', 1x, i4, 30(1x,f10.6))
