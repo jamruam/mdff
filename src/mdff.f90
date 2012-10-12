@@ -168,8 +168,8 @@ PROGRAM main_MDFF
     ! vnlist should be test with opt too 
     ! =====================================
     if ( calc .eq. 'md' ) then 
-      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   ( iastart , iaend , list , point )
-      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc ( iastart , iaend , list , point )       
+      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   ( iastart , iaend )
+      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc ( iastart , iaend )       
     endif  
 
     !IF MD
@@ -227,7 +227,7 @@ PROGRAM main_MDFF
              offset = 1
              npas = 0
              integrator = 'nve-vv' 
-             CALL md_run ( iastart , iaend , list , point , offset )
+             CALL md_run ( iastart , iaend , offset )
          ! =======================
          ! .... or dynamic   
          ! =======================
@@ -241,9 +241,9 @@ PROGRAM main_MDFF
              ! this offset will be USEd if the OUTSIDE LOOP is USEd
              ! ===============================================================
 !             offset = ( ( irun - 1 ) * npas ) + 1  
-             CALL md_run ( iastart , iaend , list , point , 1 ) 
-!                                                           ^ 
-!                                                          offset   
+             CALL md_run ( iastart , iaend , 1 ) 
+!                                            ^ 
+!                                           offset   
            endif
    
 #ifdef MULTRUN

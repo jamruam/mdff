@@ -67,7 +67,7 @@
 !
 !******************************************************************************
 
-SUBROUTINE md_run ( iastart , iaend , list , point , offset )
+SUBROUTINE md_run ( iastart , iaend , offset )
 
 
   USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
@@ -92,7 +92,7 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   INCLUDE "mpif.h"
 
   ! global
-  integer, intent(inout) :: iastart , iaend , list(250 * natm) , point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
   integer, intent(in) :: offset
 
   ! local
@@ -213,10 +213,10 @@ SUBROUTINE md_run ( iastart , iaend , list , point , offset )
   ! =======================
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
+  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend ) 
   if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul 
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
   endif 
 
   ! =========================
@@ -310,10 +310,10 @@ MAIN:  do itime = offset , npas + (offset-1)
            rz = ztmp
          endif
 #ifdef stress_t
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
+  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend )
   if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul 
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
   endif 
 #endif
        
@@ -445,10 +445,10 @@ MAIN:  do itime = offset , npas + (offset-1)
   ! ===================================
   !  stress tensor 
   ! ===================================
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend , list , point )
+  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend ) 
   if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul 
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct
+    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
+    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
   endif 
 
 

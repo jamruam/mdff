@@ -26,7 +26,7 @@
 ! 
 !******************************************************************************
 
-SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
+SUBROUTINE stress_bmlj ( iastart , iaend )
 
   USE control,  ONLY :  lvnlist
   USE config,   ONLY :  natm , fx , fy , fz , rx , ry , rz , box , omega , atype , itype , list , point , ntype
@@ -38,7 +38,6 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
 
   ! global
   integer, intent(in)  :: iastart , iaend
-!  integer, intent(in) :: list( 250 * natm ) , point( natm + 1 )
 
   !local 
   integer :: i , j , ia , ja , j1 ,jb , je , ierr 
@@ -197,11 +196,11 @@ SUBROUTINE stress_bmlj ( iastart , iaend )!, list , point )
 END SUBROUTINE stress_bmlj
 
 
-!*********************** SUBROUTINE stress_coulomb ****************************
+!*********************** SUBROUTINE stress_coul_ewald *************************
 !
 !
 !******************************************************************************
-SUBROUTINE stress_coul
+SUBROUTINE stress_coul_ewald
 
   USE control,          ONLY :  longrange
   USE config,           ONLY :  qia , ntype , natm , omega , rx , ry , rz , box 
@@ -225,8 +224,8 @@ SUBROUTINE stress_coul
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
   double precision :: wij0 , wij , fxij , fyij , fzij 
   double precision :: ak, kx, ky, kz, kk , kcoe
-  double precision :: kri , str
-  double complex   :: rhon , carg 
+  double complex   :: str
+  double complex   :: rhon 
   double precision, dimension(3,3) :: tau , tau_dir , tau_rec
   double precision, external :: errfc 
   double precision :: ttt1 , ttt2 , ttt3 
@@ -256,14 +255,18 @@ SUBROUTINE stress_coul
 ! ==============================================
 
    do ia = 1 , natm 
+
      rxi = rx(ia)
      ryi = ry(ia)
      rzi = rz(ia)
      qi = qia(ia)
+
      do ja = 1, natm
 
-       if ( ja .gt. ia ) then
+       if ( ja .ne. ia ) then
+
          qj = qia(ja)
+
          rxij = rxi - rx(ja)
          ryij = ryi - ry(ja)
          rzij = rzi - rz(ja)
@@ -274,17 +277,20 @@ SUBROUTINE stress_coul
          ryij = ryij - box * nyij
          rzij = rzij - box * nzij
          rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+
          rij = dsqrt( rijsq )
 
          qij  = qi * qj / rij
-         qijf = qij / rijsq      
+         qijf = qij / rijsq      ! qi * qj / rij^3
 
          wij0 = errfc( alphaES * rij ) 
          expon = dexp( - alpha2 * rijsq ) / piroot
          wij  = qijf * ( wij0 + 2.0d0 * rij * alphaES * expon )
+
          fxij = wij * rxij
          fyij = wij * ryij
          fzij = wij * rzij
+
          tau_dir(1,1) = tau_dir(1,1) + rxij * fxij 
          tau_dir(1,2) = tau_dir(1,2) + rxij * fyij
          tau_dir(1,3) = tau_dir(1,3) + rxij * fzij
@@ -294,6 +300,7 @@ SUBROUTINE stress_coul
          tau_dir(3,1) = tau_dir(3,1) + rzij * fxij
          tau_dir(3,2) = tau_dir(3,2) + rzij * fyij 
          tau_dir(3,3) = tau_dir(3,3) + rzij * fzij
+
        endif
      enddo
   enddo
@@ -303,11 +310,12 @@ SUBROUTINE stress_coul
 ! ==============================================
 !            reciprocal space part
 ! ==============================================
-  ! sum on atoms for one givn ik
+
   do ia = 1 , natm
     rxi = rx(ia)
     ryi = ry(ia)
     rzi = rz(ia)
+
     kpoint : do ik = 1, km_coul%nkcut 
       ! =================
       !   k-space  
@@ -318,7 +326,8 @@ SUBROUTINE stress_coul
       kk = km_coul%kptk(ik)
       ak = dexp( - kk * 0.25d0 / alpha2 ) / kk
       kcoe     = 2.0d0 * ( 0.25d0 / alpha2  + 1.0d0 / kk )
-      if ( km_coul%kptk(ik) .eq. 0 ) then 
+
+      if ( km_coul%kptk(ik) .eq. 0.0d0 ) then 
         WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
         STOP 
       endif
@@ -332,31 +341,36 @@ SUBROUTINE stress_coul
       do it = 1, ntype
         rhon = rhon + qch(it) * CONJG( km_coul%strf ( ik , it ) )
       enddo
-      kri = ( kx * rxi + ky * ryi + kz * rzi ) 
-      carg = EXP ( imag * kri )
-      wij = rhon * carg * ak * imag 
-
       str = rhon * CONJG(rhon) * ak 
+      !print*,ak,kk,- kk * 0.25d0 / alpha2,dexp( - kk * 0.25d0 / alpha2 )
 
       tau_rec(1,1) = tau_rec(1,1) + ( 1.0d0 - kcoe * kx * kx ) * str
-      tau_rec(1,2) = tau_rec(1,2) +           kcoe * kx * ky   * str
-      tau_rec(1,3) = tau_rec(1,3) +           kcoe * kx * kz   * str
-      tau_rec(2,1) = tau_rec(2,1) +           kcoe * ky * kx   * str
+      tau_rec(1,2) = tau_rec(1,2) -           kcoe * kx * ky   * str
+      tau_rec(1,3) = tau_rec(1,3) -           kcoe * kx * kz   * str
+      tau_rec(2,1) = tau_rec(2,1) -           kcoe * ky * kx   * str
       tau_rec(2,2) = tau_rec(2,2) + ( 1.0d0 - kcoe * ky * ky ) * str
-      tau_rec(2,3) = tau_rec(2,3) +           kcoe * ky * kz   * str
-      tau_rec(3,1) = tau_rec(3,1) +           kcoe * kz * kx   * str
-      tau_rec(3,2) = tau_rec(3,2) +           kcoe * kz * ky   * str
+      tau_rec(2,3) = tau_rec(2,3) -           kcoe * ky * kz   * str
+      tau_rec(3,1) = tau_rec(3,1) -           kcoe * kz * kx   * str
+      tau_rec(3,2) = tau_rec(3,2) -           kcoe * kz * ky   * str
       tau_rec(3,3) = tau_rec(3,3) + ( 1.0d0 - kcoe * kz * kz ) * str
 
     enddo kpoint
 
-  enddo 
-  tau_rec = tau_rec * tpi / omega
+  enddo
+
+  ! ======================================================
+  ! remark on the unit :
+  ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
+  ! ======================================================
+  print*,tau_rec
+  tau_rec = tau_rec * tpi / omega 
+  print*,tau_rec
 
   tau = tau_dir + tau_rec
 
    if ( ionode ) then
     WRITE ( stdout      ,'(a)'       )    'Coulomb : '
+    WRITE ( stdout      ,'(a,f15.8)'       )    'here !!!!! : ',tpi / omega
     WRITE ( stdout      ,'(a,2a15)'  )    '                 x' , 'y' , 'z' 
     WRITE ( stdout      ,'(a,3f15.8)')    'x            ' , tau(1,1) , tau(1,2) , tau(1,3)
     WRITE ( stdout      ,'(a,3f15.8)')    'y            ' , tau(2,1) , tau(2,2) , tau(2,3)
@@ -381,38 +395,35 @@ SUBROUTINE stress_coul
   return
 
 
-END SUBROUTINE stress_coul
+END SUBROUTINE stress_coul_ewald
 
-!*********************** SUBROUTINE stress_coulombi_direct *************************
+!*********************** SUBROUTINE stress_coul_direct *************************
 !
 !
 !******************************************************************************
-SUBROUTINE stress_coul_direct
+SUBROUTINE stress_coul_direct ( iastart , iaend )
 
   USE control,          ONLY :  longrange
   USE config,           ONLY :  qia , ntype , natm , omega , rx , ry , rz , box 
   USE io_file,          ONLY :  ionode , stdout , kunit_OUTFF
   USE constants,        ONLY :  imag , tpi , piroot 
-  USE kspace,           ONLY :  struc_fact     
-  USE field,            ONLY :  alphaES , km_coul , qch
+  USE field,            ONLY :  rm_coul , qch
   USE time
 
   implicit none
 
   INCLUDE 'mpif.h'
 
+  ! global
+  integer, intent(in)  :: iastart , iaend
+
   ! local
-  integer :: ia, ja , it , ierr
-  integer :: ik
-  integer :: nxij , nyij , nzij
-  double precision :: rij , rijsq , expon , invbox
-  double precision :: alpha2
+  integer :: ia, ja , ierr
+  integer :: ncell
+  double precision :: rij , rijsq 
   double precision :: qi , qj , qij , qijf
-  double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
-  double precision :: wij0 , wij , fxij , fyij , fzij 
-  double precision :: ak, kx, ky, kz, kk , kcoe
-  double precision :: kri , str
-  double complex   :: rhon , carg 
+  double precision :: rxi , ryi , rzi , rxj, ryj, rzj, rxij , ryij , rzij 
+  double precision :: fxij, fyij , fzij 
   double precision, dimension(3,3) :: tau , tau_dir
   double precision, external :: errfc 
   double precision :: ttt1 , ttt2 , ttt3 
@@ -423,52 +434,106 @@ SUBROUTINE stress_coul_direct
   ttt1 = MPI_WTIME(ierr)
   tau_dir = 0.0d0
 
-! ==============================================
-!        direct space part
-! ==============================================
+! =========================================================
+!  MAIN LOOP calculate EFG(i) for each atom i parallelized
+! =========================================================
+atom : do ia = iastart , iaend
 
-   do ia = 1 , natm 
-     rxi = rx(ia)
-     ryi = ry(ia)
-     rzi = rz(ia)
-     qi = qia(ia)
-     do ja = 1, natm
+    rxi = rx(ia)
+    ryi = ry(ia)
+    rzi = rz(ia)
+    qi  = qia(ia)
 
-       if ( ja .ne. ia ) then
-         qj = qia(ja)
-         rxij = rxi - rx(ja)
-         ryij = ryi - ry(ja)
-         rzij = rzi - rz(ja)
-         nxij = nint( rxij * invbox )
-         nyij = nint( ryij * invbox )
-         nzij = nint( rzij * invbox )
-         rxij = rxij - box * nxij
-         ryij = ryij - box * nyij
-         rzij = rzij - box * nzij
-         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-         rij = dsqrt( rijsq )
+    ! ==================================================
+    ! sum over neighboring cells (see direct_sum_init )
+    ! ==================================================
+    do ncell = 1 , rm_coul%ncmax
+         ! ==============================
+         !  ia and ja in different cells
+         ! ==============================
+         if ( rm_coul%lcell ( ncell ) .eq. 1) then
+          do ja = 1 , natm
 
-         qij  = qi * qj / rij
-         qijf = qij / rijsq      
+            qj    = qia(ja)
 
-         wij0 = errfc( alphaES * rij ) 
-         expon = dexp( - alpha2 * rijsq ) / piroot
-         wij  = qijf * ( wij0 + 2.0d0 * rij * alphaES * expon )
-         fxij = wij * rxij
-         fyij = wij * ryij
-         fzij = wij * rzij
-         tau_dir(1,1) = tau_dir(1,1) + rxij * fxij 
-         tau_dir(1,2) = tau_dir(1,2) + rxij * fyij
-         tau_dir(1,3) = tau_dir(1,3) + rxij * fzij
-         tau_dir(2,1) = tau_dir(2,1) + ryij * fxij
-         tau_dir(2,2) = tau_dir(2,2) + ryij * fyij
-         tau_dir(2,3) = tau_dir(2,3) + ryij * fzij 
-         tau_dir(3,1) = tau_dir(3,1) + rzij * fxij
-         tau_dir(3,2) = tau_dir(3,2) + rzij * fyij 
-         tau_dir(3,3) = tau_dir(3,3) + rzij * fzij
-       endif
-     enddo
-  enddo
+            rxj   = rx(ja) + rm_coul%boxxyz(1,ncell)
+            ryj   = ry(ja) + rm_coul%boxxyz(2,ncell)
+            rzj   = rz(ja) + rm_coul%boxxyz(3,ncell)
+
+            rxij  = rxi - rxj
+            ryij  = ryi - ryj
+            rzij  = rzi - rzj
+
+            rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+
+            rij   = dsqrt( rijsq )
+            qij   = qi * qj / rij
+            qijf  = qij / rijsq
+
+            fxij = qijf * rxij
+            fyij = qijf * ryij
+            fzij = qijf * rzij
+
+            tau_dir(1,1) = tau_dir(1,1) + rxij * fxij 
+            tau_dir(1,2) = tau_dir(1,2) + rxij * fyij
+            tau_dir(1,3) = tau_dir(1,3) + rxij * fzij
+            tau_dir(2,1) = tau_dir(2,1) + ryij * fxij
+            tau_dir(2,2) = tau_dir(2,2) + ryij * fyij
+            tau_dir(2,3) = tau_dir(2,3) + ryij * fzij 
+            tau_dir(3,1) = tau_dir(3,1) + rzij * fxij
+            tau_dir(3,2) = tau_dir(3,2) + rzij * fyij 
+            tau_dir(3,3) = tau_dir(3,3) + rzij * fzij
+
+          enddo ! ja
+ 
+        endif 
+         ! =======================================
+         !  ia and ja in the same cell (ia.ne.ja)
+         ! =======================================
+        if ( rm_coul%lcell(ncell) .eq. 0) then
+
+          do ja = 1,natm
+
+            if ( ja .ne. ia ) then
+
+              qj = qia(ja)
+
+              rxj  = rx(ja)
+              ryj  = ry(ja)
+              rzj  = rz(ja)
+
+              rxij = rxi - rxj
+              ryij = ryi - ryj
+              rzij = rzi - rzj
+
+              rijsq   = rxij * rxij + ryij * ryij + rzij * rzij
+ 
+              rij = dsqrt( rijsq )
+              qij = qi * qj / rij
+              qijf = qij / rijsq
+
+              fxij = qijf * rxij
+              fyij = qijf * ryij
+              fzij = qijf * rzij
+
+              tau_dir(1,1) = tau_dir(1,1) + rxij * fxij 
+              tau_dir(1,2) = tau_dir(1,2) + rxij * fyij
+              tau_dir(1,3) = tau_dir(1,3) + rxij * fzij
+              tau_dir(2,1) = tau_dir(2,1) + ryij * fxij
+              tau_dir(2,2) = tau_dir(2,2) + ryij * fyij
+              tau_dir(2,3) = tau_dir(2,3) + ryij * fzij 
+              tau_dir(3,1) = tau_dir(3,1) + rzij * fxij
+              tau_dir(3,2) = tau_dir(3,2) + rzij * fyij 
+              tau_dir(3,3) = tau_dir(3,3) + rzij * fzij
+
+            endif ! ia.ne.ja
+
+          enddo ! ja
+
+        endif 
+
+     enddo ! ncell
+  enddo atom
 
   ttt2 = MPI_WTIME(ierr)
 

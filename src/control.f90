@@ -273,7 +273,7 @@ SUBROUTINE control_print_info(kunit)
      WRITE ( kunit ,'(a)')       'filipe.manuel.vasconcelos@gmail.com  '
      WRITE ( kunit ,'(a,i4,a)')  'Running on',numprocs,' nodes                  '
      if ( status == 0 ) then
-     WRITE ( kunit ,'(a,a)')     'Host     : ',trim(host)
+     WRITE ( kunit ,'(a,a)')     'host     : ',trim(host)
      endif
      WRITE ( kunit ,'(a,a4,a1,a2,a1,a2,a4,a2,a1,a2,a1,a2)') &
                                 'time     : ',DATE(1:4),'/',DATE(5:6),'/',DATE(7:8),'   ',HOUR(1:2),&

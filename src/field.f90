@@ -1012,12 +1012,10 @@ SUBROUTINE engforce_new_bmlj ( iastart , iaend )
 
   ! global
   integer, intent(in)  :: iastart , iaend
-!  integer, intent(out) :: list( 250 * natm ) , point( natm+1 )
 
   ! local
-  integer :: ia , ja , it , jt , j1 , je , jb , ierr
+  integer :: ia , ja , it , jt , je , jb , ierr
   integer :: p1 , p2
-  integer :: nxij , nyij , nzij
   double precision :: rxi , ryi , rzi
   double precision :: rxij , ryij , rzij , sr2 , rijsq , srp , srq
   double precision :: wij , fxij , fyij , fzij
@@ -1705,11 +1703,15 @@ SUBROUTINE engforce_coulomb_ES
 
   enddo 
 
+  ! ======================================================
+  ! remark on the unit :
+  ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
+  ! ======================================================
   u_rec = u_rec * tpi / omega 
 
   vir_coul = ( vir_dir + vir_rec )
   u_coul   = ( u_dir   + u_rec   )
-
+  print*,'u_coul_dir =',u_dir,'u_coul_rec =',u_rec,'u_coul_tot =',u_coul
 
   ttt3 = MPI_WTIME(ierr)
   fcoultimetot2 = fcoultimetot2 + ( ttt3 - ttt2 ) 
@@ -1751,7 +1753,7 @@ SUBROUTINE engforce_coulomb_DS (  iastart , iaend )
   double precision :: qi , qj , qij, qijf 
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
   double precision :: rxj , ryj , rzj 
-  double precision :: wij , fxij , fyij , fzij 
+  double precision :: fxij , fyij , fzij 
   double precision :: u_dir , vir_dir 
   double precision :: ttt1 , ttt2  , ttt3
   double precision :: pot_sum, vir_sum

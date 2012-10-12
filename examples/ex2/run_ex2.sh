@@ -1,6 +1,6 @@
 #!/bin/bash
 
-EXE=/home/filipe/recherche/dev/09-10-12/new/bin/./mdff.x
+EXE=../../bin/./mdff.x
 
 echo "EXAMPLE 2 : calculation of total energy of LJ clusters"
 echo "reference structures and energies from :"

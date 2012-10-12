@@ -16,7 +16,7 @@ INSTALL_DIR=../bin
 #FCFLAGS = -fpp -O3 -ip -xW
 
 #on superbock
-FCFLAGS = -cpp -O5 -ffree-line-length-0 -I/usr/include 
+FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 #FCFLAGS = -cpp -Werror -Wall -ffree-line-length-0 -I/usr/include 
 
 EXE= mdff.x bins.x bins-dos.x gen-kpt.x
