@@ -14,8 +14,12 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+!#define debug
+! ======= Hardware =======
+
 MODULE opt
 
   implicit none
@@ -24,6 +28,8 @@ MODULE opt
   integer :: nskipopt          ! number of configurations skipped in the beginning 
   integer :: nmaxopt           ! number of configurations optimized  
   integer :: nperiodopt
+
+  double precision :: epsrel_m1qn3  ! gradient stop criterion for m1qn3
 
   character*60 :: optalgo      ! choose optimization algorithm
   character*60 :: optalgo_allowed(3)
@@ -49,7 +55,8 @@ SUBROUTINE opt_init
 
   namelist /opttag/ optalgo       , &
                     ncopt         , & 
-                    nskipopt      , & 
+                    nskipopt      , &
+                    epsrel_m1qn3  , & 
                     nmaxopt       
 
   ! ===============================
@@ -100,10 +107,11 @@ SUBROUTINE opt_default_tag
   ! ================
   !  default values
   ! ================
-  nmaxopt      = 1 
-  nskipopt     = 0 
   optalgo      = 'sastry' 
   ncopt        = 0
+  nskipopt     = 0 
+  nmaxopt      = 1 
+  epsrel_m1qn3 = 1.0e-6
 
   return 
  
@@ -245,7 +253,7 @@ SUBROUTINE opt_main
 
     
   if ( ionode ) WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
-  if ( ionode ) WRITE ( kunit_ISTHFF , '(a8,3a20,2a6,2a18)') &
+  if ( ionode ) WRITE ( kunit_ISTHFF , '(a8,3a20,2a8,2a20)') &
   "# config","eIS","grad","Pres","Iter","Neng","u_initial","Press_initial"
        
   READ ( kunit_TRAJFF , * ) natm
@@ -275,9 +283,11 @@ SUBROUTINE opt_main
   CALL config_alloc 
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL field_init
+
 #ifdef debug
-  print*,iastart , iaend
+  print*,'debug',iastart , iaend
 #endif
+
   ! ==========================================   
   !  skip the first nskipopt configurations 
   ! ==========================================
@@ -531,6 +541,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       kl = 2 * kl 
     endif
 #ifdef debug
+  print*,'debug'
   call print_config_sample(its,0)
 #endif
 
@@ -1089,6 +1100,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
     CALL calc_thermo
 
 #ifdef debug
+     print*,'debug'
      call print_config_sample(icall,0)
 #endif
 
@@ -1222,12 +1234,12 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   ! =========================================================
   dx=1.e-14            ! dxmin  
   df1=1000.0d0         ! df1
-  epsrel=1.e-6         ! epsg 
+  epsrel=epsrel_m1qn3  ! epsg 
   niter=6000           ! niter
   nsim=6000            ! nsim 
   normtype = 'dfn'     ! normtype   
   io=stdout            ! io  
-  imp= 0               ! impress  no print
+  imp= 1               ! impress  no print
   imode(1)=0           ! imode(1) = 0 DIS  
                        ! imode(1) = 1 SIS
   imode(2)=0           ! starting mode : = 0 cold start  direction -g

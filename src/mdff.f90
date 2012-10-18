@@ -1,6 +1,3 @@
-! ===== fmV =====
-! ======================================================================================
-!
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -17,8 +14,7 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-! ======================================================================================
+! ===== fmV =====
 
 ! ===============================================================
 ! *      PARALLEL MOLECULAR DYNAMICS ...for fun                 *
@@ -37,11 +33,13 @@
 ! timing information at the end
 ! ===============================================================
 
-! HARDWARE      
 
+! ======= Hardware =======
 !add some comments !!!!!!!!
 !#define MULTRUN
 !#define block
+! ======= Hardware =======
+
 
 PROGRAM main_MDFF
 

@@ -16,6 +16,10 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 !======================================
 ! driver for fftw routines
 !======================================

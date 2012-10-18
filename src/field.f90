@@ -14,9 +14,12 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-!#define debug
 ! ===== fmV =====
+
+! ======= Hardware =======
+!#define debug
+! ======= Hardware =======
+
 MODULE field 
 
   USE config , ONLY : ntypemax
@@ -92,20 +95,20 @@ SUBROUTINE field_default_tag
   ! =================
 
   ! BMLJ
-  ctrunc        = 'linear' 
   lKA           = .false.
+  ctrunc        = 'linear' 
   epslj         = 1.0d0
   sigmalj       = 1.0d0
   qlj           = 12.0d0
   plj           = 6.0d0
   mass          =  1.0d0
   ! Coulomb
+  ncelldirect   =  2
+  ncellewald    = 10
+  alphaES       =  1.0d0
   qch           =  0.0d0
   qch(1)        = -1.0d0            
   qch(2)        =  1.0d0 
-  ncellewald    = 10
-  alphaES       =  1.0d0
-  ncelldirect   =  2
 
   return
 

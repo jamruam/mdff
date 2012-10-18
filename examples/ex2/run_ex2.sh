@@ -23,8 +23,8 @@ do
 	$EXE control.F > stdout
 	echo "$cluster `grep "Etot" OUTFF | awk '{print $14}'` `grep " $cluster " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4i %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
 
-
 done
+
 echo " "
 echo "Lowest energy icosahedral minima at sizes with non-icosahedral global minima. " 
 echo " " 
@@ -38,10 +38,7 @@ do
         awk '{print $1,$2,$3,"0.0000 0.0000 0.0000"}' clusters/$((cluster))i >> tmp.file
         mv tmp.file POSFF
 
-
         $EXE control.F > stdout
 	echo " "$((cluster))i" `grep "Etot" OUTFF | awk '{print $14}'` `grep " $((cluster))i " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4s %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
-
-
 done
 

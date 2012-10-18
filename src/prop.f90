@@ -14,8 +14,11 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 MODULE prop
 
   implicit none
@@ -102,14 +105,14 @@ SUBROUTINE prop_default_tag
   implicit none
 
 ! default value
-  nprop_start = 0
-  nprop       = 1
-  nprop_print = nprop
   lefg        = .false.
   lgr         = .false.
   lstrfac     = .false.
   lmsd        = .false.
   lvacf       = .false.
+  nprop_start = 0
+  nprop       = 1
+  nprop_print = nprop
 
   return
 

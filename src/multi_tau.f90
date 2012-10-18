@@ -15,6 +15,11 @@
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+
+! ======= Hardware =======
+! ======= Hardware =======
+
+
 ! implementation of  the algorithm proposed by Ramirez et al. in 
 ! "Efficient on the fly calculation of time correlation functions in comuter
 ! simulations" J. CHem. Phys. 133 154103 (2010)

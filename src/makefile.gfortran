@@ -17,7 +17,7 @@ INSTALL_DIR=../bin
 #on superbock
 FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 
-EXE= mdff.x bins.x bins-dos.x gen-kpt.x
+EXE= mdff.x bins.x bins-dos.x
 
 # libraries needed 
 # on lisa
@@ -64,9 +64,6 @@ bins.x: bins.o
 	$(FC) $(FCFLAGS) -o $@ $^
 
 bins-dos.x: bins-dos.o
-	$(FC) $(FCFLAGS) -o $@ $^
-
-gen-kpt.x: gen-kpt.o
 	$(FC) $(FCFLAGS) -o $@ $^
 
 disttab.x: disttab.o

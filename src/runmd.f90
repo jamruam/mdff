@@ -1,6 +1,3 @@
-! ===== fmV =====
-! ===================================================================================
-!
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -17,12 +14,9 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+! ===== fmV =====
 
-! ===================================================================================
-
-! HARDWARE 
-
-!for debugging purpose
+! ======= Hardware =======
 !#define debug
 
 ! calculate the stress tensor at each time step
@@ -34,17 +28,15 @@
 ! calculates center of mass at each time step
 !#define com_t
 
-!===============================
-!  experimental dev
-!===============================
-
+!experimental
 !calculate block_averaging 
 !#define block
 
+!experimental
 !multi_tau correlation
 !#define multi_tau
 
-!===============================
+! ======= Hardware =======
 
 !*********************** SUBROUTINE md_run **********************************
 !
@@ -271,6 +263,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nve-vv_test' )  CALL prop_velocity_verlet_test ( iastart , iaend )!, list , point )
 
 #ifdef debug
+         print*,'debug'
          CALL print_config_sample(itime,0)
 #endif
 
@@ -302,6 +295,7 @@ MAIN:  do itime = offset , npas + (offset-1)
            ytmp = ry
            ztmp = rz
 #ifdef debug
+           print*,'debug'
            CALL write_traj_xyz_test
 #endif 
            CALL write_traj_xyz

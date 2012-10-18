@@ -16,6 +16,10 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 !*********************** MODULE control ***************************************
 !
 ! main parameters of the code
@@ -144,21 +148,21 @@ SUBROUTINE control_default_tag
   ! ================
   !  default values
   ! ================
-  ltest         = .false.
   lbmlj         = .true.
   lcoulomb      = .false.
-  lstatic       = .false.
-  lshiftpot     = .true.
-  calc          = 'md'
-  lpbc          = .true.
-  lminimg       = .true.
   lvnlist       = .true.
+  lstatic       = .false.
+  lpbc          = .true.
+  lreduced      = .true.
+  lshiftpot     = .true.
+  ltest         = .false.
+  lminimg       = .true.
+  lrestart      = .false.
+  calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  lrestart      = .false.
   cutoff        = 2.5d0
   skindiff      = 0.1d0
-  lreduced      = .true.
 
   return 
  
@@ -250,8 +254,9 @@ SUBROUTINE control_print_info(kunit)
   ! ===============
   !  hostname info      
   ! ===============
+#ifdef GFORTRAN
   status = hostnm(host)
-  
+#endif 
   ! =================
   !  standard output
   ! =================
@@ -273,10 +278,12 @@ SUBROUTINE control_print_info(kunit)
      WRITE ( kunit ,'(a)')       'filipe.manuel.vasconcelos@gmail.com  '
      WRITE ( kunit ,'(a,i4,a)')  'Running on',numprocs,' nodes                  '
      if ( status == 0 ) then
+#ifdef GFORTRAN
      WRITE ( kunit ,'(a,a)')     'host     : ',trim(host)
+#endif
      endif
      WRITE ( kunit ,'(a,a4,a1,a2,a1,a2,a4,a2,a1,a2,a1,a2)') &
-                                'time     : ',DATE(1:4),'/',DATE(5:6),'/',DATE(7:8),'   ',HOUR(1:2),&
+                                'date     : ',DATE(1:4),'/',DATE(5:6),'/',DATE(7:8),'   ',HOUR(1:2),&
                                 ':',HOUR(3:4),':',HOUR(5:6)
      WRITE ( kunit ,'(a,a)')     'calc     : ', calc 
      WRITE ( kunit ,'(a)')       ''

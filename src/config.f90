@@ -16,6 +16,10 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 !*********************** MODULE CONF ******************************************
 !
 ! This module should deal with everything related to the current configuration
@@ -175,19 +179,16 @@ SUBROUTINE config_default_tag
   ! =================
   !  default values
   ! =================
-  system   = 'UNKNOWN'
   lgenconf = .true.     
-  xn       = 0.0D0
-  xn ( 1 ) = 1.0D0       ! particle A
-  ntype    = 1
-  ncell    = 4
   lfcc     = .true. 
   lsc      = .false.
   lbcc     = .false.
-  rho      = 0.0d0
-  box      = 0.0d0 
+  system   = 'UNKNOWN'
   struct   = 'random'
-  natm     = 0
+  ntype    = 1
+  ncell    = 4
+  xn       = 0.0D0
+  xn ( 1 ) = 1.0D0       ! particle A
       
   return
 
@@ -330,7 +331,7 @@ SUBROUTINE config_print_info(kunit)
     WRITE ( kunit ,'(a,i16)')        'natm                                 = ',natm
     do it = 1 , ntype     
       WRITE ( kunit ,'(a,a,a,i16,f8.2,a1)') &
-                          'n',atypei(it),'                                 = ',natmi(it),xn(1) * 100,'%'
+                          'n',atypei(it),'                                 = ',natmi(it),xn(it) * 100,'%'
     enddo
     WRITE ( kunit ,'(a,f16.4)')      'cell parameter                       = ',box
     WRITE ( kunit ,'(a,f16.4)')      'volume                               = ',omega
@@ -548,7 +549,7 @@ SUBROUTINE random_config ( natm , atype , xna )
   ! global
   integer :: natm
   double precision :: xna
-  character*10 , dimension ( natm )  :: atype , atmp
+  character*3 , dimension ( natm )  :: atype , atmp
 
   ! local
   integer :: iseed

@@ -14,8 +14,13 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+! ===== fmV =====
 
-!e ===== fmV =====
+! ======= Hardware =======
+#define debug
+! ======= Hardware =======
+
+
 MODULE vib
 
   implicit none
@@ -24,6 +29,7 @@ MODULE vib
   integer :: ngconf       ! number of configurations that would be generated 
   integer :: imod           
   integer :: nkphon       ! number of kpoint between ks and kf used when calc = 'vib+band'
+                          ! or (nkphon+1) * (nkphon+1) * (nkphon+1) generated in IBZKPTFF when calc='vib+dos'
 
   double precision :: ksx, ksy, ksz ! start kpoint
   double precision :: kfx, kfy, kfz ! final kpoint    
@@ -103,12 +109,12 @@ SUBROUTINE vib_default_tag
   ! =================
   !  default values
   ! =================
+  lwrite_vectff = .false.
   ncvib        = 0
   ngconf       = 0
   imod         = 4
   resdos       = 1.0d0             
-  lwrite_vectff = .false.
-  omegamax = 100.0d0
+  omegamax     = 100.0d0
 
   return
 
@@ -196,7 +202,7 @@ SUBROUTINE vib_main
 
   USE config,           ONLY :  system , natm , natmi , rx , ry , rz , fx ,  & 
                                 fy , fz , atype , atypei , itype , box , omega , & 
-                                rho , ntype, config_alloc , list , point
+                                rho , ntype, config_alloc , list , point, ncell
   USE md,               ONLY :  temp
   USE control,          ONLY :  calc , myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
@@ -208,7 +214,7 @@ SUBROUTINE vib_main
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , j , ik, ia , ja , im , ic , PANdos , ka , it , cc , ccs 
+  integer :: i , j , ik, ia , ja , im , ic , PANdos , ka , it , cc , ccs , nk
   double precision :: pressure0, pot0, ak
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   integer, dimension(:), allocatable :: dostab
@@ -272,6 +278,7 @@ SUBROUTINE vib_main
   allocate(deig(3 * natm),ipiv(3 * natm))
   WRITE ( stdout ,'(a)')          'Remind some parameters of the system:'
   WRITE ( stdout ,'(a,i5)')       'natm  = ', natm
+  WRITE ( stdout ,'(a,i5)')       'ncell = ', ncell
   WRITE ( stdout ,'(a,i5)')       'ntype = ', ntype
   WRITE ( stdout ,'(a,f10.3)')    'rho   = ', rho
   WRITE ( stdout ,'(a,f10.3)')    'box   = ', box
@@ -412,22 +419,25 @@ SUBROUTINE vib_main
     ! total dos for more than 3N k - vector
     ! ==============================================
     if ( calc .eq.'vib+dos'  ) then
-      
+    
+      ! generate IBZKPTFF file 
+      CALL gene_IBZKPTFF 
       ! read number of kpoints in IBZKPTFF
       OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
       READ ( kunit_IBZKPTFF , * ) cccc
-      READ ( kunit_IBZKPTFF , * ) nkphon
+      READ ( kunit_IBZKPTFF , * ) nk
       READ ( kunit_IBZKPTFF , * ) cccc
       CLOSE(kunit_IBZKPTFF)
 
-      allocate(eigenk(nkphon,3))
-      ! diagonalisation of the 3*nkphon states
-      CALL doskpt( hess , eigenk )
+      allocate(eigenk(nk,3))
+
+      ! diagonalisation of the 3*nk states
+      CALL doskpt( hess , eigenk , nk )
       ! ==============================================
-      !  DOS: density of states of the 3*nkphon modes
+      !  DOS: density of states of the 3*nk modes
       ! ==============================================
       dostabk = 0
-      do ik = 1, nkphon
+      do ik = 1, nk
         ak = (eigenk(ik,1))/resdos
         ka = int(ak) + 1
         if (ka.gt.PANdos + 1.or.ka.lt.0) then
@@ -466,8 +476,8 @@ SUBROUTINE vib_main
 
       do i = 0,PANdos + 1
         if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') &
-        dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nkphon * resdos ),j=0,3) , &
-        (dostabktot(i,j) / ( 3.0 * nkphon * resdos * ic),j=0,3)
+        dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nk * resdos ),j=0,3) , &
+        (dostabktot(i,j) / ( 3.0 * nk * resdos * ic),j=0,3)
       enddo
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
@@ -989,9 +999,11 @@ SUBROUTINE band ( hess )
   jobz = 'V'
   uplo = 'U'
 
-  ak = (tpi * ncell)/(box)
+  ak =  (tpi * ncell)/box
   akn = (tpi * ncell)/(box * nkphon)
-
+#ifdef debug
+  print*,'debug',ak,akn,ncell,box
+#endif
   kxt = kfx - ksx
   kyt = kfy - ksy
   kzt = kfz - ksz
@@ -1090,7 +1102,7 @@ END SUBROUTINE band
 !
 !******************************************************************************
 
-SUBROUTINE doskpt ( hess , eigenk )
+SUBROUTINE doskpt ( hess , eigenk , nk )
 
   USE config,           ONLY :  natm , rx , ry , rz , box , ncell , itype
   USE control,          ONLY :  calc
@@ -1101,8 +1113,9 @@ SUBROUTINE doskpt ( hess , eigenk )
   implicit none
 
   ! global  
+  integer :: nk
   double precision :: hess(3 * natm,3 * natm)
-  double precision :: eigenk(nkphon,3)
+  double precision :: eigenk(nk,3)
   ! local
   integer :: nxij,nyij,nzij
   double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
@@ -1126,22 +1139,20 @@ SUBROUTINE doskpt ( hess , eigenk )
 
   wi  = 1
   ak  = ( tpi * ncell ) / ( box )
-  akn = ( tpi * ncell ) / ( box * nkphon )
+  akn = ( tpi * ncell ) / ( box * nk )
 
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
   READ ( kunit_IBZKPTFF , * ) cccc
-  READ ( kunit_IBZKPTFF , * ) nkphon
+  READ ( kunit_IBZKPTFF , * ) nk
   READ ( kunit_IBZKPTFF , * ) cccc
 
-  !WRITE ( kunit_DOSKFF , * ) nkphon,'20  0.0 30.0'
-
   wi = 1
-  WRITE ( stdout ,'(a)') 'read kpoints in IBZKPTFF'
+  WRITE ( stdout ,'(a)') 'read nk=',nk,' kpoints in IBZKPTFF'
 
   kl = 1
   ck = 1
-  do ik = 0,nkphon - 1
+  do ik = 0,nk - 1
 
     READ ( kunit_IBZKPTFF , * ) kxi , kyi , kzi , wi
 
@@ -1212,7 +1223,7 @@ SUBROUTINE doskpt ( hess , eigenk )
     CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
     do i = 1,wi
-      if (mod(ik + 1,nkphon/20).eq.0) then
+      if (mod(ik + 1,nk/20).eq.0) then
         WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
         kl = kl * 1
       endif
@@ -1231,6 +1242,50 @@ SUBROUTINE doskpt ( hess , eigenk )
   return  
 
 END SUBROUTINE doskpt 
+
+
+SUBROUTINE gene_IBZKPTFF
+
+  USE constants,  ONLY : pi
+  USE io_file  ,  ONLY : ionode, kunit_IBZKPTFF
+
+
+  implicit none
+
+  integer :: ikx , iky , ikz
+  integer :: nk , wi , nktot
+  double precision :: ak 
+
+  wi = 1
+  nk = nkphon
+
+  nktot = ( ( nk + 1 ) *( nk + 1 ) * ( nk + 1 ) )
+
+  OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
+
+  if ( ionode ) then
+    WRITE (kunit_IBZKPTFF,*) 'Automatically generated mesh FF'
+    WRITE (kunit_IBZKPTFF,*)  nktot
+    WRITE (kunit_IBZKPTFF,*) 'Reciprocal lattice'
+  endif
+
+
+  ak=(1.0d0)/(nk) 
+
+
+  do ikx = 0 , nk
+    do iky = 0 , nk        
+      do ikz = 0 , nk
+        if ( ionode ) WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ikx * ak , iky * ak , ikz * ak, wi
+      enddo
+    enddo
+  enddo
+
+  CLOSE(kunit_IBZKPTFF)
+
+  return
+
+END SUBROUTINE gene_IBZKPTFF
 
 
 END MODULE vib

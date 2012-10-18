@@ -14,14 +14,17 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 MODULE md
 
   implicit none
 
   logical, SAVE :: ltraj                   ! save trajectory                                    
-  logical, SAVE :: lleapequi               ! flag if leap-frog is used with equilibration -> vv + lf
+  logical, SAVE :: lleapequi               ! leap-frog used in the equilibration part together with verlet -> vv + lf 
 
   integer :: npas                          ! number of time steps
   integer :: nequil                        ! number of equilibration steps
@@ -31,7 +34,7 @@ MODULE md
   integer :: fprint                        ! print thermo info to file OSZIFF
   integer :: itraj_start                   ! write trajectory from step itraj_start
   integer :: itraj_period                  ! write trajectory each itraj_period steps 
-  integer :: itraj_format                  ! choose the trajectory format
+  integer :: itraj_format                  ! choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
   integer :: updatevnl                     ! number of verlet list update  
 
   double precision :: dt                   ! time step
@@ -132,23 +135,22 @@ SUBROUTINE md_default_tag
   ! =================
   !  default values
   ! =================
-  npas          = 10
-  dt            = 0.001d0
-  temp          = 1.0d0
   ltraj         = .false.
+  lleapequi     = .false.
+  integrator    = 'nve-vv'
+  setvel        = 'MaxwBoltz'
+  npas          = 10
+  nequil        = 10
+  nequil_period = 1
+  nprint        = 1             
+  fprint        = 1
   itraj_start   = 1          
   itraj_period  = 10000
   itraj_format  = 1
-  nprint        = 1             
-  fprint        = 1
   spas          = 1000           
-  setvel        = 'MaxwBoltz'
+  dt            = 0.001d0
+  temp          = 1.0d0
   tauberendsen  = 0.0d0
-  nequil        = 10
-  nequil_period = 1
-  Qnosehoover   = 0.0d0 
-  lleapequi     = .false.
-  integrator    = 'nve-vv'
 
   return
 

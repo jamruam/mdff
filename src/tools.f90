@@ -14,13 +14,16 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+! ======= Hardware =======
+
 !*********************** SUBROUTINE do_split ***********************************
 !
 ! this SUBROUTINE split the number of atoms in for each np procs
 ! iastart and iaend are the atom index for proc myrank
-! c'est moi qui l'ai fait !! 
+! WARNING : c'est moi qui l'ai fait ;)
 !
 ! input : 
 !          *  n           = number of atoms

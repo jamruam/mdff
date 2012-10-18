@@ -14,18 +14,23 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
-!!!!!!!!
-!!!!!!!!
+
+
+! ======= Hardware =======
+! ======= Hardware =======
+
+
+!WARNING
+!WARNING
 !================================================================================
+!
 ! this subroutines are not clear at all. need more documentation and references.
 ! example: leap-frog and verlet are not clearly distinguised
 ! to be rigorous I should test all of them and compare to existing codes
 ! 
 !================================================================================
-!!!!!!!!
-!!!!!!!!
+!WARNING
 
 
 !*********************** SUBROUTINE prop_leap_frog ****************************

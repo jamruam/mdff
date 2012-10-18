@@ -14,8 +14,12 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+!#define debug
+! ======= Hardware =======
+
 MODULE radial_distrib 
 
   integer :: PANGR             ! (internal) number of bins in g(r) distribution
@@ -323,7 +327,7 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
 
 #ifdef debug
   do i=1, PANGR-1
-    WRITE (kunit_GRTFF,'(5i6)') i,gr(:,i)
+    WRITE (kunit_GRTFF,'(a,5i6)') 'debug ',i,gr(:,i)
   enddo
 #endif 
  
@@ -389,7 +393,7 @@ SUBROUTINE grcalc
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL gr_alloc
 #ifdef debug
-  print*,iastart , iaend
+  print*,'debug',iastart , iaend
 #endif
   ! ==========================================   
   !  skip the first nskip configurations 

@@ -14,8 +14,13 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
+
+! ======= Hardware =======
+!#define debug
+! ======= Hardware =======
+
+
 MODULE msd
 
   implicit none
@@ -314,6 +319,7 @@ SUBROUTINE msd_main ( nmsd )
                                                  + ( vyb ( ib , inmax - it + 1 , ia ) * dtime ) ** 2 &
                                                  + ( vzb ( ib , inmax - it + 1 , ia ) * dtime ) ** 2
 #ifdef debug
+          print*,'debug'
           if ( it .eq. 1 ) r2asum = r2asum       + ( vxb ( ib , inmax - it + 1 , ia ) * dtime ) ** 2 &
                                                  + ( vyb ( ib , inmax - it + 1 , ia ) * dtime ) ** 2 &
                                                  + ( vzb ( ib , inmax - it + 1 , ia ) * dtime ) ** 2
@@ -325,7 +331,7 @@ SUBROUTINE msd_main ( nmsd )
       ! ============================================================
       !  print mean square displacement to file for t=1,10,100,etc
       ! ============================================================
-      WRITE ( 79 + ib , *) dtime * ( nblock ** ( ib - 1 ) ), r2asum
+      WRITE ( 79 + ib , *) 'debug',dtime * ( nblock ** ( ib - 1 ) ), r2asum
 #endif
     endif
   enddo

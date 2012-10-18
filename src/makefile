@@ -1,31 +1,55 @@
-##########################################################
-# MAKEFILE FOR MDFF ON SUPERBOCK NIJMEGEN  DECEMBER 2011
-##########################################################
+###################################################
+# MAKEFILE FOR MDFF ON LISA AMSTERDAM JUNE 2011
+################################################### 
 
 # The compiler
 FC = mpif90 
 # installation directory
 INSTALL_DIR=../bin
 
-# on lisa
+# =================
+#      on lisa 
+# =================
 # flags for debugging or for maximum performance, comment as necessary
 #FCFLAGS = -fpp -check bounds -warn all
-#FCFLAGS = -fpp -check all -warn all
 #FCFLAGS = -O3 -pg -warn all
 #FCFLAGS = -O5 -ip -xW -warn all
-#FCFLAGS = -fpp -O3 -ip -xW
+#FCFLAGS = -fpp -O3 -ip -xW 
 
-#on superbock
-FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
-#FCFLAGS = -cpp -Werror -Wall -ffree-line-length-0 -I/usr/include 
+# =================
+#   on superbock
+# =================
+#FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 
-EXE= mdff.x bins.x bins-dos.x gen-kpt.x
+# =================
+#   on mario 
+# =================
+FCFLAGS = -fpp -O3 -ip -xW 
+
+EXE= mdff.x bins.x bins-dos.x
 
 # libraries needed 
-# on lisa
+
+# on mario
+
+
+# =================
+#      on lisa 
+# =================
 #LDFLAGS = -lm -lfftw3 -lmkl_lapack -lmkl -lguide -lpthread 
-# on superbock
-LDFLAGS= -lm -llapack -lfftw3
+
+# =================
+#   on superbock
+# =================
+#LDFLAGS= -lm -llapack -lfftw3
+
+# =================
+#   on mario 
+# =================
+# mkl path
+MKL_PATH=/opt/intel/Compiler/11.1/064/mkl/lib/em64t
+LDFLAGS = $(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
+INC=-I/opt/intel/Compiler/11.1/064/mkl/include/fftw
 
 # List of executables to be built within the package
 OBJ= \
@@ -68,15 +92,13 @@ bins.x: bins.o
 bins-dos.x: bins-dos.o
 	$(FC) $(FCFLAGS) -o $@ $^
 
-gen-kpt.x: gen-kpt.o
-	$(FC) $(FCFLAGS) -o $@ $^
-
 disttab.x: disttab.o
 	$(FC) $(FCFLAGS) -o $@ $^
 
-
 mdff.x: $(OBJ) mdff.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+fft_t.o:
+	$(FC) $(FCFLAGS) $(INC) -c fft_t.f90
 
 %.o: %.f90
 	$(FC) $(FCFLAGS) -c $< 
