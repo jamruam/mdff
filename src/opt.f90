@@ -266,15 +266,9 @@ SUBROUTINE opt_main
 
   omega = box * box * box
   rho = dble ( natm )  / omega 
- if ( ionode ) then
-    WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
-    WRITE ( stdout , '(a,i12)'  )    'natm  = ' , natm
-    WRITE ( stdout , '(a,i12)'  )    'ntype = ' , ntype
-    WRITE ( stdout , '(a,f12.5)')    'rho   = ' , rho
-    WRITE ( stdout , '(a,f12.5)')    'box   = ' , box
-    WRITE ( stdout , '(a,f12.5)')    'vol   = ' , omega
-    WRITE ( stdout , '(a)'      )    ''
-  endif
+
+  CALL print_general_info( stdout )
+  CALL print_general_info( kunit_OUTFF )
 
   ! ===================================
   !  here we know natm, then alloc 

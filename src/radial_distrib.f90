@@ -204,6 +204,117 @@ SUBROUTINE gr_print_info(kunit)
 
 END SUBROUTINE gr_print_info
 
+!*********************** SUBROUTINE grcalc ************************************
+!
+!
+!******************************************************************************
+SUBROUTINE grcalc
+
+  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
+                                rho , config_alloc , box , omega , atypei , itype, natmi
+  USE control,          ONLY :  myrank , numprocs
+  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_GRTFF , kunit_OUTFF
+  USE time
+
+  implicit none
+  INCLUDE 'mpif.h'
+
+  ! local 
+  integer :: ia , ic , it , ngr , na
+  integer :: iastart , iaend 
+  ! trash 
+  double precision :: aaaa
+  integer :: iiii
+  character * 60 :: cccc
+
+  OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
+    
+  READ ( kunit_TRAJFF , * ) natm
+  READ ( kunit_TRAJFF , * ) system
+  READ ( kunit_TRAJFF , * ) box , ntype
+  READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
+  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+  READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+  omega = box * box * box
+  rho = dble ( natm )  / omega 
+  CALL gr_init
+
+  CALL print_general_info( stdout )
+  CALL print_general_info( kunit_OUTFF )
+
+  ! ===================================
+  !  here we know natm, then alloc 
+  !  and decomposition can be applied 
+  ! ================================== 
+  CALL config_alloc 
+  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+  CALL gr_alloc
+#ifdef debug
+  print*,'debug',iastart , iaend
+#endif
+  ! ==========================================   
+  !  skip the first nskip configurations 
+  ! ==========================================
+  if (nskip.gt.0) then
+    do ic = 1,nskip
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) iiii   
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) cccc
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) aaaa   ,iiii
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+      do ia = 1 , natm 
+        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+      enddo      
+    enddo
+  endif
+
+  ngr = 0
+  do ic = nskip + 1, nc
+    if (ionode)print*,ic
+    na = 0
+    ! ===================================
+    !  read config from trajectory file
+    ! ===================================
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) iiii
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) cccc
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+    if ( ic .ne. (nskip + 1) .or. nskip.ne.0 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    do ia = 1 , natm
+      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+      if ( atype ( ia ) .eq. 'A') na = na + 1
+      if ( atype ( ia ) .eq. 'A') itype(ia)=1
+      if ( atype ( ia ) .eq. 'B') itype(ia)=2
+    enddo
+    if ( ntype .eq.  1 ) then
+      natmi(0)=natm
+      natmi(1)=na
+      atypei(0)='ALL'
+      atypei(1)='A'
+    endif
+    if ( ntype .eq.  2 ) then
+      natmi(0)=natm
+      natmi(1)=na
+      natmi(2)=natm-na
+      atypei(0)='ALL'
+      atypei(1)='A'
+      atypei(2)='B'
+    endif
+
+      ngr=ngr+1 
+      ! ==========================
+      !  calc radial_distribution 
+      ! ==========================  
+      call gr_main ( iastart , iaend , ngr )
+
+  enddo !nc 
+
+  CLOSE( kunit_TRAJFF )
+
+  return
+
+END SUBROUTINE grcalc
 
 !*********************** SUBROUTINE gr_main ***********************************
 !
@@ -343,121 +454,11 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
  
 END SUBROUTINE gr_main
 
-
-!*********************** SUBROUTINE grcalc ************************************
-!
-!
-!******************************************************************************
-SUBROUTINE grcalc
-
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                rho , config_alloc , box , omega , atypei , itype, natmi
-  USE control,          ONLY :  myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_GRTFF
-  USE time
-
-  implicit none
-  INCLUDE 'mpif.h'
-
-  ! local 
-  integer :: ia , ic , ngr , na
-  integer :: iastart , iaend 
-  ! trash 
-  double precision :: aaaa
-  integer :: iiii
-  character * 60 :: cccc
-
-  OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
-    
-  READ ( kunit_TRAJFF , * ) natm
-  READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) box , ntype
-  omega = box * box * box
-  rho = dble ( natm )  / omega 
-  CALL gr_init
- if ( ionode ) then
-    WRITE ( stdout , '(a)'      )    'Remind some parameters of the system:'
-    WRITE ( stdout , '(a,i12)'  )    'natm  = ' , natm
-    WRITE ( stdout , '(a,i12)'  )    'ntype = ' , ntype
-    WRITE ( stdout , '(a,f12.5)')    'rho   = ' , rho
-    WRITE ( stdout , '(a,f12.5)')    'box   = ' , box
-    WRITE ( stdout , '(a,f12.5)')    'vol   = ' , omega
-    WRITE ( stdout , '(a)'      )    ''
-  endif
-
-  ! ===================================
-  !  here we know natm, then alloc 
-  !  and decomposition can be applied 
-  ! ================================== 
-  CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
-  CALL gr_alloc
-#ifdef debug
-  print*,'debug',iastart , iaend
-#endif
-  ! ==========================================   
-  !  skip the first nskip configurations 
-  ! ==========================================
-  if (nskip.gt.0) then
-    do ic = 1,nskip
-      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) iiii   
-      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) cccc
-      if (ic.ne.1 ) READ ( kunit_TRAJFF , * ) aaaa   ,iiii
-      do ia = 1 , natm 
-        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      enddo      
-    enddo
-  endif
-
-  ngr = 0
-  do ic = nskip + 1, nc
-    if (ionode)print*,ic
-    na = 0
-    ! ===================================
-    !  read config from trajectory file
-    ! ===================================
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) iiii
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) cccc
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
-    do ia = 1 , natm
-      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      if ( atype ( ia ) .eq. 'A') na = na + 1
-      if ( atype ( ia ) .eq. 'A') itype(ia)=1
-      if ( atype ( ia ) .eq. 'B') itype(ia)=2
-    enddo
-    if ( ntype .eq.  1 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      atypei(0)='ALL'
-      atypei(1)='A'
-    endif
-    if ( ntype .eq.  2 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      natmi(2)=natm-na
-      atypei(0)='ALL'
-      atypei(1)='A'
-      atypei(2)='B'
-    endif
-
-      ngr=ngr+1 
-      ! ==========================
-      !  calc radial_distribution 
-      ! ==========================  
-      call gr_main ( iastart , iaend , ngr )
-
-  enddo !nc 
-
-  CLOSE( kunit_TRAJFF )
-
-  return
-
-END SUBROUTINE grcalc
-
 !*********************** SUBROUTINE static_struc_fac **************************
 !
 !
 !******************************************************************************
+
 SUBROUTINE static_struc_fac ( ngr )
 
   USE io_file,  ONLY :  ionode , kunit_STRFACFF
@@ -472,7 +473,8 @@ SUBROUTINE static_struc_fac ( ngr )
   integer :: i , k 
   double precision :: q , grr1 , vol , rr 
   double precision , dimension (:) , allocatable  :: stat_str
-  double complex   ,dimension (:), allocatable :: in , out
+  double precision   ,dimension (:), allocatable :: in 
+  double complex     ,dimension (:), allocatable :: out
 
   do i = 1,PANGR-1
     rr = resg*(dble(i)+0.5D0)
@@ -486,7 +488,7 @@ SUBROUTINE static_struc_fac ( ngr )
   enddo
 
   allocate ( stat_str (PANGR) )
-  allocate ( in(PANGR) , out(PANGR) )
+  allocate ( in(PANGR) , out(PANGR/2 +1) )
   ! ========
   !   FFT
   ! ========
@@ -507,8 +509,6 @@ SUBROUTINE static_struc_fac ( ngr )
   return
 
 END SUBROUTINE static_struc_fac
-
-
 
 
 END MODULE radial_distrib 

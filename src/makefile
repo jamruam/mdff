@@ -25,8 +25,10 @@ INSTALL_DIR=../bin
 #   on mario 
 # =================
 FCFLAGS = -fpp -O3 -ip -xW 
+#FCFLAGS = -fpp -check bounds -warn all
 
 EXE= mdff.x bins.x bins-dos.x
+EXE_= mdff_.x 
 
 # libraries needed 
 
@@ -50,39 +52,23 @@ EXE= mdff.x bins.x bins-dos.x
 MKL_PATH=/opt/intel/Compiler/11.1/064/mkl/lib/em64t
 LDFLAGS = $(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
 INC=-I/opt/intel/Compiler/11.1/064/mkl/include/fftw
+LDFLAGS=-Wl,-rpath,/home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/ -Wl,--start-group /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_intel_lp64.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_sequential.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
 
 # List of executables to be built within the package
-OBJ= \
-constants.o \
-io_file.o \
-control.o \
-prop.o \
-time.o \
-functions.o \
-fft_t.o \
-rand.o \
-lattice.o \
-config.o \
-md.o \
-lbfgs.o \
-m1qn3.o \
-block_average.o \
-thermo.o \
-kspace.o \
-rspace.o \
-kinetic.o \
-field.o \
-stress.o \
-tools.o \
-integration.o \
-opt.o \
-vib.o \
-msd.o \
-multi_tau.o \
-radial_distrib.o \
-efg.o \
-vacf.o \
-runmd.o
+OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
+     fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
+     block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
+     stress.o tools.o integration.o opt.o vib.o msd.o multi_tau.o \
+     radial_distrib.o efg.o vacf.o runmd.o
+
+#OBJ_= constants.o io_file.o control.o prop.o time.o functions.o \
+     fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
+     block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
+     stress.o tools.o integration.o opt.o vib.o msd.o multi_tau.o \
+     radial_distrib.o efg_new.o vacf.o runmd.o
+
+#test: $(EXE_)
+#	cp $(EXE_) $(INSTALL_DIR)
 
 all: $(EXE)
 
@@ -97,6 +83,10 @@ disttab.x: disttab.o
 
 mdff.x: $(OBJ) mdff.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+
+#mdff_.x: $(OBJ_) mdff.o
+#	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+
 fft_t.o:
 	$(FC) $(FCFLAGS) $(INC) -c fft_t.f90
 

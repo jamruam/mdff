@@ -474,7 +474,7 @@ SUBROUTINE gen_pos
     ! else all atoms are A ;)
     ! ======================================      
     else 
-      CALL init_sc
+!      CALL init_sc
       do ia = 1 , natm
         atype ( ia ) = 'A'
         itype ( ia ) = 1 

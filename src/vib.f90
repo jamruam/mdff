@@ -276,13 +276,9 @@ SUBROUTINE vib_main
   allocate(hess(3 * natm,3 * natm))
   allocate(work(9 * natm))
   allocate(deig(3 * natm),ipiv(3 * natm))
-  WRITE ( stdout ,'(a)')          'Remind some parameters of the system:'
-  WRITE ( stdout ,'(a,i5)')       'natm  = ', natm
-  WRITE ( stdout ,'(a,i5)')       'ncell = ', ncell
-  WRITE ( stdout ,'(a,i5)')       'ntype = ', ntype
-  WRITE ( stdout ,'(a,f10.3)')    'rho   = ', rho
-  WRITE ( stdout ,'(a,f10.3)')    'box   = ', box
-  WRITE ( stdout ,'(a,f10.3)')    'vol   = ', omega
+
+  CALL print_general_info( stdout )
+  CALL print_general_info( kunit_OUTFF )
   WRITE ( stdout ,'(a)')          ''
   WRITE ( stdout ,'(a,i5,a,i5)')  'hessian dimension', 3 * natm , 'x' , 3 * natm
 

@@ -56,28 +56,25 @@ MODULE io_file
 
   ! electric field gradient trajectory
   integer, PARAMETER :: kunit_EFGFF     = 50  
-  ! electric field gradient trajectory
-  integer, PARAMETER :: kunit_EFGFFIT   = 51  
+  integer, PARAMETER :: kunit_EFGFFIT1  = 51  
+  integer, PARAMETER :: kunit_EFGFFIT2  = 52  
 
   ! all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_EFGALL    = 60 
-  ! all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_EFGALLIT1 = 61
-  ! all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_EFGALLIT2 = 62 
 
   ! EFG eta distribution (average) 
   integer, PARAMETER :: kunit_DTETAFF   = 70
-  ! EFG eta distribution (average) 
   integer, PARAMETER :: kunit_DTETAFFIT = 71
 
   ! EFG vzz distribution (average)
   integer, PARAMETER :: kunit_DTVZZFF   = 80
-  ! EFG vzz distribution (average)
   integer, PARAMETER :: kunit_DTVZZFFIT = 81
 
   ! EFG tensor component distribution Ui  (average)
   integer, PARAMETER :: kunit_DTIBUFF   = 90
+  integer, PARAMETER :: kunit_DTIBUFFIT = 91
 
   ! GR radial distribution (average)
   integer, PARAMETER :: kunit_GRTFF     = 100

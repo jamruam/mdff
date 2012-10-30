@@ -287,7 +287,12 @@ PROGRAM main_MDFF
       CALL efg_init
       CALL efg_acf 
     endif
-   
+    ! ==============================================
+    ! ==============================================
+!    if ( calc .eq. 'efg+stat' ) then
+!      CALL efg_init
+!      CALL efg_stat
+!    endif
     ! ==============================================
     ! IF GR : 
     ! calculates radial distribution  of structures 

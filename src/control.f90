@@ -52,9 +52,9 @@ MODULE control
 
   ! type of calculation : md, opt, vib, efg ...              
   character*60, SAVE :: calc                
-  character*60, SAVE :: calc_allowed(10)    
+  character*60, SAVE :: calc_allowed(11)    
   data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'gr'/
+                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr'/
 
   ! algorithm for long-range calculation
   character*60, SAVE :: longrange            
@@ -244,7 +244,9 @@ SUBROUTINE control_print_info(kunit)
   !local 
   integer :: kunit
   integer :: status
+#ifdef GFORTRAN
   character(len=80) :: host
+#endif
  
   ! ===============
   !  date time info      

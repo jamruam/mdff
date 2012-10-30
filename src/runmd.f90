@@ -142,8 +142,8 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   !  lefg at t=0
   ! =============
   if ( lefg ) then
-    if ( longrange .eq. 'direct' )  CALL efg_DS ( 0 , 0 , iastart , iaend )
-    if ( longrange .eq. 'ewald'  )  CALL efg_ES ( 0 , 0 )
+    if ( longrange .eq. 'direct' )  CALL efg_DS ( 0 , iastart , iaend )
+    if ( longrange .eq. 'ewald'  )  CALL efg_ES ( 0 , iastart , iaend )
   endif
   ! ===================================
   !  calc. kinetic temperature at t=0
@@ -369,11 +369,11 @@ MAIN:  do itime = offset , npas + (offset-1)
              ! ==================
              !  direct summation 
              ! ================== 
-             if ( longrange .eq. 'direct' )  CALL efg_DS ( itime , nefg , iastart , iaend )
+             if ( longrange .eq. 'direct' )  CALL efg_DS ( itime , iastart , iaend )
              ! ==================
              !  ewald summation 
              ! ================== 
-             if ( longrange .eq. 'ewald' )   CALL efg_ES ( itime , nefg )
+             if ( longrange .eq. 'ewald' )   CALL efg_ES ( itime , iastart , iaend )
 #ifdef efg_t 
              ! =============
              !  efg output 
@@ -461,12 +461,12 @@ MAIN:  do itime = offset , npas + (offset-1)
   endif 
 
   ! =======
-  !  lefg
+  !  lefg  probably no lefg anymore not needed 
   ! =======
-  if ( lefg ) then
-    if ( ionode ) WRITE ( stdout , * ) 'write efg distribution files of ',nefg,' configurations'
-    CALL efg_write_output( nefg ) 
-  endif
+!  if ( lefg ) then
+!    if ( ionode ) WRITE ( stdout , * ) 'write efg distribution files of ',nefg,' configurations'
+!    CALL efg_write_output( nefg ) 
+!  endif
 
   ! =======
   !  lmsd

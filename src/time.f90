@@ -37,7 +37,8 @@ MODULE time
   double precision :: fcoultimetot2  ! engforce_coul fourier space      
   double precision :: efgtimetot1    ! EFG direct space           
   double precision :: efgtimetot2    ! EFG fourier space        
-  double precision :: efgtimetot3    ! ditribution  only         
+  double precision :: efgtimetot3    ! distribution  only         
+  double precision :: strftimetot    ! facteur de structure
   double precision :: mdsteptimetot  !                            
   double precision :: vacftimetot    !                            
   double precision :: vacftimetot2   !                            
@@ -66,6 +67,7 @@ SUBROUTINE time_init
   efgtimetot1   = 0.0d0
   efgtimetot2   = 0.0d0
   efgtimetot3   = 0.0d0
+  strftimetot   = 0.0d0 
   mdsteptimetot = 0.0d0
   vnlisttimetot = 0.0d0
   msdtimetot    = 0.0d0
@@ -134,6 +136,7 @@ SUBROUTINE print_time_info ( kunit )
     endif
     if ( longrange .eq. 'ewald')   then
     if ( estime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
+    if ( strftimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'struct fact       ', efgtimetot3
     if ( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(real  part)', efgtimetot1
     if ( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(recip part)', efgtimetot2 
     if ( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(dist  only)', efgtimetot3

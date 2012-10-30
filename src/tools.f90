@@ -499,7 +499,7 @@ END SUBROUTINE vnlistcheck
 
 SUBROUTINE print_tensor( tens , key )
 
-  USE io_file,  ONLY :  stdout
+  USE io_file,  ONLY :  ionode , stdout
 
   implicit none
 
@@ -510,12 +510,14 @@ SUBROUTINE print_tensor( tens , key )
   ! local
   integer :: i
 
-  WRITE ( stdout ,'(a)') key
-  do i = 1 , 3
-    WRITE ( stdout ,'(3f15.8)') tens(i,1) , tens(i,2) , tens(i,3)
-  enddo
-  WRITE ( stdout ,'(a,f15.8)') 'trace=',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
-  WRITE ( stdout ,*) ''
+  if ( ionode ) then
+    WRITE ( stdout ,'(a)') key
+    do i = 1 , 3
+      WRITE ( stdout ,'(3f15.8)') tens(i,1) , tens(i,2) , tens(i,3)
+    enddo
+    WRITE ( stdout ,'(a,f15.8)') 'trace=',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
+    WRITE ( stdout ,*) ''
+  endif
 
   return
 
@@ -659,6 +661,35 @@ SUBROUTINE print_config_sample ( time , rank )
 END SUBROUTINE print_config_sample
 
  
+!*********************** SUBROUTINE  ********************************
+!
+!******************************************************************************
+
+SUBROUTINE print_general_info(kunit)
+
+  USE io_file,  ONLY :  ionode 
+  USE config,   ONLY : natm , ncell , ntype , rho , box , omega
+
+  implicit none
+
+  integer :: kunit
+
+  if ( ionode ) then
+    WRITE ( kunit ,'(a)')          ''
+    WRITE ( kunit ,'(a)')          'Remind some parameters of the system:'
+    WRITE ( kunit ,'(a,i5)')       'natm  = ', natm
+    WRITE ( kunit ,'(a,i5)')       'ncell = ', ncell
+    WRITE ( kunit ,'(a,i5)')       'ntype = ', ntype
+    WRITE ( kunit ,'(a,f10.3)')    'rho   = ', rho
+    WRITE ( kunit ,'(a,f10.3)')    'box   = ', box
+    WRITE ( kunit ,'(a,f10.3)')    'vol   = ', omega
+    WRITE ( kunit ,'(a)')          ''
+  endif
+
+  return
+
+END SUBROUTINE print_general_info 
+
 
 !*********************** SUBROUTINE dumb_guy ********************************
 !
