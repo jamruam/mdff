@@ -37,7 +37,8 @@ MODULE time
   double precision :: fcoultimetot2  ! engforce_coul fourier space      
   double precision :: efgtimetot1    ! EFG direct space           
   double precision :: efgtimetot2    ! EFG fourier space        
-  double precision :: efgtimetot3    ! distribution  only         
+  double precision :: efgtimetot3    ! communication only         
+  double precision :: efgtimetot4    ! communication only         
   double precision :: strftimetot    ! facteur de structure
   double precision :: mdsteptimetot  !                            
   double precision :: vacftimetot    !                            
@@ -67,6 +68,7 @@ SUBROUTINE time_init
   efgtimetot1   = 0.0d0
   efgtimetot2   = 0.0d0
   efgtimetot3   = 0.0d0
+  efgtimetot4   = 0.0d0
   strftimetot   = 0.0d0 
   mdsteptimetot = 0.0d0
   vnlisttimetot = 0.0d0
@@ -97,13 +99,15 @@ SUBROUTINE print_time_info ( kunit )
 
   implicit none
 
+  !global
+  integer, intent (in) :: kunit
+
   ! local
   double precision :: dstime , estime
   double precision :: fcoultime_es , fcoultime_ds
-  integer :: kunit
 
   dstime = efgtimetot1 + efgtimetot3               ! direct
-  estime = efgtimetot1 + efgtimetot2 + efgtimetot3 ! ewald
+  estime = strftimetot + efgtimetot1 + efgtimetot2 + efgtimetot3 + efgtimetot4 ! ewald
   fcoultime_es = fcoultimetot1 + fcoultimetot2
   fcoultime_ds = fcoultimetot1 
 
@@ -136,10 +140,11 @@ SUBROUTINE print_time_info ( kunit )
     endif
     if ( longrange .eq. 'ewald')   then
     if ( estime        .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'EFG:'
-    if ( strftimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'struct fact       ', efgtimetot3
+    if ( strftimetot   .ne. 0.0d0 )  WRITE ( kunit ,110)             'struct fact       ', strftimetot
     if ( efgtimetot1   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(real  part)', efgtimetot1
     if ( efgtimetot2   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(recip part)', efgtimetot2 
-    if ( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(dist  only)', efgtimetot3
+    if ( efgtimetot3   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(comm  only)', efgtimetot3
+    if ( efgtimetot4   .ne. 0.0d0 )  WRITE ( kunit ,110)             'efg_ES(end   only)', efgtimetot4
     if ( fcoultime_es  .ne. 0.0d0 )  WRITE ( kunit ,'(a)')           'Coulomb:'
     if ( fcoultimetot1 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(real  part)', fcoultimetot1
     if ( fcoultimetot2 .ne. 0.0d0 )  WRITE ( kunit ,110)             'coul_ES(recip part)', fcoultimetot2 

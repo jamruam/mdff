@@ -79,6 +79,7 @@ SUBROUTINE direct_sum_init ( rm )
 
   if ( nc .ne. rm%ncmax ) then
     if ( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax
+    STOP
   endif
 
   return

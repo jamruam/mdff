@@ -64,6 +64,11 @@ MODULE io_file
   integer, PARAMETER :: kunit_EFGALLIT1 = 61
   integer, PARAMETER :: kunit_EFGALLIT2 = 62 
 
+  ! all efg for each atoms (if lefgprintall)
+  integer, PARAMETER :: kunit_NMRFF     = 65
+  integer, PARAMETER :: kunit_NMRFFIT1  = 66
+  integer, PARAMETER :: kunit_NMRFFIT2  = 67 
+
   ! EFG eta distribution (average) 
   integer, PARAMETER :: kunit_DTETAFF   = 70
   integer, PARAMETER :: kunit_DTETAFFIT = 71
@@ -177,6 +182,83 @@ SUBROUTINE io_end
   return
  
 END SUBROUTINE io_end
+
+!*********************** SUBROUTINE io_open ***********************************
+!
+! open file and check status
+!
+!******************************************************************************
+
+SUBROUTINE io_open ( kunit , cunit , iostatus )
+
+  implicit none
+
+  ! global
+  integer       , intent (in) :: kunit 
+  character(*)  , intent (in) :: cunit 
+  character(*)  , intent (in) :: iostatus
+  ! local
+  integer                 :: ioerr
+
+
+  OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
+
+  if ( ioerr .lt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
+    STOP
+  endif
+
+  return
+
+END SUBROUTINE io_open
+
+SUBROUTINE io_close ( kunit ) 
+  
+  implicit none
+
+  ! global
+  integer   , intent (in) :: kunit 
+  ! local
+  integer                 :: ioerr
+
+  CLOSE(UNIT=kunit,IOSTAT=ioerr)
+
+  if ( ioerr .lt. 0 )  then
+    if ( ionode ) WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
+    STOP
+  endif
+
+  return
+
+END SUBROUTINE io_close
+
+! **********************************************************************
+!  to remove leading and trailing spaces
+! **********************************************************************
+character(30) function sweep_blanks(in_str)
+
+  implicit none
+
+  character(*), intent(in) :: in_str
+  character(30)            :: out_str
+  character                :: ch
+  integer                  :: j
+
+  out_str = " "
+
+  do j=1, len_trim(in_str)
+
+  ! get j-th char
+    ch = in_str(j:j)
+    if (ch .ne. " ") then
+      out_str = trim(out_str) // ch
+    endif
+    sweep_blanks = out_str
+  enddo
+
+end function sweep_blanks
+
+
 
 END MODULE io_file
 ! ===== fmV =====

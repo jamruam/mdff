@@ -81,6 +81,8 @@
 !c
 !c-----------------------------------------------------------------------
 !c
+  USE io_file, ONLY : ionode
+
       implicit none
 !c
 !c     arguments
@@ -135,7 +137,7 @@
 !c
 !c---- license notice
 !c
-      if (impres.ge.5) then
+      if (ionode .and. impres.ge.5) then
           write (io,934)
       endif
   934 format (1x,79("-") /1x,"M1QN3 Copyright (C) 2008, J. Ch. Gilbert, Cl. ","Lemarechal." &
@@ -146,7 +148,7 @@
 !c
 !c---- impressions initiales et controle des arguments
 !c
-      if (impres.ge.1) then
+      if ( ionode .and. impres.ge.1) then
           write (io,900) n,dxmin,df1,epsg,normtype,niter,nsim,impres
           if (reverse.gt.0) then
               write (io,'(5x,a)') "reverse communication"
@@ -169,32 +171,32 @@
       if (n.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: n should be > 0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: n should be > 0"
           return
       endif
       if (niter.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: niter should be > 0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: niter should be > 0"
           return
       endif
       if (nsim.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: nsim should be > 0"
+          if (ionode .and.impres.ge.1) write (io,'(/a)') " >>> m1qn3: nsim should be > 0"
           return
       endif
       if (dxmin.le.0.d0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: dxmin should be > 0.d0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: dxmin should be > 0.d0"
           return
       endif
 !c     if (epsg.le.0.d0 .or. epsg.gt.1.d0) then
       if (epsg.le.0.d0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg should be > 0.d0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg should be > 0.d0"
           return
       endif
       if (epsg.ge.1.d0) then
@@ -203,7 +205,7 @@
           nsim=0
           epsg=1.d0
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg is >= 1.d0, no need to make progress"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg is >= 1.d0, no need to make progress"
           goto 1000
       endif
       if ((normtype.ne.'two') .and. (normtype.ne.'sup') .and. (normtype.ne.'dfn')) then
@@ -212,7 +214,7 @@
           write (io,'(/a,a,a/)') " >>> m1qn3: unknown norm type '", normtype, "'"
           return
       endif
-      if (impres.lt.0) then
+      if (ionode .and. impres.lt.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
           write (io,'(/a,i0/)') " >>> m1qn3: impres should be >= 0 and has the value ", impres
@@ -222,11 +224,11 @@
 !c---- what method
 !c
       if (imode(1).eq.0) then
-          if (impres.ge.1) write (io,920)
+          if (ionode .and. impres.ge.1) write (io,920)
   920     format (/" m1qn3: Diagonal Initial Scaling mode")
           sscale=.false.
       else
-          if (impres.ge.1) write (io,921)
+          if (ionode .and. impres.ge.1) write (io,921)
   921     format (/" m1qn3: Scalar Initial Scaling mode")
           sscale=.true.
       endif
@@ -234,7 +236,7 @@
       if ((ndz.lt.5*n+1).or.((.not.sscale).and.(ndz.lt.6*n+1))) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,922)
+          if (ionode .and.impres.ge.1) write (io,922)
   922     format (/" >>> m1qn3: not enough memory allocated")
           return
       endif
@@ -248,7 +250,7 @@
       if (m.lt.1) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,930)
+          if (ionode .and.impres.ge.1) write (io,930)
   930     format (/" >>> m1qn3: m is set too small in mupdts")
           return
       endif
@@ -260,16 +262,16 @@
 !c
       ntravu=2*(2+mmemo)*n+m
       if (sscale) ntravu=ntravu-n
-      if (impres.ge.1) write (io,931) ndz,ntravu,m
+      if (ionode .and.impres.ge.1) write (io,931) ndz,ntravu,m
   931 format (/5x,"allocated memory (ndz) :",i9/5x,"used memory :           ",i9/5x,"number of updates :     ",i9)
       if (ndz.lt.ntravu) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (impres.ge.1) write (io,922)
+          if (ionode .and.impres.ge.1) write (io,922)
           return
       endif
 !c
-      if (impres.ge.1) then
+      if (ionode .and.impres.ge.1) then
           if (inmemo) then
               write (io,932)
           else
@@ -284,12 +286,12 @@
 !c               iz(3)=m, iz(4)=jmin, iz(5)=jmax
 !c
       if (imode(2).eq.0) then
-          if (impres.ge.1) write (io,940)
+          if (ionode .and.impres.ge.1) write (io,940)
       else
           if (iz(1).ne.n .or. iz(2).ne.imode(1) .or. iz(3).ne.m .or. iz(4).lt.1 .or. iz(5).lt.0 .or. iz(4).gt.iz(3) .or. iz(5).gt.iz(3)) then
               omode=2
               if (reverse.gt.0) reverse = -1
-              if (impres.ge.1) then
+              if (ionode .and.impres.ge.1) then
                   write (io,941)
                   if (iz(1).ne.n) write (io,942)
                   if (iz(2).ne.imode(1)) write (io,943)
@@ -298,7 +300,7 @@
               endif
               return
           endif
-          if (impres.ge.1) write (io,946)
+          if (ionode .and.impres.ge.1) write (io,946)
       endif
   940 format (/" m1qn3: cold start"/1x)
   941 format (/" >>> m1qn3: inconsistent warm restart ")
@@ -336,7 +338,7 @@
 !c---- impressions finales
 !c
  1000 continue
-      if (impres.ge.1) write (io,960) omode,niter,nsim,epsg
+      if ( ionode .and. impres.ge.1) write (io,960) omode,niter,nsim,epsg
   960 format (/1x,79("-")/" m1qn3: output mode is ",i2 /5x,"number of iterations: ",i14 & 
               /5x,"number of simulations: ",i13 &
               /5x,"realized relative precision on g: ",1pd9.2)
@@ -349,7 +351,7 @@
           gnorm=dsqrt(ps)
       endif
 
-      if (impres.ge.1) write (io,961) f,normtype,gnorm
+      if (ionode .and.impres.ge.1) write (io,961) f,normtype,gnorm
   961 format (5x,"f             = ",1pd15.8/5x,a3,"-norm of g = ",1pd15.8)
 
       return
@@ -367,6 +369,7 @@
 !c
 !c----
 !c
+  USE io_file, ONLY : ionode
       implicit none
 !c
 !c         arguments
@@ -431,11 +434,11 @@
       elseif (normtype.eq.'dfn') then
           gnorms = gnorm
       endif
-      if (impres.ge.1) write (io,900) f,normtype,gnorms
+      if (ionode .and.impres.ge.1) write (io,900) f,normtype,gnorms
   900 format (5x,"f             = ",1pd15.8/5x,a3,"-norm of g = ",1pd15.8)
       if (gnorms.lt.rmin) then
           omode=2
-          if (impres.ge.1) write (io,901)
+          if (ionode .and.impres.ge.1) write (io,901)
           goto 1000
       endif
   901 format (/" >>> m1qn3a: initial gradient is too small")
@@ -460,7 +463,7 @@
               d(i)=-g(i)*precos
               diag(i)=1.d+0
    10     continue
-          if (impres.ge.5) write(io,902) precos
+          if (ionode .and.impres.ge.5) write(io,902) precos
   902     format (/" m1qn3a: descent direction -g: precon = ",d10.3)
       else
 !c
@@ -480,8 +483,8 @@
           endif
       endif
 !c
-      if (impres.eq.3) write(io,903)
-      if (impres.eq.4) write(io,903)
+      if (ionode .and.impres.eq.3) write(io,903)
+      if (ionode .and.impres.eq.4) write(io,903)
   903 format (/1x,79("-"))
   904 format (1x)
 !c
@@ -491,14 +494,14 @@
       call prosca (n,d,g,hp0,izs,rzs,dzs)
       if (hp0.ge.0.d+0) then
           omode=7
-          if (impres.ge.1) write (io,905) niter,hp0
+          if (ionode .and.impres.ge.1) write (io,905) niter,hp0
           goto 1000
       endif
   905 format (/" >>> m1qn3 (iteration ",i2,"): "/5x," the search direction d is not a ","descent direction: (g,d) = ",d12.5)
 !c
 !c     --- compute the angle (-g,d)
 !c
-      if (warm.and.impres.ge.5) then
+      if (ionode .and. warm.and.impres.ge.5) then
           call prosca (n,g,g,ps,izs,rzs,dzs)
           ps=dsqrt(ps)
           call prosca (n,d,d,ps2,izs,rzs,dzs)
@@ -518,9 +521,9 @@
 !c         Sortie de la boucle: goto 1000.
 !c
 100   niter=niter+1
-      if (impres.ge.5) write(io,903)
-      if (impres.ge.4) write(io,904)
-      if (impres.ge.4) write (io,910) niter,isim,f,hp0
+      if (ionode .and.impres.ge.5) write(io,903)
+      if (ionode .and.impres.ge.4) write(io,904)
+      if (ionode .and.impres.ge.4) write (io,910) niter,isim,f,hp0
   910 format (" m1qn3: iter ",i0,", simul ",i0,", f=",1pd15.8,", h'(0)=",d12.5)
 !c
 !c     --- free simulation if desired
@@ -544,7 +547,7 @@
           gg(i)=g(i)
 101   continue
       ff=f
-      if (impres.ge.5) write (io,911)
+      if (ionode .and.impres.ge.5) write (io,911)
   911 format (/" m1qn3: line search")
 !c
 !c         --- calcul de tmin
@@ -578,7 +581,7 @@
 !c
               skip_update = .true.
 !c             omode=3
-!c             if (impres.ge.1) write(io,912) niter
+!c             if (ionode .and.impres.ge.1) write(io,912) niter
 !c 912         format (/" >>> m1qn3 (iteration ",i0,
 !c    &                "): line search blocked on tmax: "/
 !c    &                " >>> possible reasons: bad scaling,",
@@ -615,7 +618,7 @@
 !c     --- mise a jour de la matrice
 !c
       if (skip_update) then
-          if (impres.ge.5) write(io,'(/a)') " m1qn3: matrix update is skipped"
+          if (ionode .and.impres.ge.5) write(io,'(/a)') " m1qn3: matrix update is skipped"
       elseif (m.gt.0) then
 !c
 !c         --- mise a jour des pointeurs
@@ -634,7 +637,7 @@
               sbar(i,jcour)=t*d(i)
               ybar(i,jcour)=g(i)-gg(i)
 400       continue
-          if (impres.ge.5) then
+          if (ionode .and.impres.ge.5) then
               call prosca (n,sbar(1,jcour),sbar(1,jcour),ps,izs,rzs,dzs)
               dk1=dsqrt(ps)
               if (niter.gt.1) write (io,930) dk1/dk
@@ -644,7 +647,7 @@
           call prosca (n,ybar(1,jcour),sbar(1,jcour),ys,izs,rzs,dzs)
           if (ys.le.0.d+0) then
               omode=7
-              if (impres.ge.1) write (io,931) niter,ys
+              if (ionode .and.impres.ge.1) write (io,931) niter,ys
   931         format (/" >>> m1qn3 (iteration ",i2,"): the scalar product (y,s) = ",d12.5/27x,"is not positive")
               goto 1000
           endif
@@ -660,7 +663,7 @@
 !c
 !c         --- compute the scalar or diagonal preconditioner
 !c
-          if (impres.ge.5) write(io,932)
+          if (ionode .and.impres.ge.5) write(io,932)
   932     format (/" m1qn3: matrix update:")
 !c
 !c             --- Here is the Oren-Spedicato factor, for scalar scaling
@@ -669,7 +672,7 @@
               call prosca (n,ybar(1,jcour),ybar(1,jcour),ps,izs,rzs,dzs)
               precos=1.d+0/ps
 !c
-              if (impres.ge.5) write (io,933) precos
+              if (ionode .and.impres.ge.5) write (io,933) precos
   933         format (5x,"Oren-Spedicato factor = ",d10.3)
 !c
 !c             --- Scale the diagonal to Rayleigh s ellipsoid.
@@ -684,7 +687,7 @@
                   ps=ps+diag(i)*aux(i)*aux(i)
   420         continue
               d1=1.d0/ps
-              if (impres.ge.5) then
+              if (ionode .and.impres.ge.5) then
                   write (io,934) d1
   934             format(5x,"fitting the ellipsoid: factor = ",1pd10.3)
               endif
@@ -704,13 +707,13 @@
               do 431 i=1,n
                   diag(i)=1.d0/(1.d0/diag(i)+aux(i)**2-(gg(i)/diag(i))**2/den)
                   if (diag(i).le.0.d0) then
-                      if (impres.ge.5) write (io,935) i,diag(i),rmin
+                      if (ionode .and.impres.ge.5) write (io,935) i,diag(i),rmin
                       diag(i)=rmin
                   endif
   431         continue
   935         format (/" >>> m1qn3-WARNING: diagonal element ",i8," is negative (",d10.3,"), reset to ",d10.3)
 !c
-              if (impres.ge.5) then
+              if (ionode .and.impres.ge.5) then
                   ps=0.d0
                   do 440 i=1,n
                       ps=ps+diag(i)
@@ -744,11 +747,11 @@
       endif
       eps1 = gnorm/gnorms
 !c
-      if (impres.eq.3) then
+      if (ionode .and.impres.eq.3) then
           if (mod(niter-1,50).eq.0) write(io,'(/a,a)') "  iter  simul  stepsize            f                |g|","       |g|/|g0|"
           write(io,'(1x,i5,2x,i5,2x,1pd8.2,2x,d21.14,2x,d11.5,2x,d10.4)') niter, isim, t, f, gnorm, eps1
       endif
-      if (impres.ge.5) write (io,940) eps1
+      if (ionode .and.impres.ge.5) write (io,940) eps1
   940 format (/" m1qn3: stopping criterion on g: ",1pd12.5)
       if (eps1.lt.epsg) then
           omode=1
@@ -756,13 +759,13 @@
       endif
       if (niter.eq.itmax) then
           omode=4
-          if (impres.ge.1) write (io,941) niter
+          if (ionode .and.impres.ge.1) write (io,941) niter
   941     format (/" >>> m1qn3 (iteration ",i0,"): maximal number of iterations")
           goto 1000
       endif
       if (isim.gt.nsim) then
           omode=5
-          if (impres.ge.1) write (io,942) niter,isim
+          if (ionode .and.impres.ge.1) write (io,942) niter,isim
   942     format (/" >>> m1qn3 (iteration ",i3,"): ",i6," simulations (maximal number reached)")
           goto 1000
       endif
@@ -791,10 +794,10 @@
       call prosca (n,d,g,hp0,izs,rzs,dzs)
       if (hp0.ge.0.d+0) then
           omode=7
-          if (impres.ge.1) write (io,905) niter,hp0
+          if (ionode .and.impres.ge.1) write (io,905) niter,hp0
           goto 1000
       endif
-      if (impres.ge.5) then
+      if (ionode .and.impres.ge.5) then
           call prosca (n,g,g,ps,izs,rzs,dzs)
           ps=dsqrt(ps)
           call prosca (n,d,d,ps2,izs,rzs,dzs)

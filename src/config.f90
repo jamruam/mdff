@@ -31,7 +31,9 @@ MODULE config
 
   implicit none
 
+  integer, PARAMETER :: natmmax  = 16   ! tmp not controling all the arrays
   integer, PARAMETER :: ntypemax = 16
+  integer, PARAMETER :: npolmax  = 16
 
   character*60, SAVE :: system                                       ! system name                                              
 
@@ -43,6 +45,7 @@ MODULE config
   integer :: ntype                                                   ! number of types
   integer :: ncell                                                   ! number of cell (with lfcc)
   integer, dimension(:), allocatable :: itype                        ! type of atome i array 
+  integer, dimension(:), allocatable :: ipolar                       ! .eq. 1 if polar 
   integer, dimension(:), allocatable :: list, point                  ! vnlist info
   integer, dimension(0:ntypemax)     :: natmi                        ! number of atoms (per type)
 
@@ -59,7 +62,8 @@ MODULE config
   double precision , dimension(:), allocatable :: xs  , ys  , zs     ! last positions in verlet list
   double precision , dimension(:), allocatable :: rix , riy , riz    ! positions in the center of mass reference 
 
-  double precision , dimension(:), allocatable :: qia                ! charge of ion 
+  double precision , dimension(:)  , allocatable :: qia              ! charge on ion 
+  double precision , dimension(:,:), allocatable :: dipia            ! dipole on ion 
 
   character*3, dimension(:), allocatable      :: atype               ! atom type A or B 
   character*3, dimension(0:ntypemax)          :: atypei              ! type of atoms (per type)
@@ -186,7 +190,7 @@ SUBROUTINE config_default_tag
   system   = 'UNKNOWN'
   struct   = 'random'
   ntype    = 1
-  ncell    = 4
+  ncell    = 0 
   xn       = 0.0D0
   xn ( 1 ) = 1.0D0       ! particle A
       
@@ -795,6 +799,8 @@ SUBROUTINE config_alloc
   allocate( list ( natm * 250 ) , point(  natm + 1 ) )
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
+  allocate( dipia ( natm , 3 ) )
+  allocate( ipolar ( natm ) )
 
   rx = 0.0D0
   ry = 0.0D0
@@ -818,6 +824,8 @@ SUBROUTINE config_alloc
   list = 0
   point = 0
   qia = 0.0d0
+  dipia = 0.0d0
+  ipolar = 0
 
   return 
  
@@ -846,6 +854,8 @@ SUBROUTINE config_dealloc
   deallocate( list , point )
   deallocate( xs , ys , zs )
   deallocate( qia ) 
+  deallocate( dipia ) 
+  deallocate( ipolar ) 
 
   return 
 

@@ -74,6 +74,15 @@ PROGRAM main_MDFF
 #endif
   character*60 :: vib_allowed(5)                     
   data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
+  
+  integer :: it , ik ! tmp
+
+  ! from vasp 5.3 ;)
+  CHARACTER (LEN=80),PARAMETER :: MDFF = &
+        'mdff.0.3.1' // ' ' // &
+        ' (build ' // __DATE__// ' ' //__TIME__// ') ' // &
+        'parallel'
+
 
   ! ====================================================
   ! MPI initialisation
@@ -102,10 +111,6 @@ PROGRAM main_MDFF
   ! input/output init 
   ! ====================================================
   CALL io_init                                            
-  ! ====================================================
-  ! VERSION 
-  ! ====================================================
-  VERSION = '0.3.1'
   
   ! ========================================
   ! reads command line
@@ -121,7 +126,7 @@ PROGRAM main_MDFF
   ! parameters before to read them 
   ! and check consistency
   ! ========================================
-  CALL control_init
+  CALL control_init ( MDFF ) 
 
   ! =====================================
   ! bmlj_init is the main PROGRAM: 
@@ -337,8 +342,9 @@ PROGRAM main_MDFF
   !  only for test purpose
   ! =======================
 
-    if ( ionode ) WRITE ( stdout ,'(a)') ' ############################# '
-    if ( ionode ) WRITE ( stdout ,'(a)') ' ### TEST PART OF THE CODE ###'
+    if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
+    if ( ionode ) WRITE ( stdout      ,'(a)'  ) '                           TEST                              '
+    if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
     if ( ionode ) WRITE ( stdout ,'(a)') ' ############################# '
     ! 
     !    WRITE HERE YOUR CODE TO BE TESTED 

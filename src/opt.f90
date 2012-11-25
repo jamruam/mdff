@@ -24,12 +24,15 @@ MODULE opt
 
   implicit none
 
+  logical :: lforce            ! calculate force of the optimise configuration
+
   integer :: ncopt             ! number of configurations in TRAJFF  
   integer :: nskipopt          ! number of configurations skipped in the beginning 
   integer :: nmaxopt           ! number of configurations optimized  
   integer :: nperiodopt
 
   double precision :: epsrel_m1qn3  ! gradient stop criterion for m1qn3
+  double precision :: epsrel_lbfgs  ! gradient stop criterion for lbfgs
 
   character*60 :: optalgo      ! choose optimization algorithm
   character*60 :: optalgo_allowed(3)
@@ -57,6 +60,8 @@ SUBROUTINE opt_init
                     ncopt         , & 
                     nskipopt      , &
                     epsrel_m1qn3  , & 
+                    epsrel_lbfgs  , & 
+                    lforce        , &
                     nmaxopt       
 
   ! ===============================
@@ -111,7 +116,9 @@ SUBROUTINE opt_default_tag
   ncopt        = 0
   nskipopt     = 0 
   nmaxopt      = 1 
-  epsrel_m1qn3 = 1.0e-6
+  epsrel_m1qn3 = 1.0e-5
+  epsrel_lbfgs = 1.0e-5
+  lforce       = .true.
 
   return 
  
@@ -182,14 +189,17 @@ SUBROUTINE opt_print_info(kunit)
                                WRITE ( kunit ,'(a)')       'Limited memory BFGS method for large scale optimisation'
                                WRITE ( kunit ,'(a)')       'Author: J. Nocedal   *** July 1990 ***'
                                WRITE ( kunit ,'(a)')       'driver by FMV'
+                               WRITE ( kunit ,'(a,f12.5)') 'relative precision on the gradient',epsrel_lbfgs
        endif
        if ( optalgo .eq. 'm1qn3' )  then
                                WRITE ( kunit ,'(a)')       'M1QN3, Version 3.3, October 2009'
                                WRITE ( kunit ,'(a)')       'Authors: Jean Charles Gilbert, Claude Lemarechal, INRIA.'
                                WRITE ( kunit ,'(a)')       'Copyright 2008, 2009, INRIA.'
                                WRITE ( kunit ,'(a)')       'M1QN3 is distributed under the terms of the GNU General Public  License.'
+                               WRITE ( kunit ,'(a)')       'driver by FMV'
                                WRITE ( kunit ,'(a)')       ''
                                WRITE ( kunit ,'(a)')       'reverse communication and DIS ( see m1qn3 driver and documentation) ' 
+                               WRITE ( kunit ,'(a,f12.5)') 'relative precision on the gradient',epsrel_m1qn3
        endif
 
                                WRITE ( kunit ,'(a)')       ''  
@@ -222,7 +232,9 @@ END SUBROUTINE opt_print_info
 
 SUBROUTINE opt_main 
 
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , atype , rho , config_alloc , list , point , box , omega , atypei , itype, natmi 
+  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
+                                atype  , rho , config_alloc , list , point , box , omega , &
+                                atypei , itype, natmi 
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF, kunit_OUTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
@@ -328,25 +340,6 @@ SUBROUTINE opt_main
     enddo
   enddo
 
-! old version
-!    if ( ntype .eq.  1 ) then
-!      natmi ( 0 ) = natm
-!      natmi ( 1 ) = na
-!      atypei ( 0 )= 'ALL'
-!      atypei ( 1 )= 'A'
-!    endif
-!    if ( ntype .eq.  2 ) then
-!      natmi  (0) = natm
-!      natmi  (1) = na
-!      natmi  (2) = natm-na
-!      atypei (0) = 'ALL'
-!      atypei (1) = 'A'
-!      atypei (2) = 'B'
-!    endif
-
-!    call set_type_parameters_from_atype
-
-
     if ( ((mod(ic,nperiodopt) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
       ! =======================
@@ -365,8 +358,8 @@ SUBROUTINE opt_main
         if ( ionode ) then
           WRITE ( stdout ,'(a)')             ''
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
-          WRITE ( stdout ,'(a)')             '    its  nstep          grad              ener'
-          WRITE (kunit_OUTFF,'(a,2f16.8)')   'initial energy&pressure  = ',pot0,pressure0
+          WRITE ( stdout ,'(a)')             '    its       grad              ener'
+          WRITE ( kunit_OUTFF,'(a,2f16.8)')  'initial energy&pressure  = ',pot0,pressure0
         endif
         CALL sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       endif
@@ -377,7 +370,7 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a)')             ''
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
-          WRITE (kunit_OUTFF,'(a,2f16.8)')   'initial energy&pressure  = ',pot0,pressure0
+          WRITE ( kunit_OUTFF,'(a,2f16.8)')  'initial energy&pressure  = ',pot0,pressure0
         endif
         CALL lbfgs_driver ( iter, Eis , phigrad , iastart , iaend )
         neng = iter ! the number of function call is iter
@@ -387,9 +380,9 @@ SUBROUTINE opt_main
        if (optalgo.eq.'m1qn3') then
         if ( ionode ) then
           WRITE ( stdout ,'(a)')             ''
-          WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  =',pot0,pressure0
-          WRITE ( stdout ,'(a)')             '    its       grad    ener'
-          WRITE (kunit_OUTFF,'(a,2f16.8)')   'initial energy&pressure  =',pot0,pressure0
+          WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
+          WRITE ( stdout ,'(a)')             '    its       grad              ener'
+          WRITE ( kunit_OUTFF,'(a,2f16.8)')  'initial energy&pressure  = ',pot0,pressure0
         endif
         CALL m1qn3_driver ( iter, Eis , phigrad , iastart , iaend )
         neng = iter ! the number of function call is iter
@@ -400,8 +393,8 @@ SUBROUTINE opt_main
       !  write final thermodynamic info 
       ! ================================
       if ( ionode ) then
-        WRITE ( stdout , '(a,2f16.8)' )      'final energy&Pressure = ',Eis,pressure_tot
-        WRITE ( kunit_OUTFF , '(a,2f16.8)' ) 'final energy&Pressure = ',Eis,pressure_tot
+        WRITE ( stdout , '(a,2f16.8)' )      '   final energy&pressure = ',Eis,pressure_tot
+        WRITE ( kunit_OUTFF , '(a,2f16.8)' ) '   final energy&pressure = ',Eis,pressure_tot
         WRITE ( kunit_ISTHFF , '(i8,3f20.12,2i8,2f20.12)' ) &
         ic , Eis , phigrad , pressure_tot , iter , neng , pot0 , pressure0
         WRITE ( stdout,'(a)') ''
@@ -411,7 +404,7 @@ SUBROUTINE opt_main
       ! ===========================================
       !  calculated forces (they should be small) 
       ! ===========================================
-      CALL engforce( iastart , iaend )
+      if ( lforce ) CALL engforce( iastart , iaend )
       ! =============================================
       !  write IS structures
       !  new configurations are stored in rx ,ry ,rz, fx , fy ,fz
@@ -1020,7 +1013,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !
   !             where ||.|| denotes the Euclidean norm.
   !=================================================================================
-  EPS = 1.0D-5
+  EPS = epsrel_lbfgs 
   !=================================================================================
   ! XTOL    is a  positive DOUBLE PRECISION variable that must be set by
   !         the user to an estimate of the machine precision (e.g.
@@ -1069,7 +1062,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !                        positive.
   !           
   !              IFLAG=-3  Improper input parameters for LBFGS (N or M are
-  !C                        not positive).
+  !                        not positive).
   !=================================================================================
   IFLAG=0
 
@@ -1090,7 +1083,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !==============================================================
   do its=1,itmax
 
-    CALL engforce ( iastart , iaend )!, list , point )
+    CALL engforce ( iastart , iaend )
     CALL calc_thermo
 
 #ifdef debug
@@ -1180,7 +1173,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   character*3 normtype
   integer :: imp,io,imode(3),omode,niter,nsim,iz(5),ndz,izs(1),indic,reverse
   real rzs(1)
-  double precision :: f,dx,df1,epsrel,dzs(1)
+  double precision :: f,dxmin,df1,epsrel,dzs(1)
   double precision, dimension (:), allocatable :: x , g , dz
 
   ! external 
@@ -1190,7 +1183,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   !   initialization
   ! =====================
   n=3*natm
-  ndz=40000
+  ndz=4*n+2*(2*n+1)
   icall = 0
   kl = 1
   ALLOCATE ( x (N) )
@@ -1226,29 +1219,30 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   !                  'two' for 2-norm, 
   !                  'dfn' for the norm defined by prosca
   ! =========================================================
-  dx=1.e-14            ! dxmin  
-  df1=1000.0d0         ! df1
-  epsrel=epsrel_m1qn3  ! epsg 
-  niter=6000           ! niter
-  nsim=6000            ! nsim 
-  normtype = 'dfn'     ! normtype   
-  io=stdout            ! io  
-  imp= 1               ! impress  no print
-  imode(1)=0           ! imode(1) = 0 DIS  
+  dxmin    = 1.e-14       
+  df1      = 1500.0d0     
+  epsrel   = epsrel_m1qn3 
+  niter    = 6000     
+  nsim     = 6000     
+  normtype = 'dfn'       
+  io       = stdout    ! io output
+  imp      = 0         ! impress  no print
+  imode(1) = 0         ! imode(1) = 0 DIS  
                        ! imode(1) = 1 SIS
   imode(2)=0           ! starting mode : = 0 cold start  direction -g
                        !                 = 1 warm start  direction -Wg 
   imode(3)=0           ! imode 
   reverse=1            ! reverse
 
-  100 continue
+  do while ( reverse .ge. 0 ) 
+  !100 continue
 
     icall = icall + 1
 
-    call m1qn3 (simul_rc,euclid,ctonbe,ctcabe,n,x,f,g,dx,df1, &
+    call m1qn3 (simul_rc,euclid,ctonbe,ctcabe,n,x,f,g,dxmin,df1, &
                 epsrel,normtype,imp,io,imode,omode,niter,nsim,iz, & 
                 dz,ndz,reverse,indic,izs,rzs,dzs)
-    if (reverse.lt.0) goto 101
+   ! if (reverse.lt.0) goto 101
     ! ===============================================
     !  reset positions for energy/forces calculation
     ! ==============================================
@@ -1281,18 +1275,19 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
       kl = 2 * kl
     endif
 
-
-    goto 100
-  101 continue
+    enddo
+!    goto 100
+!  101 continue
 
   if ( ionode ) then
     WRITE ( stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
     WRITE ( stdout , '(a,i5,a)' ) 'minimum reached in ',icall,' iterations'
   endif
-  if ( omode .ne. 0 .and. omode .ne. 1 ) then
+  if ( omode .ne. 0 .and. omode .ne. 1 .and. omode .ne. 6  ) then
     if ( ionode) WRITE ( stdout , '(a,i5)' ) 'm1qn3 did not properly terminate ',omode
     stop
   endif  
+  if ( ionode .and. omode.eq.6 ) WRITE ( stdout , '(a,i5)' ) 'WARNING rounding errors are expected omode = 6 '
 
   ! final energy
   Eis=u_tot

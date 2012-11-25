@@ -33,7 +33,6 @@ MODULE control
   integer, SAVE :: numprocs                  ! total number of procs    
   character*8,  SAVE   :: DATE
   character*10, SAVE   :: HOUR 
-  character*5,  SAVE   :: VERSION
 
   logical, SAVE :: ltest
   logical, SAVE :: lstatic                   ! no MD                                                
@@ -47,6 +46,7 @@ MODULE control
   logical, SAVE :: lcoulomb                  ! coulombic potential
 
   double precision, SAVE :: cutoff           ! small-range cutoff
+  double precision, SAVE :: cutlongrange     ! longrange-range cutoff
   double precision, SAVE :: skindiff         ! verlet-list cutoff ( cutoff + skindiff )
 
 
@@ -75,7 +75,7 @@ CONTAINS
 !
 !******************************************************************************
 
-SUBROUTINE control_init
+SUBROUTINE control_init ( MDFF )
 
   USE io_file,  ONLY :  ionode , stdin , stdout, kunit_OUTFF
 
@@ -84,9 +84,11 @@ SUBROUTINE control_init
   ! local
   character*132 :: filename
   integer :: ioerr
+  CHARACTER (LEN=80) :: MDFF
 
   namelist /controltag/  lbmlj     , &
                          lcoulomb  , &
+                         cutlongrange   , &
                          lvnlist   , &
                          lstatic   , &
                          lpbc      , &
@@ -115,7 +117,7 @@ SUBROUTINE control_init
     if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : controltag section is absent'
     STOP
   elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : controltag wrong tag'
+    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : controltag wrong tag',ioerr
     STOP    
   endif
   CLOSE ( stdin )
@@ -126,8 +128,8 @@ SUBROUTINE control_init
   ! ======================
   !  print info to output
   ! ======================
-  CALL control_print_info(stdout)
-  CALL control_print_info(kunit_OUTFF)
+  CALL control_print_info( stdout , MDFF )
+  CALL control_print_info( kunit_OUTFF , MDFF )
 
   return
 
@@ -162,6 +164,7 @@ SUBROUTINE control_default_tag
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
   cutoff        = 2.5d0
+  cutlongrange  = 400.d0
   skindiff      = 0.1d0
 
   return 
@@ -235,7 +238,7 @@ END SUBROUTINE control_check_tag
 !
 !******************************************************************************
 
-SUBROUTINE control_print_info(kunit)
+SUBROUTINE control_print_info( kunit , MDFF )
 
   USE io_file,  ONLY :  ionode 
 
@@ -247,6 +250,7 @@ SUBROUTINE control_print_info(kunit)
 #ifdef GFORTRAN
   character(len=80) :: host
 #endif
+  CHARACTER (LEN=80) :: MDFF
  
   ! ===============
   !  date time info      
@@ -275,8 +279,7 @@ SUBROUTINE control_print_info(kunit)
      WRITE ( kunit ,'(a)')       '============================================================='
      WRITE ( kunit ,'(a)')       ''
      WRITE ( kunit ,'(a)')       'MOLECULAR DYNAMICS ...for fun                 '
-     WRITE ( kunit ,'(a,a5)')    'mdff.',VERSION
-     WRITE ( kunit ,'(a)')       'parallel version'
+     WRITE ( kunit ,'(a)')       MDFF
      WRITE ( kunit ,'(a)')       'filipe.manuel.vasconcelos@gmail.com  '
      WRITE ( kunit ,'(a,i4,a)')  'Running on',numprocs,' nodes                  '
      if ( status == 0 ) then

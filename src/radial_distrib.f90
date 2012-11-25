@@ -271,7 +271,7 @@ SUBROUTINE grcalc
 
   ngr = 0
   do ic = nskip + 1, nc
-    if (ionode)print*,ic
+    if ( ionode ) print*,ic
     na = 0
     ! ===================================
     !  read config from trajectory file
@@ -348,8 +348,6 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   double precision :: grr1 , grr2 , grr3 , grrtot
   double precision :: grtime1 , grtime2      
 
-  integer, dimension (:,:), allocatable :: gr_sum
-
   grtime1 = MPI_WTIME(ierr)
 
   OPEN ( kunit_GRTFF , file = 'GRTFF' )
@@ -358,8 +356,6 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   na = natmi(1)
   nb = natm - na
 
-  allocate(gr_sum(4,0:PANGR))
-  gr_sum = 0
   do ia = 1 , natm
   if ( ia .gt. iaend ) then
     gr=0
@@ -403,8 +399,7 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   enddo
 
   do ii=1,4
-    CALL MPI_ALLREDUCE(gr(ii,:),gr_sum(ii,:),PANGR+1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-    gr(ii,:) = gr_sum(ii,:) 
+    CALL MPI_ALL_REDUCE_INTEGER ( gr(ii,:), PANGR+1 )
   enddo
 
   do i = 1,PANGR-1
@@ -414,11 +409,11 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
     k = k-(i*i*i)
     vol = dble(k)*resg*resg*resg ! r^3
     vol = (4.0D0/3.0D0)*pi*vol/omega !4/3pir^3
-    grr1   = dble(gr_sum(1,i))/(ngr*vol*na*na)
+    grr1   = dble(gr(1,i))/(ngr*vol*na*na)
     if (ntype .ne. 1 ) then
-      grr2   = dble(gr_sum(2,i))/(ngr*vol*nb*nb)
-      grr3   = dble(gr_sum(3,i))/(ngr*vol*na*nb)
-      grrtot = dble(gr_sum(4,i))/(ngr*vol*natm*natm)
+      grr2   = dble(gr(2,i))/(ngr*vol*nb*nb)
+      grr3   = dble(gr(3,i))/(ngr*vol*na*nb)
+      grrtot = dble(gr(4,i))/(ngr*vol*natm*natm)
       if ( ionode ) then  
         WRITE (kunit_GRTFF,'(5f15.10)') rr , grr1 , grr2 , grr3 , grrtot 
         WRITE (kunit_NRTFF,'(5f20.10)') &
@@ -442,8 +437,6 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   enddo
 #endif 
  
-  deallocate( gr_sum  )
-
   CLOSE ( kunit_NRTFF )
   CLOSE ( kunit_GRTFF )
 

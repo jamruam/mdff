@@ -158,20 +158,9 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
   tau = tau / omega
   endif
 
-  taux = 0.0d0
-  tauxx = tau(1,:)
-  CALL MPI_ALLREDUCE(tauxx,taux,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
-  tau(1,:) = taux
-
-  taux = 0.0d0
-  tauxx = tau(2,:)
-  CALL MPI_ALLREDUCE(tauxx,taux,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
-  tau(2,:) = taux
-
-  taux = 0.0d0
-  tauxx = tau(3,:)
-  CALL MPI_ALLREDUCE(tauxx,taux,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,ierr)
-  tau(3,:) = taux
+  do i = 1 , 3
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau ( i , : ) , 3  )
+  enddo
 
   if ( ionode ) then
     WRITE ( stdout ,'(a)' )               'LJ : '

@@ -35,6 +35,7 @@
   return
   END FUNCTION
 
+! error function
   double precision FUNCTION errf(x)
   implicit none
   ! local

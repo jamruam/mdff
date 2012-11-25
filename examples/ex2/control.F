@@ -4,10 +4,12 @@
 ! main parameters
 ! ======================================================================
 &controltag
-        calc          = 'md'      ! md calculation
-      lstatic =.true.
-      lreduced =.false.
-      cutoff = 100.0d0
+      calc           = 'md'      ! md calculation
+      lstatic        = .true.  
+      lreduced       = .false.  
+      lpbc           = .false.   ! no periodic boundoaries conditions
+      lvnlist        = .false.
+      cutoff         = 100.0d0
 &end
 
 ! ======================================================================

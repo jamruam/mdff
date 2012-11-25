@@ -5,7 +5,6 @@
 ! ======================================================================
 &controltag
         calc          = 'md'      ! md calculation
-        lminimg =.false.
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 

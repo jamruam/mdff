@@ -30,10 +30,14 @@ MODULE constants
   double precision, PARAMETER :: dzero  = 0.0d0
   double precision, PARAMETER :: pi     = 3.14159265358979323846264338327950288419716939937510d0
   double precision, PARAMETER :: tpi    = 2.d0*pi
-  double complex  , PARAMETER :: citpi  = (0.d0,1.d0)*tpi
   double complex  , PARAMETER :: imag   = (0.d0,1.d0)
-  double precision, PARAMETER :: fpi    = 2.d0*tpi
-  double precision, PARAMETER :: piroot = dsqrt(pi)
+  double complex  , PARAMETER :: citpi  = imag*tpi   ! 2*i*pi
+  double precision, PARAMETER :: fpi    = 2.d0*tpi   ! 4pi
+  double precision, PARAMETER :: piroot = dsqrt(pi)  ! sqrt(pi)
+
+  ! if sigma is in angstom and energy in eV 
+  ! the square of the unit charge is :
+  double precision, PARAMETER :: e_2    = 14.3998    ! eV . A 
 
 END MODULE constants
 ! ===== fmV =====

@@ -19,6 +19,44 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
+!*********************** SUBROUTINE estimate_alpha ***********************
+!
+! This routine estiate the alpha parameter in the Ewald summation.
+! This estimation is based on the cell size
+! The parameter should be anyway optimised for each problem
+!
+!******************************************************************************
+
+SUBROUTINE estimate_alpha(alpha)
+  
+  USE config,   ONLY : box
+  implicit none
+
+  double precision :: alpha , alpha2 , rcut , rcut2 , rcut3 , e
+
+  rcut = box * 0.5d0
+  alpha = 4.0d0
+  alpha2 = alpha*alpha
+  rcut2=rcut*rcut
+  rcut3=rcut2*rcut
+
+  e = dexp( -alpha2*rcut2 )
+  e = e / alpha2 / rcut3
+  e = e * 0.56d0  
+  do while ( e .le. 1e-7 )
+    alpha = alpha - 0.05d0
+    alpha2 = alpha*alpha
+    e = dexp( -alpha2*rcut2 )
+    e = e / alpha2 / rcut3
+    e = e * 0.56d0
+  enddo
+
+  return
+
+END SUBROUTINE estimate_alpha
+
+
+
 !*********************** SUBROUTINE do_split ***********************************
 !
 ! this SUBROUTINE split the number of atoms in for each np procs
@@ -467,11 +505,11 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
   if ( displ .ge. skindiff * 0.5d0 ) then
     updatevnl = updatevnl + 1
     if ( lpbc ) then
-      if ( lminimg ) then 
+!      if ( lminimg ) then 
         CALL vnlist_pbc ( iastart, iaend )!, list , point )
-      else
-        CALL vnlist_noimg ( iastart, iaend )
-      endif
+!      else
+!        CALL vnlist_noimg ( iastart, iaend )
+!      endif
     else
     CALL vnlist_nopbc ( iastart, iaend )!, list , point )
     endif
@@ -511,12 +549,13 @@ SUBROUTINE print_tensor( tens , key )
   integer :: i
 
   if ( ionode ) then
+    WRITE ( stdout ,'(a)') ''
     WRITE ( stdout ,'(a)') key
     do i = 1 , 3
       WRITE ( stdout ,'(3f15.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
     WRITE ( stdout ,'(a,f15.8)') 'trace=',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
-    WRITE ( stdout ,*) ''
+    WRITE ( stdout , '(a)' ) ''
   endif
 
   return
@@ -627,7 +666,7 @@ end subroutine merge_sort
 
 SUBROUTINE print_config_sample ( time , rank )
 
-  USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia
+  USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
   USE control,  ONLY :  myrank
   USE io_file,  ONLY :  stdout
 
@@ -640,20 +679,25 @@ SUBROUTINE print_config_sample ( time , rank )
   integer :: ia , rank
 
   if ( myrank.eq.rank ) then
-       WRITE ( stdout ,'(a5,i10)') 'time = ',time
+       WRITE ( stdout ,'(a)') '==================================================================================================================================='
        WRITE ( stdout ,'(a)') 'debug SAMPLE OF THE CONFIGIURATION debug     '
-       WRITE ( stdout ,'(a1,2a10,a8,3a40)') 'i','atype(i)','itype(i)','q(i)','rx(i)','vx(i)','fx(i)'
-    if ( natm .ge. 8)   &
-       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
-       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 4 )
-    if ( natm .ge. 8)   &
-       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
-       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 4 , natm)
-    if ( natm .lt. 8)   &
-       WRITE ( stdout ,'(i6,a10,i5,f8.3,3f40.20)') &
-       ( ia , atype ( ia ) , itype ( ia ) , qia ( ia ) , rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm)
+       WRITE ( stdout ,'(a5,i10)') 'time = ',time
        WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
+       WRITE ( stdout ,'(a)') '     i    atype       itype      ipolar      q      mu_x    mu_y    mu_z             rx                 vx                  fx'
+    if ( natm .ge. 8)   &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 4 )
+    if ( natm .ge. 8)   &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 4  , natm )
+    if ( natm .lt. 8)   &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm )
        WRITE ( stdout ,'(a)') ' '
+       WRITE ( stdout ,'(a)') '==================================================================================================================================='
   endif
 
   return
@@ -678,7 +722,7 @@ SUBROUTINE print_general_info(kunit)
     WRITE ( kunit ,'(a)')          ''
     WRITE ( kunit ,'(a)')          'Remind some parameters of the system:'
     WRITE ( kunit ,'(a,i5)')       'natm  = ', natm
-    WRITE ( kunit ,'(a,i5)')       'ncell = ', ncell
+    if ( ncell .ne. 0 ) WRITE ( kunit ,'(a,i5,a)')       'ncell = ', ncell
     WRITE ( kunit ,'(a,i5)')       'ntype = ', ntype
     WRITE ( kunit ,'(a,f10.3)')    'rho   = ', rho
     WRITE ( kunit ,'(a,f10.3)')    'box   = ', box
@@ -716,5 +760,95 @@ SUBROUTINE dumb_guy(kunit)
 
 END SUBROUTINE dumb_guy
 
+! **********************************************************************
+!  to remove leading and trailing spaces
+! **********************************************************************
+character(30) FUNCTION sweep_blanks(in_str)
 
+  implicit none
+
+  character(*), intent(in) :: in_str
+  character(30)            :: out_str
+  character                :: ch
+  integer                  :: j
+
+  out_str = " "
+
+  do j=1, len_trim(in_str)
+
+  ! get j-th char
+    ch = in_str(j:j)
+    if (ch .ne. " ") then
+      out_str = trim(out_str) // ch
+    endif
+    sweep_blanks = out_str
+  enddo
+
+END FUNCTION sweep_blanks
+
+SUBROUTINE MPI_ALL_REDUCE_DOUBLE( vec_result , ndim )
+
+  implicit none
+  INCLUDE 'mpif.h'
+
+  ! global
+  integer :: ndim
+  double precision, dimension ( ndim ) :: vec_result 
+  ! local 
+  integer :: ierr
+  double precision, dimension ( : ) , allocatable :: vec_sum
+
+  allocate ( vec_sum ( ndim ) )
+  vec_sum=0.0d0
+
+  CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
+  vec_result = vec_sum 
+
+  deallocate ( vec_sum ) 
+
+  return
+
+END SUBROUTINE MPI_ALL_REDUCE_DOUBLE
+
+SUBROUTINE MPI_ALL_REDUCE_INTEGER( vec_result , ndim )
+
+  implicit none
+  INCLUDE 'mpif.h'
+
+  ! global
+  integer :: ndim
+  integer , dimension ( ndim ) :: vec_result
+  ! local 
+  integer :: ierr
+  integer , dimension ( : ) , allocatable :: vec_sum
+
+  allocate ( vec_sum ( ndim ) )
+  vec_sum=0.0d0
+
+  CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
+  vec_result = vec_sum
+
+  deallocate ( vec_sum )
+
+  return
+
+END SUBROUTINE MPI_ALL_REDUCE_INTEGER
+
+SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
+
+  implicit none
+  INCLUDE 'mpif.h'
+
+  double precision, intent (inout) :: sresult
+  ! local 
+  integer          :: ierr
+  double precision :: ssum
+
+  ssum=0.0d0
+  CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
+  sresult = ssum
+
+  return
+
+END SUBROUTINE
 ! ===== fmV =====

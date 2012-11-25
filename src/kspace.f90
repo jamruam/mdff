@@ -26,6 +26,7 @@ MODULE kspace
     double precision, dimension(:,:) , allocatable :: kpt  
     double precision, dimension(:)   , allocatable :: kptk 
     double complex  , dimension(:,:) , allocatable :: strf   ! facteur de structure
+    character(len=15)                              :: meshlabel
   END TYPE
 
 CONTAINS
@@ -49,12 +50,14 @@ SUBROUTINE kpoint_sum_init( km )
   
   ! global
   TYPE ( kmesh ) :: km
- 
 
   ! local
   integer :: nx , ny , nz , nk , ncell
   double precision :: invbox
   double precision :: kx, ky, kz, kk
+
+  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
 
   !constants
   invbox = tpi / box
@@ -80,17 +83,90 @@ SUBROUTINE kpoint_sum_init( km )
   enddo
  
   if ( nk .ne. km%nkcut ) then
-    if ( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut
+    if ( ionode ) WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut , km%meshlabel
+    STOP
   endif
 
   ! ======================
   !  organized kpt arrays 
   ! ======================
   call reorder_kpt ( km ) 
+  if ( ionode ) WRITE ( stdout      ,'(a)') '(full) kpt arrays sorted'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') '(full) kpt arrays sorted'
 
   return
 
 END SUBROUTINE kpoint_sum_init
+
+!*********************** SUBROUTINE kpoint_sum_init_half ***************************
+!
+! this subroutine initialized the k vectors for the ewald summation
+! kpt(3,:) are the three components in 2pi/box units
+! kptk is the square module
+!
+! this subroutine generate only half of the brillouin zone 
+!
+!******************************************************************************
+
+SUBROUTINE kpoint_sum_init_half ( km )
+
+  USE config,           ONLY :  box 
+  USE io_file,          ONLY :  ionode , stdout, kunit_OUTFF
+  USE constants,        ONLY :  tpi
+
+  implicit none
+  
+  ! global
+  TYPE ( kmesh ) :: km
+  
+  
+  ! local
+  integer :: nx , ny , nz , nk , ncell
+  double precision :: invbox
+  double precision :: kx, ky, kz, kk
+
+  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
+  
+  !constants 
+  invbox = tpi / box
+  ncell = km%ncell
+  
+  nk = 0
+  do nx =  0 , ncell
+    do ny = 0  , ncell
+      do nz = 0 , ncell
+        if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
+          nk = nk + 1
+          kx = dble(nx) * invbox
+          ky = dble(ny) * invbox
+          kz = dble(nz) * invbox
+          kk = kx * kx + ky * ky + kz * kz
+          km%kpt(1,nk) = kx
+          km%kpt(2,nk) = ky
+          km%kpt(3,nk) = kz
+          km%kptk(nk) = kk
+        endif
+      enddo
+    enddo
+  enddo
+
+  if ( nk .ne. km%nkcut ) then
+    if ( ionode ) WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init_half ', nk , km%nkcut , km%meshlabel
+    STOP
+  endif
+
+  ! ======================
+  !  organized kpt arrays 
+  ! ======================
+  call reorder_kpt ( km )
+  if ( ionode ) WRITE ( stdout      ,'(a)')     '(half) kpt arrays sorted'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)')     '(half) kpt arrays sorted'
+
+  return
+
+END SUBROUTINE kpoint_sum_init_half
+
 
 
 !*********************** SUBROUTINE reorder_kpt *******************************
@@ -152,9 +228,6 @@ SUBROUTINE reorder_kpt ( km )
   deallocate ( tkpt , labelkpt , labelt )
   deallocate ( tmpkx , tmpky , tmpkz    )
 
-  if ( ionode ) WRITE ( stdout      ,'(a)') 'kpt arrays sorted'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'kpt arrays sorted'
-
   return
 
 END SUBROUTINE reorder_kpt
@@ -182,6 +255,7 @@ SUBROUTINE struc_fact ( km )
   integer :: it, ia, ik
   double precision :: arg , rxi , ryi , rzi 
 
+  !  exp ( - i k . r ) 
   km%strf(:,:) = (0.d0,0.d0)
   do it = 1, ntype
      do ia = 1, natm
@@ -200,6 +274,53 @@ SUBROUTINE struc_fact ( km )
   return
 
 END SUBROUTINE struc_fact
+
+
+!*********************** SUBROUTINE struct_fact *******************************
+!
+! calculate the structure factors for each type of atoms in the unit cell
+! Basically used to calculate k-space charge density. 
+!
+!******************************************************************************
+
+SUBROUTINE struc_fact_dip ( km , dip ) 
+  
+  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz , box 
+  USE io_file,          ONLY :  ionode , kunit_STRFACFF
+  USE constants,        ONLY :  imag 
+
+  implicit none
+
+  ! global
+  TYPE ( kmesh ) :: km
+  double precision :: dip(ntype,3)
+
+  ! local
+  integer :: it, ia, ik
+  double precision :: arg , rxi , ryi , rzi 
+  double complex   :: muk
+
+  !  exp ( i k . r ) 
+  km%strf(:,:) = (0.d0,0.d0)
+  do it = 1, ntype
+     do ia = 1, natm
+        rxi = rx ( ia ) 
+        ryi = ry ( ia ) 
+        rzi = rz ( ia ) 
+        if ( itype (ia) .eq. it ) then
+           do ik = 1, km%nkcut 
+              arg = ( km%kpt ( 1, ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
+              muk = imag * ( km%kpt ( 1, ik ) * dip(it,1) + km%kpt ( 2 , ik ) * dip(it,2) + km%kpt ( 3 , ik ) * dip(it,3) )
+              km%strf (ik, it) = km%strf (ik, it) + muk * EXP( imag * arg ) 
+           enddo
+        endif
+     enddo
+  enddo
+
+  return
+
+END SUBROUTINE struc_fact_dip
+
 
 END MODULE kspace 
 ! ===== fmV =====

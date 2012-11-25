@@ -24,10 +24,12 @@ INSTALL_DIR=../bin
 # =================
 #   on mario 
 # =================
-FCFLAGS = -fpp -O3 -ip -xW 
+FCFLAGS = -fpp -O3 -ip -xHost
+#FCFLAGS = -fpp -O3 -pg
+#FCFLAGS = -fpp -O3 -ip -xW
 #FCFLAGS = -fpp -check bounds -warn all
 
-EXE= mdff.x bins.x bins-dos.x
+EXE= mdff.x 
 EXE_= mdff_.x 
 
 # libraries needed 
@@ -71,15 +73,6 @@ OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
 #	cp $(EXE_) $(INSTALL_DIR)
 
 all: $(EXE)
-
-bins.x: bins.o
-	$(FC) $(FCFLAGS) -o $@ $^
-
-bins-dos.x: bins-dos.o
-	$(FC) $(FCFLAGS) -o $@ $^
-
-disttab.x: disttab.o
-	$(FC) $(FCFLAGS) -o $@ $^
 
 mdff.x: $(OBJ) mdff.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
