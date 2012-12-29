@@ -17,8 +17,8 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-#define debug
-!#define debug2
+!#define debug
+#define debug3
 ! ======= Hardware =======
 
 MODULE field 
@@ -711,8 +711,8 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   double precision :: u , vir 
 
 #ifdef debug
-  write( stdout , '(a,a)' ) 'debug : atype',atype
-  write( stdout , '(a,i)' ) 'debug : itype',itype
+  write( stdout , '(a,a)' )  'debug : atype',atype
+  write( stdout , '(a,i4)' ) 'debug : itype',itype
 #endif
 
   forcetime1 = MPI_WTIME(ierr) ! timing info
@@ -2181,9 +2181,9 @@ SUBROUTINE engforce_charge_and_dipole_DS ( iastart , iaend , mu )
 
   cutsq = cutlongrange * cutlongrange
 #ifdef debug
-  write ( stdout , '(a,i)') 'debug : rm_coul',rm_coul%ncmax
+  write ( stdout , '(a,i6)') 'debug : rm_coul',rm_coul%ncmax
   do ia = 1 , natm
-  write( * , '(a,3f12.5)' ) 'debug : dipole ', mu (ia,1), mu (ia,2), mu (ia,3)
+  write( * , '(a,3f12.5)' )  'debug : dipole ', mu (ia,1), mu (ia,2), mu (ia,3)
   enddo
 #endif  
 
@@ -2445,8 +2445,8 @@ SUBROUTINE engforce_dipole_ES ( iastart , iaend , Efield , mu )
 
 #ifdef debug
   CALL print_config_sample(0,0)
-  write(stdout , '(a,i)' ) 'debug in engforce_dipole_ES : km_coul%nkcut',km_coul%nkcut
-  write(stdout , '(a,i)' ) 'debug in engforce_dipole_ES : km_coul_dip%nkcut',km_coul_dip%nkcut
+  write(stdout , '(a,i6)' ) 'debug in engforce_dipole_ES : km_coul%nkcut',km_coul%nkcut
+  write(stdout , '(a,i6)' ) 'debug in engforce_dipole_ES : km_coul_dip%nkcut',km_coul_dip%nkcut
   do ia= 1,natm
     write ( stdout ,'(a,i4,3f16.8)')  'debug in engforce_dipole_ES : ia = ', ia , mu  ( ia , 1 ) , mu  ( ia , 2 ) ,  mu  ( ia , 3 )
   enddo
@@ -2905,6 +2905,440 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   return
 
 END SUBROUTINE induced_moment
+
+
+SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
+
+  USE config,  ONLY : natm , atype , qia , rx , ry , rz , fx , fy , fz 
+  USE control, ONLY : cutlongrange
+  USE io_file, ONLY : stdout , ionode 
+  USE thermodynamic , ONLY : u_pol
+
+  implicit none
+
+  INCLUDE 'mpif.h'
+
+  ! global 
+  integer, intent(in) :: iastart , iaend
+  double precision    :: ef     ( natm , 3 )
+  double precision    :: efg    ( natm , 3 , 3 )
+  double precision    :: mu     ( natm , 3 )
+  double precision    :: u_coul 
+  double precision    :: vir_coul
+  double precision    :: phi_coul ( natm ) 
+
+  ! local 
+  integer :: ia, ja , ierr , ncell , it
+  double precision, dimension(:), allocatable :: fx_dir, fy_dir, fz_dir
+  double precision, dimension(:), allocatable :: phi_coul_qq , phi_coul_dd 
+  double precision :: u_coul_qq , u_coul_dd , u_coul_qd 
+  double precision :: vir_coul_qq , vir_coul_dd , vir_coul_qd
+  double precision :: cutsq
+  double precision :: rxi , ryi , rzi 
+  double precision :: rxj , ryj , rzj
+  double precision :: rxij , ryij , rzij
+  double precision :: fxij , fyij , fzij
+  double precision :: qi , qj , qij
+  double precision :: muix , muiy , muiz
+  double precision :: mujx , mujy , mujz
+  double precision :: T
+  double precision :: Tx , Ty , Tz
+  double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
+  double precision :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
+  double precision :: d , d2 
+  double precision :: dm1 , dm3 , dm5 , dm7 
+
+  double precision :: ttt1 , ttt2  , ttt3
+  logical          :: lcentralbox
+
+  ttt1 = MPI_WTIME(ierr)
+
+  ! =============================== 
+  !         some constants
+  ! =============================== 
+  cutsq = cutlongrange * cutlongrange
+
+
+#ifdef debug3
+  write( stdout , '(a)')    'debug: in multipole_DS'
+  write( stdout , '(a,i8,a)') 'debug : rm_coul ',rm_coul%ncmax,rm_coul%meshlabel
+  do ia = 1 , natm
+    write( stdout , '(a,f12.5)') 'debug : charge',qia(ia)
+  enddo
+  do ia = 1 , natm
+    write( stdout , '(a,3f12.5)') 'debug : dipole', mu ( ia , 1 ),  mu ( ia , 2 ) ,  mu ( ia , 3 )
+  enddo
+  write( stdout , '(a,2i8)')     'debug : iastart iaend',iastart ,iaend
+  write( stdout , '(a,f20.5)')   'debug : cutsq ',cutsq
+  call print_config_sample(0,0)
+#endif  
+
+
+  allocate( fx_dir ( natm ), fy_dir ( natm ), fz_dir ( natm ) )
+  allocate( phi_coul_qq ( natm ), phi_coul_dd ( natm ) )
+  ef          = 0.0d0
+  efg         = 0.0d0
+  vir_coul    = 0.0d0
+  vir_coul_qq = 0.0d0
+  vir_coul_qd = 0.0d0
+  vir_coul_dd = 0.0d0
+  u_coul      = 0.0d0
+  u_coul_qq   = 0.0d0
+  u_coul_qd   = 0.0d0
+  u_coul_dd   = 0.0d0
+  fx_dir      = 0.0D0
+  fy_dir      = 0.0D0
+  fz_dir      = 0.0D0
+  phi_coul    = 0.0d0
+  phi_coul_qq = 0.0d0
+  phi_coul_dd = 0.0d0
+  
+! ==================================================================================================
+!  MAIN LOOP calculate EF(i) , EFG(i) , virial , potential, forces ... for each atom i parallelized
+! ==================================================================================================
+  atom : do ia = iastart , iaend
+
+    rxi  = rx  ( ia )
+    ryi  = ry  ( ia )
+    rzi  = rz  ( ia )
+    qi   = qia ( ia )
+    muix = mu ( ia , 1 )  
+    muiy = mu ( ia , 2 )  
+    muiz = mu ( ia , 3 )  
+
+    ! ==================================================
+    ! sum over neighboring cells (see direct_sum_init )
+    ! ==================================================
+    cells: do ncell = 1 , rm_coul%ncmax
+
+      lcentralbox=rm_coul%lcell(ncell).eq.0   
+                   
+      do ja = 1 , natm
+
+        if ( ( .not.lcentralbox ) .or. ( lcentralbox .and. ja .ne. ia )  ) then
+ 
+            rxj   = rx ( ja ) + rm_coul%boxxyz( 1 , ncell )
+            ryj   = ry ( ja ) + rm_coul%boxxyz( 2 , ncell )
+            rzj   = rz ( ja ) + rm_coul%boxxyz( 3 , ncell )
+
+            rxij  = rxi - rxj
+            ryij  = ryi - ryj
+            rzij  = rzi - rzj
+
+            d2    = rxij * rxij + ryij * ryij + rzij * rzij
+
+            if ( d2 .lt. cutsq .and. d2 .ne. 0.0d0 ) then 
+
+              qj    = qia ( ja )
+              qij   = qi * qj
+              mujx  = mu ( ja , 1 )  
+              mujy  = mu ( ja , 2 )  
+              mujz  = mu ( ja , 3 )  
+              d     = SQRT ( d2 )
+              dm1   = 1.0d0 / d 
+              dm3   = dm1 / d2
+              dm5   = dm3 / d2
+              dm7   = dm5 / d2
+ 
+              ! multipole interaction tensor rank = 0 
+              T  = dm1
+
+              ! multipole interaction tensor rank = 1
+              Tx = rxij * dm3 
+              Ty = ryij * dm3 
+              Tz = rzij * dm3 
+
+              ! multipole interaction tensor rank = 2
+              Txx = ( 3.0d0 * rxij * rxij - d2 ) * dm5
+              Tyy = ( 3.0d0 * ryij * ryij - d2 ) * dm5
+              Tzz = ( 3.0d0 * rzij * rzij - d2 ) * dm5
+              Txy = ( 3.0d0 * rxij * ryij      ) * dm5
+              Txz = ( 3.0d0 * rxij * rzij      ) * dm5
+              Tyz = ( 3.0d0 * ryij * rzij      ) * dm5
+
+              ! multipole interaction tensor rank = 3  
+              Txxx = ( 5.0d0 * rxij * rxij * rxij -  3.0d0 * d2 * ( rxij ) ) * dm7 * 3.0d0
+              Tyyy = ( 5.0d0 * ryij * ryij * ryij -  3.0d0 * d2 * ( ryij ) ) * dm7 * 3.0d0
+              Tzzz = ( 5.0d0 * rzij * rzij * rzij -  3.0d0 * d2 * ( rzij ) ) * dm7 * 3.0d0
+              Txxy = ( 5.0d0 * rxij * rxij * ryij -          d2 * ( ryij ) ) * dm7 * 3.0d0
+              Txxz = ( 5.0d0 * rxij * rxij * rzij -          d2 * ( rzij ) ) * dm7 * 3.0d0
+              Tyyx = ( 5.0d0 * ryij * ryij * rxij -          d2 * ( rxij ) ) * dm7 * 3.0d0
+              Tyyz = ( 5.0d0 * ryij * ryij * rzij -          d2 * ( rzij ) ) * dm7 * 3.0d0
+              Tzzx = ( 5.0d0 * rzij * rzij * rxij -          d2 * ( rxij ) ) * dm7 * 3.0d0
+              Tzzy = ( 5.0d0 * rzij * rzij * ryij -          d2 * ( ryij ) ) * dm7 * 3.0d0
+              Txyz = ( 5.0d0 * rxij * ryij * rzij                          ) * dm7 * 3.0d0
+
+              ! ===========================================================
+              !                  charge-charge interaction
+              ! ===========================================================
+
+              ! potential 
+              phi_coul_qq ( ia ) = phi_coul_qq ( ia ) + qj * T
+
+              ! electrostatic energy
+              u_coul_qq       = u_coul_qq       + qij * T
+
+              ! electric field
+              ef ( ia , 1 ) = ef ( ia , 1 ) + qj * Tx
+              ef ( ia , 2 ) = ef ( ia , 2 ) + qj * Ty
+              ef ( ia , 3 ) = ef ( ia , 3 ) + qj * Ty 
+ 
+              ! forces 
+              fxij = qij * Tx
+              fyij = qij * Ty
+              fzij = qij * Tz
+
+              fx_dir ( ia ) = fx_dir ( ia ) + fxij
+              fy_dir ( ia ) = fy_dir ( ia ) + fyij
+              fz_dir ( ia ) = fz_dir ( ia ) + fzij
+
+              ! virial
+              vir_coul_qq =  vir_coul_qq + ( fxij * rxij + fyij * ryij + fzij * rzij )
+
+              ! electric field gradient
+              efg ( ia , 1 , 1 )  = efg ( ia , 1 , 1 ) - qj * Txx 
+              efg ( ia , 2 , 2 )  = efg ( ia , 2 , 2 ) - qj * Tyy 
+              efg ( ia , 3 , 3 )  = efg ( ia , 3 , 3 ) - qj * Tzz 
+              efg ( ia , 1 , 2 )  = efg ( ia , 1 , 2 ) - qj * Txy 
+              efg ( ia , 1 , 3 )  = efg ( ia , 1 , 3 ) - qj * Txz  
+              efg ( ia , 2 , 3 )  = efg ( ia , 2 , 3 ) - qj * Tyz
+
+
+              ! ===========================================================
+              !                  dipole-dipole interaction
+              ! ===========================================================
+
+              ! potential 
+              phi_coul_dd ( ia ) = phi_coul_dd ( ia ) + Tx * mujx +  Ty * mujy + Tz * mujz 
+
+              ! electrostatic energy
+              u_coul_dd = u_coul_dd - ( muix * Txx * mujx + &
+                                        muix * Txy * mujy + &
+                                        muix * Txz * mujz + &
+                                        muiy * Txy * mujx + &
+                                        muiy * Tyy * mujy + &
+                                        muiy * Tyz * mujz + &
+                                        muiz * Txz * mujx + &
+                                        muiz * Tyz * mujy + &
+                                        muiz * Tzz * mujz )
+
+              ! electric field
+              ef ( ia , 1 ) = ef ( ia , 1 ) + ( Txx * mujx + Txy * mujy + Txz * mujz ) 
+              ef ( ia , 2 ) = ef ( ia , 2 ) + ( Txy * mujx + Tyy * mujy + Tyz * mujz ) 
+              ef ( ia , 3 ) = ef ( ia , 3 ) + ( Txz * mujx + Tyz * mujy + Tzz * mujz ) 
+
+              ! forces 
+              fxij = ( muix * Txxx * mujx         + &
+                       muix * Txxy * mujy * 2.0d0 + &
+                       muix * Txxz * mujz * 2.0d0 + &
+                       muiy * Txyz * mujz * 2.0d0 + &   
+                       muiy * Tyyx * mujy         + &    
+                       muiz * Tzzx * mujz )
+
+              fyij = ( muiy * Tyyy * mujy         + &
+                       muix * Tyyx * mujy * 2.0d0 + &
+                       muiy * Tyyz * mujz * 2.0d0 + &
+                       muiy * Txyz * mujz * 2.0d0 + &     
+                       muix * Txxy * mujx         + &
+                       muiz * Tzzy * mujz )
+
+              fzij = ( muiz * Tzzz * mujz         + &
+                       muiz * Tzzx * mujx * 2.0d0 + &
+                       muiy * Tzzy * mujz * 2.0d0 + &
+                       muiy * Txyz * mujx * 2.0d0 + &
+                       muix * Txxz * mujx         + &
+                       muiy * Tyyz * mujy )
+
+              fx_dir ( ia ) = fx_dir ( ia ) - fxij
+              fy_dir ( ia ) = fy_dir ( ia ) - fyij
+              fz_dir ( ia ) = fz_dir ( ia ) - fzij
+
+              ! virial
+              vir_coul_dd =  vir_coul_dd + ( fxij * rxij + fyij * ryij + fzij * rzij )
+ 
+              ! electric field gradient
+              efg ( ia , 1 , 1 ) = efg ( ia , 1 , 1 ) - ( Txxx * mujx + Txxy * mujy + Txxz * mujz ) 
+              efg ( ia , 2 , 2 ) = efg ( ia , 2 , 2 ) - ( Tyyx * mujx + Tyyy * mujy + Tyyz * mujz ) 
+              efg ( ia , 3 , 3 ) = efg ( ia , 3 , 3 ) - ( Tzzx * mujx + Tzzy * mujy + Tzzz * mujz ) 
+              efg ( ia , 1 , 2 ) = efg ( ia , 1 , 2 ) - ( Txxy * mujx + Tyyx * mujy + Txyz * mujz ) 
+              efg ( ia , 1 , 3 ) = efg ( ia , 1 , 3 ) - ( Txxz * mujx + Txyz * mujy + Tzzx * mujz ) 
+              efg ( ia , 2 , 3 ) = efg ( ia , 2 , 3 ) - ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz ) 
+
+
+              ! ===========================================================
+              !                  charge-dipole interaction
+              ! ===========================================================
+
+              ! electrostatic energy
+              u_coul_qd = u_coul_qd + ( qi * ( Tx * mujx + Ty * mujy + Tz * mujz ) - &
+                                        qj * ( Tx * muix + Ty * muiy + Tz * muiz ) ) 
+
+              ! forces 
+              fxij = qi * ( Txx * mujx + Txy * mujy + Txz * mujz ) - &
+                     qj * ( Txx * muix + Txy * muiy + Txz * muiz ) 
+
+              fyij = qi * ( Txy * mujx + Tyy * mujy + Tyz * mujz ) - &
+                     qj * ( Txy * muix + Tyy * muiy + Tyz * muiz ) 
+
+              fzij = qi * ( Txz * mujx + Tyz * mujy + Tzz * mujz ) - &
+                     qj * ( Txz * muix + Tyz * muiy + Tzz * muiz ) 
+
+
+              fx_dir ( ia ) = fx_dir ( ia ) + fxij
+              fy_dir ( ia ) = fy_dir ( ia ) + fyij
+              fz_dir ( ia ) = fz_dir ( ia ) + fzij
+
+              ! virial
+              vir_coul_qd =  vir_coul_qd + ( fxij * rxij + fyij * ryij + fzij * rzij )
+
+
+            endif
+
+
+
+        endif
+
+      enddo
+   
+
+    enddo cells
+
+
+  enddo atom 
+
+
+  ttt2 = MPI_WTIME(ierr)
+
+
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_coul_qq )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_coul_dd )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_coul_qd )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_coul_qq )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_coul_qd )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_coul_dd )
+
+  CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fz_dir , natm )
+
+  CALL MPI_ALL_REDUCE_DOUBLE ( phi_coul , natm )
+
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef ( : , 1 )  , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef ( : , 2 )  , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef ( : , 3 )  , natm )
+
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 1 , 1 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 2 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 3 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 1 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 1 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg ( : , 2 , 3 ) , natm )
+
+  ! EFG is symmetric
+  ! not needed ... just for consistency
+  efg ( : , 2 , 1 ) = efg ( : , 1 , 2 )
+  efg ( : , 3 , 1 ) = efg ( : , 1 , 3 )
+  efg ( : , 3 , 2 ) = efg ( : , 2 , 3 )
+
+
+  u_coul_qq   = u_coul_qq * 0.5d0
+  u_coul_dd   = u_coul_dd * 0.5d0
+  u_coul_qd   = u_coul_qd * 0.5d0
+  vir_coul_qq = - vir_coul_qq  * 0.5d0
+  vir_coul_qd = - vir_coul_qd  * 0.5d0
+  vir_coul_dd = - vir_coul_dd  * 0.5d0
+
+  fx = fx + fx_dir
+  fy = fy + fy_dir
+  fz = fz + fz_dir
+
+  u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
+  vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
+  phi_coul = phi_coul_qq + phi_coul_dd
+
+
+#ifdef debug3 
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' ) ' '
+    WRITE ( stdout , '(a)' )     'Electric field at atoms : '
+    do ia = 1 , natm
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' Efield  = ', ef ( ia , 1)  , ef ( ia , 2 ) , ef ( ia , 3 )
+    enddo
+    WRITE ( stdout , '(a)' ) ' '
+
+    WRITE ( stdout , '(a)' ) ' '
+    WRITE ( stdout , '(a)' ) 'forces at atoms : '
+    do ia = 1 , natm
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' f       = ', fx ( ia )  , fy ( ia ) , fz ( ia )
+    enddo
+    WRITE ( stdout , '(a)' ) ' '
+    WRITE ( stdout , '(a)' ) ' '
+    WRITE ( stdout , '(a)' ) ' potential : '
+    do ia = 1 , natm
+      WRITE ( stdout , '(i5,a3,3(a,f18.10))' ) &
+      ia,atype(ia),' phi_tot = ', phi_coul ( ia )  , ' phi_qq = ', phi_coul_qq (ia) , ' phi_dd = ', phi_coul_dd (ia)
+    enddo
+    WRITE ( stdout , '(a)' ) ' '
+    WRITE ( stdout , '(a)' ) 'Energy and virial : '
+    WRITE ( stdout , '(5(a,f18.10))' ) &
+    ' u_coul_tot   = ', u_coul  ,' u_coul_qq   = ',u_coul_qq      ,' u_coul_qd   = ', u_coul_qd     ,' u_coul_dd   = ',u_coul_dd   ,' u_pol = ', u_pol
+    WRITE ( stdout , '(4(a,f18.10))' ) &
+    ' vir_coul_tot = ',vir_coul ,' vir_coul_qq = ',vir_coul_qq    ,' vir_coul_qd = ', vir_coul_qd   ,' vir_coul_dd = ',vir_coul_dd
+  endif
+#endif
+
+
+  deallocate( fx_dir, fy_dir, fz_dir )
+
+  ttt3 = MPI_WTIME(ierr)
+
+
+
+
+  return
+
+END SUBROUTINE
+
+
+
+SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
+
+  USE config,  ONLY : natm
+
+  implicit none
+
+  ! global 
+  integer, intent(in) :: iastart , iaend
+  double precision    :: ef     ( natm , 3 )
+  double precision    :: efg    ( natm , 3 , 3 )
+  double precision    :: mu     ( natm , 3 )
+  double precision    :: u_coul 
+  double precision    :: vir_coul 
+  double precision    :: phi_coul ( natm )  
+
+  ! local 
+  double precision :: u_coul_qq , u_coul_dd , u_coul_qd , u_pol
+  double precision :: vir_coul_qq , vir_coul_dd , vir_coul_qd
+  double precision :: phi_coul_qq , phi_coul_dd
+
+  
+
+
+  u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
+  vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
+  phi_coul = phi_coul_qq + phi_coul_dd
+
+
+  return
+
+END SUBROUTINE
+
+
+
+
+
 
 
 END MODULE field 
