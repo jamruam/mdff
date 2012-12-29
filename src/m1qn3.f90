@@ -749,7 +749,7 @@
 !c
       if (ionode .and.impres.eq.3) then
           if (mod(niter-1,50).eq.0) write(io,'(/a,a)') "  iter  simul  stepsize            f                |g|","       |g|/|g0|"
-          write(io,'(1x,i5,2x,i5,2x,1pd8.2,2x,d21.14,2x,d11.5,2x,d10.4)') niter, isim, t, f, gnorm, eps1
+          write(io,'(1x,i5,2x,i5,2x,1pd9.2,2x,d21.14,2x,d12.5,2x,d11.4)') niter, isim, t, f, gnorm, eps1
       endif
       if (ionode .and.impres.ge.5) write (io,940) eps1
   940 format (/" m1qn3: stopping criterion on g: ",1pd12.5)

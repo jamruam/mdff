@@ -43,7 +43,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
   integer, intent(in)  :: iastart , iaend
 
   !local 
-  integer :: i , j , ia , ja , j1 ,jb , je , ierr 
+  integer :: i , j , ia , ja , j1 ,jb , je !, ierr 
   integer :: p1, p2
   integer :: nxij , nyij , nzij
   double precision :: rijsq , invbox
@@ -51,7 +51,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
   double precision :: rxij, ryij , rzij , sr2 , srp , srq
   double precision :: wij , fxij , fyij , fzij
   double precision, dimension ( 3 , 3 ) :: tau
-  double precision, dimension ( 3 )   :: taux , tauxx
+  !double precision, dimension ( 3 )   :: taux , tauxx
   double precision :: ptwo ( ntype , ntype ) , qtwo ( ntype , ntype )
 
   do j = 1 , ntype 
@@ -80,9 +80,9 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
           rxij = rxi - rx ( ja )
           ryij = ryi - ry ( ja )
           rzij = rzi - rz ( ja )
-          nxij = nint( rxij * invbox )
-          nyij = nint( ryij * invbox )
-          nzij = nint( rzij * invbox )
+          nxij = NINT ( rxij * invbox )
+          nyij = NINT ( ryij * invbox )
+          nzij = NINT ( rzij * invbox )
           rxij = rxij - box * nxij
           ryij = ryij - box * nyij
           rzij = rzij - box * nzij
@@ -125,9 +125,9 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
           rxij = rxi - rx ( ja )
           ryij = ryi - ry ( ja )
           rzij = rzi - rz ( ja )
-          nxij = nint( rxij * invbox )
-          nyij = nint( ryij * invbox )
-          nzij = nint( rzij * invbox )
+          nxij = NINT ( rxij * invbox )
+          nyij = NINT ( ryij * invbox )
+          nzij = NINT ( rzij * invbox )
           rxij = rxij - box * nxij
           ryij = ryij - box * nyij
           rzij = rzij - box * nzij
@@ -170,7 +170,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
     WRITE ( stdout ,'(a,3f15.8)')         'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( stdout ,'(a)')                ''
     WRITE ( kunit_OUTFF ,'(a)' )          'LJ : '
     WRITE ( kunit_OUTFF ,'(a,2a15)' )     '                 x' , 'y' , 'z'
@@ -179,7 +179,7 @@ SUBROUTINE stress_bmlj ( iastart , iaend )
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)')  &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( kunit_OUTFF ,'(a)')                ''
   endif
 
@@ -262,21 +262,21 @@ SUBROUTINE stress_coul_ewald
          rxij = rxi - rx(ja)
          ryij = ryi - ry(ja)
          rzij = rzi - rz(ja)
-         nxij = nint( rxij * invbox )
-         nyij = nint( ryij * invbox )
-         nzij = nint( rzij * invbox )
+         nxij = NINT ( rxij * invbox )
+         nyij = NINT ( ryij * invbox )
+         nzij = NINT ( rzij * invbox )
          rxij = rxij - box * nxij
          ryij = ryij - box * nyij
          rzij = rzij - box * nzij
          rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
-         rij = dsqrt( rijsq )
+         rij = SQRT ( rijsq )
 
          qij  = qi * qj / rij
          qijf = qij / rijsq      ! qi * qj / rij^3
 
          wij0 = errfc( alphaES * rij ) 
-         expon = dexp( - alpha2 * rijsq ) / piroot
+         expon = EXP ( - alpha2 * rijsq ) / piroot
          wij  = qijf * ( wij0 + 2.0d0 * rij * alphaES * expon )
 
          fxij = wij * rxij
@@ -316,7 +316,7 @@ SUBROUTINE stress_coul_ewald
       ky = km_coul%kpt(2,ik)
       kz = km_coul%kpt(3,ik)
       kk = km_coul%kptk(ik)
-      ak = dexp( - kk * 0.25d0 / alpha2 ) / kk
+      ak = EXP ( - kk * 0.25d0 / alpha2 ) / kk
       kcoe     = 2.0d0 * ( 0.25d0 / alpha2  + 1.0d0 / kk )
 
       if ( km_coul%kptk(ik) .eq. 0.0d0 ) then 
@@ -334,7 +334,7 @@ SUBROUTINE stress_coul_ewald
         rhon = rhon + qch(it) * CONJG( km_coul%strf ( ik , it ) )
       enddo
       str = rhon * CONJG(rhon) * ak 
-      !print*,ak,kk,- kk * 0.25d0 / alpha2,dexp( - kk * 0.25d0 / alpha2 )
+      !print*,ak,kk,- kk * 0.25d0 / alpha2,EXP ( - kk * 0.25d0 / alpha2 )
 
       tau_rec(1,1) = tau_rec(1,1) + ( 1.0d0 - kcoe * kx * kx ) * str
       tau_rec(1,2) = tau_rec(1,2) -           kcoe * kx * ky   * str
@@ -369,7 +369,7 @@ SUBROUTINE stress_coul_ewald
     WRITE ( stdout      ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( stdout      ,'(a)'       )    ''
     WRITE ( kunit_OUTFF ,'(a)'       )    'Coulomb : '
     WRITE ( kunit_OUTFF ,'(a,2a15)'  )    '                 x' , 'y' , 'z'
@@ -378,7 +378,7 @@ SUBROUTINE stress_coul_ewald
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)') &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( kunit_OUTFF ,'(a)'       )    ''
   endif
 
@@ -458,7 +458,7 @@ atom : do ia = iastart , iaend
 
             rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
-            rij   = dsqrt( rijsq )
+            rij   = SQRT ( rijsq )
             qij   = qi * qj / rij
             qijf  = qij / rijsq
 
@@ -500,7 +500,7 @@ atom : do ia = iastart , iaend
 
               rijsq   = rxij * rxij + ryij * ryij + rzij * rzij
  
-              rij = dsqrt( rijsq )
+              rij = SQRT ( rijsq )
               qij = qi * qj / rij
               qijf = qij / rijsq
 
@@ -540,7 +540,7 @@ atom : do ia = iastart , iaend
     WRITE ( stdout      ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( stdout ,'(a,f15.8,a6,f15.8,a1)') &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( stdout      ,'(a)'       )    ''
     WRITE ( kunit_OUTFF ,'(a)'       )    ' WARNING not complete test version'
     WRITE ( kunit_OUTFF ,'(a)'       )    'Coulomb : '
@@ -550,7 +550,7 @@ atom : do ia = iastart , iaend
     WRITE ( kunit_OUTFF ,'(a,3f15.8)')    'z            ' , tau(3,1) , tau(3,2) , tau(3,3)
     WRITE ( kunit_OUTFF ,'(a,f15.8,a6,f15.8,a1)') &
                                           'Press. iso = ', (tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 , &
-                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / dble(natm),')'
+                                                       '(',(tau(1,1) + tau(2,2) + tau(3,3)) / 3.0d0 / DBLE (natm),')'
     WRITE ( kunit_OUTFF ,'(a)'       )    ''
   endif
 

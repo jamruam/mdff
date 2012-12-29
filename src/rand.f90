@@ -121,17 +121,17 @@ SUBROUTINE boxmuller_polar (G, mean, sigma)
   V = (2.0d0*V)-1.0d0
   S = U*U+V*V
   do while ( S .eq. 0 .or. S .ge. 1) 
-  CALL RANDOM_SEED(SIZE = iseed)
-  CALL RANDOM_NUMBER(HARVEST = U)
-  CALL RANDOM_SEED(SIZE = iseed)
-  CALL RANDOM_NUMBER(HARVEST = V)
-  U = (2.0d0*U)-1.0d0
-  V = (2.0d0*V)-1.0d0
-  S = U*U+V*V
+    CALL RANDOM_SEED(SIZE = iseed)
+    CALL RANDOM_NUMBER(HARVEST = U)
+    CALL RANDOM_SEED(SIZE = iseed)
+    CALL RANDOM_NUMBER(HARVEST = V)
+    U = (2.0d0*U)-1.0d0
+    V = (2.0d0*V)-1.0d0
+    S = U * U + V * V 
   enddo
-  G1 = -2.0d0*dlog(S)
-  G = U*DSQRT(G1/S) 
-  G = mean + G*sigma
+  G1 = -2.0d0 * LOG ( S )
+  G = U * SQRT ( G1 / S ) 
+  G = mean + G * sigma
 
   return
 
@@ -161,10 +161,10 @@ SUBROUTINE boxmuller_basic (G, mean, sigma)
   CALL RANDOM_SEED(SIZE = iseed)
   CALL RANDOM_NUMBER(HARVEST = V)
   
-  R = dsqrt(-2.0d0*log(U))
-  C = dcos(2.0d0*pi*V)
-  G = R*C
-  G = mean + G*sigma
+  R = SQRT ( -2.0d0 * LOG ( U ) )
+  C = COS ( 2.0d0 * pi * V )
+  G = R * C
+  G = mean + G * sigma
 
   return
 

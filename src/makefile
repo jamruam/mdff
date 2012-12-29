@@ -24,10 +24,10 @@ INSTALL_DIR=../bin
 # =================
 #   on mario 
 # =================
-FCFLAGS = -fpp -O3 -ip -xHost
+FCFLAGS = -fpp -O5 -ip -xHost
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
-#FCFLAGS = -fpp -check bounds -warn all
+#FCFLAGS = -fpp -O1 -check all -warn all
 
 EXE= mdff.x 
 EXE_= mdff_.x 
@@ -51,17 +51,29 @@ EXE_= mdff_.x
 #   on mario 
 # =================
 # mkl path
-MKL_PATH=/opt/intel/Compiler/11.1/064/mkl/lib/em64t
-LDFLAGS = $(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
-INC=-I/opt/intel/Compiler/11.1/064/mkl/include/fftw
-LDFLAGS=-Wl,-rpath,/home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/ -Wl,--start-group /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_intel_lp64.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_sequential.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
+#MKL_PATH=/opt/intel/Compiler/11.1/064/mkl/lib/em64t
+#LDFLAGS = $(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
+#INC=-I/opt/intel/Compiler/11.1/064/mkl/include/fftw
+#LDFLAGS=-Wl,-rpath,/home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/ -Wl,--start-group /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_intel_lp64.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_sequential.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
+
+# =================
+#   on T5600
+# =================
+
+MKL_PATH=/opt/intel/composerxe/mkl/lib/intel64/
+LDFLAGS =$(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
+INC=-I/opt/intel/composerxe/mkl/include/fftw/
+LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
+ 
+
+
 
 # List of executables to be built within the package
 OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
      stress.o tools.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o vacf.o runmd.o
+     radial_distrib.o efg.o NL_field.o vacf.o runmd.o 
 
 #OBJ_= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
@@ -90,7 +102,7 @@ fft_t.o:
 
 
 clean:
-	rm -f *.o *.mod *.MOD
+	rm -f *.o *.mod *.MOD *__genmod.f90 *__genmod.mod
 
 veryclean: clean
 	rm -f $(EXE)

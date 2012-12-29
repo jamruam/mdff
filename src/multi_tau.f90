@@ -178,17 +178,17 @@ SUBROUTINE multi_tau_main ( wx , wy , wz , ncall)
          MM ( 2 , lv , ia ) = MM ( 2 , lv , ia ) + 1   
          MM ( 3 , lv , ia ) = MM ( 3 , lv , ia ) + 1 
          if ( MM ( 1 , lv , ia ) .eq. m ) then
-           AA ( 1 , lv + 1 , ia ) = AA ( 1 , lv , ia ) / dble ( m )
+           AA ( 1 , lv + 1 , ia ) = AA ( 1 , lv , ia ) / DBLE ( m )
            AA ( 1 , lv , ia ) = 0.0d0   
            MM ( 1 , lv , ia ) = 0   
          endif  
          if ( MM ( 2 , lv , ia ) .eq. m ) then
-           AA ( 2 , lv + 1 , ia ) = AA ( 2 , lv , ia ) / dble ( m )
+           AA ( 2 , lv + 1 , ia ) = AA ( 2 , lv , ia ) / DBLE ( m )
            AA ( 2 , lv , ia ) = 0.0d0   
            MM ( 2 , lv , ia ) = 0   
          endif  
          if ( MM ( 3 , lv , ia ) .eq. m ) then
-           AA ( 3 , lv + 1 , ia ) = AA ( 3 , lv , ia ) / dble ( m )
+           AA ( 3 , lv + 1 , ia ) = AA ( 3 , lv , ia ) / DBLE ( m )
            AA ( 3 , lv , ia ) = 0.0d0   
            MM ( 3 , lv , ia ) = 0   
          endif  
@@ -230,7 +230,7 @@ SUBROUTINE multi_tau_write_output
       do j = 0 , p -1 
         tk = j * m ** ( lv ) * dtime
         do ia = 1 , natm 
-          fk = fk + ( CC ( lv , j , ia ) / dble ( NN ( lv , j , ia ) ) )  
+          fk = fk + ( CC ( lv , j , ia ) / DBLE ( NN ( lv , j , ia ) ) )  
                       if ( NN ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'N1 0', lv, j ,ia
                       if ( CC ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'C1 0', lv, j ,ia
         enddo
@@ -240,7 +240,7 @@ SUBROUTINE multi_tau_write_output
       do j = p / m  , p -1 
         tk = j * m ** ( lv ) * dtime
         do ia = 1 , natm
-          fk = fk + ( CC ( lv , j , ia ) / dble ( NN ( lv , j , ia ) )  )
+          fk = fk + ( CC ( lv , j , ia ) / DBLE ( NN ( lv , j , ia ) )  )
                       if ( NN ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'N1 p/m', lv, j ,ia
                       if ( CC ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'C1 p/m', lv, j ,ia
         enddo

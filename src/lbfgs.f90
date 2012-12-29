@@ -287,7 +287,7 @@
       IYPT= ISPT+N*M     
       DO 50 I=1,N
  50   W(ISPT+I)= -G(I)*DIAG(I)
-      GNORM= DSQRT(DDOT(N,G,1,G,1))
+      GNORM= SQRT (DDOT(N,G,1,G,1))
       STP1= ONE/GNORM
 !C
 !C     PARAMETERS FOR LINE SEARCH ROUTINE
@@ -396,8 +396,8 @@
 !C     TERMINATION TEST
 !C     ----------------
 !C
-      GNORM= DSQRT(DDOT(N,G,1,G,1))
-      XNORM= DSQRT(DDOT(N,X,1,X,1))
+      GNORM= SQRT (DDOT(N,G,1,G,1))
+      XNORM= SQRT (DDOT(N,X,1,X,1))
       XNORM= DMAX1(1.0D0,XNORM)
       IF (GNORM/XNORM .LE. EPS) FINISH=.TRUE.
 !C

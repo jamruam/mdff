@@ -327,7 +327,7 @@ SUBROUTINE vacf_write_output
     ! total averaging time:
     ! =======================================
     tau0 = dtime*it0*t0
-    errvacf = DSQRT( 2.0d0 * tauc * ( vacff ( 1 ) / ( natm * nvacf ( 1 ) ) ** 2 / tau0 ) )
+    errvacf = SQRT ( 2.0d0 * tauc * ( vacff ( 1 ) / ( natm * nvacf ( 1 ) ) ** 2 / tau0 ) )
     thmax = 0
     ihbmax = 0
 
@@ -344,7 +344,7 @@ SUBROUTINE vacf_write_output
     ! ========
     in  = vacff
     CALL fft_1D_complex ( in , out , tmax )
-    rout = dble ( out ) 
+    rout = DBLE ( out ) 
 
 
     do i = 1 , tmax

@@ -46,9 +46,9 @@ SUBROUTINE periodicbc ( natm , rx , ry , rz , box )
   integer :: ia
 
   do ia = 1 , natm
-     rx ( ia ) = rx ( ia ) - nint( rx ( ia ) / box ) * box
-     ry ( ia ) = ry ( ia ) - nint( ry ( ia ) / box ) * box
-     rz ( ia ) = rz ( ia ) - nint( rz ( ia ) / box ) * box
+     rx ( ia ) = rx ( ia ) - NINT ( rx ( ia ) / box ) * box
+     ry ( ia ) = ry ( ia ) - NINT ( ry ( ia ) / box ) * box
+     rz ( ia ) = rz ( ia ) - NINT ( rz ( ia ) / box ) * box
   enddo
 
   return
@@ -62,9 +62,9 @@ SUBROUTINE periodicbc_ia ( rxx , ryy , rzz , box )
   double precision :: box
   double precision :: rxx , ryy , rzz
 
-  rxx = rxx - nint( rxx / box ) * box
-  ryy = ryy - nint( ryy / box ) * box
-  rzz = rzz - nint( rzz / box ) * box
+  rxx = rxx - NINT ( rxx / box ) * box
+  ryy = ryy - NINT ( ryy / box ) * box
+  rzz = rzz - NINT ( rzz / box ) * box
 
   return
 
@@ -138,7 +138,7 @@ SUBROUTINE init_fcc ( key , natm , ntype , ncell , rx , ry , rz , box , struct )
   cellp = box 
 
   rroot3 = 1.0d0 / SQRT ( 3.0d0 )
-  cell  = 1.0d0 / dble( ncell )
+  cell  = 1.0d0 / DBLE ( ncell )
   cell2 = 0.5d0 * cell 
 
   ! ======================

@@ -30,7 +30,11 @@ MODULE thermodynamic
   
   double precision :: e_kin          ! kinetic energy
   double precision :: u_lj           ! potential energy from lennard_jones interaction
-  double precision :: u_coul         ! potential energy from coulombic interaction 
+  double precision :: u_coul_tot
+  double precision :: u_coul_qq      ! potential energy from coulombic interaction 
+  double precision :: u_coul_dd      ! potential energy from coulombic interaction 
+  double precision :: u_coul_qd      ! potential energy from coulombic interaction
+  double precision :: u_pol 
 
   double precision :: e_kin_r        ! kinetic energy
   double precision :: temp_r         ! temperature ( from kinetic energy )  
@@ -40,7 +44,10 @@ MODULE thermodynamic
 
   double precision :: vir_tot        ! total virial
   double precision :: vir_lj         ! virial of lj interaction
-  double precision :: vir_coul       ! virial of coulombic interaction
+  double precision :: vir_coul_tot   ! virial of coulombic interaction
+  double precision :: vir_coul_qq    ! virial of coulombic interaction
+  double precision :: vir_coul_dd    ! virial of coulombic interaction
+  double precision :: vir_coul_qd    ! virial of coulombic interaction
 
   double precision :: pvirial_tot    ! virial correction to the pressure
   double precision :: pvirial_lj     ! virial correction to the pressure
@@ -81,22 +88,23 @@ SUBROUTINE calc_thermo
   implicit none
 
   if (lreduced) then
-    u_lj_r   = u_lj    / dble( natm )
-    u_coul_r = u_coul  / dble( natm )
-    e_kin_r  = e_kin   / dble( natm )
+    u_lj_r   = u_lj                      / DBLE ( natm )
+    u_coul_r = ( u_coul_qq + u_coul_dd)  / DBLE ( natm )
+    e_kin_r  = e_kin                     / DBLE ( natm )
   else
     u_lj_r   = u_lj
-    u_coul_r = u_coul
+    u_coul_r = u_coul_qq + u_coul_dd
     e_kin_r  = e_kin
   endif
   
   u_tot    = u_lj_r + u_coul_r
   e_tot    = u_tot  + e_kin_r
-  vir_tot  = vir_lj + vir_coul  
+  vir_coul_tot = vir_coul_qq + vir_coul_dd
+  vir_tot  = vir_lj + vir_coul_tot 
 
   if (lreduced) then
-    pvirial_lj    = vir_lj   / omega / dble( natm ) 
-    pvirial_coul  = vir_coul / omega / dble( natm ) 
+    pvirial_lj    = vir_lj   / omega / DBLE ( natm ) 
+    pvirial_coul  = ( vir_coul_tot ) / omega / DBLE ( natm ) 
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + temp_r / omega
@@ -104,7 +112,7 @@ SUBROUTINE calc_thermo
     pressure_coul = pvirial_coul 
   else
     pvirial_lj    = vir_lj   / omega 
-    pvirial_coul  = vir_coul / omega 
+    pvirial_coul  = ( vir_coul_tot )  / omega 
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + rho * temp_r 
@@ -217,8 +225,8 @@ SUBROUTINE general_accumulator
   acc_vir_lj%accvalsq        = acc_vir_lj%accvalsq        + vir_lj * vir_lj
   acc_vir_lj%counter         = acc_vir_lj%counter         + 1
 
-  acc_vir_coul%accval        = acc_vir_coul%accval        + vir_coul
-  acc_vir_coul%accvalsq      = acc_vir_coul%accvalsq      + vir_coul * vir_coul
+  acc_vir_coul%accval        = acc_vir_coul%accval        + vir_coul_tot
+  acc_vir_coul%accvalsq      = acc_vir_coul%accvalsq      + vir_coul_tot * vir_coul_tot
   acc_vir_coul%counter       = acc_vir_coul%counter       + 1
 
   acc_pressure_tot%accval    = acc_pressure_tot%accval    + pressure_tot
@@ -259,27 +267,27 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
   call calc_thermo
 
   if ( ionode ) then
-    if (present(dummy)) then
+    if ( PRESENT ( dummy ) ) then
       WRITE ( kunit , 200 ) &
-      step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r      , dummy
+      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r      , dummy
       WRITE ( kunit , 201 ) &
-      step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
+      step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
     else
       WRITE ( kunit , 100 ) &
-      step , dble(step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r        
+      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r        
       WRITE ( kunit , 101 ) &
-      step , dble(step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
+      step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
     endif
   endif
 
- 100 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',&
-                E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8)
- 101 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',&
-                E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8)
- 200 FORMAT(I9,2X,E14.8,'  Etot = ',E14.8,'  Ekin  = ',E14.8,'  Utot  = ',&
-                E14.8,'  U_lj   = ',E14.8,'  U_coul   = ',E14.8,'  dummy = ',E14.8)
- 201 FORMAT(I9,2X,E14.8,'  Temp = ',E14.8,'  Press = ',E14.8,'  P_lj  = ',&
-                E14.8,'  P_coul = ',E14.8,'  Volume   = ',E14.8,'  dummy = ',E14.8)
+ 100 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
+                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8)
+ 101 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
+                E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8)
+ 200 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
+                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  dummy = ',E15.8)
+ 201 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
+                E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  dummy = ',E15.8)
 
   return
 
@@ -326,41 +334,41 @@ SUBROUTINE write_average_thermo ( kunit )
   ! ========
   !  < A >
   ! ========
-  e_tot_av           = acc_e_tot%accval           / dble ( acc_e_tot%counter )
-  e_kin_r_av         = acc_e_kin_r%accval         / dble ( acc_e_kin_r%counter ) 
-  u_tot_av           = acc_u_tot%accval           / dble ( acc_u_tot%counter )
-  u_lj_r_av          = acc_u_lj_r%accval          / dble ( acc_u_lj_r%counter )
-  u_coul_r_av        = acc_u_coul_r%accval        / dble ( acc_u_coul_r%counter )
-  temp_r_av          = acc_temp_r%accval          / dble ( acc_temp_r%counter )
-  pressure_tot_av    = acc_pressure_tot%accval    / dble ( acc_pressure_tot%counter )
-  pressure_lj_av     = acc_pressure_lj%accval     / dble ( acc_pressure_lj%counter )
-  pressure_coul_av   = acc_pressure_coul%accval   / dble ( acc_pressure_coul%counter )
+  e_tot_av           = acc_e_tot%accval           / DBLE ( acc_e_tot%counter )
+  e_kin_r_av         = acc_e_kin_r%accval         / DBLE ( acc_e_kin_r%counter ) 
+  u_tot_av           = acc_u_tot%accval           / DBLE ( acc_u_tot%counter )
+  u_lj_r_av          = acc_u_lj_r%accval          / DBLE ( acc_u_lj_r%counter )
+  u_coul_r_av        = acc_u_coul_r%accval        / DBLE ( acc_u_coul_r%counter )
+  temp_r_av          = acc_temp_r%accval          / DBLE ( acc_temp_r%counter )
+  pressure_tot_av    = acc_pressure_tot%accval    / DBLE ( acc_pressure_tot%counter )
+  pressure_lj_av     = acc_pressure_lj%accval     / DBLE ( acc_pressure_lj%counter )
+  pressure_coul_av   = acc_pressure_coul%accval   / DBLE ( acc_pressure_coul%counter )
 
   ! ========
   !  < A² >
   ! ========
-  e_tot_avsq         = acc_e_tot%accvalsq         / dble ( acc_e_tot%counter )
-  e_kin_r_avsq       = acc_e_kin_r%accvalsq       / dble ( acc_e_kin_r%counter ) 
-  u_tot_avsq         = acc_u_tot%accvalsq         / dble ( acc_u_tot%counter )
-  u_lj_r_avsq        = acc_u_lj_r%accvalsq        / dble ( acc_u_lj_r%counter )
-  u_coul_r_avsq      = acc_u_coul_r%accvalsq      / dble ( acc_u_coul_r%counter )
-  temp_r_avsq        = acc_temp_r%accvalsq        / dble ( acc_temp_r%counter )
-  pressure_tot_avsq  = acc_pressure_tot%accvalsq  / dble ( acc_pressure_tot%counter )
-  pressure_lj_avsq   = acc_pressure_lj%accvalsq   / dble ( acc_pressure_lj%counter )
-  pressure_coul_avsq = acc_pressure_coul%accvalsq / dble ( acc_pressure_coul%counter )
+  e_tot_avsq         = acc_e_tot%accvalsq         / DBLE ( acc_e_tot%counter )
+  e_kin_r_avsq       = acc_e_kin_r%accvalsq       / DBLE ( acc_e_kin_r%counter ) 
+  u_tot_avsq         = acc_u_tot%accvalsq         / DBLE ( acc_u_tot%counter )
+  u_lj_r_avsq        = acc_u_lj_r%accvalsq        / DBLE ( acc_u_lj_r%counter )
+  u_coul_r_avsq      = acc_u_coul_r%accvalsq      / DBLE ( acc_u_coul_r%counter )
+  temp_r_avsq        = acc_temp_r%accvalsq        / DBLE ( acc_temp_r%counter )
+  pressure_tot_avsq  = acc_pressure_tot%accvalsq  / DBLE ( acc_pressure_tot%counter )
+  pressure_lj_avsq   = acc_pressure_lj%accvalsq   / DBLE ( acc_pressure_lj%counter )
+  pressure_coul_avsq = acc_pressure_coul%accvalsq / DBLE ( acc_pressure_coul%counter )
 
   ! =============================
   !  sqrt ( < A² > - < A > ²)
   ! =============================
-  e_tot_sig         = dsqrt ( e_tot_avsq         - e_tot_av         * e_tot_av         )
-  e_kin_r_sig       = dsqrt ( e_kin_r_avsq       - e_kin_r_av       * e_kin_r_av       )
-  u_tot_sig         = dsqrt ( u_tot_avsq         - u_tot_av         * u_tot_av         )
-  u_lj_r_sig        = dsqrt ( u_lj_r_avsq        - u_lj_r_av        * u_lj_r_av        )
-  u_coul_r_sig      = dsqrt ( u_coul_r_avsq      - u_coul_r_av      * u_coul_r_av      )
-  temp_r_sig        = dsqrt ( temp_r_avsq        - temp_r_av        * temp_r_av        )
-  pressure_tot_sig  = dsqrt ( pressure_tot_avsq  - pressure_tot_av  * pressure_tot_av  )
-  pressure_lj_sig   = dsqrt ( pressure_lj_avsq   - pressure_lj_av   * pressure_lj_av   )
-  pressure_coul_sig = dsqrt ( pressure_coul_avsq - pressure_coul_av * pressure_coul_av )
+  e_tot_sig         = SQRT ( e_tot_avsq         - e_tot_av         * e_tot_av         )
+  e_kin_r_sig       = SQRT ( e_kin_r_avsq       - e_kin_r_av       * e_kin_r_av       )
+  u_tot_sig         = SQRT ( u_tot_avsq         - u_tot_av         * u_tot_av         )
+  u_lj_r_sig        = SQRT ( u_lj_r_avsq        - u_lj_r_av        * u_lj_r_av        )
+  u_coul_r_sig      = SQRT ( u_coul_r_avsq      - u_coul_r_av      * u_coul_r_av      )
+  temp_r_sig        = SQRT ( temp_r_avsq        - temp_r_av        * temp_r_av        )
+  pressure_tot_sig  = SQRT ( pressure_tot_avsq  - pressure_tot_av  * pressure_tot_av  )
+  pressure_lj_sig   = SQRT ( pressure_lj_avsq   - pressure_lj_av   * pressure_lj_av   )
+  pressure_coul_sig = SQRT ( pressure_coul_avsq - pressure_coul_av * pressure_coul_av )
 
 
   if ( ionode ) then
@@ -372,14 +380,14 @@ SUBROUTINE write_average_thermo ( kunit )
       WRITE ( kunit , 103 ) temp_r_sig  , pressure_tot_sig , pressure_lj_sig  , pressure_coul_sig  
   endif
 
- 100 FORMAT(2X,'Aver. values:  <Etot>     = ',E14.8,'  <Ekin>      = ',&
-                     E14.8,'  <Utot>      = ',E14.8,'  <U_lj>      = ',E14.8,'  <U_coul>       = ',E14.8)
- 101 FORMAT(2X,'Aver. values:  <Temp>     = ',E14.8,'  <Press>     = ',&
-                     E14.8,'  <P_lj>      = ',E14.8,'  <P_coul>    = ',E14.8)
- 102 FORMAT(2X,'Var.  estim :  sig2(Etot) = ',E14.8,'  sig2(Ekin)  = ',&
-                     E14.8,'  sig2(Utot)  = ',E14.8,'  sig2(U_lj)  = ',E14.8,'  sig2(U_coul)   = ',E14.8)
- 103 FORMAT(2X,'Var.  estim :  sig2(Temp) = ',E14.8,'  sig2(Press) = ',&
-                     E14.8,'  sig2(P_lj)  = ',E14.8,'  sig2(P_coul)= ',E14.8)
+ 100 FORMAT(2X,'Aver. values:  <Etot>     = ',E15.8,'  <Ekin>      = ',&
+                     E15.8,'  <Utot>      = ',E15.8,'  <U_lj>      = ',E15.8,'  <U_coul>       = ',E15.8)
+ 101 FORMAT(2X,'Aver. values:  <Temp>     = ',E15.8,'  <Press>     = ',&
+                     E15.8,'  <P_lj>      = ',E15.8,'  <P_coul>    = ',E15.8)
+ 102 FORMAT(2X,'Var.  estim :  sig2(Etot) = ',E15.8,'  sig2(Ekin)  = ',&
+                     E15.8,'  sig2(Utot)  = ',E15.8,'  sig2(U_lj)  = ',E15.8,'  sig2(U_coul)   = ',E15.8)
+ 103 FORMAT(2X,'Var.  estim :  sig2(Temp) = ',E15.8,'  sig2(Press) = ',&
+                     E15.8,'  sig2(P_lj)  = ',E15.8,'  sig2(P_coul)= ',E15.8)
 
   return
 

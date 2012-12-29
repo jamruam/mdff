@@ -17,7 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 
@@ -233,7 +233,7 @@ SUBROUTINE vib_main
   integer :: iiii
   character * 60 :: cccc
 
-  PANdos = dble(omegamax/resdos) + 1
+  PANdos = DBLE (omegamax/resdos) + 1
 
   allocate(dostabtot(0:PANdos + 1))
   allocate(dostab(0:PANdos + 1))
@@ -264,7 +264,7 @@ SUBROUTINE vib_main
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
   omega = box * box * box      
-  rho = dble ( natm ) / omega 
+  rho = DBLE ( natm ) / omega 
   ! ===================================
   !  here we know natm, then alloc 
   !  and decomposition can be applied 
@@ -311,18 +311,14 @@ SUBROUTINE vib_main
       enddo
     enddo
 
-    ! ==============================
-    ! force ???? should not be here 
-    ! there is no need ... to check!
-    ! ==============================
-    CALL engforce ( iastart , iaend )!, list , point )
+    ! ===============================================
+    ! do we need forces or energy at this point ??? 
+    ! ===============================================
+    CALL engforce_driver ( iastart , iaend )
 
     CALL calc_thermo
     pot0      = u_tot
     pressure0 = pressure_tot 
-    !print*,pot0,pressure0
-    !print*,iastart , iaend
-    !stop
 
     ! ========================
     !  get the hessian matrix
@@ -362,8 +358,8 @@ SUBROUTINE vib_main
       ! =========================================
       dostab = 0
       do i = 4,3 * natm
-        ak = (dsqrt(deig(i)))/resdos
-        ka = int(ak) + 1
+        ak = (SQRT (deig(i)))/resdos
+        ka = INT (ak) + 1
         if (ka.gt.PANdos + 1.or.ka.lt.0) then
            WRITE ( stdout , * ) 'ERROR out of bound in dostab'
            WRITE ( stdout , * ) i,ka,PANdos + 1,ak,deig(i)
@@ -377,7 +373,7 @@ SUBROUTINE vib_main
 
       do i = 0 , PANdos + 1
         if ( ionode ) WRITE ( kunit_DOSFF ,'(3f16.8)') &
-        dble(i) * resdos,dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
+        DBLE (i) * resdos,dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
       enddo
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
@@ -437,7 +433,7 @@ SUBROUTINE vib_main
 
         do ikd = 1, 3 ! three direction of k
           ak = (eigenk(ik,ikd))/resdos
-          ka = int(ak) + 1
+          ka = INT (ak) + 1
           if (ka.gt.PANdos + 1.or.ka.lt.0) then
              WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
              WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,ikd)
@@ -459,7 +455,7 @@ SUBROUTINE vib_main
       ! ======================
       do i = 0,PANdos + 1
         if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') &
-        dble(i) * resdos, (dostabk(i,j) / ( 3.0 * nk * resdos ),j=0,3) , &
+        DBLE (i) * resdos, (dostabk(i,j) / ( 3.0 * nk * resdos ),j=0,3) , &
         (dostabktot(i,j) / ( 3.0 * nk * resdos * ic),j=0,3)
       enddo
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
@@ -576,9 +572,9 @@ SUBROUTINE hessian ( hess )
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
-      nxij = nint( rxij / box )
-      nyij = nint( ryij / box )
-      nzij = nint( rzij / box )
+      nxij = NINT ( rxij / box )
+      nyij = NINT ( ryij / box )
+      nzij = NINT ( rzij / box )
       rxij = rxij - box * nxij
       ryij = ryij - box * nyij
       rzij = rzij - box * nzij
@@ -589,7 +585,7 @@ SUBROUTINE hessian ( hess )
 
       if (rijsq .lt. rcutsq(p1,p2)) then
         sr2 = sigsq(p1,p2)/rijsq
-        sr = dsqrt(sr2)
+        sr = SQRT (sr2)
         srp2 = sr ** np2(p1,p2)
         srp4 = sr ** np4(p1,p2)
         srq2 = sr ** nq2(p1,p2)
@@ -741,7 +737,7 @@ SUBROUTINE fvibcalc
   ENDDO
   CLOSE ( kunit_ISTHFF )
 
-  de = abs(emax - emin)/real(nbin)
+  de = ABS (emax - emin)/ DBLE ( nbin )
 
 !  PRINT  * ,' *  - ISthermo file = '
 !  PRINT  * ,' *  - vib      file = ',F_IN2
@@ -805,7 +801,7 @@ SUBROUTINE fvibcalc
 
   do i = 1, ncvib
     atmp = (ener(i) - emin)/de
-    ind = int(atmp)  
+    ind = INT (atmp)  
     ind = ind + 1
     fvibhist(ind,2) = fvibhist(ind,2) + 1.0d0
     fvibhist(ind,3) = fvibhist(ind,3) + fvib(i)
@@ -891,8 +887,8 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   ! ===========================================
 
 !  do i = 1,3 * natm ! loop over modes
-    omeg  = dsqrt( deig ( imod ) )
-    dexpo = dexp ( - omeg / temp )
+    omeg  = SQRT ( deig ( imod ) )
+    dexpo = EXP  ( - omeg / temp )
     xsq ( imod ) = 1.0d0 + dexpo
     xsq ( imod ) = xsq ( imod ) / ( 2.0d0 * omeg * ( 1.0d0 - dexpo ) )
 !  enddo
@@ -985,7 +981,7 @@ SUBROUTINE band ( hess )
   ak =  (tpi * ncell)/box
   akn = (tpi * ncell)/(box * nkphon)
 #ifdef debug
-  print*,'debug',ak,akn,ncell,box
+  write( stdout , '(a,f)') 'debug: ak,akn,ncell,box',ak,akn,ncell,box
 #endif
   kxt = kfx - ksx
   kyt = kfy - ksy
@@ -1018,9 +1014,9 @@ SUBROUTINE band ( hess )
         ryij = ryi - ry(ja)
         rzij = rzi - rz(ja)
 
-        nxij = nint( rxij / box )
-        nyij = nint( ryij / box )
-        nzij = nint( rzij / box )
+        nxij = NINT ( rxij / box )
+        nyij = NINT ( ryij / box )
+        nzij = NINT ( rzij / box )
 
         rxij = rxij - box * nxij
         ryij = ryij - box * nyij
@@ -1035,7 +1031,7 @@ SUBROUTINE band ( hess )
           krx = (kxi * rxij)
           kry = (kyi * ryij)
           krz = (kzi * rzij)
-          sphase = dsin( 0.5d0 * (krx + kry + krz) )
+          sphase = SIN ( 0.5d0 * (krx + kry + krz) )
           sphase = sphase * sphase
 
           tmp ( 1 , 1 ) = tmp ( 1 , 1 ) + hess ( ja            , ia            ) * sphase 
@@ -1062,9 +1058,9 @@ SUBROUTINE band ( hess )
 
     CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
-    if (mod(ik + 1,10).eq.0) &
-    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
-    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+    if ( MOD ( ik + 1 , 10 ) .eq. 0 ) &
+    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
+    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
   enddo
 
   CLOSE ( kunit_DOSKFF )
@@ -1161,9 +1157,9 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
         rxij = rxi - rx(ja)
         ryij = ryi - ry(ja)
         rzij = rzi - rz(ja)
-        nxij = nint( rxij / box )
-        nyij = nint( ryij / box )
-        nzij = nint( rzij / box )
+        nxij = NINT ( rxij / box )
+        nyij = NINT ( ryij / box )
+        nzij = NINT ( rzij / box )
         rxij = rxij - box * nxij
         ryij = ryij - box * nyij
         rzij = rzij - box * nzij
@@ -1176,7 +1172,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
           krx = (kxi * rxij)
           kry = (kyi * ryij)
           krz = (kzi * rzij)
-          sphase = dsin( 0.5d0 * (krx + kry + krz) )
+          sphase = SIN ( 0.5d0 * (krx + kry + krz) )
           sphase = sphase * sphase
 
           tmpxx = tmpxx + hess(ja,ia)                       * sphase
@@ -1204,17 +1200,17 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
     CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
     do i = 1,wi
-      if (mod(ik + 1,nk/20).eq.0) then
-        WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+      if ( MOD ( ik + 1 , nk / 20 ) .eq. 0 ) then
+        WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
         kl = kl * 1
       endif
-      WRITE ( kunit_DKFF ,'(i7,3f12.4,3f18.6)')  ck, kxi, kyi, kzi, dsqrt(ww(1)),dsqrt(ww(2)), dsqrt(ww(3))
+      WRITE ( kunit_DKFF ,'(i7,3f12.4,3f18.6)')  ck, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
       ck = ck + 1
     enddo
 
-   eigenk(ik+1,1)=dsqrt(ww(1))
-   eigenk(ik+1,2)=dsqrt(ww(2))
-   eigenk(ik+1,3)=dsqrt(ww(3))
+   eigenk(ik+1,1) = SQRT (ww(1))
+   eigenk(ik+1,2) = SQRT (ww(2))
+   eigenk(ik+1,3) = SQRT (ww(3))
   enddo !ik loop
 
   CLOSE ( kunit_IBZKPTFF )

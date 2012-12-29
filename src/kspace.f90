@@ -16,6 +16,12 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ! ===== fmV =====
 
+! ======= Hardware =======
+#define debug
+! ======= Hardware =======
+
+
+
 MODULE kspace 
 
   implicit none
@@ -26,6 +32,7 @@ MODULE kspace
     double precision, dimension(:,:) , allocatable :: kpt  
     double precision, dimension(:)   , allocatable :: kptk 
     double complex  , dimension(:,:) , allocatable :: strf   ! facteur de structure
+    double complex  , dimension(:,:) , allocatable :: strf2   ! facteur de structure
     character(len=15)                              :: meshlabel
   END TYPE
 
@@ -69,9 +76,9 @@ SUBROUTINE kpoint_sum_init( km )
       do nz = - ncell , ncell
         if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
-          kx = dble(nx) * invbox 
-          ky = dble(ny) * invbox  
-          kz = dble(nz) * invbox  
+          kx = DBLE (nx) * invbox 
+          ky = DBLE (ny) * invbox  
+          kz = DBLE (nz) * invbox  
           kk = kx * kx + ky * ky + kz * kz
           km%kpt(1,nk) = kx
           km%kpt(2,nk) = ky
@@ -112,7 +119,7 @@ SUBROUTINE kpoint_sum_init_half ( km )
 
   USE config,           ONLY :  box 
   USE io_file,          ONLY :  ionode , stdout, kunit_OUTFF
-  USE constants,        ONLY :  tpi
+  USE constants,        ONLY :  pi , tpi
 
   implicit none
   
@@ -138,9 +145,9 @@ SUBROUTINE kpoint_sum_init_half ( km )
       do nz = 0 , ncell
         if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
-          kx = dble(nx) * invbox
-          ky = dble(ny) * invbox
-          kz = dble(nz) * invbox
+          kx = DBLE (nx) * invbox
+          ky = DBLE (ny) * invbox
+          kz = DBLE (nz) * invbox
           kk = kx * kx + ky * ky + kz * kz
           km%kpt(1,nk) = kx
           km%kpt(2,nk) = ky
@@ -244,7 +251,7 @@ SUBROUTINE struc_fact ( km )
   
   USE config,           ONLY :  natm , itype , ntype , rx , ry , rz , box 
   USE io_file,          ONLY :  ionode , kunit_STRFACFF
-  USE constants,        ONLY :  imag 
+  USE constants,        ONLY :  imag , mimag
 
   implicit none
 
@@ -255,7 +262,7 @@ SUBROUTINE struc_fact ( km )
   integer :: it, ia, ik
   double precision :: arg , rxi , ryi , rzi 
 
-  !  exp ( - i k . r ) 
+  !  exp ( i k . r ) 
   km%strf(:,:) = (0.d0,0.d0)
   do it = 1, ntype
      do ia = 1, natm
@@ -265,7 +272,7 @@ SUBROUTINE struc_fact ( km )
         if ( itype (ia) .eq. it ) then
            do ik = 1, km%nkcut 
               arg = ( km%kpt ( 1, ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
-              km%strf (ik, it) = km%strf (ik, it) + EXP( imag * arg ) 
+              km%strf  ( ik , it ) = km%strf  ( ik , it ) + EXP( imag * arg ) 
            enddo
         endif
      enddo
@@ -287,7 +294,7 @@ SUBROUTINE struc_fact_dip ( km , dip )
   
   USE config,           ONLY :  natm , itype , ntype , rx , ry , rz , box 
   USE io_file,          ONLY :  ionode , kunit_STRFACFF
-  USE constants,        ONLY :  imag 
+  USE constants,        ONLY :  imag , mimag
 
   implicit none
 
@@ -297,8 +304,13 @@ SUBROUTINE struc_fact_dip ( km , dip )
 
   ! local
   integer :: it, ia, ik
-  double precision :: arg , rxi , ryi , rzi 
-  double complex   :: muk
+  double precision :: arg , rxi , ryi , rzi , muk 
+
+#ifdef debug
+  do it = 1 , ntype 
+    write ( *, * ) dip ( it , 1 ) , dip ( it , 2 ) , dip ( it , 3 )
+  enddo
+#endif
 
   !  exp ( i k . r ) 
   km%strf(:,:) = (0.d0,0.d0)
@@ -310,8 +322,8 @@ SUBROUTINE struc_fact_dip ( km , dip )
         if ( itype (ia) .eq. it ) then
            do ik = 1, km%nkcut 
               arg = ( km%kpt ( 1, ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
-              muk = imag * ( km%kpt ( 1, ik ) * dip(it,1) + km%kpt ( 2 , ik ) * dip(it,2) + km%kpt ( 3 , ik ) * dip(it,3) )
-              km%strf (ik, it) = km%strf (ik, it) + muk * EXP( imag * arg ) 
+              muk = ( km%kpt ( 1, ik ) * dip( it , 1 ) + km%kpt ( 2 , ik ) * dip( it , 2 ) + km%kpt ( 3 , ik ) * dip( it , 3 ) )
+              km%strf ( ik, it ) = km%strf (ik, it) + muk * EXP( imag * arg ) 
            enddo
         endif
      enddo

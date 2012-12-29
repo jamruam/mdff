@@ -40,13 +40,13 @@ SUBROUTINE estimate_alpha(alpha)
   rcut2=rcut*rcut
   rcut3=rcut2*rcut
 
-  e = dexp( -alpha2*rcut2 )
+  e = EXP ( -alpha2*rcut2 )
   e = e / alpha2 / rcut3
   e = e * 0.56d0  
   do while ( e .le. 1e-7 )
     alpha = alpha - 0.05d0
     alpha2 = alpha*alpha
-    e = dexp( -alpha2*rcut2 )
+    e = EXP ( -alpha2*rcut2 )
     e = e / alpha2 / rcut3
     e = e * 0.56d0
   enddo
@@ -91,7 +91,7 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
 
   isteps = (imax-imin)+1
   x = isteps/np
-  y = mod(isteps,np)
+  y = MOD ( isteps , np )
 
   do me = 0,np-1
      if ((me.eq.0).or.(me.gt.y)) then
@@ -170,15 +170,15 @@ SUBROUTINE distance_tab ( kunit )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = nint( rxij / box )
-        nyij = nint( ryij / box )
-        nzij = nint( rzij / box )
+        nxij = NINT ( rxij / box )
+        nyij = NINT ( ryij / box )
+        nzij = NINT ( rzij / box )
         rxij = rxij - box * nxij
         ryij = ryij - box * nyij
         rzij = rzij - box * nzij
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
-        rij = dsqrt ( rijsq )  
-        mindis = min( mindis , rij )
+        rij = SQRT ( rijsq )  
+        mindis = MIN ( mindis , rij )
         if ( rij .lt. sigmalj(1,1) * 0.001d0 ) then
           if ( ionode ) &
           WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
@@ -186,7 +186,7 @@ SUBROUTINE distance_tab ( kunit )
           STOP 
         endif
         rij = rij / resdis
-        kdis = int( rij )
+        kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
           if ( ionode ) WRITE ( stdout ,*) 'ERROR: out of bound dist in SUBROUTINE distance_tab'
         endif
@@ -276,14 +276,14 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
     rzi = rz ( ia )
     k = 0
     do ja = 1 , natm
-      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-           ( ia .lt. ja .and. ( mod (ia + ja , 2 ) .ne.0 ) ) ) then
+      if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( MOD (ia + ja , 2 ) .ne.0 ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = nint( rxij / box )
-        nyij = nint( ryij / box )
-        nzij = nint( rzij / box )
+        nxij = NINT ( rxij / box )
+        nyij = NINT ( ryij / box )
+        nzij = NINT ( rzij / box )
         rxij = rxij - box * nxij
         ryij = ryij - box * nyij
         rzij = rzij - box * nzij
@@ -344,8 +344,8 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
     rzi = rz ( ia )
     k = 0
     do ja = 1 , natm
-      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-           ( ia .lt. ja .and. ( mod ( ia + ja , 2 ) .ne. 0 ) ) ) then
+      if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -427,14 +427,14 @@ SUBROUTINE vnlist_noimg ( iastart , iaend )
     rzi = rz ( ia )
     k = 0
     do ja = 1 , natm
-      if ( ( ia .gt. ja .and. ( mod ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-           ( ia .lt. ja .and. ( mod ( ia + ja , 2 ) .ne. 0 ) ) ) then
+      if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+           ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = nint ( rxij / box )
-        nyij = nint ( ryij / box )
-        nzij = nint ( rzij / box )
+        nxij = NINT ( rxij / box )
+        nyij = NINT ( ryij / box )
+        nzij = NINT ( rzij / box )
         rxij = rxij - box * nxij
         ryij = ryij - box * nyij
         rzij = rzij - box * nzij
@@ -488,9 +488,9 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
 
   displ = 0.0D0
   do ia = 1, natm
-    rxsi = dabs( rx ( ia ) - xs ( ia ) )
-    rysi = dabs( ry ( ia ) - ys ( ia ) )
-    rzsi = dabs( rz ( ia ) - zs ( ia ) )
+    rxsi = ABS ( rx ( ia ) - xs ( ia ) )
+    rysi = ABS ( ry ( ia ) - ys ( ia ) )
+    rzsi = ABS ( rz ( ia ) - zs ( ia ) )
     if ( rxsi .gt. DISPL ) DISPL = rxsi
     if ( rysi .gt. DISPL ) DISPL = rysi
     if ( rzsi .gt. DISPL ) DISPL = rzsi
@@ -680,7 +680,7 @@ SUBROUTINE print_config_sample ( time , rank )
 
   if ( myrank.eq.rank ) then
        WRITE ( stdout ,'(a)') '==================================================================================================================================='
-       WRITE ( stdout ,'(a)') 'debug SAMPLE OF THE CONFIGIURATION debug     '
+       WRITE ( stdout ,'(a)') 'debug :  SAMPLE OF THE CONFIGIURATION '
        WRITE ( stdout ,'(a5,i10)') 'time = ',time
        WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
        WRITE ( stdout ,'(a)') '     i    atype       itype      ipolar      q      mu_x    mu_y    mu_z             rx                 vx                  fx'

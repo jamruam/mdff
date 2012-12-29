@@ -167,7 +167,7 @@ SUBROUTINE rescale_velocities (quite)
     WRITE ( stdout ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
 #ifdef debug    
     CALL calc_temp(T,ekin)
-    WRITE ( stdout ,'(a,f10.4)') 'rescaled temperature       = ',T
+    WRITE ( stdout ,'(a,f10.4)') 'debug : rescaled temperature       = ',T
 #endif    
     WRITE ( stdout ,'(a)')       ''
     
@@ -296,7 +296,7 @@ SUBROUTINE uniform_random_velocities
   Vx0t = 0.D0
   Vy0t = 0.D0
   Vz0t = 0.D0
-  f = SQRT(3 * natm * temp/v2)
+  f = SQRT ( 3 * DBLE ( natm ) * temp / v2 )
   v2 = 0.D0
   DO i = 1, natm
     VX(i) = (VX(i)-vx0) * f
@@ -307,7 +307,7 @@ SUBROUTINE uniform_random_velocities
     Vz0t = Vz0t + VZ(i)
     v2 = v2 + VX(i) ** 2 + VY(i) ** 2 + VZ(i) ** 2
   ENDDO
-  v2 = v2/DBLE(3 * natm)
+  v2 = v2 / DBLE(3 * natm)
   Vx0t = Vx0t/natm
   Vy0t = Vy0t/natm
   Vz0t = Vz0t/natm
@@ -317,8 +317,8 @@ SUBROUTINE uniform_random_velocities
 
   return
 
-99001 FORMAT('Initial temperature     : ',f5.3)
-99002 FORMAT('Velocity centre of mass : ',/,'          x = ',e8.2,/, '          y = ',e8.2,/, '          z = ',e8.2)
+99001 FORMAT('Initial temperature     : ',f6.3)
+99002 FORMAT('Velocity centre of mass : ',/,'          x = ',e9.2,/, '          y = ',e9.2,/, '          z = ',e9.2)
 
 END SUBROUTINE uniform_random_velocities
 
@@ -381,7 +381,7 @@ SUBROUTINE maxwellboltzmann_velocities
     WRITE ( stdout      ,'(a,a20)') 'normal distribution method = ', dgauss  
   endif      
 
-  RTEMP = DSQRT ( temp )
+  RTEMP = SQRT ( temp )
 
   do ia = 1 , natm
      if ( dgauss .eq. 'boxmuller_basic' ) then
@@ -418,9 +418,9 @@ SUBROUTINE maxwellboltzmann_velocities
     SUMZ = SUMZ + vz ( ia )
   enddo
 
-  SUMX = SUMX / dble( natm )
-  SUMY = SUMY / dble( natm )
-  SUMZ = SUMZ / dble( natm )
+  SUMX = SUMX / DBLE ( natm )
+  SUMY = SUMY / DBLE ( natm )
+  SUMZ = SUMZ / DBLE ( natm )
 
   do ia  = 1 , natm
      vx ( ia ) = vx ( ia ) - SUMX
@@ -456,7 +456,7 @@ SUBROUTINE calc_temp (T, ekin)
   enddo
   ekin = ekin * 0.5d0
   T = (2.0D0/3.0D0) * ekin
-  T = T/dble(natm) 
+  T = T / DBLE (natm) 
 
   return
 

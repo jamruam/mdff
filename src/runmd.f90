@@ -67,7 +67,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb
   USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
                         kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
-  USE prop,     ONLY :  lstrfac , lgr , lefg , lmsd , lvacf , nprop , nprop_start
+  USE prop,     ONLY :  lstrfac , lmsd , lvacf , nprop , nprop_start
   USE md,       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
                         fprint, spas , dt,  temp , updatevnl , write_traj_xyz , write_traj_xyz_test , integrator
 
@@ -138,13 +138,6 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   OPEN (unit = kunit_EQUILFF,file = 'EQUILFF',STATUS = 'UNKNOWN')
 #endif
 
-  ! =============
-  !  lefg at t=0
-  ! =============
-  if ( lefg ) then
-    if ( longrange .eq. 'direct' )  CALL efg_DS ( iastart , iaend )
-    if ( longrange .eq. 'ewald'  )  CALL efg_ES ( iastart , iaend )
-  endif
   ! ===================================
   !  calc. kinetic temperature at t=0
   ! ===================================
@@ -161,7 +154,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! =========================
     ! force + potential at t=0
     ! =========================
-     CALL engforce ( iastart , iaend )!, list , point )
+     CALL engforce_driver ( iastart , iaend )
 
     ! ==================================================
     ! write thermodynamic information of config at t=0
@@ -188,7 +181,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! ===================
     ! force + potential
     ! ===================
-    CALL engforce ( iastart , iaend )!, list , point )
+    CALL engforce_driver ( iastart , iaend )
     ! =======================================================
     ! write thermodynamic information of the starting point
     ! =======================================================
@@ -263,7 +256,6 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nve-vv_test' )  CALL prop_velocity_verlet_test ( iastart , iaend )!, list , point )
 
 #ifdef debug
-         print*,'debug'
          CALL print_config_sample(itime,0)
 #endif
 
@@ -276,9 +268,9 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! ================================
          !  rescale velocities (NVE equil)
          ! ================================
-         if ( (any(integrator.eq.rescale_allowed)) .and.  &
-                  ((itime.le.nequil.and.mod(itime,nequil_period).eq.0) .and. &
-                   (itime.ne.npas+(offset-1).and.itime.ne.offset)) ) then
+         if ( ( ANY ( integrator .eq. rescale_allowed ) ) .and.  &
+                  ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
+                    ( itime .ne. npas + ( offset - 1 ) .and. itime .ne. offset ) ) ) then
            CALL rescale_velocities(0)
          endif
 
@@ -290,12 +282,11 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! ===================
          !  print trajectory 
          ! ===================
-         if ( ltraj .and. (itime .gt. itraj_start ) .and. mod(itime,itraj_period) .eq. 0 ) then
+         if ( ltraj .and. (itime .gt. itraj_start ) .and. MOD (itime,itraj_period) .eq. 0 ) then
            xtmp = rx
            ytmp = ry
            ztmp = rz
 #ifdef debug
-           print*,'debug'
            CALL write_traj_xyz_test
 #endif 
            CALL write_traj_xyz
@@ -312,7 +303,7 @@ MAIN:  do itime = offset , npas + (offset-1)
 #endif
        
 #ifdef com_t
-     if ( mod( itime , nprint ) .eq. 0 ) then
+     if ( MOD ( itime , nprint ) .eq. 0 ) then
        comcount = comcount + 1 
        CALL center_of_mass ( rx , ry , rz , com )
        write(*,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
@@ -321,13 +312,13 @@ MAIN:  do itime = offset , npas + (offset-1)
        modcom1=com(1,1)*com(1,1)+com(1,2)*com(1,2)+com(1,3)*com(1,3) 
        modcom2=com(2,1)*com(2,1)+com(2,2)*com(2,2)+com(2,3)*com(2,3) 
        ! sum 
-       sumcom1   = sumcom1 + dsqrt(modcom1)
-       sumcom2   = sumcom2 + dsqrt(modcom2)
+       sumcom1   = sumcom1 + SQRT (modcom1)
+       sumcom2   = sumcom2 + SQRT (modcom2)
        ! sum od square
        sumcom1sq = sumcom1sq + modcom1
        sumcom2sq = sumcom2sq + modcom2
        ! counting  
-       ddtt      =1.0D0/dble(comcount)
+       ddtt      =1.0D0 / DBLE (comcount)
        ! average
        mcom1     = sumcom1*ddtt
        mcom2     = sumcom2*ddtt 
@@ -344,7 +335,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          !  properties on-the-fly
          ! =======================
          ! -----------------------------------------------------------------------------------------
-         if ( mod(itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
+         if ( MOD (itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
 
            ! =======
            !  lvacf
@@ -361,35 +352,6 @@ MAIN:  do itime = offset , npas + (offset-1)
              CALL msd_main ( nmsd )
            endif
   
-           ! =======
-           !  lefg
-           ! =======
-           if ( lefg ) then
-             nefg = nefg + 1
-             ! ==================
-             !  direct summation 
-             ! ================== 
-             if ( longrange .eq. 'direct' )  CALL efg_DS ( iastart , iaend )
-             ! ==================
-             !  ewald summation 
-             ! ================== 
-             if ( longrange .eq. 'ewald' )   CALL efg_ES ( iastart , iaend )
-#ifdef efg_t 
-             ! =============
-             !  efg output 
-             ! ============= 
-             CALL efg_write_output( nefg )
-#endif
-           endif 
-
-           ! =======
-           !  lgr
-           ! =======
-           if ( lgr ) then
-             ngr = ngr + 1 
-             CALL gr_main ( iastart , iaend , ngr ) 
-           endif
-
 #ifdef multi_tau
              ntau = ntau + 1
              CALL multi_tau_main ( vx , vy , vz , ntau )
@@ -402,7 +364,7 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  write instanteanous thermodynamic properties
         !  to standard output and OUTFF
         ! =============================================
-        if ( mod( itime , nprint ) .eq. 0 ) then  
+        if ( MOD ( itime , nprint ) .eq. 0 ) then  
               CALL write_thermo(itime, stdout)
               CALL write_thermo(itime, kunit_OUTFF)
         endif
@@ -411,14 +373,14 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  write instanteanous thermodynamic properties
         !  to file OSZIFF 
         ! =============================================
-        if (  mod( itime , fprint ) .eq. 0 ) then  ! tmp
+        if (  MOD ( itime , fprint ) .eq. 0 ) then  ! tmp
             CALL write_thermo(itime, kunit_OSZIFF)
         endif
   
         ! =====================
         !  save configuration 
         ! =====================
-        if ( mod( itime , spas ) .eq. 0 ) then
+        if ( MOD ( itime , spas ) .eq. 0 ) then
           CALL write_CONTFF
         endif 
   enddo MAIN
@@ -459,14 +421,6 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( lstrfac ) then
     CALL static_struc_fac (ngr)
   endif 
-
-  ! =======
-  !  lefg  probably no lefg anymore not needed 
-  ! =======
-!  if ( lefg ) then
-!    if ( ionode ) WRITE ( stdout , * ) 'write efg distribution files of ',nefg,' configurations'
-!    CALL efg_write_output( nefg ) 
-!  endif
 
   ! =======
   !  lmsd

@@ -64,6 +64,9 @@ MODULE config
 
   double precision , dimension(:)  , allocatable :: qia              ! charge on ion 
   double precision , dimension(:,:), allocatable :: dipia            ! dipole on ion 
+  double precision , dimension(:,:), allocatable :: dipia_ind        ! induced dipole on ion 
+
+  double precision , dimension(:), allocatable :: phi_coul_qq , phi_coul_dd , phi_coul_tot    ! coulombic potential 
 
   character*3, dimension(:), allocatable      :: atype               ! atom type A or B 
   character*3, dimension(0:ntypemax)          :: atypei              ! type of atoms (per type)
@@ -278,10 +281,10 @@ SUBROUTINE config_check_tag
     STOP 
   endif
   if ( rho .ne. 0.0D0 .and. box .eq. 0.0d0 ) then
-    box = dble(natm) / rho
+    box = DBLE (natm) / rho
     box = box**(1.0D0 / 3.0D0 )
   else if ( box .ne. 0.0d0 .and. rho .eq. 0.0d0 )  then
-    rho = dble(natm)/(box**3.0D0)
+    rho = DBLE (natm)/(box**3.0D0)
   endif
   if ( box .eq. 0.0D0 .and. rho .eq. 0.0D0 ) then
     if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be both zero --- choose one !!'
@@ -530,7 +533,7 @@ SUBROUTINE gen_pos
   ! ======================      
   ! recalculate xna,xnb  
   ! ======================
-  xn(1) = dble(na)/dble(natm)
+  xn(1) = DBLE (na)/DBLE (natm)
   xn(2) = 1.0D0-xn(1)
 
   deallocate(rxtmp,rytmp,rztmp)
@@ -660,6 +663,7 @@ SUBROUTINE read_pos
   endif
 
   OPEN ( kunit_POSFF , file = 'POSFF' ) 
+  READ ( kunit_POSFF ,* ) natm 
   READ ( kunit_POSFF ,* ) system
   READ ( kunit_POSFF ,* ) box , ntype 
   READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
@@ -668,13 +672,7 @@ SUBROUTINE read_pos
   READ( kunit_POSFF ,*) (natmi(it),it=1,ntype)
       
   omega = box * box * box
-
-  natm = 0
-
-  do it = 1 , ntype
-    natm = natm + natmi(it)
-  enddo
-  rho = dble( natm ) / omega
+  rho = DBLE ( natm ) / omega
 
   call config_alloc 
 
@@ -713,7 +711,7 @@ SUBROUTINE read_pos
   ! recalculate xna,xnb  
   ! ======================
   do it = 1 , ntype
-    xn(it)  = dble( natmi (it) ) /dble( natm )
+    xn(it)  = DBLE ( natmi (it) ) /DBLE ( natm )
   end do
 
   ! reset begining of tables atypei and natmi
@@ -800,7 +798,9 @@ SUBROUTINE config_alloc
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
   allocate( dipia ( natm , 3 ) )
+  allocate( dipia_ind ( natm , 3 ) )
   allocate( ipolar ( natm ) )
+  allocate( phi_coul_qq  ( natm ) , phi_coul_dd ( natm ) , phi_coul_tot ( natm ) ) ! well only if we calculated coulombic interactions
 
   rx = 0.0D0
   ry = 0.0D0
@@ -825,7 +825,11 @@ SUBROUTINE config_alloc
   point = 0
   qia = 0.0d0
   dipia = 0.0d0
+  dipia_ind = 0.0d0
   ipolar = 0
+  phi_coul_qq = 0.0d0
+  phi_coul_dd = 0.0d0
+  phi_coul_tot = 0.0d0
 
   return 
  
@@ -855,7 +859,9 @@ SUBROUTINE config_dealloc
   deallocate( xs , ys , zs )
   deallocate( qia ) 
   deallocate( dipia ) 
+  deallocate( dipia_ind ) 
   deallocate( ipolar ) 
+  deallocate( phi_coul_qq , phi_coul_dd , phi_coul_tot ) ! well only if we calculated coulombic interactions
 
   return 
 
@@ -894,9 +900,9 @@ SUBROUTINE center_of_mass ( ax , ay , az , com )
   enddo
 
   do it = 0 , ntype
-    com ( it , 1 )  = com ( it , 1 ) / dble( natmi(it) )
-    com ( it , 2 )  = com ( it , 2 ) / dble( natmi(it) )
-    com ( it , 3 )  = com ( it , 3 ) / dble( natmi(it) )
+    com ( it , 1 )  = com ( it , 1 ) / DBLE ( natmi ( it ) )
+    com ( it , 2 )  = com ( it , 2 ) / DBLE ( natmi ( it ) )
+    com ( it , 3 )  = com ( it , 3 ) / DBLE ( natmi ( it ) )
   enddo
 
   return

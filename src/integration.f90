@@ -70,7 +70,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
   ! ==========================
   ! force + potential f(t)
   ! ==========================
-    CALL engforce ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend )
 
   ! ================================================= 
   !  r(t+dt) = 2 r(t) - r (t-dt) + f(t) dt*dt
@@ -166,7 +166,7 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce ( iastart , iaend )!, list , point )
+  CALL engforce_driver ( iastart , iaend )!, list , point )
 
   ! ==============================================
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
@@ -292,7 +292,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
   CALL chain_nh_2( kin, vxi1, vxi2, xi1, xi2 ) 
 
   tempi = (2.0D0/3.0D0) * kin
-  tempi = tempi/dble(natm)
+  tempi = tempi/DBLE (natm)
 
   e_kin = kin
   temp_r = tempi
@@ -328,17 +328,17 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
 
   Q1 = natm * Qnosehoover
   Q2 = Qnosehoover
-  L = dble(3 * natm)
+  L = DBLE (3 * natm)
 
   G2   = ( Q1 * vxi1 * vxi1 - temp)
   vxi2 = vxi2 + G2 * dt4
-  vxi1 = vxi1 * dexp ( - vxi2 * dt8 )
+  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
   G1 = ( 2.0D0 *  kin - L * temp) / Q1
   vxi1 = vxi1 + G1 * dt4
-  vxi1 = vxi1 * dexp ( - vxi2 * dt8 )
+  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
   xi1 = xi1 + vxi1 * dt2
   xi2 = xi2 + vxi2 * dt2
-  s = dexp( - vxi1 * dt2 )
+  s = EXP ( - vxi1 * dt2 )
 
   do ia = 1, natm
     vx ( ia ) = s * vx ( ia )
@@ -347,10 +347,10 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
   enddo
   
   kin = kin * s * s
-  vxi1 = vxi1 * dexp ( - vxi2 * dt8 )
+  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
   G1 = ( 2.0D0 *  kin - L * temp) / Q1
   vxi1 = vxi1 + G1 * dt4
-  vxi1 = vxi1 * dexp ( - vxi2 * dt8 )
+  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
   G2   = ( Q1 * vxi1 * vxi1 - temp) / Q2
   vxi2 = vxi2 + G2 * dt4
 
@@ -396,7 +396,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce ( iastart , iaend )!, list , point )
+  CALL engforce_driver ( iastart , iaend )
 
   kin  = 0.0d0
   do ia = 1 , natm
@@ -471,7 +471,7 @@ SUBROUTINE beeman ( iastart , iaend )
   ! ===========================
   ! force + potential  f(t+dt)
   ! ===========================
-  CALL engforce ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend )
 
   ! ==================================================================
   ! v (t+dt) = v (t) + ( 1/3 f(t+dt) + 5/6 f(t) - 1/6  f(t-dt) )  dt

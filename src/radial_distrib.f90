@@ -45,7 +45,6 @@ CONTAINS
 SUBROUTINE gr_init
 
   USE control,  ONLY :  calc
-  USE prop,     ONLY :  lgr
   USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF, ionode
 
   implicit none
@@ -58,7 +57,7 @@ SUBROUTINE gr_init
                      nskip , &
                      resg  
 
-  if ( .not. lgr .and. calc .ne. 'gr' ) return
+  if ( calc .ne. 'gr' ) return
 
   CALL gr_default_tag
   
@@ -95,11 +94,10 @@ END SUBROUTINE gr_init
 SUBROUTINE gr_alloc
 
   USE control,  ONLY :  calc
-  USE prop,     ONLY :  lgr
 
   implicit none
 
-  if ( .not. lgr .and. calc .ne. 'gr' ) return
+  if ( calc .ne. 'gr' ) return
 
   allocate(gr(4,0:PANGR))
   gr = 0      
@@ -117,11 +115,10 @@ END SUBROUTINE gr_alloc
 SUBROUTINE gr_dealloc
 
   USE control,  ONLY :  calc
-  USE prop,     ONLY :  lgr
 
   implicit none
 
-  if ( .not. lgr .and. calc .ne. 'gr' ) return
+  if ( calc .ne. 'gr' ) return
   
   deallocate( gr )
 
@@ -237,7 +234,7 @@ SUBROUTINE grcalc
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
   omega = box * box * box
-  rho = dble ( natm )  / omega 
+  rho = DBLE ( natm )  / omega 
   CALL gr_init
 
   CALL print_general_info( stdout )
@@ -251,7 +248,7 @@ SUBROUTINE grcalc
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL gr_alloc
 #ifdef debug
-  print*,'debug',iastart , iaend
+  write ( stdout , '(a,i)' ) 'debug : iastart, iaend ',iastart , iaend
 #endif
   ! ==========================================   
   !  skip the first nskip configurations 
@@ -311,6 +308,8 @@ SUBROUTINE grcalc
   enddo !nc 
 
   CLOSE( kunit_TRAJFF )
+
+  CALL gr_dealloc
 
   return
 
@@ -373,16 +372,16 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
-      nxij = nint( rxij / box )
-      nyij = nint( ryij / box )
-      nzij = nint( rzij / box )
+      nxij = NINT ( rxij / box )
+      nyij = NINT ( ryij / box )
+      nzij = NINT ( rzij / box )
       rxij = rxij - box *nxij
       ryij = ryij - box *nyij
       rzij = rzij - box *nzij
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
       if ( rijsq.lt.cut2 ) then
-        rr = dsqrt(rijsq)
-        igr = int(rr/resg)
+        rr = SQRT ( rijsq )
+        igr = INT ( rr / resg )
         gr(4,igr)  = gr(4,igr)+1  ! all average
         if ( atype ( ia ) .eq. 'A' .and. atype ( ja ) .eq. 'A' ) then
           gr ( 1 , igr )  = gr ( 1 , igr ) + 1   ! AA average
@@ -403,24 +402,24 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
   enddo
 
   do i = 1,PANGR-1
-    rr = resg*(dble(i)+0.5D0)
+    rr = resg*(DBLE (i)+0.5D0)
     k = i+1
     k = k*k*k
     k = k-(i*i*i)
-    vol = dble(k)*resg*resg*resg ! r^3
+    vol = DBLE (k)*resg*resg*resg ! r^3
     vol = (4.0D0/3.0D0)*pi*vol/omega !4/3pir^3
-    grr1   = dble(gr(1,i))/(ngr*vol*na*na)
+    grr1   = DBLE (gr(1,i))/(ngr*vol*na*na)
     if (ntype .ne. 1 ) then
-      grr2   = dble(gr(2,i))/(ngr*vol*nb*nb)
-      grr3   = dble(gr(3,i))/(ngr*vol*na*nb)
-      grrtot = dble(gr(4,i))/(ngr*vol*natm*natm)
+      grr2   = DBLE (gr(2,i))/(ngr*vol*nb*nb)
+      grr3   = DBLE (gr(3,i))/(ngr*vol*na*nb)
+      grrtot = DBLE (gr(4,i))/(ngr*vol*natm*natm)
       if ( ionode ) then  
         WRITE (kunit_GRTFF,'(5f15.10)') rr , grr1 , grr2 , grr3 , grrtot 
         WRITE (kunit_NRTFF,'(5f20.10)') &
-        rr , dble(gr(1,i))*4.0d0*pi*rr*rr/dble(ngr*na) , &
-             dble(gr(2,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , &
-             dble(gr(3,i))*4.0d0*pi*rr*rr/dble(ngr*nb) , &
-             dble(gr(4,i))*4.0d0*pi*rr*rr/dble(ngr*natm) 
+        rr , DBLE ( gr(1,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*na) , &
+             DBLE ( gr(2,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*nb) , &
+             DBLE ( gr(3,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*nb) , &
+             DBLE ( gr(4,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*natm) 
       endif
     else
       if ( ionode ) then  
@@ -433,7 +432,7 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
 
 #ifdef debug
   do i=1, PANGR-1
-    WRITE (kunit_GRTFF,'(a,5i6)') 'debug ',i,gr(:,i)
+    WRITE (stdout , '(a,5i6)') 'debug: ',i,gr(:,i)
   enddo
 #endif 
  
@@ -470,13 +469,13 @@ SUBROUTINE static_struc_fac ( ngr )
   double complex     ,dimension (:), allocatable :: out
 
   do i = 1,PANGR-1
-    rr = resg*(dble(i)+0.5D0)
+    rr = resg*(DBLE (i)+0.5D0)
     k = i+1
     k = k**3
     k = k-(i*i*i)
-    vol = dble(k)*resg*resg*resg
+    vol = DBLE (k)*resg*resg*resg
     vol = (4.0D0/3.0D0)*pi*vol/omega
-    grr1   = dble(gr(1,i))/(ngr*vol*natmi(1)*natm)
+    grr1   = DBLE (gr(1,i))/(ngr*vol*natmi(1)*natm)
   !  gr(1,i) = grr1
   enddo
 
@@ -487,7 +486,7 @@ SUBROUTINE static_struc_fac ( ngr )
   ! ========
   in  = gr(1,:) 
   CALL fft_1D_real ( in , out , pangr )
-  stat_str = dble ( out ) 
+  stat_str = DBLE ( out ) 
   !stat_str = 1.0d0 + rho * stat_str
 
   do i = 1,PANGR-1

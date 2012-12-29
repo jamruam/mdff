@@ -277,7 +277,7 @@ SUBROUTINE opt_main
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
 
   omega = box * box * box
-  rho = dble ( natm )  / omega 
+  rho = DBLE ( natm )  / omega 
 
   CALL print_general_info( stdout )
   CALL print_general_info( kunit_OUTFF )
@@ -340,13 +340,13 @@ SUBROUTINE opt_main
     enddo
   enddo
 
-    if ( ((mod(ic,nperiodopt) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
+    if ( (( MOD ( ic , nperiodopt ) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
       ! =======================
       !  calc initial thermo  
       ! =======================  
       neng = 0
-      CALL engforce( iastart , iaend )
+      CALL engforce_driver ( iastart , iaend )
       CALL calc_thermo
       pot0 = u_tot 
       pressure0 = pressure_tot
@@ -404,7 +404,7 @@ SUBROUTINE opt_main
       ! ===========================================
       !  calculated forces (they should be small) 
       ! ===========================================
-      if ( lforce ) CALL engforce( iastart , iaend )
+      if ( lforce ) CALL engforce_driver ( iastart , iaend )
       ! =============================================
       !  write IS structures
       !  new configurations are stored in rx ,ry ,rz, fx , fy ,fz
@@ -483,7 +483,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   itmax = 10000
   nskp = 1
   nstep = 0
-  CALL engforce ( iastart , iaend )!, list , point )
+  CALL engforce_driver ( iastart , iaend )
   neng = neng + 1
 
   umag = 0.0D0
@@ -503,7 +503,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
   enddo
 
-  umag = dsqrt(umag)
+  umag = SQRT (umag)
   do ja = 1, natm
     xix ( ja ) = xix ( ja ) / umag
     xiy ( ja ) = xiy ( ja ) / umag
@@ -523,12 +523,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       phigrad = phigrad + fx ( ia ) * fx ( ia ) + fy ( ia ) * fy ( ia ) + fz ( ia ) * fz ( ia )
     enddo!
 
-    if ( ionode .and.mod(its,kl).eq.0) then
+    if ( ionode .and. MOD ( its , kl ) .eq. 0 ) then
       WRITE (stdout,'(2i6,2E20.8,i6)') its , nstep , phigrad , u_tot
       kl = 2 * kl 
     endif
 #ifdef debug
-  print*,'debug'
   call print_config_sample(its,0)
 #endif
 
@@ -562,7 +561,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
         xiz ( ja ) =   hz  ( ja )
         umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
       enddo
-      umag = dsqrt(umag)
+      umag = SQRT (umag)
       do ja = 1, natm
         xix ( ja ) = xix ( ja ) / umag
         xiy ( ja ) = xiy ( ja ) / umag
@@ -582,7 +581,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
     CALL eforce1d ( x1 , u1 , vir , iastart , iaend , f1d1 , xix , xiy , xiz , neng )
     nstep = 0
-    uprev = min( u1 , u0 )
+    uprev = MIN ( u1 , u0 )
 777 nstep = nstep + 1
 
     dx = x1 - x0
@@ -591,7 +590,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
     if (nstep.gt.100) then !nstep
 
-      if ( min ( u0 , u1 ) .gt. ukeep ) then
+      if ( MIN ( u0 , u1 ) .gt. ukeep ) then
         Eis = u0
         deallocate( fx_sum, fy_sum, fz_sum )
         return
@@ -622,9 +621,9 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       uppcub = (2.0D0/dx2) * (3.0D0 * (u1 - u0) - (f1d1 + 2.0D0 * f1d0) * dx)
       u3pcub = ( - 12.0D0/(dx3)) * ((u1 - u0) - (f1d1 + f1d0) * (dx/2.0D0))
 
-      x1sol = - uppcub + dsqrt(uppcub * uppcub - 2.0D0 * u3pcub * f1d0)
+      x1sol = - uppcub + SQRT (uppcub * uppcub - 2.0D0 * u3pcub * f1d0)
       x1sol = x1sol/u3pcub
-      x2sol = - uppcub -  dsqrt(uppcub * uppcub - 2.0D0 * u3pcub * f1d0)
+      x2sol = - uppcub -  SQRT (uppcub * uppcub - 2.0D0 * u3pcub * f1d0)
       x2sol = x2sol/u3pcub
               
       curv1 = uppcub + u3pcub * x1sol 
@@ -648,7 +647,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
         goto 524
       endif
 
-      if ((abs((uprev - u2)/u2)).lt.dutol) then
+      if ((ABS ((uprev - u2)/u2)).lt.dutol) then
 
         do ia = 1 , natm
           rx ( ia ) = rx ( ia ) + xsol * xix ( ia )
@@ -671,22 +670,22 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
           u0 = u2
           f1d0 = f1ds 
         endif
-        uprev = min(u0,u1)
+        uprev = MIN (u0,u1)
         goto 777
       endif
               
     else !f1d0 * f1d1.lt.0.0D0
 
       u2pdis = (f1d1 - f1d0)/(x1 - x0)
-      adx = abs(x1 - x0)
+      adx = ABS (x1 - x0)
 
       if (u2pdis.gt.0.0D0) then
         xsol = x0 -  f1d0/u2pdis
-        if (abs(xsol - x0).gt.3.0D0 * adx)then
+        if (ABS (xsol - x0).gt.3.0D0 * adx)then
           xsol = x0 + 3.0D0 * adx
         endif
       else
-!c      xsol = x0 -  (f1d0/abs(f1d0)) * 1.50D0 * adx
+!c      xsol = x0 -  (f1d0/ABS (f1d0)) * 1.50D0 * adx
         xsol = x0 + 1.50D0 * adx
       endif
 
@@ -702,7 +701,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       endif
 
 
-      if ((abs((uprev - u2)/u2).lt.dutol)) then
+      if ((ABS ((uprev - u2)/u2).lt.dutol)) then
 
         do ia = 1, natm
           rx ( ia ) = rx ( ia ) + xsol * xix ( ia )
@@ -730,7 +729,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       u1 = u2
       f1d1 = f1ds 
 
-      uprev = min(u0,u1)
+      uprev = MIN (u0,u1)
 
       goto 777 
       
@@ -739,11 +738,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 676 continue 
            
 
-    DD1 = 2.0D0 * abs(ukeep - u_tot) 
-    DD2 = ftol * (abs(ukeep) + abs(u_tot) + epsilon)
+    DD1 = 2.0D0 * ABS ( ukeep - u_tot) 
+    DD2 = ftol * ( ABS ( ukeep) + ABS ( u_tot ) + epsilon)
 
     if ( DD1 .LE. DD2) then 
-      CALL engforce ( iastart , iaend )!, list , point )
+      CALL engforce_driver ( iastart , iaend )
       neng = neng + 1
 
       Eis = u_tot
@@ -759,8 +758,8 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       deallocate( fx_sum, fy_sum, fz_sum )
       return
     else
-      if (abs(1.0D0 - u_tot/ukeep).lt.dutol)then
-        dutol = abs(1.0D0 - u_tot/ukeep)
+      if ( ABS (1.0D0 - u_tot/ukeep).lt.dutol)then
+        dutol = ABS (1.0D0 - u_tot/ukeep)
       endif
     endif
            
@@ -794,7 +793,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       umag = umag + xix ( ja ) * xix ( ja ) + xiy ( ja ) * xiy ( ja ) + xiz ( ja ) * xiz ( ja )
     enddo
            
-    umag = dsqrt(umag)
+    umag = SQRT (umag)
     do ja = 1, natm
       xix ( ja ) = xix ( ja ) / umag
       xiy ( ja ) = xiy ( ja ) / umag
@@ -875,7 +874,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   ! ================
   !  warning ! only pbc
   ! ================
-  CALL engforce ( iastart , iaend )!, list , point )
+  CALL engforce_driver ( iastart , iaend )
   CALL calc_thermo
   vir = vir_tot
   pot = u_tot  
@@ -1083,11 +1082,10 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !==============================================================
   do its=1,itmax
 
-    CALL engforce ( iastart , iaend )
+    CALL engforce_driver ( iastart , iaend )
     CALL calc_thermo
 
 #ifdef debug
-     print*,'debug'
      call print_config_sample(icall,0)
 #endif
 
@@ -1129,7 +1127,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
       G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
     enddo  
 
-    if ( ionode .and.mod(icall,kl).eq.0) then
+    if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
     endif
@@ -1199,7 +1197,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     X( 2 * natm + ia ) = rz( ia )
   enddo
 
-  CALL engforce ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend )
   CALL calc_thermo
 
   f=u_tot
@@ -1252,7 +1250,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
       rz( ia )   = X ( 2* natm + ia )
     enddo
 
-    CALL engforce ( iastart , iaend )!, list , point )
+    CALL engforce_driver ( iastart , iaend )
     CALL calc_thermo
 
     f=u_tot
@@ -1270,7 +1268,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     ENDDO
 
     ! write step information
-    if ( ionode .and.mod(icall,kl).eq.0) then
+    if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
     endif

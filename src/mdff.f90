@@ -75,7 +75,7 @@ PROGRAM main_MDFF
   character*60 :: vib_allowed(5)                     
   data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
   
-  integer :: it , ik ! tmp
+  !integer :: it , ik ! tmp
 
   ! from vasp 5.3 ;)
   CHARACTER (LEN=80),PARAMETER :: MDFF = &
@@ -181,18 +181,6 @@ PROGRAM main_MDFF
     ! ===============================================
     ! some initialization of on-the-fly properties
     ! ===============================================
-
-          ! =====================================
-          ! electric field gradient        
-          ! =====================================
-          CALL efg_init
-          CALL efg_alloc
-
-          ! =====================================
-          ! radial distribution function
-          ! =====================================
-          CALL gr_init
-          CALL gr_alloc   
 
           ! =====================================
           ! mean square displacement
@@ -307,6 +295,11 @@ PROGRAM main_MDFF
       CALL grcalc 
     endif
 
+    if ( calc .eq. 'NL_field' ) then
+       CALL Nymand_and_Linse_test
+    endif
+
+
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
@@ -317,8 +310,6 @@ PROGRAM main_MDFF
     ! ==============================================
     ! deallocate prop quantities
     ! ==============================================
-    CALL efg_dealloc
-    CALL gr_dealloc 
     CALL msd_dealloc
     CALL vacf_dealloc
 

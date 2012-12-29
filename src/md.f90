@@ -290,14 +290,14 @@ SUBROUTINE md_print_info(kunit)
         endif !integrator
       endif !static
                                           WRITE ( kunit ,'(a,i10)')   'number of steps                      = ',npas
-                                          WRITE ( kunit ,'(a,e10.5)') 'timestep                             = ',dt
-                                          WRITE ( kunit ,'(a,e10.5)') 'time range                           = ',dt*npas
+                                          WRITE ( kunit ,'(a,e12.5)') 'timestep                             = ',dt
+                                          WRITE ( kunit ,'(a,e12.5)') 'time range                           = ',dt*npas
                                           WRITE ( kunit ,'(a,f10.5)') 'temperature                          = ',temp
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
                                           WRITE ( kunit ,'(a,i10)')   'number of equilibration steps        = ',nequil
                                           WRITE ( kunit ,'(a,i10)')   'equilibration period                 = ',nequil_period
       endif 
-      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e10.5)') 'Berendsen thermo time scale          = ',tauberendsen
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5)') 'Berendsen thermo time scale          = ',tauberendsen
       if ( nequil .ne. 0 .and. tauberendsen .eq. dt )   &
                                           WRITE ( kunit ,'(a)')       'tauberendsen = dt -> simple rescale'
                                           WRITE ( kunit ,'(a,i10)')   'print thermo  periodicity            = ',nprint

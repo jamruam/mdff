@@ -17,6 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+!#define debug
 ! ======= Hardware =======
 
 ! module related to real space summation 
@@ -30,7 +31,9 @@ MODULE rspace
     integer                                        :: ncell   ! nb of cell in the direct calc. in each direction  
     integer                                        :: ncmax   ! (internal) number of cell in direct summation
     double precision, dimension(:,:) , allocatable :: boxxyz  ! vectors in real space
+    double precision, dimension(:)   , allocatable :: rr      ! vectors module in real space
     integer         , dimension(:)   , allocatable :: lcell   ! lcell is 1 in the central box 
+    character(len=15)                              :: meshlabel
   END TYPE rmesh
 
 CONTAINS
@@ -59,6 +62,9 @@ SUBROUTINE direct_sum_init ( rm )
   ! local
   integer :: nc , ncellx , ncelly , ncellz , ncelldirect
 
+  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
+
   ncelldirect = rm%ncell
 
   nc = 0
@@ -67,9 +73,12 @@ SUBROUTINE direct_sum_init ( rm )
     do ncelly = -ncelldirect,ncelldirect
       do ncellz = -ncelldirect,ncelldirect
         nc = nc + 1
-        rm%boxxyz(1,nc) = box * dble(ncellx)
-        rm%boxxyz(2,nc) = box * dble(ncelly)
-        rm%boxxyz(3,nc) = box * dble(ncellz)
+        rm%boxxyz(1,nc) = box * DBLE (ncellx)
+        rm%boxxyz(2,nc) = box * DBLE (ncelly)
+        rm%boxxyz(3,nc) = box * DBLE (ncellz)
+        rm%rr(nc) = rm%boxxyz(1,nc) * rm%boxxyz(1,nc) + &
+                rm%boxxyz(2,nc) * rm%boxxyz(2,nc) + &
+                rm%boxxyz(3,nc) * rm%boxxyz(3,nc)  
         if (ncellx .ne. 0 .or. ncelly .ne. 0 .or. ncellz .ne. 0) then
           rm%lcell(nc) = 1
         endif
@@ -78,13 +87,97 @@ SUBROUTINE direct_sum_init ( rm )
   enddo
 
   if ( nc .ne. rm%ncmax ) then
-    if ( ionode ) WRITE ( stdout ,'(a,3i7)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax
+    if ( ionode ) WRITE ( stdout ,'(a,3i7,a)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax , rm%meshlabel
     STOP
   endif
+
+  ! ======================
+  !  organized rpt arrays 
+  ! ======================
+  call reorder_rpt ( rm )
+  if ( ionode ) WRITE ( stdout      ,'(a)') '(full) real space arrays sorted'
+  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') '(full) real space arrays sorted'
+
+
 
   return
 
 END SUBROUTINE direct_sum_init
+
+!*********************** SUBROUTINE reorder_rpt *******************************
+!
+! this subroutine reorder kpt arrays (increasing k^2)
+!
+!******************************************************************************
+
+SUBROUTINE reorder_rpt ( rm )
+
+  USE io_file,  ONLY :  ionode , stdout , kunit_OUTFF
+
+  implicit none
+
+  !global
+  TYPE(rmesh) :: rm
+
+  !local
+  integer :: ir, lr
+  double precision, dimension (:), allocatable :: trpt
+  double precision, dimension (:), allocatable :: tmprx , tmpry , tmprz
+
+  integer, dimension (:), allocatable :: labelrpt, labelt , tmplc
+
+  allocate ( trpt ((rm%ncmax+1)/2) , labelrpt(rm%ncmax), labelt((rm%ncmax+1)/2))
+  allocate ( tmprx(rm%ncmax) , tmpry(rm%ncmax) , tmprz(rm%ncmax)  , tmplc(rm%ncmax) )
+
+  ! ==============================
+  !  set the initial array labels
+  ! ==============================
+  do ir=1,rm%ncmax
+    labelrpt(ir)=ir
+  enddo
+
+  ! ===========================================
+  !  arrays are sorted for increasing rr^2 
+  !  (see tools.f90 for more details )
+  !  the old labels are stored in labelkpt
+  !  that will be used to reorganized kx,ky,kz
+  ! ===========================================
+  call merge_sort ( rm%rr , rm%ncmax , trpt , labelrpt , labelt )
+
+  ! ==============================
+  !  save previous order
+  ! ==============================
+  tmprx=rm%boxxyz(1,:)
+  tmpry=rm%boxxyz(2,:)
+  tmprz=rm%boxxyz(3,:)
+  tmplc=rm%lcell(:)
+  ! ===============================================
+  !  change boxxyz, lcell following rr sort
+  ! ===============================================
+  do ir=1,rm%ncmax
+    lr=labelrpt(ir)
+    rm%boxxyz(1,ir) = tmprx(lr)
+    rm%boxxyz(2,ir) = tmpry(lr)
+    rm%boxxyz(3,ir) = tmprz(lr)
+    rm%lcell( ir )  = tmplc(lr)
+  enddo
+
+#ifdef debug
+  do ir=1,rm%ncmax
+    write(*,'(4f16.6,i6)') rm%boxxyz(1,ir),rm%boxxyz(2,ir),rm%boxxyz(3,ir),rm%rr(ir),rm%lcell(ir)
+  enddo
+#endif
+
+ 
+
+  deallocate ( trpt , labelrpt , labelt )
+  deallocate ( tmprx , tmpry , tmprz    )
+
+  return
+
+END SUBROUTINE reorder_rpt
+
+
 
 END MODULE rspace
 ! ===== fmV =====

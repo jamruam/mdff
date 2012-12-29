@@ -23,8 +23,6 @@ MODULE prop
 
   implicit none
 
-  logical :: lefg          ! calculate efg on the fly during the md   ( electric field gradient           )
-  logical :: lgr           ! calculate gr on the fly during the md    ( radial distribution function      )
   logical :: lstrfac       ! calculate str_av on the fly during the md    ( static structural factor    )
   logical :: lmsd          ! calculate msd on the fly during the md   ( mean square displacment           ) 
   logical :: lvacf         ! calculate ivacf on the fly during the md ( velocity autocorrelation function ) 
@@ -54,9 +52,7 @@ SUBROUTINE prop_init
   character * 132 :: filename
   integer :: ioerr       
 
-  namelist /proptag/   lefg        , &
-                       lgr         , &
-                       lstrfac     , &
+  namelist /proptag/   lstrfac     , &
                        lmsd        , &
                        lvacf       , &
                        nprop_start , &
@@ -105,8 +101,6 @@ SUBROUTINE prop_default_tag
   implicit none
 
 ! default value
-  lefg        = .false.
-  lgr         = .false.
   lstrfac     = .false.
   lmsd        = .false.
   lvacf       = .false.
@@ -151,7 +145,7 @@ SUBROUTINE prop_print_info(kunit)
   ! local
   integer :: kunit
   
-  if ( lefg .or. lgr .or. lmsd .or. lvacf ) then
+  if ( lmsd .or. lvacf ) then
     if ( ionode ) then
       WRITE ( kunit , '(a)'     )        '=============================================================' 
       WRITE ( kunit , '(a)'     )        ''

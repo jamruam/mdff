@@ -52,9 +52,9 @@ MODULE control
 
   ! type of calculation : md, opt, vib, efg ...              
   character*60, SAVE :: calc                
-  character*60, SAVE :: calc_allowed(11)    
+  character*60, SAVE :: calc_allowed(12)    
   data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr'/
+                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr' , 'NL_field' /
 
   ! algorithm for long-range calculation
   character*60, SAVE :: longrange            

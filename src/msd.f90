@@ -331,7 +331,7 @@ SUBROUTINE msd_main ( nmsd )
       ! ============================================================
       !  print mean square displacement to file for t=1,10,100,etc
       ! ============================================================
-      WRITE ( 79 + ib , *) 'debug',dtime * ( nblock ** ( ib - 1 ) ), r2asum
+      WRITE ( 79 + ib , *) 'debug: ',dtime * ( nblock ** ( ib - 1 ) ), r2asum
 #endif
     endif
   enddo
