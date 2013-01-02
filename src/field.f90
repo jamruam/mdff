@@ -17,7 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-!#define debug
+#define debug
 #define debug3
 ! ======= Hardware =======
 
@@ -2929,7 +2929,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! local 
   integer :: ia, ja , ierr , ncell , it
-  double precision, dimension(:), allocatable :: fx_dir, fy_dir, fz_dir
+  double precision, dimension(:), allocatable :: fx_coul , fy_coul , fz_coul
   double precision, dimension(:), allocatable :: phi_coul_qq , phi_coul_dd 
   double precision :: u_coul_qq , u_coul_dd , u_coul_qd 
   double precision :: vir_coul_qq , vir_coul_dd , vir_coul_qd
@@ -2974,7 +2974,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 #endif  
 
 
-  allocate( fx_dir ( natm ), fy_dir ( natm ), fz_dir ( natm ) )
+  allocate( fx_coul ( natm ), fy_coul ( natm ), fz_coul ( natm ) )
   allocate( phi_coul_qq ( natm ), phi_coul_dd ( natm ) )
   ef          = 0.0d0
   efg         = 0.0d0
@@ -2986,9 +2986,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   u_coul_qq   = 0.0d0
   u_coul_qd   = 0.0d0
   u_coul_dd   = 0.0d0
-  fx_dir      = 0.0D0
-  fy_dir      = 0.0D0
-  fz_dir      = 0.0D0
+  fx_coul     = 0.0D0
+  fy_coul     = 0.0D0
+  fz_coul     = 0.0D0
   phi_coul    = 0.0d0
   phi_coul_qq = 0.0d0
   phi_coul_dd = 0.0d0
@@ -3088,9 +3088,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
               fyij = qij * Ty
               fzij = qij * Tz
 
-              fx_dir ( ia ) = fx_dir ( ia ) + fxij
-              fy_dir ( ia ) = fy_dir ( ia ) + fyij
-              fz_dir ( ia ) = fz_dir ( ia ) + fzij
+              fx_coul ( ia ) = fx_coul ( ia ) + fxij
+              fy_coul ( ia ) = fy_coul ( ia ) + fyij
+              fz_coul ( ia ) = fz_coul ( ia ) + fzij
 
               ! virial
               vir_coul_qq =  vir_coul_qq + ( fxij * rxij + fyij * ryij + fzij * rzij )
@@ -3149,9 +3149,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
                        muix * Txxz * mujx         + &
                        muiy * Tyyz * mujy )
 
-              fx_dir ( ia ) = fx_dir ( ia ) - fxij
-              fy_dir ( ia ) = fy_dir ( ia ) - fyij
-              fz_dir ( ia ) = fz_dir ( ia ) - fzij
+              fx_coul ( ia ) = fx_coul ( ia ) - fxij
+              fy_coul ( ia ) = fy_coul ( ia ) - fyij
+              fz_coul ( ia ) = fz_coul ( ia ) - fzij
 
               ! virial
               vir_coul_dd =  vir_coul_dd + ( fxij * rxij + fyij * ryij + fzij * rzij )
@@ -3184,9 +3184,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
                      qj * ( Txz * muix + Tyz * muiy + Tzz * muiz ) 
 
 
-              fx_dir ( ia ) = fx_dir ( ia ) + fxij
-              fy_dir ( ia ) = fy_dir ( ia ) + fyij
-              fz_dir ( ia ) = fz_dir ( ia ) + fzij
+              fx_coul ( ia ) = fx_coul ( ia ) + fxij
+              fy_coul ( ia ) = fy_coul ( ia ) + fyij
+              fz_coul ( ia ) = fz_coul ( ia ) + fzij
 
               ! virial
               vir_coul_qd =  vir_coul_qd + ( fxij * rxij + fyij * ryij + fzij * rzij )
@@ -3217,9 +3217,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_coul_qd )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_coul_dd )
 
-  CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fz_dir , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fx_coul , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fy_coul , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fz_coul , natm )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( phi_coul , natm )
 
@@ -3248,9 +3248,9 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   vir_coul_qd = - vir_coul_qd  * 0.5d0
   vir_coul_dd = - vir_coul_dd  * 0.5d0
 
-  fx = fx + fx_dir
-  fy = fy + fy_dir
-  fz = fz + fz_dir
+  fx = fx + fx_coul
+  fy = fy + fy_coul
+  fz = fz + fz_coul
 
   u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
   vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
@@ -3290,7 +3290,8 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 #endif
 
 
-  deallocate( fx_dir, fy_dir, fz_dir )
+  deallocate( fx_coul , fy_coul , fz_coul )
+  deallocate( phi_coul_qq , phi_coul_dd  )
 
   ttt3 = MPI_WTIME(ierr)
 
@@ -3305,9 +3306,14 @@ END SUBROUTINE
 
 SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE config,  ONLY : natm
+  USE config,    ONLY : natm , ntype , natmi , rx , ry , rz , fx , fy , fz , qia , omega
+  USE constants, ONLY : imag , piroot , tpi , fpi
+  USE io_file  , ONLY : stdout 
+  USE time
 
   implicit none
+
+  INCLUDE 'mpif.h'
 
   ! global 
   integer, intent(in) :: iastart , iaend
@@ -3319,17 +3325,448 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   double precision    :: phi_coul ( natm )  
 
   ! local 
-  double precision :: u_coul_qq , u_coul_dd , u_coul_qd , u_pol
-  double precision :: vir_coul_qq , vir_coul_dd , vir_coul_qd
-  double precision :: phi_coul_qq , phi_coul_dd
+  integer          :: ia , ja , ik , it , ip , ierr
+  double precision, dimension(:)    , allocatable :: fx_coul , fy_coul , fz_coul
+  double precision, dimension(:)    , allocatable :: fx_dir , fy_dir , fz_dir
+  double precision, dimension(:)    , allocatable :: fx_rec , fy_rec , fz_rec
+  double precision, dimension(:)    , allocatable :: fx_surf , fy_surf , fz_surf
+  double precision, dimension(:)    , allocatable :: phi_dir , phi_rec , phi_surf , phi_self
+  double precision, dimension(:,:)  , allocatable :: ef_dir , ef_rec , ef_surf
+  double precision, dimension(:,:,:), allocatable :: efg_dir , efg_rec , efg_self
+
+  double precision :: u_dir , u_rec , u_surf , u_self
+  double precision :: vir_dir , vir_rec , vir_surf
+
+  double precision :: mip    ( ntype , 3 )
+
+  double precision :: rxi , ryi , rzi
+  double precision :: rxj , ryj , rzj
+  double precision :: kx , ky , kz 
+  double precision :: kk , kri , Ak
+  double precision :: rxij , ryij , rzij
+  double precision :: fxij , fyij , fzij
+  double precision :: qi , qj , qij
+  double precision :: muix , muiy , muiz
+  double precision :: mujx , mujy , mujz
+  double complex   :: rhon , carg
+  double precision :: str , recarg , recarg_dgg , recargi
+  double precision :: expon , F0 , F1 , F2 , Fdamp
+  double precision :: T
+  double precision :: Tx , Ty , Tz
+  double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
+  double precision :: Dxx , Dyy , Dzz , Dxy , Dxz , Dyz
+  double precision :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
+  double precision :: d , d2 , d3  
+  double precision :: dm1 , dm3 , dm5 , dm7 
+  double precision :: alpha2 , alpha3 , selfa , selfa3 
+  double precision, external :: errfc
+  double precision :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 ) 
+
+  double precision :: wij , old !tmp
+
+
+  double precision :: ttt1 , ttt2  , ttt3
+
+  ! =============================
+  !  init mip ( itype dependent ) 
+  ! ==============================
+  ip = 0
+  do it = 1, ntype
+    ip = ip + natmi ( it )
+    mip ( it , 1 ) = mu ( ip , 1 )
+    mip ( it , 2 ) = mu ( ip , 2 )
+    mip ( it , 3 ) = mu ( ip , 3 )
+  enddo
+
+  ! =============================
+  !  total charge / moment / square
+  ! =============================
+  mutot = 0.0d0
+  musq  = 0.0d0
+  do ia = 1 , natm
+    mutot ( 1 ) = mutot ( 1 ) + mu ( ia , 1 )
+    mutot ( 2 ) = mutot ( 2 ) + mu ( ia , 2 )
+    mutot ( 3 ) = mutot ( 3 ) + mu ( ia , 3 )
+    musq = musq + ( mu ( ia , 1 ) * mu ( ia , 1 ) +  mu ( ia , 2 ) * mu ( ia , 2 ) +  mu ( ia , 3 ) * mu ( ia , 3 ) )
+    qtot ( 1 ) = qtot ( 1 ) + qia ( ia ) * rx ( ia ) 
+    qtot ( 2 ) = qtot ( 2 ) + qia ( ia ) * ry ( ia ) 
+    qtot ( 3 ) = qtot ( 3 ) + qia ( ia ) * rz ( ia ) 
+    qsq = qsq + qia ( ia ) * qia ( ia )
+  enddo
+  qmu_sum = qtot + mutot
+
+
+
+#ifdef debug
+  write( stdout , '(a)')    'debug: in engforce_charge_ES'
+  write( stdout , '(a,i8,a,a)') 'debug : km_coul ',km_coul%nkcut,' ',km_coul%meshlabel
+  do ia = 1 , natm
+    write( stdout , '(a,f12.5)') 'debug : charge (atom) ',qia(ia)
+  enddo
+  do it = 1 , ntype
+    write( stdout , '(a,f12.5)') 'debug : charge (type ) ',qch(it)
+  enddo
+  do ia = 1 , natm
+    write( stdout , '(a,3f12.5)') 'debug : dipole (atom) ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+  enddo
+  do it = 1 , ntype
+    write( stdout , '(a,3f12.5)') 'debug : dipole (type ) ',  mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
+  enddo
+  write( stdout , '(a,2i8)')     'debug : iastart iaend',iastart ,iaend
+  write( stdout , '(a,f20.5)')   'debug : alphaES ', alphaES
+  call print_config_sample(0,0)
+#endif 
+
+  ttt1 = MPI_WTIME(ierr)
+  allocate( ef_dir ( natm , 3 ) , ef_rec ( natm , 3 ) , ef_surf ( natm , 3 ) ) 
+  allocate( efg_dir ( natm , 3 , 3 ) , efg_rec ( natm , 3 , 3 ) , efg_self ( natm , 3 , 3 ) ) 
+  allocate( fx_coul (natm) , fy_coul (natm) , fz_coul (natm) )
+  allocate( fx_dir (natm) , fy_dir (natm) , fz_dir (natm) )
+  allocate( fx_rec (natm) , fy_rec (natm) , fz_rec (natm) )
+  allocate( fx_surf (natm) , fy_surf (natm) , fz_surf (natm) )
+  allocate( phi_dir ( natm ) , phi_rec ( natm ) , phi_surf ( natm ) , phi_self ( natm ) )
+
+  ef_dir   = 0.0d0
+  ef_rec   = 0.0d0
+  ef_surf  = 0.0d0
+  efg_dir  = 0.0d0
+  efg_rec  = 0.0d0
+  efg_self = 0.0d0
+  fx_dir   = 0.0D0
+  fy_dir   = 0.0D0
+  fz_dir   = 0.0D0
+  fx_rec   = 0.0D0
+  fy_rec   = 0.0D0
+  fz_rec   = 0.0D0
+  fx_surf  = 0.0D0
+  fy_surf  = 0.0D0
+  fz_surf  = 0.0D0
+  phi_dir  = 0.0D0
+  phi_rec  = 0.0D0
+  phi_surf = 0.0D0
+  phi_self = 0.0D0
+
+  ! =====================
+  ! facteur de structure 
+  ! =====================
+  CALL struc_fact ( km_coul )
+
+  ! =================
+  !  some constants 
+  ! =================
+  !invbox = 1.0d0 / box
+  alpha2 = alphaES * alphaES
+  alpha3 = alpha2  * alphaES
+  selfa  = alphaES / piroot
+  !selfa3 = - 4.0d0 * alpha3 / piroot / 3.0d0 
+  selfa3 = - fpi / 3.0d0 / omega  
+
+  ! ==============================================
+  !        direct space part
+  ! ==============================================
+
+  do ia = 1 , natm
+    rxi = rx(ia)
+    ryi = ry(ia)
+    rzi = rz(ia)
+    qi  = qia(ia)
+    do ja = 1, natm
+
+      if (ja .ne. ia ) then
+
+        qj   = qia(ja)
+        qij  = qi * qj 
+        rxj  = rx(ja)
+        ryj  = ry(ja)
+        rzj  = rz(ja)
+        rxij = rxi - rxj
+        ryij = ryi - ryj
+        rzij = rzi - rzj
+
+!      nxij = NINT ( rxij * invbox )
+!      nyij = NINT ( ryij * invbox )
+!      nzij = NINT ( rzij * invbox )
+!      rxij = rxij - box * nxij
+!      ryij = ryij - box * nyij
+!      rzij = rzij - box * nzij
+
+       d2  = rxij * rxij + ryij * ryij + rzij * rzij
+       d   = SQRT ( d2 )
+       d3  = d2 * d 
+       dm1 = 1.0d0 / d
+       dm3 = dm1 / d2 
+       dm5 = dm3 / d2 
+       dm7 = dm5 / d2 
+
+       !pot  = qj  / rij
+       !qij  = qi  * pot
+       !pot3 = pot / rijsq
+       !qijf = qi  * pot3         ! qi * qj / r^3
+
+       expon = EXP ( - alpha2 * d2 )    / piroot
+       F0    = errfc( alphaES * d )
+       F1    = F0 + 2.0d0 * d * alphaES * expon 
+       F2    = 4.0d0          * alpha3  * expon * d3 / 3.0d0
+       Fdamp = F1 + F2 
+       ! multipole interaction tensor rank = 0 
+       T  = dm1 * F0
+
+       ! multipole interaction tensor rank = 1
+       Tx = rxij * dm3 * F1
+       Ty = ryij * dm3 * F1
+       Tz = rzij * dm3 * F1
+
+       ! multipole interaction tensor rank = 2
+       Txx = ( 3.0d0 * rxij * rxij - d2 ) * dm5 
+       Tyy = ( 3.0d0 * ryij * ryij - d2 ) * dm5 
+       Tzz = ( 3.0d0 * rzij * rzij - d2 ) * dm5
+       Txy = ( 3.0d0 * rxij * ryij      ) * dm5
+       Txz = ( 3.0d0 * rxij * rzij      ) * dm5 
+       Tyz = ( 3.0d0 * ryij * rzij      ) * dm5 
+
+       ! multipole interaction tensor rank = 3  
+       Txxx = ( 5.0d0 * rxij * rxij * rxij -  3.0d0 * d2 * ( rxij ) ) * dm7 * 3.0d0
+       Tyyy = ( 5.0d0 * ryij * ryij * ryij -  3.0d0 * d2 * ( ryij ) ) * dm7 * 3.0d0
+       Tzzz = ( 5.0d0 * rzij * rzij * rzij -  3.0d0 * d2 * ( rzij ) ) * dm7 * 3.0d0
+       Txxy = ( 5.0d0 * rxij * rxij * ryij -          d2 * ( ryij ) ) * dm7 * 3.0d0
+       Txxz = ( 5.0d0 * rxij * rxij * rzij -          d2 * ( rzij ) ) * dm7 * 3.0d0
+       Tyyx = ( 5.0d0 * ryij * ryij * rxij -          d2 * ( rxij ) ) * dm7 * 3.0d0
+       Tyyz = ( 5.0d0 * ryij * ryij * rzij -          d2 * ( rzij ) ) * dm7 * 3.0d0
+       Tzzx = ( 5.0d0 * rzij * rzij * rxij -          d2 * ( rxij ) ) * dm7 * 3.0d0
+       Tzzy = ( 5.0d0 * rzij * rzij * ryij -          d2 * ( ryij ) ) * dm7 * 3.0d0
+       Txyz = ( 5.0d0 * rxij * ryij * rzij                          ) * dm7 * 3.0d0
+
+
+       ! ===========================================================
+       !                  charge-charge interaction
+       ! ===========================================================
+
+       phi_dir ( ia ) = phi_dir ( ia ) + qj * T 
+
+       u_dir = u_dir + qij * T
+
+       ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Tx 
+       ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Ty 
+       ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tz 
+
+       fxij = qij * Tx
+       fyij = qij * Ty
+       fzij = qij * Tz 
+
+       fx_dir ( ia ) = fx_dir ( ia ) + fxij
+       fy_dir ( ia ) = fy_dir ( ia ) + fyij
+       fz_dir ( ia ) = fz_dir ( ia ) + fzij
+
+       vir_dir =  vir_dir + ( fxij * rxij + fyij * ryij + fzij * rzij )
+
+       efg_dir ( ia , 1 , 1 ) = efg_dir ( ia , 1 , 1 ) - qj * Txx * Fdamp
+       efg_dir ( ia , 2 , 2 ) = efg_dir ( ia , 2 , 2 ) - qj * Tyy * Fdamp 
+       efg_dir ( ia , 3 , 3 ) = efg_dir ( ia , 3 , 3 ) - qj * Tzz * Fdamp
+       efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) - qj * Txy * Fdamp 
+       efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) - qj * Txz * Fdamp 
+       efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) - qj * Tyz * Fdamp
+
+
+      endif
+
+    enddo
+
+  enddo 
+
+  ttt2 = MPI_WTIME(ierr)
+  fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )
+
+  ! ==============================================
+  !            reciprocal space part
+  ! ==============================================
+  kpoint : do ik = 1, km_coul%nkcut
+    ! =================
+    !   k-space  
+    ! =================
+    kx = km_coul%kpt(1,ik)
+    ky = km_coul%kpt(2,ik)
+    kz = km_coul%kpt(3,ik)
+    kk = km_coul%kptk(ik)
+    Ak = EXP ( - kk * 0.25d0 / alpha2 ) / kk
+
+
+    if (km_coul%kptk(ik) .eq. 0 ) then
+      WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
+      STOP
+    endif
+    ! ===============================
+    !                              ---
+    !  charge density in k-space ( \   q * facteur de structure  )
+    !                              /__
+    ! ===============================
+    rhon = (0.d0, 0.d0)
+    do it = 1, ntype
+      rhon = rhon + qch(it) * CONJG( km_coul%strf ( ik , it ) )
+    enddo
+
+    str = rhon * CONJG(rhon)
+
+    u_rec   = u_rec   + DBLE ( Ak * str )
+    vir_rec = vir_rec + DBLE ( Ak * str * 0.5d0 * ( 1.0d0 - ( kk * 0.5d0 / alpha2 ) )  )
+
+    do ia = 1 , natm
+
+      rxi = rx(ia)
+      ryi = ry(ia)
+      rzi = rz(ia)
+      qi  = qia ( ia )
+      kri = ( kx * rxi + ky * ryi + kz * rzi )
+
+      carg       = EXP ( imag * kri )
+      recarg     = DBLE ( rhon * carg * Ak )
+      recarg_dgg = DBLE ( rhon * carg * Ak * kk / 3.0d0 )  
+      recargi    = DBLE ( rhon * carg * Ak * imag )
+      
+      phi_rec ( ia ) = phi_rec ( ia ) + recarg 
+
+      fxij = kx * recargi 
+      fyij = ky * recargi 
+      fzij = kz * recargi 
+
+      ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
+      ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
+      ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
+
+
+      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
+      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
+      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
+
+      efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) +  kx * kx * recarg - recarg_dgg 
+      efg_rec ( ia , 2 , 2 ) = efg_rec ( ia , 2 , 2 ) +  ky * ky * recarg - recarg_dgg
+      efg_rec ( ia , 3 , 3 ) = efg_rec ( ia , 3 , 3 ) +  kz * kz * recarg - recarg_dgg
+      efg_rec ( ia , 1 , 2 ) = efg_rec ( ia , 1 , 2 ) +  kx * ky * recarg 
+      efg_rec ( ia , 1 , 3 ) = efg_rec ( ia , 1 , 3 ) +  kx * kz * recarg 
+      efg_rec ( ia , 2 , 3 ) = efg_rec ( ia , 2 , 3 ) +  ky * kz * recarg 
+
+    enddo
+
+
+  enddo kpoint
+
+  ttt3 = MPI_WTIME(ierr)
+  fcoultimetot2 = fcoultimetot2 + ( ttt3 - ttt2 )
+
+  ! ======================================================
+  ! remark on the unit :
+  ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
+  ! ======================================================
+  u_dir   =   u_dir   * 0.5d0
+  vir_dir = - vir_dir * 0.5d0
+
+  u_rec   =   u_rec   * tpi / omega
+  vir_rec = - vir_rec * fpi / omega
+  phi_rec =   phi_rec * fpi / omega
 
   
+  ! surface_contribution 
+  ! qq
+  u_surf = qtot ( 1 ) * qtot ( 1 ) + qtot ( 2 ) * qtot ( 2 ) + qtot ( 3 ) * qtot ( 3 )
+  ! dd
+  u_surf = u_surf +  mutot ( 1 ) * mutot ( 1 ) + mutot ( 2 ) * mutot ( 2 ) + mutot ( 3 ) * mutot ( 3 )
+  ! qd
+  u_surf = u_surf + 2.0d0 * ( qtot ( 1 ) * mutot ( 1 ) + qtot ( 2 ) * mutot ( 2 ) + qtot ( 3 ) * mutot ( 3 ) )
+  u_surf = u_surf * tpi / 3.0d0 / omega
+  vir_surf = - u_surf
+  do ia = 1 , natm
+    phi_surf ( ia ) = rx ( ia ) * qmu_sum ( 1 ) + ry ( ia ) * qmu_sum ( 1 ) + rz ( ia ) * qmu_sum ( 1 )
+    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
+    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
+    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
+    fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
+    fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
+    fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
+  enddo
+
+  phi_surf = phi_surf * fpi / omega / 3.0d0
+
+  ! self
+  u_self  = - selfa * qsq
+  do ia = 1 , natm
+   phi_self ( ia ) = - 2.0d0 * selfa * qia ( ia )
+  ! efg_self ( ia , 1 , 1 ) = selfa3 * qia ( ia ) 
+  ! efg_self ( ia , 2 , 2 ) = selfa3 * qia ( ia ) 
+  ! efg_self ( ia , 3 , 3 ) = selfa3 * qia ( ia ) 
+  enddo
+
+  u_coul   = ( u_dir + u_rec + u_surf + u_self )
+  vir_coul = ( vir_dir + vir_rec + vir_surf )
+  phi_coul = ( phi_dir + phi_rec + phi_surf + phi_self )
+
+#ifdef debug
+  write( stdout , '(4(a,f16.8))' ) ,'vir_dir    = ', vir_dir    ,' vir_rec    = ', vir_rec    ,' vir_surf    = ',vir_surf   ,' vir_coul    = '   ,vir_coul
+  write( stdout , '(5(a,f16.8))' ) ,'u_dir      = ', u_dir      ,' u_rec      = ', u_rec      ,' u_surf      = ',u_surf     ,' u_self      = '   ,u_self     ,' u_coul      = ',u_coul
+  write( stdout , '(5(a,f16.8))' ) ,'phi_dir(1) = ', phi_dir(1) ,' phi_rec(1) = ', phi_rec(1) ,' phi_surf(1) = ',phi_surf(1),' phi_self(1) = '   ,phi_self(1),' phi_coul(1) = ',phi_coul (1)
+#endif
+
+  ef_rec  = ef_rec  * fpi / omega
+  ef_surf = ef_surf * fpi / omega / 3.0d0
+  ef  = ef_dir + ef_rec - ef_surf
+
+  fx_rec = fx_rec   * fpi / omega
+  fy_rec = fy_rec   * fpi / omega
+  fz_rec = fz_rec   * fpi / omega
+
+  fx_surf = fx_surf * fpi / omega / 3.0d0
+  fy_surf = fy_surf * fpi / omega / 3.0d0
+  fz_surf = fz_surf * fpi / omega / 3.0d0
+
+  fx = fx + fx_rec + fx_dir - fx_surf
+  fy = fy + fy_rec + fy_dir - fy_surf
+  fz = fz + fz_rec + fz_dir - fz_surf
 
 
-  u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
-  vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
-  phi_coul = phi_coul_qq + phi_coul_dd
+  efg_rec = efg_rec * fpi / omega 
 
+  efg = efg_dir + efg_rec + efg_self
+
+
+#ifdef debug
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' Efield_dir         = ', ef_dir ( ia , 1 ) , ef_dir ( ia , 2 ) , ef_dir ( ia , 3 )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' Efield_rec         = ', ef_rec ( ia , 1 ) , ef_rec ( ia , 2 ) , ef_rec ( ia , 3 )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' Efield_surf        = ', ef_surf ( ia , 1 ) , ef_surf ( ia , 2 ) , ef_surf ( ia , 3 )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' Efield_tot         = ', ef ( ia , 1 ) , ef ( ia , 2 ) , ef ( ia , 3 )
+  enddo
+    WRITE ( stdout ,'(a)') '' 
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' f_dir         = ', fx_dir ( ia ) , fy_dir ( ia ) , fz_dir ( ia )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' f_rec         = ', fx_rec ( ia ) , fy_rec ( ia ) , fz_rec ( ia )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' f_surf        = ', fx_surf ( ia ) , fy_surf ( ia ) , fz_surf ( ia )
+  enddo
+  do ia=1,natm
+    WRITE ( stdout ,'(a,i4,a,3f12.8)') 'atom = ',ia,' f_tot         = ', fx ( ia ) , fy ( ia ) , fz ( ia )
+  enddo
+
+CALL print_tensor( efg_dir ( 1 , : , : ) , 'DIRECT' )
+CALL print_tensor( efg_rec ( 1 , : , : ) , 'RECIPR' )
+CALL print_tensor( efg     ( 1 , : , : ) , 'TOTAL ' )
+
+#endif
+
+
+  deallocate( ef_dir  , ef_rec , ef_surf ) 
+  deallocate( efg_dir , efg_rec , efg_self ) 
+  deallocate( fx_coul , fy_coul , fz_coul )
+  deallocate( fx_dir  , fy_dir  , fz_dir )
+  deallocate( fx_rec  , fy_rec  , fz_rec  )
+  deallocate( fx_surf , fy_surf , fz_surf )
+  deallocate( phi_dir , phi_rec , phi_surf , phi_self )
 
   return
 
