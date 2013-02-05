@@ -324,7 +324,7 @@ END SUBROUTINE md_print_info
 
 SUBROUTINE write_traj_xyz 
 
-  USE io_file,  ONLY :  ionode , kunit_TRAJFF
+  USE io_file,  ONLY :  ionode , kunit_TRAJFF , stdout
   USE config,   ONLY :  system , natm , natmi , ntype , &
                         rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , box 
 
@@ -334,6 +334,8 @@ SUBROUTINE write_traj_xyz
   integer :: ia , it
 
   CALL periodicbc ( natm , rx , ry , rz , box )
+!  CALL distance_tab ( stdout ) 
+
   if ( ionode ) then
     WRITE ( kunit_TRAJFF , * ) natm
     WRITE ( kunit_TRAJFF , * ) system
@@ -348,7 +350,7 @@ SUBROUTINE write_traj_xyz
     enddo
   endif
 
- 200 FORMAT(A2,9F20.14)
+ 200 FORMAT(A2,9E20.12)
 
  return
 

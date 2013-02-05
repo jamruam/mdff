@@ -143,7 +143,7 @@ PROGRAM main_MDFF
     CALL md_init
  
     ! =============================
-    ! configuration initialization
+    ! configuration initialization + force_field
     ! =============================
     CALL config_init 
 
@@ -299,7 +299,6 @@ PROGRAM main_MDFF
        CALL Nymand_and_Linse_test
     endif
 
-
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
@@ -344,7 +343,7 @@ PROGRAM main_MDFF
   endif
 
 
-  if (ionode ) then
+  if ( ionode ) then
     WRITE ( stdout      , '(a)' ) '============================================================='
     WRITE ( stdout      , '(a)' ) ''
     WRITE ( kunit_OUTFF , '(a)' ) '============================================================='
@@ -354,11 +353,8 @@ PROGRAM main_MDFF
   timetot = ttt2 - ttt1
   CALL print_time_info ( stdout ) 
   CALL print_time_info ( kunit_OUTFF ) 
-  CALL io_end
-
+  !CALL io_end
   CALL MPI_FINALIZE(ierr)
-
-  STOP
 
 END PROGRAM main_MDFF
 ! ===== fmV =====

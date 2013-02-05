@@ -54,6 +54,7 @@ SUBROUTINE periodicbc ( natm , rx , ry , rz , box )
   return
 
 END SUBROUTINE periodicbc
+
 SUBROUTINE periodicbc_ia ( rxx , ryy , rzz , box )
 
    implicit none

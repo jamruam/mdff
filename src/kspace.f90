@@ -83,7 +83,7 @@ SUBROUTINE kpoint_sum_init( km )
           km%kpt(1,nk) = kx
           km%kpt(2,nk) = ky
           km%kpt(3,nk) = kz
-          km%kptk(nk) = kk
+          km%kptk(nk)  = kk
         endif
       enddo
     enddo
@@ -271,7 +271,7 @@ SUBROUTINE struc_fact ( km )
         rzi = rz ( ia ) 
         if ( itype (ia) .eq. it ) then
            do ik = 1, km%nkcut 
-              arg = ( km%kpt ( 1, ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
+              arg = ( km%kpt ( 1 , ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
               km%strf  ( ik , it ) = km%strf  ( ik , it ) + EXP( imag * arg ) 
            enddo
         endif

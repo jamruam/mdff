@@ -63,8 +63,8 @@ SUBROUTINE md_run ( iastart , iaend , offset )
 
 
   USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
-                        write_CONTFF , box , center_of_mass , ntypemax
-  USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb
+                        write_CONTFF , box , center_of_mass , ntypemax , tau_lj , tau_coul 
+  USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse
   USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
                         kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
   USE prop,     ONLY :  lstrfac , lmsd , lvacf , nprop , nprop_start
@@ -93,8 +93,8 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
   integer :: itime , ierr , ia 
   integer :: nefg , ngr , nmsd , ntau 
-  character*60 :: rescale_allowed(3)
-  data rescale_allowed / 'nve-vv' , 'nve-be' , 'nve-vv_test' /
+  character*60 :: rescale_allowed(2)
+  data rescale_allowed / 'nve-vv' , 'nve-be' /
  ! tmp 
 #ifdef com_t
   double precision :: com(0:ntypemax,3) !center of mass
@@ -163,6 +163,10 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     CALL write_thermo( offset-1 , kunit_OUTFF )
     CALL write_thermo( offset-1 , kunit_OSZIFF )
 
+#ifdef debug
+         CALL print_config_sample(0,0)
+#endif
+
   else
   ! ===========================================================================
   !  leapfrog algorithm set the first leap value for r(t-dt)  (approximation)
@@ -198,11 +202,10 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   ! =======================
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend ) 
-  if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
-  endif 
+  if ( ionode ) then
+    CALL print_tensor ( tau_lj   , 'TAU_LJ  ' ) 
+    CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
+  endif
 
   ! =========================
   !   MAIN LOOP ( TIME )
@@ -253,7 +256,6 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
          if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
          if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-vv_test' )  CALL prop_velocity_verlet_test ( iastart , iaend )!, list , point )
 
 #ifdef debug
          CALL print_config_sample(itime,0)
@@ -295,11 +297,13 @@ MAIN:  do itime = offset , npas + (offset-1)
            rz = ztmp
          endif
 #ifdef stress_t
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend )
-  if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
-  endif 
+  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  if ( ionode ) then
+    if ( lbmlj )    CALL print_tensor ( tau_lj    , 'TAU_LJ  ' ) 
+    if ( lcoulomb ) CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+    if ( lmorse )   CALL print_tensor ( tau_morse , 'TAU_MORS' ) 
+  endif
 #endif
        
 #ifdef com_t
@@ -394,19 +398,12 @@ MAIN:  do itime = offset , npas + (offset-1)
   '======================================'
   if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'end of the main loop'
   if ( ionode ) WRITE ( stdout , '(a)' ) ' '
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ' '
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'stress tensor of final configuration'
-
-  ! ===================================
-  !  stress tensor 
-  ! ===================================
-  if ( lbmlj )    CALL stress_bmlj ( iastart , iaend ) 
-  if ( lcoulomb ) then 
-    if ( longrange .eq. 'ewald' )  CALL stress_coul_ewald
-    if ( longrange .eq. 'direct' ) CALL stress_coul_direct ( iastart , iaend )
-  endif 
-
+  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
+  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
+  if ( ionode ) then
+    CALL print_tensor ( tau_lj   , 'TAU_LJ  ' ) 
+    CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
+  endif
 
   CALL  write_average_thermo ( stdout ) 
   CALL  write_average_thermo ( kunit_OUTFF ) 
@@ -418,9 +415,9 @@ MAIN:  do itime = offset , npas + (offset-1)
   ! =======
   ! lstrfac not working yet
   ! =======
-  if ( lstrfac ) then
-    CALL static_struc_fac (ngr)
-  endif 
+!  if ( lstrfac ) then
+!    CALL static_struc_fac (ngr)
+!  endif 
 
   ! =======
   !  lmsd

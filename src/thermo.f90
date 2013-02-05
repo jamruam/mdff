@@ -30,24 +30,27 @@ MODULE thermodynamic
   
   double precision :: e_kin          ! kinetic energy
   double precision :: u_lj           ! potential energy from lennard_jones interaction
+  double precision :: u_morse        ! potential energy from morse interaction
   double precision :: u_coul_tot
-  double precision :: u_coul_qq      ! potential energy from coulombic interaction 
-  double precision :: u_coul_dd      ! potential energy from coulombic interaction 
-  double precision :: u_coul_qd      ! potential energy from coulombic interaction
+!  double precision :: u_coul_qq      ! potential energy from coulombic interaction 
+!  double precision :: u_coul_dd      ! potential energy from coulombic interaction 
+!  double precision :: u_coul_qd      ! potential energy from coulombic interaction
   double precision :: u_pol 
 
   double precision :: e_kin_r        ! kinetic energy
   double precision :: temp_r         ! temperature ( from kinetic energy )  
   double precision :: u_lj_r         ! potential energy from lennard_jones interaction
+  double precision :: u_morse_r      ! potential energy from morse interaction
   double precision :: u_coul_r       ! potential energy from coulombic interaction 
 
 
   double precision :: vir_tot        ! total virial
   double precision :: vir_lj         ! virial of lj interaction
+  double precision :: vir_morse      ! virial of morse interaction
   double precision :: vir_coul_tot   ! virial of coulombic interaction
-  double precision :: vir_coul_qq    ! virial of coulombic interaction
-  double precision :: vir_coul_dd    ! virial of coulombic interaction
-  double precision :: vir_coul_qd    ! virial of coulombic interaction
+!  double precision :: vir_coul_qq    ! virial of coulombic interaction
+!  double precision :: vir_coul_dd    ! virial of coulombic interaction
+!  double precision :: vir_coul_qd    ! virial of coulombic interaction
 
   double precision :: pvirial_tot    ! virial correction to the pressure
   double precision :: pvirial_lj     ! virial correction to the pressure
@@ -89,18 +92,19 @@ SUBROUTINE calc_thermo
 
   if (lreduced) then
     u_lj_r   = u_lj                      / DBLE ( natm )
-    u_coul_r = ( u_coul_qq + u_coul_dd)  / DBLE ( natm )
+    u_morse_r= u_morse                   / DBLE ( natm )
+    u_coul_r = u_coul_tot                / DBLE ( natm )
     e_kin_r  = e_kin                     / DBLE ( natm )
   else
     u_lj_r   = u_lj
-    u_coul_r = u_coul_qq + u_coul_dd
+    u_morse_r= u_morse
+    u_coul_r = u_coul_tot
     e_kin_r  = e_kin
   endif
   
-  u_tot    = u_lj_r + u_coul_r
+  u_tot    = u_lj_r + u_coul_r + u_morse_r
   e_tot    = u_tot  + e_kin_r
-  vir_coul_tot = vir_coul_qq + vir_coul_dd
-  vir_tot  = vir_lj + vir_coul_tot 
+  vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
   if (lreduced) then
     pvirial_lj    = vir_lj   / omega / DBLE ( natm ) 
@@ -269,23 +273,23 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
   if ( ionode ) then
     if ( PRESENT ( dummy ) ) then
       WRITE ( kunit , 200 ) &
-      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r      , dummy
+      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
       WRITE ( kunit , 201 ) &
       step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
     else
       WRITE ( kunit , 100 ) &
-      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r        
+      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
       WRITE ( kunit , 101 ) &
       step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
     endif
   endif
 
  100 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
-                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8)
+                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8)
  101 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8)
  200 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
-                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  dummy = ',E15.8)
+                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8,'  dummy = ',E15.8)
  201 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  dummy = ',E15.8)
 

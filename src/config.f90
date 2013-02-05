@@ -18,6 +18,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#define debug
 ! ======= Hardware =======
 
 !*********************** MODULE CONF ******************************************
@@ -51,6 +52,8 @@ MODULE config
 
   double precision :: box                                            ! cell dimension
   double precision :: omega                                          ! volume
+  double precision :: tau_lj   ( 3 , 3 )                             ! stress tensor lennard-jones
+  double precision :: tau_coul ( 3 , 3 )                             ! stress tensor coulombic
   double precision :: rho                                            ! density  
   double precision :: xn ( ntypemax )                                ! relative composition 
 
@@ -150,12 +153,16 @@ SUBROUTINE config_init
   else
     ! ===========================================================
     ! read initial configuration only for calc = md
-    ! for opt, vib and efg configuations are read in other files
+    ! for opt, vib and efg configuations are read in other routines 
     ! ===========================================================
     if ( calc .eq. 'md' ) then       
       CALL read_pos
     endif
   endif
+
+#ifdef debug
+  CALL print_config_sample(0,0)
+#endif
 
   if ( calc .ne. 'md' ) return
   ! ===============================
@@ -635,93 +642,6 @@ SUBROUTINE random_config ( natm , atype , xna )
 END SUBROUTINE random_config
 
 
-
-!*********************** SUBROUTINE read_pos **********************************
-!
-!  here we read configuration (pos,vel) from file or generate from a given
-!  structure lfcc, lsc or lbcc ... (face centered cubic, simple cubic or ...)
-!  organisation to confusing !!!!!
-!
-!******************************************************************************
-
-SUBROUTINE read_pos 
-
-  USE io_file,  ONLY :  ionode , stdout , kunit_POSFF, kunit_OUTFF
-
-  implicit none
-
-  ! local
-  integer :: it , ia  , cc  , ccs
-
-  IF ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)')       '=============================================================' 
-    WRITE ( kunit_OUTFF ,'(a)')       ''
-    WRITE ( kunit_OUTFF ,'(a)')       'config from file POSFF'
-    WRITE ( stdout ,'(a)')            '=============================================================' 
-    WRITE ( stdout ,'(a)')            ''
-    WRITE ( stdout ,'(a)')            'config from file POSFF'
-  endif
-
-  OPEN ( kunit_POSFF , file = 'POSFF' ) 
-  READ ( kunit_POSFF ,* ) natm 
-  READ ( kunit_POSFF ,* ) system
-  READ ( kunit_POSFF ,* ) box , ntype 
-  READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
-  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
-  READ( kunit_POSFF ,*) (natmi(it),it=1,ntype)
-      
-  omega = box * box * box
-  rho = DBLE ( natm ) / omega
-
-  call config_alloc 
-
-  ! =========================================      
-  ! read positions and velocities from disk 
-  ! =========================================      
-  READ  ( kunit_POSFF , * ) ( rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                              vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm )
-  CLOSE ( kunit_POSFF )
-
-  ! ==========================
-  !  set some type parameters
-  ! ==========================      
-  natmi ( 0 ) = 0 
-  cc = 0
-  do it = 1 , ntype
-      ccs = cc
-      cc = cc + natmi ( it )
-    do ia = ccs + 1 , cc 
-      atype ( ia ) = atypei ( it ) 
-      itype ( ia ) = it 
-    enddo
-  enddo
-
-  ! old version with only 2 types obsolete 
-  !do ia = 1 , natm
-  !  if ( ia .le. natmi(1) )  then
-  !    atype ( ia ) = 'A' 
-  !  else
-  !    atype ( ia ) = 'B' 
-  !    itype ( ia ) =  2 
-  !   endif
-  !enddo
-
-  ! ======================      
-  ! recalculate xna,xnb  
-  ! ======================
-  do it = 1 , ntype
-    xn(it)  = DBLE ( natmi (it) ) /DBLE ( natm )
-  end do
-
-  ! reset begining of tables atypei and natmi
-  atypei(0) = 'ALL'
-  natmi(0)  = natm
-
-  return
-
-END SUBROUTINE read_pos
-
 !*********************** SUBROUTINE write_CONTFF ******************************
 !
 ! write configuration (pos,vel) to CONTFF file
@@ -748,12 +668,14 @@ SUBROUTINE write_CONTFF
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
+      WRITE ( kunit_CONTFF,'(i)') natm 
       WRITE ( kunit_CONTFF,'(a)') system
       WRITE ( kunit_CONTFF,'(f20.12,i4)') box,ntype 
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
-      WRITE ( kunit_CONTFF,'(6f20.12)') ( xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
-                                           vx ( ia ) ,  vy ( ia ) ,  vz ( ia ) , ia = 1 , natm )
+      WRITE ( kunit_CONTFF,'(a,9f20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
+                                                           vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
+                                                           fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
   CLOSE (kunit_CONTFF)
   endif
 
@@ -771,14 +693,22 @@ END SUBROUTINE write_CONTFF
 ! positions of atom ia                      : rx(ia)  , ry(ia)   , rz(ia) 
 ! velocities of atom ia                     : vx(ia)  , vy(ia)   , vz(ia) 
 ! forces on atom ia                         : fx(ia)  , fy(ia)   , fz(ia) 
+! forces on atom ia previous step (beeman)  : fxs(ia) , fys(ia)  , fzs(ia) 
 ! previous pos. leap-frog algo.             : rxs(ia) , rys(ia)  , rzs(ia) 
+! last config. list verlet update           : xs(ia)  , ys(ia)   , zs(ia) 
+! charge on atom                            : qia 
+! static dipole on atom                     : dipia
+! induced dipole on atom                    : dipia_ind
 
 ! atom type information (still not nice) 
 !
-! type of atom ia (character)               : atype(ia) = 'A' or 'B'
-! type of atom ia (integer)                 : itype(ia) = 1 or 2
+! type of atom ia (character)               : atype(ia)  
+! type of atom ia (integer)                 : itype(ia) = 1 .. ntype
 ! number of atoms of type it                : natmi(it) .le. natm
-! name of type of type it                   : atypei(it) = 'A' or 'B' or ALL
+! name of type of type it                   : atypei(it) => atypei(0) = 'ALL'
+! verlet list                               : list , point 
+! is the atom polarized ?                   : ipolar = 1 if yes 
+! coulombic potential                       : phi_coul_qq , phi_coul_dd , ! phi_coul_tot
 !
 !******************************************************************************
 
@@ -802,33 +732,33 @@ SUBROUTINE config_alloc
   allocate( ipolar ( natm ) )
   allocate( phi_coul_qq  ( natm ) , phi_coul_dd ( natm ) , phi_coul_tot ( natm ) ) ! well only if we calculated coulombic interactions
 
-  rx = 0.0D0
-  ry = 0.0D0
-  rz = 0.0D0
-  vx = 0.0D0
-  vy = 0.0D0
-  vz = 0.0D0
-  fx = 0.0D0
-  fy = 0.0D0
-  fz = 0.0D0
-  fxs = 0.0d0
-  fys = 0.0d0
-  fzs = 0.0d0
-  xs = 0.0D0
-  ys = 0.0D0
-  zs = 0.0D0
-  rxs = 0.0D0
-  rys = 0.0D0
-  rzs = 0.0D0
+  rx    = 0.0D0
+  ry    = 0.0D0
+  rz    = 0.0D0
+  vx    = 0.0D0
+  vy    = 0.0D0
+  vz    = 0.0D0
+  fx    = 0.0D0
+  fy    = 0.0D0
+  fz    = 0.0D0
+  fxs   = 0.0d0
+  fys   = 0.0d0
+  fzs   = 0.0d0
+  xs    = 0.0D0
+  ys    = 0.0D0
+  zs    = 0.0D0
+  rxs   = 0.0D0
+  rys   = 0.0D0
+  rzs   = 0.0D0
   atype = ''
-  list = 0
-  point = 0
-  qia = 0.0d0
-  dipia = 0.0d0
+  list      = 0
+  point     = 0
+  qia       = 0.0d0
+  dipia     = 0.0d0
   dipia_ind = 0.0d0
-  ipolar = 0
-  phi_coul_qq = 0.0d0
-  phi_coul_dd = 0.0d0
+  ipolar    = 0
+  phi_coul_qq  = 0.0d0
+  phi_coul_dd  = 0.0d0
   phi_coul_tot = 0.0d0
 
   return 
@@ -925,11 +855,10 @@ SUBROUTINE linear_momentum
   integer :: ia
   double precision :: Px, Py, Pz, normP
 
-  
   do ia = 1 , natm
-  Px = Px + vx ( ia )
-  Py = Py + vy ( ia ) 
-  Pz = Pz + vz ( ia )
+    Px = Px + vx ( ia )
+    Py = Py + vy ( ia ) 
+    Pz = Pz + vz ( ia )
   enddo
 
   normP = dsqrt(Px*Px + Py*Py + Pz*Pz)
@@ -1021,7 +950,6 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
   double precision :: rdist(3), r2, com(0:ntypemax,3)
   INTEGER  :: it, ia, isa
 
- 
   ! =========================================================
   !  Compute the current value of cdm "Centro Di Massa"
   ! =========================================================

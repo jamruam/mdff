@@ -18,6 +18,7 @@
 
 ! ======= Hardware =======
 !#define debug
+!#define intermediate_config
 ! ======= Hardware =======
 
 MODULE opt
@@ -234,7 +235,7 @@ SUBROUTINE opt_main
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
                                 atype  , rho , config_alloc , list , point , box , omega , &
-                                atypei , itype, natmi 
+                                atypei , itype, natmi , qia , dipia , ipolar
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF, kunit_OUTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
@@ -250,6 +251,7 @@ SUBROUTINE opt_main
   integer :: iastart , iaend , ierr
   double precision :: phigrad, pressure0, pot0, Eis
   double precision :: ttt1,ttt2
+  double precision :: ttt1p,ttt2p
   ! trash 
   double precision :: aaaa
   integer :: iiii
@@ -290,10 +292,6 @@ SUBROUTINE opt_main
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL field_init
 
-#ifdef debug
-  print*,'debug',iastart , iaend
-#endif
-
   ! ==========================================   
   !  skip the first nskipopt configurations 
   ! ==========================================
@@ -310,10 +308,11 @@ SUBROUTINE opt_main
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
     enddo
+  if ( ionode ) write (stdout , '(i6,a)' ) nskipopt,' configs were skiped' 
   endif
-
   do ic = nskipopt + 1, ncopt
 
+    ttt1p = MPI_WTIME(ierr)
     ! ===================================
     !  read config from trajectory file
     ! ===================================
@@ -325,20 +324,27 @@ SUBROUTINE opt_main
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
-
-  ! ==========================
-  !  set some type parameters
-  ! ==========================      
-  natmi ( 0 ) = 0 
-  cc = 0
-  do it = 1 , ntype
+  
+    ! ==========================
+    !  set some type parameters
+    ! ==========================      
+    natmi ( 0 ) = 0
+    cc = 0
+    do it = 1 , ntype
       ccs = cc
       cc = cc + natmi ( it )
-    do ia = ccs + 1 , cc 
-      atype ( ia ) = atypei ( it ) 
-      itype ( ia ) = it 
+      do ia = ccs + 1 , cc
+        atype ( ia )     = atypei ( it )
+        itype ( ia )     = it
+        qia   ( ia )     = qch (it)
+        dipia ( ia , 1 ) = dip ( it , 1 )
+        dipia ( ia , 2 ) = dip ( it , 2 )
+        dipia ( ia , 3 ) = dip ( it , 3 )
+        ipolar ( ia )    = lpolar ( it )
+      enddo
     enddo
-  enddo
+    natmi  ( 0 ) = natm
+    atypei ( 0 ) = 'ALL'
 
     if ( (( MOD ( ic , nperiodopt ) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
@@ -422,6 +428,10 @@ SUBROUTINE opt_main
       endif
 
     endif ! nperiod         
+
+    ttt2p = MPI_WTIME(ierr)
+    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',ic,' OPT  ', ttt2p - ttt1p  
+
   enddo !ncopt 
 
   CLOSE( kunit_ISCFF )
@@ -431,8 +441,9 @@ SUBROUTINE opt_main
   ttt2 = MPI_WTIME(ierr)
   opttimetot = opttimetot + (ttt2-ttt1) 
 
-
   return
+
+110   FORMAT(2X,A8,I4,A20,' :  cpu time',F9.2)
 
 END SUBROUTINE opt_main
 
@@ -449,6 +460,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   USE config,           ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point
   USE io_file,          ONLY :  ionode , stdout
   USE thermodynamic,    ONLY :  u_tot      
+  USE md,               ONLY :  write_traj_xyz
   USE field 
 
   implicit none
@@ -471,13 +483,19 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   double precision, dimension(:), allocatable :: hx  , hy  , hz
   double precision, dimension(:), allocatable :: xix , xiy , xiz
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
+  double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
  
   allocate( gx(natm) , gy(natm)  ,gz(natm) )
   allocate( hx(natm) , hy(natm) , hz(natm) )
   allocate( xix(natm) , xiy(natm) , xiz(natm) ) 
   allocate( fx_sum(natm), fy_sum(natm), fz_sum(natm) )
+  allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
 
-  
+  xtmp = 0.0d0
+  ytmp = 0.0d0
+  ztmp = 0.0d0
+ 
+ 
   ftol = 1.0E-14
   epsilon = 1.0E-14
   itmax = 10000
@@ -518,6 +536,17 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   kl = 1
   do its = 1,itmax
 
+#ifdef intermediate_config
+           xtmp = rx
+           ytmp = ry
+           ztmp = rz
+           CALL write_traj_xyz
+           rx = xtmp
+           ry = ytmp
+           rz = ztmp
+#endif 
+
+
     phigrad = 0.0D0
     do ia = 1, natm
       phigrad = phigrad + fx ( ia ) * fx ( ia ) + fy ( ia ) * fy ( ia ) + fz ( ia ) * fz ( ia )
@@ -526,10 +555,10 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     if ( ionode .and. MOD ( its , kl ) .eq. 0 ) then
       WRITE (stdout,'(2i6,2E20.8,i6)') its , nstep , phigrad , u_tot
       kl = 2 * kl 
+!#ifdef debug
+!  call print_config_sample(its,0)
+!#endif
     endif
-#ifdef debug
-  call print_config_sample(its,0)
-#endif
 
     iter = its
     ukeep = u_tot
@@ -803,6 +832,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   enddo 
 
 
+  deallocate( xtmp , ytmp , ztmp  )
   deallocate( fx_sum, fy_sum, fz_sum )
   deallocate( gx  , gy  , gz )
   deallocate( hx  , hy  , hz )
@@ -972,7 +1002,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !  not recommended; large values of M will result in excessive
   !  computing time. 3<= M <=7 is recommended. Restriction: M>0
   !=================================================================================
-  M=4
+  M=5
   NWORK = N * ( 2 * M + 1 ) + 2*M
   ALLOCATE ( W (NWORK) )
   !=================================================================================
@@ -1134,13 +1164,10 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
 
   enddo 
 
-
   DEALLOCATE ( X  )
   DEALLOCATE ( G  )
   DEALLOCATE ( DIAG )
   DEALLOCATE ( W )
-
-
 
   RETURN 
 
@@ -1177,6 +1204,8 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   ! external 
   external euclid,ctonbe,ctcabe,simul_rc
 
+
+
   ! =====================
   !   initialization
   ! =====================
@@ -1200,12 +1229,16 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   CALL engforce_driver ( iastart , iaend )
   CALL calc_thermo
 
+!#ifdef debug
+!     call print_config_sample(0,0)
+!#endif
+
   f=u_tot
 
   ! ===============================
   !  set the gradient to fx,fy,fz
   ! ===============================
-  DO ia=1 , natm
+  DO ia = 1 , natm
     G( ia           ) =  - fx( ia )
     G( natm + ia    ) =  - fy( ia )
     G( 2* natm + ia ) =  - fz( ia )
@@ -1233,14 +1266,14 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   reverse=1            ! reverse
 
   do while ( reverse .ge. 0 ) 
-  !100 continue
+!  100 continue
 
     icall = icall + 1
 
     call m1qn3 (simul_rc,euclid,ctonbe,ctcabe,n,x,f,g,dxmin,df1, &
                 epsrel,normtype,imp,io,imode,omode,niter,nsim,iz, & 
                 dz,ndz,reverse,indic,izs,rzs,dzs)
-   ! if (reverse.lt.0) goto 101
+!    if (reverse.lt.0) goto 101
     ! ===============================================
     !  reset positions for energy/forces calculation
     ! ==============================================
@@ -1254,6 +1287,10 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     CALL calc_thermo
 
     f=u_tot
+
+!#ifdef debug
+!     call print_config_sample(icall,0)
+!#endif
  
     ! ===============================
     !  set the gradient to fx,fy,fz
@@ -1264,7 +1301,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
       G( natm + ia    ) =  - fy( ia )
       G( 2* natm + ia ) =  - fz( ia )
       phigrad = phigrad + &
-      G ( ia ) * G( ia ) + G( natm + ia    ) * G( natm + ia    )  + G( 2* natm + ia ) * G( 2* natm + ia )
+      G ( ia ) * G( ia ) + G( natm + ia ) * G( natm + ia )  + G( 2* natm + ia ) * G( 2* natm + ia )
     ENDDO
 
     ! write step information

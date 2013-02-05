@@ -24,10 +24,10 @@ INSTALL_DIR=../bin
 # =================
 #   on mario 
 # =================
-FCFLAGS = -fpp -O5 -ip -xHost
+FCFLAGS = -fpp -O3 -ip -xHost
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
-#FCFLAGS = -fpp -O1 -check all -warn all
+#FCFLAGS = -fpp -O0 -check all -warn all 
 
 EXE= mdff.x 
 EXE_= mdff_.x 
@@ -67,18 +67,17 @@ LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt
  
 
 
-
 # List of executables to be built within the package
 OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
-     stress.o tools.o integration.o opt.o vib.o msd.o multi_tau.o \
+     tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o NL_field.o vacf.o runmd.o 
 
 #OBJ_= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
-     stress.o tools.o integration.o opt.o vib.o msd.o multi_tau.o \
+     tools.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg_new.o vacf.o runmd.o
 
 #test: $(EXE_)

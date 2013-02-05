@@ -12,7 +12,8 @@ echo "N (atoms)      mdff.x       CCD          diff"
 for (( cluster=3;cluster<150;cluster++)) 
 do
 
-	echo "CLUSTER_LJ" > tmp.file
+	echo "$cluster" > tmp.file
+	echo "CLUSTER_LJ" >> tmp.file
 	echo "15.000   1" >> tmp.file
 	echo "A" >> tmp.file
 	echo $cluster >> tmp.file
@@ -31,7 +32,8 @@ echo " "
 echo "N (atoms)      mdff.x       CCD          diff"
 for cluster in 38 75 76 77 98 102  103  104
 do
-        echo "CLUSTER_LJ" > tmp.file
+	echo "$cluster" > tmp.file
+        echo "CLUSTER_LJ" >> tmp.file
         echo "15.000   1" >> tmp.file
         echo "A" >> tmp.file
         echo $cluster >> tmp.file
@@ -41,4 +43,6 @@ do
         $EXE control.F > stdout
 	echo " "$((cluster))i" `grep "Etot" OUTFF | awk '{print $14}'` `grep " $((cluster))i " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4s %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
 done
+
+
 

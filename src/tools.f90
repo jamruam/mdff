@@ -56,7 +56,6 @@ SUBROUTINE estimate_alpha(alpha)
 END SUBROUTINE estimate_alpha
 
 
-
 !*********************** SUBROUTINE do_split ***********************************
 !
 ! this SUBROUTINE split the number of atoms in for each np procs
@@ -243,10 +242,11 @@ END SUBROUTINE distance_tab
 !
 !******************************************************************************
 
-SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
+SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point, ntype 
   USE control,  ONLY :  skindiff , cutoff
+  USE io_file
 
   implicit none
 
@@ -268,6 +268,10 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
   enddo
+!rskinsq  =  ( cutoff + skindiff  ) * ( cutoff + skindiff  )
+!if ( ionode ) print*,rskinsq,cutoff
+!stop
+
 
   icount = 1
   do ia = iastart , iaend
@@ -277,7 +281,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )!, list , point )
     k = 0
     do ja = 1 , natm
       if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-           ( ia .lt. ja .and. ( MOD (ia + ja , 2 ) .ne.0 ) ) ) then
+           ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -511,7 +515,7 @@ SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
 !        CALL vnlist_noimg ( iastart, iaend )
 !      endif
     else
-    CALL vnlist_nopbc ( iastart, iaend )!, list , point )
+      CALL vnlist_nopbc ( iastart, iaend )!, list , point )
     endif
      
     do ia = 1, natm 
@@ -543,7 +547,7 @@ SUBROUTINE print_tensor( tens , key )
 
   ! global
   double precision :: tens(3,3)
-  character*6 :: key
+  character(len=8) :: key
 
   ! local
   integer :: i
@@ -554,7 +558,7 @@ SUBROUTINE print_tensor( tens , key )
     do i = 1 , 3
       WRITE ( stdout ,'(3f15.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
-    WRITE ( stdout ,'(a,f15.8)') 'trace=',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
+    WRITE ( stdout ,'(a,f15.8)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
     WRITE ( stdout , '(a)' ) ''
   endif
 
@@ -759,32 +763,6 @@ SUBROUTINE dumb_guy(kunit)
   return
 
 END SUBROUTINE dumb_guy
-
-! **********************************************************************
-!  to remove leading and trailing spaces
-! **********************************************************************
-character(30) FUNCTION sweep_blanks(in_str)
-
-  implicit none
-
-  character(*), intent(in) :: in_str
-  character(30)            :: out_str
-  character                :: ch
-  integer                  :: j
-
-  out_str = " "
-
-  do j=1, len_trim(in_str)
-
-  ! get j-th char
-    ch = in_str(j:j)
-    if (ch .ne. " ") then
-      out_str = trim(out_str) // ch
-    endif
-    sweep_blanks = out_str
-  enddo
-
-END FUNCTION sweep_blanks
 
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE( vec_result , ndim )
 

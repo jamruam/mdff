@@ -166,7 +166,7 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend )!, list , point )
+  CALL engforce_driver ( iastart , iaend )
 
   ! ==============================================
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
@@ -186,83 +186,6 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   return
 
 END SUBROUTINE prop_velocity_verlet
-
-!*********************** SUBROUTINE prop_velocity_verlet **********************
-!
-! propagation for velocity-verlet algotithm (found a paper)
-! Note for test purpose only
-!
-!******************************************************************************
-
-SUBROUTINE prop_velocity_verlet_test ( iastart , iaend )
-
-  USE config,           ONLY :  natm, rx, ry, rz, vx, vy, vz, fx, fy, fz
-  USE md,               ONLY :  dt
-  USE control,          ONLY :  lpbc
-  USE thermodynamic,    ONLY :  temp_r , e_kin
-  USE field
-
-  implicit none
-
-  ! global
-  integer, intent(inout) :: iastart , iaend 
-
-  ! local
-  double precision :: dtsq2 , dt2
-  double precision, dimension (:), allocatable :: fsx, fsy, fsz
-  double precision :: tempi , kin
-
-
-  allocate (fsx(natm),fsy(natm),fsz(natm))
-  fsx = 0.0D0
-  fsy = 0.0D0
-  fsz = 0.0D0
-
-  dtsq2 = dt * dt * 0.5d0
-  dt2 = dt * 0.5d0
-
-  ! =================================================
-  !  r(t+dt) = r(t) + v(t)*dt + f(t) * dt*dt/2 
-  !  store forces of the previous step  
-  ! =================================================
-    rx(2) = rx(2) + vx(2) * dt + fx(2) * dtsq2
-    ry(2) = ry(2) + vy(2) * dt + fy(2) * dtsq2
-    rz(2) = rz(2) + vz(2) * dt + fz(2) * dtsq2
-    fsx(2) = fx(2)
-    fsy(2) = fy(2)
-    fsz(2) = fz(2)
-
-  ! ==========================
-  ! force + potential f(t+dt)
-  ! ==========================
-  if (lpbc) then
-    CALL engforce_bmlj_pbc_test ( )
-  else
-    print*,'only pbc allowed for this test'
-    STOP
-    CALL engforce_bmlj_nopbc ( iastart , iaend )
-  endif
-
-  ! ==============================================
-  !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
-  ! ==============================================
-  vx(1) = 0.0d0     
-  vy(1) = 0.0d0     
-  vz(1) = 0.0d0     
-  vx(2) = vx(2) + ( fsx(2) + fx(2) ) * dt2
-  vy(2) = vy(2) + ( fsy(2) + fy(2) ) * dt2
-  vz(2) = vz(2) + ( fsz(2) + fz(2) ) * dt2
-
-  CALL calc_temp(tempi, kin)
-  temp_r = tempi      
-  e_kin  = kin
-
-  deallocate ( fsx , fsy , fsz )
-
-  return
-
-END SUBROUTINE prop_velocity_verlet_test
-
 
 !*********************** SUBROUTINE nose_hoover_chain2 ************************
 !

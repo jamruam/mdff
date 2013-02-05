@@ -17,7 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-!#define debug
+!#define debug2
 ! ======= Hardware =======
 
 MODULE radial_distrib 
@@ -28,12 +28,7 @@ MODULE radial_distrib
  
   double precision :: resg     ! resolution in g(r) distribution 
 
-  ! gr(4,0:PANGR)
-  ! gr(1,:) : AA
-  ! gr(2,:) : BB
-  ! gr(3,:) : AB
-  ! gr(4,:) : all
-  integer, dimension(:,:), allocatable :: gr 
+  integer, dimension(:,:,:), allocatable :: gr 
 
 CONTAINS
 
@@ -94,12 +89,13 @@ END SUBROUTINE gr_init
 SUBROUTINE gr_alloc
 
   USE control,  ONLY :  calc
+  USE config ,  ONLY : ntype
 
   implicit none
 
   if ( calc .ne. 'gr' ) return
 
-  allocate(gr(4,0:PANGR))
+  allocate(gr(0:PANGR,0:ntype,0:ntype))
   gr = 0      
 
   return 
@@ -210,22 +206,33 @@ SUBROUTINE grcalc
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
                                 rho , config_alloc , box , omega , atypei , itype, natmi
   USE control,          ONLY :  myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_GRTFF , kunit_OUTFF
+  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_OUTFF , kunit_GRTFF , kunit_NRTFF
+  USE constants,        ONLY :  pi 
   USE time
 
   implicit none
   INCLUDE 'mpif.h'
 
   ! local 
-  integer :: ia , ic , it , ngr , na
+  integer :: ia , ic , it , ngr , i , k , pairs , it1 , it2 , mp , ierr
+  integer :: cc  , ccs
   integer :: iastart , iaend 
+  double precision, dimension ( : ) , allocatable :: grr 
+  integer, dimension ( : ) , allocatable :: nr 
+  character(len=15), dimension ( : ) , allocatable :: cint
+  double precision :: rr , vol
   ! trash 
   double precision :: aaaa
   integer :: iiii
   character * 60 :: cccc
+  double precision :: grtime1 , grtime2      
+
 
   OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
-    
+  OPEN ( kunit_GRTFF , file = 'GRTFF' )
+  OPEN ( kunit_NRTFF , file = 'NRTFF' )
+
+
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
   READ ( kunit_TRAJFF , * ) box , ntype
@@ -247,9 +254,29 @@ SUBROUTINE grcalc
   CALL config_alloc 
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL gr_alloc
-#ifdef debug
-  write ( stdout , '(a,i)' ) 'debug : iastart, iaend ',iastart , iaend
+  pairs =  ntype * ( ntype + 1 ) / 2
+  allocate ( grr ( 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
+#ifdef debug2
+  if ( ionode ) then 
+    write ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
+    write ( stdout , '(a,2i6)' ) 'debug : number of type pairs ', pairs
+  endif
 #endif
+  ! ==========================
+  !  set some type parameters
+  ! ==========================      
+  cc = 0
+  do it = 1 , ntype
+    ccs = cc
+    cc = cc + natmi ( it )
+    do ia = ccs + 1 , cc
+      atype ( ia )     = atypei ( it )
+      itype ( ia )     = it
+    enddo
+  enddo
+  natmi  ( 0 ) = natm
+  atypei ( 0 ) = 'ALL'
+
   ! ==========================================   
   !  skip the first nskip configurations 
   ! ==========================================
@@ -268,8 +295,7 @@ SUBROUTINE grcalc
 
   ngr = 0
   do ic = nskip + 1, nc
-    if ( ionode ) print*,ic
-    na = 0
+    if ( ionode ) write ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nc,' ] '
     ! ===================================
     !  read config from trajectory file
     ! ===================================
@@ -280,35 +306,94 @@ SUBROUTINE grcalc
     if ( ic .ne. (nskip + 1) .or. nskip.ne.0 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      if ( atype ( ia ) .eq. 'A') na = na + 1
-      if ( atype ( ia ) .eq. 'A') itype(ia)=1
-      if ( atype ( ia ) .eq. 'B') itype(ia)=2
     enddo
-    if ( ntype .eq.  1 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      atypei(0)='ALL'
-      atypei(1)='A'
-    endif
-    if ( ntype .eq.  2 ) then
-      natmi(0)=natm
-      natmi(1)=na
-      natmi(2)=natm-na
-      atypei(0)='ALL'
-      atypei(1)='A'
-      atypei(2)='B'
-    endif
-
-      ngr=ngr+1 
-      ! ==========================
-      !  calc radial_distribution 
-      ! ==========================  
-      call gr_main ( iastart , iaend , ngr )
+    ngr=ngr+1 
+    ! ==========================
+    !  calc radial_distribution 
+    ! ==========================  
+    call gr_main ( iastart , iaend )
 
   enddo !nc 
 
+
+  ! ===========================================
+  !        merge results  
+  ! ===========================================
+  grtime1 = MPI_WTIME(ierr)
+
+  CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), PANGR+1 )
+  do it1 = 1 , ntype
+    do it2 = it1 , ntype
+      CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), PANGR+1 )
+    enddo  
+  enddo
+  grtime2 = MPI_WTIME(ierr)
+  grtimetot_comm = grtimetot_comm + ( grtime2 - grtime1 )
+
+
+#ifdef debug2
+  do i=1, PANGR-1
+    if ( ionode ) WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
+  enddo
+#endif
+
+  ! ======================================================= 
+  !  write output files GRTFF , NRTFF
+  ! ======================================================= 
+  cint ( 0) = atypei ( 0 )//' - '//atypei ( 0 )
+  mp = 1
+  do it1 = 1 , ntype
+    do it2 = it1 , ntype
+      cint(mp) = atypei(it1)//' - '//atypei(it2)
+      mp = mp + 1 
+    enddo
+  enddo
+  write ( kunit_GRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
+  write ( kunit_NRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
+
+  nr ( 0 ) = 0 
+
+  do i = 1 , PANGR-1
+    rr = resg * ( DBLE (i) + 0.5D0 )
+    k  = i+1
+    k  = k*k*k
+    k  = k-(i*i*i)
+    vol = DBLE (k)*resg*resg*resg ! r^3
+    vol = (4.0D0/3.0D0)*pi*vol/omega !4/3pir^3
+    ! all - all pairs 
+    grr ( 0 ) = DBLE (gr(i,0,0))/(ngr*vol*natm*natm)
+    ! type pairs
+    mp = 1
+    do it1 = 1 , ntype
+      do it2 = it1 , ntype
+#ifdef debug2
+       write ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
+#endif        
+        nr ( mp ) = it1          
+        grr ( mp ) = DBLE ( gr ( i , it1 , it2 ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
+        mp = mp + 1
+      enddo
+    enddo
+    if ( pairs .ne. 1 ) then
+      if ( ionode ) then
+        WRITE (kunit_GRTFF,'(<pairs+2>f15.10)') rr , ( grr ( mp ) , mp = 0 , pairs ) 
+        WRITE (kunit_NRTFF,'(<pairs+2>f20.10)') rr , ( DBLE ( grr (mp) ) * 4.0d0 * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
+      endif
+    else
+      if ( ionode ) then
+        WRITE (kunit_GRTFF,'(2f15.10)') rr , grr( 0 ) 
+        WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(i,0,0)
+      endif
+    endif
+  enddo
+
+
+  CLOSE ( kunit_NRTFF )
+  CLOSE ( kunit_GRTFF )
+
   CLOSE( kunit_TRAJFF )
 
+  deallocate ( grr , nr , cint )
   CALL gr_dealloc
 
   return
@@ -318,57 +403,47 @@ END SUBROUTINE grcalc
 !*********************** SUBROUTINE gr_main ***********************************
 !
 ! based on Frenkel and Smit
-! the ntype differenciation could be better
 !
 !******************************************************************************
 
-SUBROUTINE gr_main ( iastart , iaend , ngr )
+SUBROUTINE gr_main ( iastart , iaend )
 
-  USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , box , omega , ntype
+  USE control, ONLY : myrank
+  USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , box , omega , ntype , itype
   USE prop,             ONLY :  nprop, nprop_start
-  USE constants,        ONLY :  pi 
-  USE io_file,          ONLY :  ionode , stdout , kunit_GRTFF , kunit_NRTFF
+  USE io_file,          ONLY :  ionode , stdout 
   USE time
 
   implicit none
-  INCLUDE "mpif.h"
+  INCLUDE 'mpif.h'
 
   ! global
   integer, intent(in) :: iastart , iaend
-  integer, intent(in) :: ngr  
 
   ! local
-  integer :: i , ia , ja , k , ierr , ii 
-  integer :: igr , na , nb 
+  integer :: ia , ja , ierr , ita , jta  
+  integer :: igr 
   integer :: nxij , nyij , nzij
-  double precision :: cut2 , rr , rijsq , vol
+  double precision :: cut2 , rijsq , rr 
   double precision :: rxi , ryi , rzi
   double precision :: rxij , ryij , rzij
-  double precision :: grr1 , grr2 , grr3 , grrtot
   double precision :: grtime1 , grtime2      
 
   grtime1 = MPI_WTIME(ierr)
 
-  OPEN ( kunit_GRTFF , file = 'GRTFF' )
-  OPEN ( kunit_NRTFF , file = 'NRTFF' )
-
-  na = natmi(1)
-  nb = natm - na
-
-  do ia = 1 , natm
-  if ( ia .gt. iaend ) then
-    gr=0
-    !write(stdout,*) 'clean part of the array'
-  endif
-  enddo
-
+  ! =======================
+  !  cut-off half box
+  ! =======================
   cut2 = box * box * 0.25D0    
+
   do ia = iastart , iaend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
+    ita = itype( ia )
     do ja = 1, natm
       if ( ja .ne. ia ) then  
+      jta = itype( ja )
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
@@ -382,62 +457,19 @@ SUBROUTINE gr_main ( iastart , iaend , ngr )
       if ( rijsq.lt.cut2 ) then
         rr = SQRT ( rijsq )
         igr = INT ( rr / resg )
-        gr(4,igr)  = gr(4,igr)+1  ! all average
-        if ( atype ( ia ) .eq. 'A' .and. atype ( ja ) .eq. 'A' ) then
-          gr ( 1 , igr )  = gr ( 1 , igr ) + 1   ! AA average
-        endif
-        if ( atype ( ia ) .eq. 'B' .and. atype ( ja ) .eq. 'B' ) then
-          gr ( 2 , igr )  = gr ( 2 , igr ) + 1   ! BB average
-        endif
-        if ( atype ( ia ) .eq.'A' .and. atype ( ja ) .eq. 'B' ) then!.or.(atype(i).eq.'B'.and.atype(j).eq.'A' )) then 
-          gr ( 3 , igr )  = gr ( 3 , igr ) + 1  ! AB or BA average
-        endif
+        ! all pairs
+        gr ( igr , 0 , 0 )     = gr ( igr , 0 , 0 ) + 1 
+        gr ( igr , ita , jta ) = gr ( igr , ita , jta ) + 1
       endif
      endif
     enddo
   enddo
 
-  do ii=1,4
-    CALL MPI_ALL_REDUCE_INTEGER ( gr(ii,:), PANGR+1 )
-  enddo
-
-  do i = 1,PANGR-1
-    rr = resg*(DBLE (i)+0.5D0)
-    k = i+1
-    k = k*k*k
-    k = k-(i*i*i)
-    vol = DBLE (k)*resg*resg*resg ! r^3
-    vol = (4.0D0/3.0D0)*pi*vol/omega !4/3pir^3
-    grr1   = DBLE (gr(1,i))/(ngr*vol*na*na)
-    if (ntype .ne. 1 ) then
-      grr2   = DBLE (gr(2,i))/(ngr*vol*nb*nb)
-      grr3   = DBLE (gr(3,i))/(ngr*vol*na*nb)
-      grrtot = DBLE (gr(4,i))/(ngr*vol*natm*natm)
-      if ( ionode ) then  
-        WRITE (kunit_GRTFF,'(5f15.10)') rr , grr1 , grr2 , grr3 , grrtot 
-        WRITE (kunit_NRTFF,'(5f20.10)') &
-        rr , DBLE ( gr(1,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*na) , &
-             DBLE ( gr(2,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*nb) , &
-             DBLE ( gr(3,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*nb) , &
-             DBLE ( gr(4,i)) * 4.0d0 * pi * rr * rr / DBLE (ngr*natm) 
-      endif
-    else
-      if ( ionode ) then  
-        WRITE (kunit_GRTFF,'(2f15.10,i10)') rr , grr1
-        WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(1,i) 
-      endif
-     
-    endif
-  enddo   
-
-#ifdef debug
-  do i=1, PANGR-1
-    WRITE (stdout , '(a,5i6)') 'debug: ',i,gr(:,i)
+#ifdef debug2
+  do igr=1, PANGR-1
+    WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,1,1)
   enddo
 #endif 
- 
-  CLOSE ( kunit_NRTFF )
-  CLOSE ( kunit_GRTFF )
 
   grtime2 = MPI_WTIME(ierr)
   grtimetot = grtimetot + ( grtime2 - grtime1 )
@@ -451,56 +483,26 @@ END SUBROUTINE gr_main
 !
 !******************************************************************************
 
-SUBROUTINE static_struc_fac ( ngr )
-
-  USE io_file,  ONLY :  ionode , kunit_STRFACFF
-  USE config,   ONLY :  natm , rho , natmi , omega
-  USE constants,ONLY :  pi        
-
-  implicit none
+!SUBROUTINE static_struc_fac ( ngr )
+!
+!  USE io_file,  ONLY :  ionode , kunit_STRFACFF
+ ! USE config,   ONLY :  natm , rho , natmi , omega
+ ! USE constants,ONLY :  pi        
+!
+!  implicit none
   ! global
-  integer :: ngr 
+!  integer :: ngr 
 
   ! local
-  integer :: i , k 
-  double precision :: q , grr1 , vol , rr 
-  double precision , dimension (:) , allocatable  :: stat_str
-  double precision   ,dimension (:), allocatable :: in 
-  double complex     ,dimension (:), allocatable :: out
+!  integer :: i , k 
+!  double precision :: q , grr1 , vol , rr 
+!  double precision , dimension (:) , allocatable  :: stat_str
+!  double precision   ,dimension (:), allocatable :: in 
+!  double complex     ,dimension (:), allocatable :: out
 
-  do i = 1,PANGR-1
-    rr = resg*(DBLE (i)+0.5D0)
-    k = i+1
-    k = k**3
-    k = k-(i*i*i)
-    vol = DBLE (k)*resg*resg*resg
-    vol = (4.0D0/3.0D0)*pi*vol/omega
-    grr1   = DBLE (gr(1,i))/(ngr*vol*natmi(1)*natm)
-  !  gr(1,i) = grr1
-  enddo
+!  return
 
-  allocate ( stat_str (PANGR) )
-  allocate ( in(PANGR) , out(PANGR/2 +1) )
-  ! ========
-  !   FFT
-  ! ========
-  in  = gr(1,:) 
-  CALL fft_1D_real ( in , out , pangr )
-  stat_str = DBLE ( out ) 
-  !stat_str = 1.0d0 + rho * stat_str
-
-  do i = 1,PANGR-1
-    if ( ionode ) then
-      WRITE ( kunit_STRFACFF ,'(2f15.10,i10)') q , stat_str(i) 
-    endif
-  enddo
-
-  deallocate ( stat_str )
-
-  
-  return
-
-END SUBROUTINE static_struc_fac
+!END SUBROUTINE static_struc_fac
 
 
 END MODULE radial_distrib 

@@ -10,6 +10,7 @@
       lpbc           = .false.   ! no periodic boundoaries conditions
       lvnlist        = .false.
       cutoff         = 100.0d0
+      lbmlj          = .true.
 &end
 
 ! ======================================================================

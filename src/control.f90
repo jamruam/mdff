@@ -18,6 +18,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+!#define GFORTRAN
 ! ======= Hardware =======
 
 !*********************** MODULE control ***************************************
@@ -43,7 +44,9 @@ MODULE control
   logical, SAVE :: lreduced                  ! print reduced thermo quantites by the number of atoms (natm)
   logical, SAVE :: lshiftpot                 ! shifted potential
   logical, SAVE :: lbmlj                     ! binary mixture lennard-jones potential
+  logical, SAVE :: lmorse                    ! morse potential 
   logical, SAVE :: lcoulomb                  ! coulombic potential
+  logical, SAVE :: lsurf                     ! add surface contribution in electrostatic quantities  
 
   double precision, SAVE :: cutoff           ! small-range cutoff
   double precision, SAVE :: cutlongrange     ! longrange-range cutoff
@@ -86,21 +89,23 @@ SUBROUTINE control_init ( MDFF )
   integer :: ioerr
   CHARACTER (LEN=80) :: MDFF
 
-  namelist /controltag/  lbmlj     , &
-                         lcoulomb  , &
-                         cutlongrange   , &
-                         lvnlist   , &
-                         lstatic   , &
-                         lpbc      , &
-                         lminimg   , &
-                         lreduced  , & 
-                         lshiftpot , &
-                         ltest     , &
-                         lrestart  , &
-                         calc      , &
-                         dgauss    , &
-                         longrange , &
-                         cutoff    , &
+  namelist /controltag/  lbmlj        , &
+                         lmorse       , &
+                         lcoulomb     , &
+                         lsurf        , &
+                         cutlongrange , &
+                         lvnlist      , &
+                         lstatic      , &
+                         lpbc         , &
+                         lminimg      , &
+                         lreduced     , & 
+                         lshiftpot    , &
+                         ltest        , &
+                         lrestart     , &
+                         calc         , &
+                         dgauss       , &
+                         longrange    , &
+                         cutoff       , &
                          skindiff  
 
   ! ======================
@@ -136,7 +141,6 @@ SUBROUTINE control_init ( MDFF )
 END SUBROUTINE control_init
 
 
-
 !*********************** SUBROUTINE control_default_tag ***********************
 !
 ! set default values to control tag
@@ -150,8 +154,10 @@ SUBROUTINE control_default_tag
   ! ================
   !  default values
   ! ================
-  lbmlj         = .true.
+  lbmlj         = .false.
+  lmorse        = .false.
   lcoulomb      = .false.
+  lsurf         = .false.
   lvnlist       = .true.
   lstatic       = .false.
   lpbc          = .true.
@@ -171,7 +177,6 @@ SUBROUTINE control_default_tag
  
 END SUBROUTINE control_default_tag
 
-
 !*********************** SUBROUTINE control_check_tag ***********************
 !
 ! check control tag values
@@ -188,10 +193,6 @@ SUBROUTINE control_check_tag
   logical :: allowed
   integer :: i
 
-  if ( .not. lbmlj .and. .not. lcoulomb ) then
-   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj or coulomb or both. In anyway make a choice !! '
-   STOP
-  endif
 
   ! ======
   !  calc
@@ -224,17 +225,23 @@ SUBROUTINE control_check_tag
     if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR controltag: dgauss should be ', dgauss_allowed
   endif
 
+  if ( calc .ne. 'md' ) return 
+
+
+  if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse ) then
+   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, morse or coulomb or all of them . Anyway make a choice !! '
+   STOP
+  endif
 
   return
 
 END SUBROUTINE control_check_tag
 
-
 !*********************** SUBROUTINE control_print_info ************************
 !
 ! print information to standard output about general parameters
 !
-! note : should had more information about other control parameters
+! note : should have more information about other control parameters
 !
 !******************************************************************************
 
