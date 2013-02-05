@@ -25,6 +25,7 @@ MODULE radial_distrib
   integer :: PANGR             ! (internal) number of bins in g(r) distribution
   integer :: nskip
   integer :: nc
+  double precision :: cutgr
  
   double precision :: resg     ! resolution in g(r) distribution 
 
@@ -153,14 +154,14 @@ END SUBROUTINE gr_default_tag
 
 SUBROUTINE gr_check_tag
 
-  USE config,   ONLY :  box
+  USE config,   ONLY :  simu_cell
 
   implicit none
 
   ! local
   double precision :: cutgr
   
-  cutgr=box*0.5D0
+  cutgr=0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.1d0
   PANGR=int(cutgr/resg)+1
 
   return
@@ -204,10 +205,11 @@ END SUBROUTINE gr_print_info
 SUBROUTINE grcalc
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                rho , config_alloc , box , omega , atypei , itype, natmi
+                                rho , config_alloc , simu_cell , atypei , itype, natmi
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_OUTFF , kunit_GRTFF , kunit_NRTFF
   USE constants,        ONLY :  pi 
+  USE cell
   USE time
 
   implicit none
@@ -215,7 +217,6 @@ SUBROUTINE grcalc
 
   ! local 
   integer :: ia , ic , it , ngr , i , k , pairs , it1 , it2 , mp , ierr
-  integer :: cc  , ccs
   integer :: iastart , iaend 
   double precision, dimension ( : ) , allocatable :: grr 
   integer, dimension ( : ) , allocatable :: nr 
@@ -235,13 +236,17 @@ SUBROUTINE grcalc
 
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) box , ntype
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+  READ ( kunit_TRAJFF , * ) ntype
   READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-  omega = box * box * box
-  rho = DBLE ( natm )  / omega 
+
+  CALL lattice ( simu_cell ) 
+  rho = DBLE ( natm )  / simu_cell%omega 
   CALL gr_init
 
   CALL print_general_info( stdout )
@@ -262,20 +267,8 @@ SUBROUTINE grcalc
     write ( stdout , '(a,2i6)' ) 'debug : number of type pairs ', pairs
   endif
 #endif
-  ! ==========================
-  !  set some type parameters
-  ! ==========================      
-  cc = 0
-  do it = 1 , ntype
-    ccs = cc
-    cc = cc + natmi ( it )
-    do ia = ccs + 1 , cc
-      atype ( ia )     = atypei ( it )
-      itype ( ia )     = it
-    enddo
-  enddo
-  natmi  ( 0 ) = natm
-  atypei ( 0 ) = 'ALL'
+
+  CALL typeinfo_init
 
   ! ==========================================   
   !  skip the first nskip configurations 
@@ -359,7 +352,7 @@ SUBROUTINE grcalc
     k  = k*k*k
     k  = k-(i*i*i)
     vol = DBLE (k)*resg*resg*resg ! r^3
-    vol = (4.0D0/3.0D0)*pi*vol/omega !4/3pir^3
+    vol = (4.0D0/3.0D0)*pi*vol/simu_cell%omega !4/3pir^3
     ! all - all pairs 
     grr ( 0 ) = DBLE (gr(i,0,0))/(ngr*vol*natm*natm)
     ! type pairs
@@ -409,7 +402,7 @@ END SUBROUTINE grcalc
 SUBROUTINE gr_main ( iastart , iaend )
 
   USE control, ONLY : myrank
-  USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , box , omega , ntype , itype
+  USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
   USE prop,             ONLY :  nprop, nprop_start
   USE io_file,          ONLY :  ionode , stdout 
   USE time
@@ -434,7 +427,7 @@ SUBROUTINE gr_main ( iastart , iaend )
   ! =======================
   !  cut-off half box
   ! =======================
-  cut2 = box * box * 0.25D0    
+  cut2 = cutgr * cutgr 
 
   do ia = iastart , iaend
     rxi = rx ( ia )
@@ -447,12 +440,12 @@ SUBROUTINE gr_main ( iastart , iaend )
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
-      nxij = NINT ( rxij / box )
-      nyij = NINT ( ryij / box )
-      nzij = NINT ( rzij / box )
-      rxij = rxij - box *nxij
-      ryij = ryij - box *nyij
-      rzij = rzij - box *nzij
+      nxij = NINT ( rxij * simu_cell%BNORM(1) )
+      nyij = NINT ( ryij * simu_cell%BNORM(2) )
+      nzij = NINT ( rzij * simu_cell%BNORM(3) )
+      rxij = rxij - simu_cell%ANORM(1) * nxij
+      ryij = ryij - simu_cell%ANORM(2) * nyij
+      rzij = rzij - simu_cell%ANORM(3) * nzij
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
       if ( rijsq.lt.cut2 ) then
         rr = SQRT ( rijsq )

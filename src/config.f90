@@ -18,7 +18,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 !*********************** MODULE CONF ******************************************
@@ -29,6 +29,8 @@
 !******************************************************************************
 
 MODULE config
+
+  USE cell 
 
   implicit none
 
@@ -42,46 +44,42 @@ MODULE config
   logical :: lsc   ! not tested
   logical :: lbcc  ! not yet
 
-  integer :: natm                                                    ! nb of atoms
-  integer :: ntype                                                   ! number of types
-  integer :: ncell                                                   ! number of cell (with lfcc)
-  integer, dimension(:), allocatable :: itype                        ! type of atome i array 
-  integer, dimension(:), allocatable :: ipolar                       ! .eq. 1 if polar 
-  integer, dimension(:), allocatable :: list, point                  ! vnlist info
-  integer, dimension(0:ntypemax)     :: natmi                        ! number of atoms (per type)
+  integer :: natm                                                     ! nb of atoms
+  integer :: ntype                                                    ! number of types
+  integer :: ncell                                                    ! number of cell (with lfcc)
+  integer, dimension(:), allocatable :: itype                         ! type of atome i array 
+  integer, dimension(:), allocatable :: ipolar                        ! .eq. 1 if polar 
+  integer, dimension(:), allocatable :: list, point                   ! vnlist info
+  integer, dimension(0:ntypemax)     :: natmi                         ! number of atoms (per type)
 
-  double precision :: box                                            ! cell dimension
-  double precision :: omega                                          ! volume
-  double precision :: tau_lj   ( 3 , 3 )                             ! stress tensor lennard-jones
-  double precision :: tau_coul ( 3 , 3 )                             ! stress tensor coulombic
-  double precision :: rho                                            ! density  
-  double precision :: xn ( ntypemax )                                ! relative composition 
+  TYPE ( celltype ) :: simu_cell
+  double precision :: tau_lj   ( 3 , 3 )                              ! stress tensor lennard-jones
+  double precision :: tau_coul ( 3 , 3 )                              ! stress tensor coulombic
+  double precision :: rho                                             ! density  
 
-  double precision , dimension(:), allocatable :: rx  , ry  , rz     ! positions
-  double precision , dimension(:), allocatable :: vx  , vy  , vz     ! velocities
-  double precision , dimension(:), allocatable :: fx  , fy  , fz     ! forces
-  double precision , dimension(:), allocatable :: fxs , fys , fzs    ! forces (previous step t-dt) beeman
-  double precision , dimension(:), allocatable :: rxs , rys , rzs    ! previous positions for leap-frog integrator
-  double precision , dimension(:), allocatable :: xs  , ys  , zs     ! last positions in verlet list
-  double precision , dimension(:), allocatable :: rix , riy , riz    ! positions in the center of mass reference 
+  double precision , dimension(:)    , allocatable :: rx  , ry  , rz  ! positions
+  double precision , dimension(:)    , allocatable :: vx  , vy  , vz  ! velocities
+  double precision , dimension(:)    , allocatable :: fx  , fy  , fz  ! forces
+  double precision , dimension(:)    , allocatable :: fxs , fys , fzs ! forces (previous step t-dt) beeman
+  double precision , dimension(:)    , allocatable :: rxs , rys , rzs ! previous positions for leap-frog integrator
+  double precision , dimension(:)    , allocatable :: xs  , ys  , zs  ! last positions in verlet list
+  double precision , dimension(:)    , allocatable :: rix , riy , riz ! positions in the center of mass reference 
 
-  double precision , dimension(:)  , allocatable :: qia              ! charge on ion 
-  double precision , dimension(:,:), allocatable :: dipia            ! dipole on ion 
-  double precision , dimension(:,:), allocatable :: dipia_ind        ! induced dipole on ion 
+  double precision , dimension(:)    , allocatable :: qia             ! charge on ion 
+  double precision , dimension(:,:)  , allocatable :: dipia           ! dipole on ion 
+  double precision , dimension(:,:)  , allocatable :: dipia_ind       ! induced dipole on ion 
+  double precision , dimension(:,:)  , allocatable :: dipia_wfc       ! induced dipole on ion from Wannier centers
+  double precision , dimension(:,:,:), allocatable :: polia           ! polarisation on ion
 
-  double precision , dimension(:), allocatable :: phi_coul_qq , phi_coul_dd , phi_coul_tot    ! coulombic potential 
+  double precision , dimension(:), allocatable :: phi_coul_tot        ! coulombic potential 
 
-  character*3, dimension(:), allocatable      :: atype               ! atom type A or B 
-  character*3, dimension(0:ntypemax)          :: atypei              ! type of atoms (per type)
+  character*3, dimension(:), allocatable      :: atype                ! atom type A or B 
+  character*3, dimension(0:ntypemax)          :: atypei               ! type of atoms (per type)
 
-  character*60 :: struct                                             ! crystal structure for fcc
+  character*60 :: struct                                              ! crystal structure for fcc
   character*60 :: struct_allowed(2)                     
   data struct_allowed / 'NaCl' , 'random' /
 
-  logical :: lgenconf                                                ! if .true. generate the configuration
-                                                                     ! if not all config parameters are readed in
-                                                                     !   md       opt/efg      vib
-                                                                     !  POSFF  /  TRAJFF  /   ISCFF 
 
 CONTAINS
 
@@ -103,61 +101,12 @@ SUBROUTINE config_init
   character * 132 :: filename
   integer :: ioerr
 
-  namelist /configtag/       lgenconf , &
-                             lfcc     , &
-                             lsc      , &
-                             lbcc     , & 
-                             system   , & 
-                             struct   , & 
-                             ntype    , & 
-                             natm     , &
-                             ncell    , &  
-                             xn       , &
-                             rho      , &
-                             box      
-
-  ! ===============================
-  ! defaults values for config tags
-  ! ===============================
-  CALL config_default_tag 
-  ! ===============================
-  ! reads config tags
-  ! ===============================
-  CALL getarg (1,filename)
-  OPEN  ( stdin , file = filename)
-  READ  ( stdin , configtag , iostat= ioerr)
-  if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag section is absent'
-    STOP
-  elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : configtag wrong tag'
-    STOP
-  endif
-  CLOSE ( stdin )
-
-  ! ===============================
-  !  check values for config tags
-  ! ===============================
-  CALL config_check_tag
-
-  if ( lgenconf ) then
-    ! ===============================
-    !  allocate princiapl arrays
-    ! ===============================
-    CALL config_alloc
-    ! ===========================================================
-    !  generate initial configuration only for calc = md
-    !  for opt, vib and efg configuations are read in other files
-    ! ===========================================================
-    CALL gen_pos 
-  else
-    ! ===========================================================
-    ! read initial configuration only for calc = md
-    ! for opt, vib and efg configuations are read in other routines 
-    ! ===========================================================
-    if ( calc .eq. 'md' ) then       
-      CALL read_pos
-    endif
+  ! ===========================================================
+  ! read initial configuration only for calc = md
+  ! for opt, vib and efg configuations are read in other routines 
+  ! ===========================================================
+  if ( calc .eq. 'md' ) then       
+    CALL read_pos
   endif
 
 #ifdef debug
@@ -180,149 +129,6 @@ SUBROUTINE config_init
 END SUBROUTINE config_init 
 
 
-!*********************** SUBROUTINE config_default_tag ************************
-!
-! set default values to config tag
-!
-!******************************************************************************
-
-SUBROUTINE config_default_tag
-
-  implicit none
-
-  ! =================
-  !  default values
-  ! =================
-  lgenconf = .true.     
-  lfcc     = .true. 
-  lsc      = .false.
-  lbcc     = .false.
-  system   = 'UNKNOWN'
-  struct   = 'random'
-  ntype    = 1
-  ncell    = 0 
-  xn       = 0.0D0
-  xn ( 1 ) = 1.0D0       ! particle A
-      
-  return
-
-END SUBROUTINE config_default_tag
-
-
-!*********************** SUBROUTINE config_check_tag **************************
-!
-! check config tag values
-!
-!******************************************************************************
-
-SUBROUTINE config_check_tag
-
-  USE control,  ONLY :  cutoff
-  USE io_file,  ONLY :  ionode , stdout
-
-
-  implicit none
-  
-  ! local
-  logical :: allowed
-  integer :: i
- 
-  if ( .not. lgenconf ) then
-    if ( ionode ) WRITE ( stdout ,'(a)') '============================================================='
-    if ( ionode ) WRITE ( stdout ,'(a)') 'WARNING: with lgenconf=.false.'
-    if ( ionode ) WRITE ( stdout ,'(a)') 'all other config flags are not used '
-  endif
-  ! ===================
-  !   generate config
-  ! ===================
-  if ( .not. lgenconf ) return 
-
-  ! ============
-  !  struct check
-  ! ============
-  do i = 1 , size (struct_allowed)
-   if ( trim (struct) .eq. struct_allowed(i) ) allowed = .true.
-  enddo
-  if (  .not. allowed ) then
-    if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR configtag: struct should be ', struct_allowed
-    STOP 
-  endif
-  ! ============
-  !  lfcc check
-  ! ============
-  if ( lfcc .and. ncell .eq. 0 ) then
-    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with lfcc, ncell is needed'
-    STOP 
-  endif 
-  if ( struct .eq. 'NaCl' ) then
-     lfcc = .true.
-     xn(1) = 0.5D0
-     xn(2) = 0.5D0
-  endif
-  if ( struct .eq. 'random' .and. ntype .eq. 2 ) then
-     if ( xn(1) .eq. 0.0d0 .or. xn(2) .eq. 0.0d0 ) then
-        if ( ionode ) WRITE ( stdout ,'(a)') &
-                  'ERROR configtag: with struct = "random" and 2 types. xn(1) and xn(2) are needed'
-        STOP 
-     endif 
-  endif
-  if ( struct .eq. 'NaCl' .and. ntype .ne. 2 ) then
-    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: with struct = "NaCl" 2 types are needed'
-    STOP 
-  endif
-  if ( lfcc ) then
-     natm = 4*(ncell*ncell*ncell)
-     if ( ntype .eq. 2 .and. struct.eq.'NaCl') then 
-       natm = 8*(ncell*ncell*ncell)
-     endif
-  endif
-  if ( lsc ) then
-    natm = ncell * ncell * ncell    
-  endif      
-  ! ===================
-  !  box and rho check
-  ! ===================
-  if ( box .ne. 0.0D0 .and. rho .ne. 0.0D0 ) then
-    if ( ionode ) WRITE ( stdout ,'(a)') &
-                 'ERROR configtag: box and rho cannot be set together (no mass) --- choose one !!'
-    STOP 
-  endif
-  if ( rho .ne. 0.0D0 .and. box .eq. 0.0d0 ) then
-    box = DBLE (natm) / rho
-    box = box**(1.0D0 / 3.0D0 )
-  else if ( box .ne. 0.0d0 .and. rho .eq. 0.0d0 )  then
-    rho = DBLE (natm)/(box**3.0D0)
-  endif
-  if ( box .eq. 0.0D0 .and. rho .eq. 0.0D0 ) then
-    if ( ionode ) WRITE ( stdout ,'(a)') 'ERROR configtag: box and rho cannot be both zero --- choose one !!'
-    STOP
-  endif
-
-  ! ===================
-  !  check cutoff
-  ! ===================
-  if ( cutoff .gt. box * 0.5D0 ) then
-    if ( ionode )   WRITE ( stdout ,'(a)') ' '
-    if ( ionode )   WRITE ( stdout ,'(a)') 'WARNING configtag: cutoff is greater than half of cell size'
-    if ( ionode )   WRITE ( stdout ,'(a,f10.6,a2)') &
-                    'cutoff should be changed to a safer value, ex. ',box*0.499D0,' ?'
-    if ( ionode )   WRITE ( stdout ,'(a,f10.6,a,f10.6)') 'box =  ',box,'  cutoff =  ',cutoff
-    cutoff = box*0.499D0
-    if ( ionode )   WRITE ( stdout ,'(a,f10.6)') 'Cutoff have been changed to continue',box*0.499D0
-    if ( ionode )   WRITE ( stdout ,'(a)') ' '
-  endif
-  ! ============
-  !  natm check
-  ! ============
-  if ( natm .eq. 0 ) then
-    if ( ionode )   WRITE ( stdout ,'(a)') 'ERROR configtag: natm is 0'      
-  endif
-
-  return
-
-END SUBROUTINE config_check_tag
-
-
 !*********************** SUBROUTINE config_print_info *************************
 !
 ! print information to standard output about the starting configuration
@@ -335,224 +141,60 @@ SUBROUTINE config_print_info(kunit)
 
   implicit none
 
+  ! global 
+  integer :: kunit 
   ! local
-  integer :: kunit , it
-
-  omega = box * box * box
+  integer :: it , i
 
   if ( ionode ) then
-    WRITE ( kunit ,'(a,a)')          'system                               : ',system
-    WRITE ( kunit ,'(a,i16)')        'natm                                 = ',natm
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a,a)')          'system                             : ',system
+    WRITE ( kunit ,'(a,i16)')        'natm                               = ',natm
     do it = 1 , ntype     
       WRITE ( kunit ,'(a,a,a,i16,f8.2,a1)') &
-                          'n',atypei(it),'                                 = ',natmi(it),xn(it) * 100,'%'
+                          'n',atypei(it),'                               = ',natmi(it),DBLE(natmi(it))/DBLE(natm) * 100.0d0,'%'
     enddo
-    WRITE ( kunit ,'(a,f16.4)')      'cell parameter                       = ',box
-    WRITE ( kunit ,'(a,f16.4)')      'volume                               = ',omega
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a)')            'direct     basis : '
+    WRITE ( kunit ,'(a,3f16.4)')     'a_vector                           = ',simu_cell%A(1,1),simu_cell%A(2,1),simu_cell%A(3,1) 
+    WRITE ( kunit ,'(a,3f16.4)')     'b_vector                           = ',simu_cell%A(1,2),simu_cell%A(2,2),simu_cell%A(3,2) 
+    WRITE ( kunit ,'(a,3f16.4)')     'c_vector                           = ',simu_cell%A(1,3),simu_cell%A(2,3),simu_cell%A(3,3) 
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a,3f16.4)')     'cell parameters     (direct)       = ',(simu_cell%ANORM(i),i=1,3)
+    WRITE ( kunit ,'(a,3f16.4)')     'perpendicular width (direct)       = ',simu_cell%WA,simu_cell%WB,simu_cell%WC
+    WRITE ( kunit ,'(a,3f16.4)')     'angles              (direct)       = ',simu_cell%ALPH,simu_cell%BET,simu_cell%GAMM
+    WRITE ( kunit ,'(a,f16.4)')      'volume              (direct)       = ',simu_cell%omega
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a)')            'reciprocal basis : '
+    WRITE ( kunit ,'(a,3f16.4)')     'a*_vector                          = ',simu_cell%B(1,1),simu_cell%B(2,1),simu_cell%B(3,1) 
+    WRITE ( kunit ,'(a,3f16.4)')     'b*_vector                          = ',simu_cell%B(1,2),simu_cell%B(2,2),simu_cell%B(3,2) 
+    WRITE ( kunit ,'(a,3f16.4)')     'c*_vector                          = ',simu_cell%B(1,3),simu_cell%B(2,3),simu_cell%B(3,3) 
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a,3f16.4)')     'cell parameters     (reciprocal)   = ',(simu_cell%BNORM(i),i=1,3)
+    WRITE ( kunit ,'(a,3f16.4)')     'perpendicular width (reciprocal)   = ',simu_cell%RWA,simu_cell%RWB,simu_cell%RWC
+    WRITE ( kunit ,'(a,3f16.4)')     'angles              (reciprocal)   = ',simu_cell%RALPH,simu_cell%RBET,simu_cell%RGAMM
+    WRITE ( kunit ,'(a,f16.4)')      'volume              (reciprocal)   = ',simu_cell%romega
+    WRITE ( kunit ,'(a)')            ''
+    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
+    WRITE ( kunit ,'(a)')            ''
     WRITE ( kunit ,'(a,f16.4)')      'density                              = ',rho
+    
   endif 
-  ! ============================
-  !  print minimum distance 
-  !  and distance distribution
-  ! ============================
-!  call distance_tab( kunit )
 
   return
   
 END SUBROUTINE config_print_info
 
 
-!*********************** SUBROUTINE gen_pos ***********************************
-!
-!  here we read configuration (pos,vel) from file or generate from a given
-!  structure lfcc, lsc or lbcc ... (face centered cubic, simple cubic or ...)
-!  confusing organisation !!!!!
-!  copie a revoir ;)
-!
-!******************************************************************************
-
-SUBROUTINE gen_pos
-
-  USE io_file,  ONLY :  ionode , stdout , kunit_POSFF, kunit_OUTFF
-
-  implicit none
-
-  ! local
-  integer :: ia , natmtmp , na 
-  double precision ,dimension (:) ,allocatable :: rxtmp,rytmp,rztmp
-
-  IF ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)')       '=============================================================' 
-    WRITE ( kunit_OUTFF ,'(a)')       ''
-    WRITE ( kunit_OUTFF ,'(a)')       'structure generated from the code'
-    WRITE ( stdout ,'(a)')            '=============================================================' 
-    WRITE ( stdout ,'(a)')            ''
-    WRITE ( stdout ,'(a)')            'structure generated from the code'
-  endif
-
-  allocate(rxtmp(natm),rytmp(natm),rztmp(natm))
-
-  rxtmp = 0.0D0
-  rytmp = 0.0D0
-  rztmp = 0.0D0
-
-  ! ================================      
-  ! lfcc face centered cubic
-  ! ================================      
-  IF( lfcc ) THEN
-    ! ======================================      
-    ! if 2 types how to generate A/B 
-    ! configuration according to xna and xnb
-    ! ======================================      
-    if (ntype.eq.2) then 
-
-
-      ! ========
-      !  random
-      ! ========
-      if (struct.eq.'random') then 
-        CALL init_fcc('random', natm , ntype , ncell , rx , ry , rz , box , struct )
-        CALL random_config ( natm , atype , xn(1) )
-
-
-      ! ========
-      !  NaCl 
-      ! ========
-      elseif (struct.eq.'NaCl') then
-         
-        ! store the number of atom 
-        natmtmp = natm
-        ! only half of the atom for site A
-        natm = natm * 0.5d0 
-        ! generate sites A 
-        CALL init_fcc('AAAAAA', natm , ntype , ncell , rx , ry , rz , box , struct ) 
-        ! store sites A 
-        do ia = 1 , natm
-          rxtmp ( ia ) = rx ( ia )
-          rytmp ( ia ) = ry ( ia )
-          rztmp ( ia ) = rz ( ia )  
-        enddo
-        ! generate sites B (half of the total number of atoms) 
-        CALL init_fcc('BBBBBB', natm , ntype , ncell , rx , ry , rz , box , struct )
-        ! store sites B 
-        do ia = 1 , natm
-          rxtmp ( ia + natm) = rx ( ia ) + (box/ncell) * 0.5D0
-          rytmp ( ia + natm) = ry ( ia ) + (box/ncell) * 0.5D0
-          rztmp ( ia + natm) = rz ( ia ) + (box/ncell) * 0.5D0
-        enddo
-        do ia = 1 , natm 
-          atype ( ia ) = 'A'
-          itype ( ia ) = 1
-        enddo
-        do ia = natm + 1, natmtmp
-          atype ( ia ) = 'B'
-          itype ( ia ) = 2
-        enddo
-        natm = natmtmp
-        do ia = 1 , natm
-          rx ( ia ) = rxtmp ( ia )
-          ry ( ia ) = rytmp ( ia )
-          rz ( ia ) = rztmp ( ia )   
-        enddo   
-      endif
-    ! ======================================      
-    ! else all atoms are A ;)
-    ! ======================================      
-    else 
-      CALL init_fcc('AAAAAA' , natm ,  ntype , ncell , rx , ry , rz , box , struct )      
-      do ia = 1 , natm
-        atype ( ia ) = 'A'
-        itype ( ia ) = 1
-      enddo
-    endif
-  ! ================================      
-  ! lsc: simple cubic
-  ! ================================      
-  ELSEIF (lsc) THEN 
-
-    ! ======================================      
-    ! if 2 types how to generate A/B 
-    ! configuration according to xna and xnb
-    ! ======================================      
-    if (ntype.eq.2) then 
-      ! ========
-      ! random 
-      ! ========
-      if (struct.eq.'random') then 
-        CALL init_sc ( natm , ntype , ncell , rx , ry , rz , box )
-        CALL random_config ( natm , atype , xn(1) )
-        print*,'check init_sc compare to fcc'
-        STOP 
-      endif
-    ! ======================================      
-    ! else all atoms are A ;)
-    ! ======================================      
-    else 
-!      CALL init_sc
-      do ia = 1 , natm
-        atype ( ia ) = 'A'
-        itype ( ia ) = 1 
-      enddo
-    endif
-  ! ================================      
-  ! lbcc: body-centered cubic
-  ! ================================      
-  ELSEIF (lbcc) THEN ! lbcc
-
-    if ( ionode ) then
-      WRITE ( stdout , * ) 'not yet'  
-      STOP 
-    endif
-  ENDIF ! config     
-
-
-  ! ==============================
-  !  count A atoms and initialize 
-  !  some type arrays
-  ! ==============================      
-  natmi = 0
-  na = 0
-  do ia = 1 , natm
-    if ( atype ( ia ) .eq. 'A' ) then 
-      na = na + 1
-      itype ( ia ) = 1
-    else
-      itype ( ia ) = 2 
-    endif
-  enddo
-
-  if ( ntype .eq.  1 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    atypei(0)='ALL'
-    atypei(1)='A'
-  endif
-  
-  if ( ntype .eq.  2 ) then
-    natmi(0)=natm
-    natmi(1)=na
-    natmi(2)=natm-na
-    atypei(0)='ALL'
-    atypei(1)='A'
-    atypei(2)='B'
-  endif
-   
-  ! ======================      
-  ! recalculate xna,xnb  
-  ! ======================
-  xn(1) = DBLE (na)/DBLE (natm)
-  xn(2) = 1.0D0-xn(1)
-
-  deallocate(rxtmp,rytmp,rztmp)
-
-  return
-
-END SUBROUTINE gen_pos
-
 !*********************** SUBROUTINE random_config *****************************
 !
 ! this subroutine attributes randomly the atom type to a given configuration
 ! when the starting configuration is completely generated by the code 
+! deprecated !!!!!!
 !
 !******************************************************************************
 
@@ -664,13 +306,16 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  !CALL  periodicbc ( natm , xxx , yyy , zzz , box )
+  !CALL  periodicbc ( natm , xxx , yyy , zzz )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
       WRITE ( kunit_CONTFF,'(i)') natm 
       WRITE ( kunit_CONTFF,'(a)') system
-      WRITE ( kunit_CONTFF,'(f20.12,i4)') box,ntype 
+      WRITE ( kunit_CONTFF,'(3f20.12)') simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+      WRITE ( kunit_CONTFF,'(3f20.12)') simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+      WRITE ( kunit_CONTFF,'(3f20.12)') simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+      WRITE ( kunit_CONTFF,'(i4)') ntype 
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,'(a,9f20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
@@ -699,6 +344,8 @@ END SUBROUTINE write_CONTFF
 ! charge on atom                            : qia 
 ! static dipole on atom                     : dipia
 ! induced dipole on atom                    : dipia_ind
+! induced dipole on atom from wannier c.    : dipia_wfc
+! polarisation tensor on atom               : polia
 
 ! atom type information (still not nice) 
 !
@@ -708,7 +355,7 @@ END SUBROUTINE write_CONTFF
 ! name of type of type it                   : atypei(it) => atypei(0) = 'ALL'
 ! verlet list                               : list , point 
 ! is the atom polarized ?                   : ipolar = 1 if yes 
-! coulombic potential                       : phi_coul_qq , phi_coul_dd , ! phi_coul_tot
+! coulombic potential                       : phi_coul_tot
 !
 !******************************************************************************
 
@@ -729,8 +376,10 @@ SUBROUTINE config_alloc
   allocate( qia ( natm ) )
   allocate( dipia ( natm , 3 ) )
   allocate( dipia_ind ( natm , 3 ) )
+  allocate( dipia_wfc ( natm , 3 ) )
+  allocate( polia ( natm , 3 , 3 ) )
   allocate( ipolar ( natm ) )
-  allocate( phi_coul_qq  ( natm ) , phi_coul_dd ( natm ) , phi_coul_tot ( natm ) ) ! well only if we calculated coulombic interactions
+  allocate( phi_coul_tot ( natm ) ) ! only if we calculated coulombic interactions
 
   rx    = 0.0D0
   ry    = 0.0D0
@@ -756,9 +405,9 @@ SUBROUTINE config_alloc
   qia       = 0.0d0
   dipia     = 0.0d0
   dipia_ind = 0.0d0
+  dipia_wfc = 0.0d0
+  polia     = 0.0d0
   ipolar    = 0
-  phi_coul_qq  = 0.0d0
-  phi_coul_dd  = 0.0d0
   phi_coul_tot = 0.0d0
 
   return 
@@ -790,8 +439,10 @@ SUBROUTINE config_dealloc
   deallocate( qia ) 
   deallocate( dipia ) 
   deallocate( dipia_ind ) 
+  deallocate( dipia_wfc ) 
+  deallocate( polia ) 
   deallocate( ipolar ) 
-  deallocate( phi_coul_qq , phi_coul_dd , phi_coul_tot ) ! well only if we calculated coulombic interactions
+  deallocate( phi_coul_tot ) ! well only if we calculated coulombic interactions
 
   return 
 

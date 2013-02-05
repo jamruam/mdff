@@ -33,6 +33,7 @@ MODULE constants
   double precision, PARAMETER :: tpi    = 2.d0*pi
   double precision, PARAMETER :: fpi    = 2.d0*tpi    ! 4pi
   double precision, PARAMETER :: piroot = SQRT ( pi ) ! sqrt(pi)
+  double precision, PARAMETER :: radian = 180.0d0 / pi 
   double complex  , PARAMETER :: imag   = (0.d0,1.d0) ! imaginary number 
   double complex  , PARAMETER :: mimag  = (0.d0,-1.d0)! negative imaginary number 
   double complex  , PARAMETER :: citpi  = imag*tpi    ! 2*i*pi

@@ -220,7 +220,7 @@ END SUBROUTINE vacf_dealloc
 SUBROUTINE vacf_main 
 
   USE control,          ONLY :  cutoff
-  USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , box , rho 
+  USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , rho 
   USE md,               ONLY :  dt
   USE io_file,          ONLY :  kunit_VACFFF
   USE constants,        ONLY :  pi
@@ -281,7 +281,7 @@ END SUBROUTINE vacf_main
 
 SUBROUTINE vacf_write_output
 
-  USE config,   ONLY :  natm ,box  
+  USE config,   ONLY :  natm 
   USE io_file,  ONLY :  ionode , kunit_VACFFF , kunit_OUTFF 
   USE time,     ONLY :  vacftimetot2
 

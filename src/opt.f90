@@ -204,7 +204,7 @@ SUBROUTINE opt_print_info(kunit)
        endif
 
                                WRITE ( kunit ,'(a)')       ''  
-     if (.not.lpbc)             WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic box wall)'
+     if (.not.lpbc)             WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic cell wall)'
      if (lpbc)                  WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
                                WRITE ( kunit ,'(a)')       ''
                                WRITE ( kunit ,'(a)')       'read configuration from file          :   TRAJFF'
@@ -234,12 +234,13 @@ END SUBROUTINE opt_print_info
 SUBROUTINE opt_main 
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
-                                atype  , rho , config_alloc , list , point , box , omega , &
+                                atype  , rho , config_alloc , list , point , simu_cell , &
                                 atypei , itype, natmi , qia , dipia , ipolar
   USE control,          ONLY :  myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF, kunit_OUTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
+  USE cell
   USE field 
   USE time
 
@@ -247,7 +248,7 @@ SUBROUTINE opt_main
   INCLUDE 'mpif.h'
 
   ! local 
-  integer :: ia , it , ic, neng, iter, nopt , cc , ccs
+  integer :: ia , it , ic, neng, iter, nopt 
   integer :: iastart , iaend , ierr
   double precision :: phigrad, pressure0, pot0, Eis
   double precision :: ttt1,ttt2
@@ -272,14 +273,17 @@ SUBROUTINE opt_main
        
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) box , ntype
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+  READ ( kunit_TRAJFF , * ) ntype
   READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
 
-  omega = box * box * box
-  rho = DBLE ( natm )  / omega 
+  CALL lattice (simu_cell)
+  rho = DBLE ( natm )  / simu_cell%omega 
 
   CALL print_general_info( stdout )
   CALL print_general_info( kunit_OUTFF )
@@ -324,27 +328,8 @@ SUBROUTINE opt_main
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
-  
-    ! ==========================
-    !  set some type parameters
-    ! ==========================      
-    natmi ( 0 ) = 0
-    cc = 0
-    do it = 1 , ntype
-      ccs = cc
-      cc = cc + natmi ( it )
-      do ia = ccs + 1 , cc
-        atype ( ia )     = atypei ( it )
-        itype ( ia )     = it
-        qia   ( ia )     = qch (it)
-        dipia ( ia , 1 ) = dip ( it , 1 )
-        dipia ( ia , 2 ) = dip ( it , 2 )
-        dipia ( ia , 3 ) = dip ( it , 3 )
-        ipolar ( ia )    = lpolar ( it )
-      enddo
-    enddo
-    natmi  ( 0 ) = natm
-    atypei ( 0 ) = 'ALL'
+
+    CALL typeinfo_init  
 
     if ( (( MOD ( ic , nperiodopt ) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
@@ -418,7 +403,10 @@ SUBROUTINE opt_main
       if ( ionode ) then   
         WRITE ( kunit_ISCFF , * ) natm 
         WRITE ( kunit_ISCFF , * ) system 
-        WRITE ( kunit_ISCFF , * ) box,ntype 
+        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+        WRITE ( kunit_ISCFF , * ) ntype 
         WRITE ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
         WRITE ( kunit_ISCFF , * ) ( natmi  ( it ) , it = 1 , ntype )
         do ia = 1 , natm 
@@ -852,7 +840,7 @@ END SUBROUTINE sastry
 
 SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , neng ) 
 
-  USE config,           ONLY :  natm, box, rx, ry, rz, fx, fy, fz
+  USE config,           ONLY :  natm, rx, ry, rz, fx, fy, fz
   USE thermodynamic,    ONLY : vir_tot , u_tot , calc_thermo
   USE field 
 
@@ -1203,8 +1191,6 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
 
   ! external 
   external euclid,ctonbe,ctcabe,simul_rc
-
-
 
   ! =====================
   !   initialization

@@ -27,14 +27,16 @@
 !
 !******************************************************************************
 
-SUBROUTINE estimate_alpha(alpha)
+SUBROUTINE estimate_alpha(alpha,epsw,rcut)
   
-  USE config,   ONLY : box
+  USE config,   ONLY : simu_cell 
   implicit none
 
-  double precision :: alpha , alpha2 , rcut , rcut2 , rcut3 , e
+  ! global
+  double precision :: alpha , epsw , rcut
+  ! local 
+  double precision :: alpha2 , rcut2 , rcut3 , e
 
-  rcut = box * 0.5d0
   alpha = 4.0d0
   alpha2 = alpha*alpha
   rcut2=rcut*rcut
@@ -43,8 +45,8 @@ SUBROUTINE estimate_alpha(alpha)
   e = EXP ( -alpha2*rcut2 )
   e = e / alpha2 / rcut3
   e = e * 0.56d0  
-  do while ( e .le. 1e-7 )
-    alpha = alpha - 0.05d0
+  do while ( e .le. epsw )
+    alpha = alpha - 0.01d0
     alpha2 = alpha*alpha
     e = EXP ( -alpha2*rcut2 )
     e = e / alpha2 / rcut3
@@ -55,6 +57,48 @@ SUBROUTINE estimate_alpha(alpha)
 
 END SUBROUTINE estimate_alpha
 
+!*********************** accur_frenkel_smit ************************************
+!******************************************************************************
+
+SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc ) 
+
+  USE constants,  ONLY : pi
+  USE config,   ONLY : simu_cell 
+
+  implicit none
+
+  ! global
+  double precision :: epsw
+  double precision :: alpha
+  double precision :: rc
+  integer :: nc ( 3 )
+  
+  ! local
+  double precision :: s , ss , ra
+  integer :: i , k
+
+  k = 0
+  s = 10.0d0
+  do 
+    s = s - 0.01d0
+    ss = s * s   
+    ra = exp ( - ss )  / ss
+    if ( abs ( ra - epsw ) .gt. epsw ) exit  
+    if ( s .le. 0.0d0 .or. k .gt.1e6 ) then
+      WRITE( *,* ) 'ERROR in accur_ES_frenkel_smit',s,k 
+      stop
+    endif
+    k = k + 1
+  enddo 
+
+  alpha = s / rc
+  do i = 1 , 3 
+    nc ( i ) = int ( s * simu_cell%ANORM(i) * alpha / pi ) 
+  enddo
+
+  return
+
+END SUBROUTINE accur_ES_frenkel_smit
 
 !*********************** SUBROUTINE do_split ***********************************
 !
@@ -135,9 +179,10 @@ END SUBROUTINE do_split
 
 SUBROUTINE distance_tab ( kunit )
 
-  USE config,   ONLY :  natm , box , rx , ry , rz
+  USE config,   ONLY :  natm , rx , ry , rz , simu_cell
   USE field,    ONLY :  sigmalj
   USE io_file,  ONLY :  ionode , stdout
+  USE cell
 
   implicit none
   
@@ -146,19 +191,24 @@ SUBROUTINE distance_tab ( kunit )
 
   ! local
   double precision :: rxi, ryi, rzi
+  double precision :: sxij, syij, szij
   double precision :: rxij, ryij, rzij, rij, rijsq, norm
-  integer :: nxij, nyij, nzij 
   integer :: ia , ja , PANdis, kdis
   integer, dimension (:) ,allocatable :: dist
   double precision :: resdis,mindis 
 
   resdis = 0.5D0 ! should still local no need to be controled
 
-  PANdis = box/resdis
+  PANdis = MAX(simu_cell%WA,simu_cell%WB,simu_cell%WC) / resdis
 
   allocate ( dist ( 0:PANdis ) )
   dist = 0
   mindis = 100000.0D0
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
   do ia = 1 , natm - 1
     rxi = rx ( ia )
@@ -169,12 +219,12 @@ SUBROUTINE distance_tab ( kunit )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = NINT ( rxij / box )
-        nyij = NINT ( ryij / box )
-        nzij = NINT ( rzij / box )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
+        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
+        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
         rij = SQRT ( rijsq )  
         mindis = MIN ( mindis , rij )
@@ -208,6 +258,12 @@ SUBROUTINE distance_tab ( kunit )
   endif
   
   deallocate(dist)
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
 
   return
 
@@ -244,22 +300,21 @@ END SUBROUTINE distance_tab
 
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point, ntype 
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell
   USE control,  ONLY :  skindiff , cutoff
+  USE cell
   USE io_file
 
   implicit none
 
   ! global
   integer , intent (in)  :: iastart , iaend
-!  integer , intent (out) :: list(natm*250), point(natm+1)
  
   ! local
   integer :: icount , ia , ja , it , jt , k
   integer :: p1 , p2
-  integer :: nxij , nyij , nzij
   double precision  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
-  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq
+  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
 
   do jt = 1, ntype 
     do it = 1, ntype
@@ -268,10 +323,11 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
   enddo
-!rskinsq  =  ( cutoff + skindiff  ) * ( cutoff + skindiff  )
-!if ( ionode ) print*,rskinsq,cutoff
-!stop
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
   icount = 1
   do ia = iastart , iaend
@@ -285,12 +341,12 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = NINT ( rxij / box )
-        nyij = NINT ( ryij / box )
-        nzij = NINT ( rzij / box )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
+        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
+        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1 = itype ( ia )
         p2 = itype ( ja )
@@ -305,6 +361,11 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   enddo
   point (iaend + 1 ) = icount
 
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
   return
 
 END SUBROUTINE vnlist_pbc
@@ -318,7 +379,7 @@ END SUBROUTINE vnlist_pbc
 
 SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
 
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype , list , point , ntype
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype
   USE control,  ONLY :  skindiff , cutoff
 
   implicit none
@@ -371,103 +432,13 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
 
 END SUBROUTINE vnlist_nopbc
 
-!*********************** SUBROUTINE vnlist_noimg ********************************
-!
-! verlet list subroutine :
-! Periodic boundaries condition version ( no minimum image convention ) 
-! !!!!test version 
-! 
-! input :
-!          iastart , iaend : index of atom decomposition ( parallel )
-!
-! output:
-!  
-!          point           : array of size natm+1 
-!                            gives the starting and finishing index of array list for a given atom i
-!                            jbegin = point(i)  jend = point(i+1) - 1
-!          list            : index list of neighboring atoms
-!
-! how to use it :
-!                          do ia = 1, natm
-!                            jbegin = point(i)
-!                            jend = point(i+1) - 1
-!                            do jvnl = jbegin , jend
-!                              ja = list ( jvnl ) 
-!                              then ia en ja are neighboors   
-!                            enddo
-!                          enddo
-!
-!******************************************************************************
-
-SUBROUTINE vnlist_noimg ( iastart , iaend )
-
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , box , itype, list , point, ntype
-  USE control,  ONLY :  skindiff , cutoff
-
-  implicit none
-
-  ! global
-  integer , intent (in)  :: iastart , iaend
-
-  ! local
-  integer :: icount, ia , ja , it , jt ,k
-  integer :: p1,p2
-  integer :: nxij,nyij,nzij
-  double precision  :: rskinsq ( ntype , ntype ) , rcut ( ntype , ntype ) , rskin ( ntype , ntype )
-  double precision :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
-
-  do jt = 1, ntype 
-    do it = 1, ntype
-       rcut    ( it , jt ) = cutoff
-       rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
-       rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
-    enddo
-  enddo
-
-  icount = 1
-  do ia = iastart , iaend
-    rxi = rx ( ia )
-    ryi = ry ( ia )
-    rzi = rz ( ia )
-    k = 0
-    do ja = 1 , natm
-      if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-           ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) then
-        rxij = rxi - rx ( ja )
-        ryij = ryi - ry ( ja )
-        rzij = rzi - rz ( ja )
-        nxij = NINT ( rxij / box )
-        nyij = NINT ( ryij / box )
-        nzij = NINT ( rzij / box )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
-        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-        p1 = itype ( ia )
-        p2 = itype ( ja )
-        if ( rijsq .le. rskinsq(p1,p2)) then
-          icount = icount+1
-          k = k+1
-          list(icount-1) = ja
-        endif
-      endif
-    enddo
-    point ( ia ) = icount-k
-  enddo
-  point (iaend + 1 ) = icount
-
-  return
-
-END SUBROUTINE vnlist_noimg
-
-
 !*********************** SUBROUTINE vnlistcheck *******************************
 !
 ! check wether verlet list should be updated
 !
 !******************************************************************************
 
-SUBROUTINE vnlistcheck ( iastart , iaend ) !, list , point )
+SUBROUTINE vnlistcheck ( iastart , iaend ) 
 
   USE config,   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
   USE control,  ONLY :  lpbc , lminimg , skindiff 
@@ -657,6 +628,26 @@ RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
   return
  
 end subroutine merge_sort
+
+!**************** SUBROUTINE EXPRO   ***********************************
+! EXPRO
+! caclulates the x-product of two vectors
+! from VASP
+!
+!***********************************************************************
+
+      SUBROUTINE EXPRO(H,U1,U2)
+      IMPLICIT none 
+      double precision, dimension ( 3 ) :: H ,U1 ,U2
+
+      H(1)=U1(2)*U2(3)-U1(3)*U2(2)
+      H(2)=U1(3)*U2(1)-U1(1)*U2(3)
+      H(3)=U1(1)*U2(2)-U1(2)*U2(1)
+
+      RETURN
+      END SUBROUTINE
+
+
  
 !*********************** SUBROUTINE print_config_sample ***********************
 !
@@ -716,21 +707,24 @@ END SUBROUTINE print_config_sample
 SUBROUTINE print_general_info(kunit)
 
   USE io_file,  ONLY :  ionode 
-  USE config,   ONLY : natm , ncell , ntype , rho , box , omega
+  USE config,   ONLY : natm , ncell , ntype , rho , simu_cell
 
   implicit none
 
-  integer :: kunit
+  ! global 
+  integer :: kunit 
+  ! local 
+  integer :: i 
 
   if ( ionode ) then
     WRITE ( kunit ,'(a)')          ''
     WRITE ( kunit ,'(a)')          'Remind some parameters of the system:'
-    WRITE ( kunit ,'(a,i5)')       'natm  = ', natm
+    WRITE ( kunit ,'(a,i5)')       'natm            = ', natm
     if ( ncell .ne. 0 ) WRITE ( kunit ,'(a,i5,a)')       'ncell = ', ncell
-    WRITE ( kunit ,'(a,i5)')       'ntype = ', ntype
-    WRITE ( kunit ,'(a,f10.3)')    'rho   = ', rho
-    WRITE ( kunit ,'(a,f10.3)')    'box   = ', box
-    WRITE ( kunit ,'(a,f10.3)')    'vol   = ', omega
+    WRITE ( kunit ,'(a,i5)')       'ntype           = ', ntype
+    WRITE ( kunit ,'(a,f10.3)')    'density         = ', rho
+    WRITE ( kunit ,'(a,3f10.3)')   'cell parameters = ', (simu_cell%ANORM(i),i=1,3)
+    WRITE ( kunit ,'(a,f10.3)')    'volume          = ', simu_cell%omega
     WRITE ( kunit ,'(a)')          ''
   endif
 

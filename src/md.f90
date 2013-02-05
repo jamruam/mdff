@@ -254,7 +254,7 @@ SUBROUTINE md_print_info(kunit)
       if (lstatic) then
                                           WRITE ( kunit ,'(a)')       'static  calculation ....boring                 '
       else
-        if ( .not. lpbc )                 WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)    '
+        if ( .not. lpbc )                 WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic md_cell)'
         if ( lpbc )                       WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell     '  
         if ( lminimg )                    WRITE ( kunit ,'(a)')       'using minimum image convention                 '  
         if ( .not. lminimg )              WRITE ( kunit ,'(a)')       'no minimum image convention                    '  
@@ -326,20 +326,23 @@ SUBROUTINE write_traj_xyz
 
   USE io_file,  ONLY :  ionode , kunit_TRAJFF , stdout
   USE config,   ONLY :  system , natm , natmi , ntype , &
-                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , box 
+                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell
+  USE cell
 
   implicit none
 
   ! local
-  integer :: ia , it
+  integer :: ia , it , i , j
 
-  CALL periodicbc ( natm , rx , ry , rz , box )
-!  CALL distance_tab ( stdout ) 
+  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   if ( ionode ) then
-    WRITE ( kunit_TRAJFF , * ) natm
-    WRITE ( kunit_TRAJFF , * ) system
-    WRITE ( kunit_TRAJFF , * ) box , ntype
+    WRITE ( kunit_TRAJFF , '(i6)' ) natm
+    WRITE ( kunit_TRAJFF , '(a)' ) system
+    do i = 1 , 3
+      WRITE ( kunit_TRAJFF , '(3f20.12)' ) (simu_cell%A(i,j),j=1,3) 
+    enddo
+    WRITE ( kunit_TRAJFF , '(i4)' ) ntype
     WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
     WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
     
@@ -355,42 +358,6 @@ SUBROUTINE write_traj_xyz
  return
 
 END SUBROUTINE write_traj_xyz
-
-!*********************** SUBROUTINE write_traj_xyz_test ****************************
-!
-! write trajectory (pos, vel, for) to TRAJFF file
-!
-!******************************************************************************
-
-SUBROUTINE write_traj_xyz_test 
-
-  USE io_file,  ONLY :  ionode , kunit_TRAJFF
-  USE config,   ONLY :  system , natm , rx , ry , rz , vx , vy , vz , fx , fy , fz , atype 
-
-  implicit none
-
-  ! local
-  integer :: ia
-
-  !CALL periodicbc ( n , rx , ry , rz , box )
-
-  if ( ionode ) then
-    ia = 2 
-      if ( atype ( ia ) .eq. 'A' ) &
-      WRITE ( kunit_TRAJFF , 200 ) 'A', rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                        vx ( ia ) , vy ( ia ) , vz ( ia ) , & 
-                                        fx ( ia ) , fy ( ia ) , fz ( ia )
-      if ( atype ( ia ) .eq. 'B' ) &
-      WRITE ( kunit_TRAJFF , 200 ) 'B', rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                        vx ( ia ) , vy ( ia ) , vz ( ia ) , &
-                                        fx ( ia ) , fy ( ia ) , fz ( ia )
-  endif
-
- 200 FORMAT( A2 , 9F20.12 )
-
- return
-
-END SUBROUTINE write_traj_xyz_test
 
 END MODULE md 
 ! ===== fmV =====

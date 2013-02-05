@@ -19,9 +19,187 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
+MODULE cell
+  
+  TYPE celltype
+    double precision :: A(3,3),B(3,3)
+    double precision :: ANORM(3),BNORM(3)
+    double precision :: OMEGA                ! volume ( direct )
+    double precision :: ROMEGA               ! volume ( reciprocal )
+    double precision :: WA , WB , WC         ! perpendicular width (direct) 
+    double precision :: ALPH , BET , GAMM    ! angles ( direct )
+    double precision :: RWA , RWB , RWC      ! perpendicular width (reciprocal)
+    double precision :: RALPH , RBET , RGAMM ! angles ( reciprocal )
+  END TYPE
+
+CONTAINS
+
+!*********************** SUBROUTINE lattice **********************************
+! from vasp
+!****************************************************************************** 
+
+SUBROUTINE lattice (Mylatt)
+
+  USE constants, ONLY : radian
+
+  implicit none 
+ 
+  ! global
+  TYPE(celltype) Mylatt
+  ! local 
+  double precision :: omega , romega
+  integer :: i, j 
+  intrinsic SUM 
+  double precision :: WA , WB , WC 
+  double precision :: RWA , RWB , RWC 
+  double precision :: alph, bet , gamm 
+  double precision :: ralph, rbet , rgamm 
+
+
+  CALL EXPRO(Mylatt%B(1:3,1),Mylatt%A(1:3,2),Mylatt%A(1:3,3))  ! B x C
+  CALL EXPRO(Mylatt%B(1:3,2),Mylatt%A(1:3,3),Mylatt%A(1:3,1))  ! C x A
+  CALL EXPRO(Mylatt%B(1:3,3),Mylatt%A(1:3,1),Mylatt%A(1:3,2))  ! A x B
+
+
+  ! volume ( direct ) 
+  omega = Mylatt%B(1,1)*Mylatt%A(1,1)+Mylatt%B(2,1)*Mylatt%A(2,1) + Mylatt%B(3,1)*Mylatt%A(3,1)
+  Mylatt%omega=omega
+
+  ! shortest distance between opposite faces
+  WA = omega / SQRT ( Mylatt%B(1,1) * Mylatt%B(1,1) + Mylatt%B(2,1) * Mylatt%B(2,1) + Mylatt%B(3,1) * Mylatt%B(3,1) ) 
+  WB = omega / SQRT ( Mylatt%B(1,2) * Mylatt%B(1,2) + Mylatt%B(2,2) * Mylatt%B(2,2) + Mylatt%B(3,2) * Mylatt%B(3,2) ) 
+  WC = omega / SQRT ( Mylatt%B(1,3) * Mylatt%B(1,3) + Mylatt%B(2,3) * Mylatt%B(2,3) + Mylatt%B(3,3) * Mylatt%B(3,3) ) 
+
+  Mylatt%WA=WA 
+  Mylatt%WB=WB 
+  Mylatt%WC=WC
+
+  do i=1,3
+    do j=1,3
+      Mylatt%B(i,j)=Mylatt%B(I,J)/omega
+    enddo
+  enddo
+
+  ! volume ( reciprocal ) 
+  romega =  Mylatt%A(1,1)*Mylatt%B(1,1)+Mylatt%A(2,1)*Mylatt%B(2,1) + Mylatt%A(3,1)*Mylatt%B(3,1)
+  Mylatt%Romega=romega
+
+  ! shortest distance between opposite faces ( reicprocal )
+  RWA = Romega / SQRT ( Mylatt%A(1,1) * Mylatt%A(1,1) + Mylatt%A(2,1) * Mylatt%A(2,1) + Mylatt%A(3,1) * Mylatt%A(3,1) )
+  RWB = Romega / SQRT ( Mylatt%A(1,2) * Mylatt%A(1,2) + Mylatt%A(2,2) * Mylatt%A(2,2) + Mylatt%A(3,2) * Mylatt%A(3,2) )
+  RWC = Romega / SQRT ( Mylatt%A(1,3) * Mylatt%A(1,3) + Mylatt%A(2,3) * Mylatt%A(2,3) + Mylatt%A(3,3) * Mylatt%A(3,3) )
+
+  Mylatt%RWA=RWA
+  Mylatt%RWB=RWB
+  Mylatt%RWC=RWC
+
+
+  do i=1,3
+    Mylatt%ANORM(i)=SQRT(SUM(Mylatt%A(:,i)*Mylatt%A(:,i)))
+    Mylatt%BNORM(i)=SQRT(SUM(Mylatt%B(:,i)*Mylatt%B(:,i)))
+  enddo
+
+  ! angles ( direct )
+  alph = Mylatt%A(1,3) * Mylatt%A(1,2) + Mylatt%A(2,3) * Mylatt%A(2,2) + Mylatt%A(3,3) * Mylatt%A(3,2)    ! C . B 
+  bet  = Mylatt%A(1,1) * Mylatt%A(1,3) + Mylatt%A(2,1) * Mylatt%A(2,3) + Mylatt%A(3,1) * Mylatt%A(3,3)    ! A . C
+  gamm = Mylatt%A(1,1) * Mylatt%A(1,2) + Mylatt%A(2,1) * Mylatt%A(2,2) + Mylatt%A(3,1) * Mylatt%A(3,2)    ! A . B 
+
+  alph = alph / ( Mylatt%ANORM(3) * Mylatt%ANORM(2) ) 
+  bet  = bet  / ( Mylatt%ANORM(1) * Mylatt%ANORM(3) ) 
+  gamm = gamm / ( Mylatt%ANORM(1) * Mylatt%ANORM(2) ) 
+ 
+  alph = acos ( alph ) * radian
+  bet  = acos ( bet  ) * radian
+  gamm = acos ( gamm ) * radian
+
+  Mylatt%ALPH  = alph
+  Mylatt%BET   = bet
+  Mylatt%GAMM  = gamm
+
+  ! angles ( reciprocal )
+  ralph = Mylatt%B(1,3) * Mylatt%B(1,2) + Mylatt%B(2,3) * Mylatt%B(2,2) + Mylatt%B(3,3) * Mylatt%B(3,2)    ! C* . B* 
+  rbet  = Mylatt%B(1,1) * Mylatt%B(1,3) + Mylatt%B(2,1) * Mylatt%B(2,3) + Mylatt%B(3,1) * Mylatt%B(3,3)    ! A* . C*
+  rgamm = Mylatt%B(1,1) * Mylatt%B(1,2) + Mylatt%B(2,1) * Mylatt%B(2,2) + Mylatt%B(3,1) * Mylatt%B(3,2)    ! A* . B* 
+
+  ralph = ralph / ( Mylatt%BNORM(3) * Mylatt%BNORM(2) ) 
+  rbet  = rbet  / ( Mylatt%BNORM(1) * Mylatt%BNORM(3) ) 
+  rgamm = rgamm / ( Mylatt%BNORM(1) * Mylatt%BNORM(2) ) 
+ 
+  ralph = acos ( ralph ) * radian
+  rbet  = acos ( rbet  ) * radian
+  rgamm = acos ( rgamm ) * radian
+
+  Mylatt%RALPH  = ralph
+  Mylatt%RBET   = rbet
+  Mylatt%RGAMM  = rgamm
+
+  RETURN
+
+END SUBROUTINE lattice
+
+!**************** SUBROUTINE KARDIR ************************************
+! transform a set of vectors from cartesian coordinates to
+! ) direct lattice      (BASIS must be equal to B reciprocal lattice)
+! ) reciprocal lattice  (BASIS must be equal to A direct lattice)
+!***********************************************************************
+
+SUBROUTINE KARDIR(NMAX,VX,VY,VZ,BASIS)
+
+  implicit none 
+  ! global
+  integer :: NMAX
+  double precision :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+  ! local 
+  integer :: N
+  double precision :: V1 , V2 , V3
+
+  do N=1,NMAX
+    V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(2,1)+VZ(N)*BASIS(3,1)
+    V2=VX(N)*BASIS(1,2)+VY(N)*BASIS(2,2)+VZ(N)*BASIS(3,2)
+    V3=VX(N)*BASIS(1,3)+VY(N)*BASIS(2,3)+VZ(N)*BASIS(3,3)
+    VX(N)=V1
+    VY(N)=V2
+    VZ(N)=V3
+  enddo
+
+  return
+
+END SUBROUTINE
+
+
+!**************** SUBROUTINE DIRKAR ************************************
+! transform a set of vectors from
+! ) direct lattice      (BASIS must be equal to A direct lattice)
+! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
+! to cartesian coordinates
+!***********************************************************************
+
+SUBROUTINE DIRKAR(NMAX,VX,VY,VZ,BASIS)
+
+  implicit none
+  ! global
+  integer :: NMAX
+  double precision :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+  ! local 
+  integer :: N
+  double precision :: V1 , V2 , V3
+
+  do N=1,NMAX
+    V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(1,2)+VZ(N)*BASIS(1,3)
+    V2=VX(N)*BASIS(2,1)+VY(N)*BASIS(2,2)+VZ(N)*BASIS(2,3)
+    V3=VX(N)*BASIS(3,1)+VY(N)*BASIS(3,2)+VZ(N)*BASIS(3,3)
+    VX(N)=V1
+    VY(N)=V2
+    VZ(N)=V3
+  enddo
+
+  return
+
+END SUBROUTINE DIRKAR 
+
 !*********************** SUBROUTINE periodicpbc *******************************
 !
-! replace atoms inside the box
+! replace atoms inside the MD cell 
 ! note:
 ! pbc are used in calculation of most properties but the positions are not
 ! effectively reajust to prevent big jump when using verlet list. 
@@ -29,265 +207,38 @@
 ! input :
 !          natm      : number of atoms
 !          ralpha : positions component alpha
-!          box    : size of the cubic box
 !
 !******************************************************************************
 
-SUBROUTINE periodicbc ( natm , rx , ry , rz , box )
+SUBROUTINE periodicbc ( natm , rx , ry , rz , latt )
 
-   implicit none
+  implicit none
 
   ! global
   integer :: natm
-  double precision :: box
   double precision :: rx ( natm ) , ry ( natm ) , rz ( natm )
+  TYPE(celltype) latt
 
   ! local
   integer :: ia
 
+  CALL dirkar ( natm , rx , ry , rz , latt%B ) 
+
   do ia = 1 , natm
-     rx ( ia ) = rx ( ia ) - NINT ( rx ( ia ) / box ) * box
-     ry ( ia ) = ry ( ia ) - NINT ( ry ( ia ) / box ) * box
-     rz ( ia ) = rz ( ia ) - NINT ( rz ( ia ) / box ) * box
+     rx ( ia ) = rx ( ia ) - NINT ( rx ( ia ) ) 
+     ry ( ia ) = ry ( ia ) - NINT ( ry ( ia ) ) 
+     rz ( ia ) = rz ( ia ) - NINT ( rz ( ia ) )  
   enddo
+
+  CALL kardir ( natm , rx , ry , rz , latt%A ) 
 
   return
 
 END SUBROUTINE periodicbc
 
-SUBROUTINE periodicbc_ia ( rxx , ryy , rzz , box )
 
-   implicit none
+END MODULE cell
 
-  ! global
-  double precision :: box
-  double precision :: rxx , ryy , rzz
-
-  rxx = rxx - NINT ( rxx / box ) * box
-  ryy = ryy - NINT ( ryy / box ) * box
-  rzz = rzz - NINT ( rzz / box ) * box
-
-  return
-
-END SUBROUTINE periodicbc_ia
-
-! The folloowing subroutines: init-fcc, init-sc and init-bcc should be merged in a more efficient way !
-! TODO test LJ crystal and compare to litterature data
-
-        
-!*********************** SUBROUTINE init_fcc **********************************
-!
-! readapted from Allen-Tildsley  
-! FICHE F.23.  ROUTINE TO SET UP ALPHA FCC LATTICE OF LINEAR MOLECULES
-! This FORTRAN code is intended to illustrate points made in the text.
-! To our knowledge it works correctly.  However it is the responsibility of
-! the   USEr to test it, if it is to be   USEd in a research application.
-!
-! SETS UP THE ALPHA FCC LATTICE FOR N LINEAR MOLECULES.         
-!                                                                   
-! THE SIMULATION BOX IS A UNIT CUBE CENTRED AT THE ORIGIN.      
-! N SHOULD BE AN INTEGER OF THE FORM ( 4 * ( NC ** 3 ) ),       
-! WHERE NC IS THE NUMBER OF FCC UNIT CELLS IN EACH DIRECTION.   
-! SEE FIGURE 5.10 FOR A DIAGRAM OF THE LATTICE AND A            
-! DEFINITION OF THE FOUR ORIENTATIONAL SUBLATTICES.             
-!                                                                   
-! PRINCIPAL VARIABLES:                                          
-!                                                                   
-! INTEGER N                    NUMBER OF MOLECULES              
-! REAL    RX(N),RY(N),RZ(N)    MOLECULAR POSITIONS              
-! REAL    EX(N),EY(N),EZ(N)    UNIT VECTORS GIVING ORIENTATIONS 
-! REAL    RROOT3               1.0 / SQRT ( 3.0 )              
-! 
-!******************************************************************************
-
-SUBROUTINE init_fcc ( key , natm , ntype , ncell , rx , ry , rz , box , struct )
-
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
-
-
-  ! global
-  integer :: natm , ncell , ntype
-  double precision , dimension ( natm ) :: rx , ry , rz       ! positions
-  double precision :: box
-  character*6      :: key
-  character*60     :: struct     ! structure type for fcc and 2 types ('NaCl' or 'random')
-
-  ! local
-  double precision :: rroot3
-  double precision :: cell , cell2 , cellp
-  integer :: ia , ix , iy , iz , iref , m  
-
-        if ( ionode .and. ( key .eq. 'AAAAAA' ) ) then
-           WRITE ( stdout ,'(a,i3,a1,i3,a1,i3,a)')  &
-                                                    'Face-centered cubic structure :',ncell,'x',ncell,'x',ncell,'  '
-           if ( struct .eq. 'random' .and. ntype .eq. 2 ) &
-           WRITE ( stdout ,'(a)')                   'random disposition of atoms                  '
-           if ( struct .eq. 'NaCl'   ) &
-           WRITE ( stdout ,'(a)')                   'NaCl: natm = 8*(ncell*ncell*ncell)           ' 
-           WRITE ( kunit_OUTFF ,'(a,i3,a1,i3,a1,i3,a)') &
-                                                    'Face-centered cubic structure :',ncell,'x',ncell,'x',ncell,'  '
-           if ( struct .eq. 'random' .and. ntype .eq. 2 ) &
-           WRITE ( kunit_OUTFF,'(a)')               'random disposition of atoms                  '
-           if ( struct .eq. 'NaCl'   ) &
-           WRITE ( kunit_OUTFF,'(a)')               'NaCl: natm = 8*(ncell*ncell*ncell)           ' 
-         endif
-
-  ! ======================================
-  !  CALCULATE THE SIDE OF THE UNIT CELL 
-  ! ======================================
-
-  cellp = box 
-
-  rroot3 = 1.0d0 / SQRT ( 3.0d0 )
-  cell  = 1.0d0 / DBLE ( ncell )
-  cell2 = 0.5d0 * cell 
-
-  ! ======================
-  !  BUILD THE UNIT CELL 
-  ! ======================
-  !  ** SUBLATTICE A **
-  ! ======================
-
-  rx(1) =  0.0d0 
-  ry(1) =  0.0d0 
-  rz(1) =  0.0d0 
-
-  ! ======================
-  !   ** SUBLATTICE B **
-  ! ======================
-
-  rx(2) =  cell2
-  ry(2) =  cell2
-  rz(2) =  0.0d0
-
-  ! ======================
-  !  ** SUBLATTICE C **
-  ! ======================
-
-  rx(3) =  0.0d0
-  ry(3) =  cell2
-  rz(3) =  cell2
-
-  ! ======================
-  !  ** SUBLATTiCE D **
-  ! ======================
-
-  rx(4) =  cell2
-  ry(4) =  0.0d0
-  rz(4) =  cell2
-
-  ! ==================================================
-  !   ** CONSTRUCT THE LATTiCE FROm THE UNiT cell **
-  ! ==================================================
-
-  m = 0
-
-  do iz = 1, ncell
-    do iy = 1, ncell
-      do ix = 1, ncell
-        do iref = 1, 4
-          rx ( iref + m ) = rx ( iref ) + cell * DBLE ( ix - 1 ) 
-          ry ( iref + m ) = ry ( iref ) + cell * DBLE ( iy - 1 ) 
-          rz ( iref + m ) = rz ( iref ) + cell * DBLE ( iz - 1 ) 
-        enddo
-        m = m + 4
-      enddo
-    enddo
-  enddo
-
-  ! ============================================
-  !   ** SHiFT CENTRE OF BOX TO THE ORiGiN **
-  ! ============================================
-
-  do ia = 1, natm
-    rx ( ia ) = rx ( ia ) - 0.5d0
-    ry ( ia ) = ry ( ia ) - 0.5d0
-    rz ( ia ) = rz ( ia ) - 0.5d0
-    rx ( ia ) = cellp * rx ( ia )
-    ry ( ia ) = cellp * ry ( ia )
-    rz ( ia ) = cellp * rz ( ia ) 
-  enddo
-
-  return
-
-END SUBROUTINE init_fcc
-
-
-!*********************** SUBROUTINE init_sc ***********************************
-!
-! from frenkel and Smit
-!
-!******************************************************************************
-
-SUBROUTINE init_sc ( natm , ntype , ncell , rx , ry , rz , box )
-
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
-
-  implicit none
-
- ! global
-  integer :: natm , ncell , ntype
-  double precision , dimension ( natm ) :: rx , ry , rz       ! positions
-  double precision :: box
-
-
-  ! local
-  integer ::  i , j , k , itel
-  double precision :: del , dx , dy , dz
-
-  ! tmp
-  ntype = ntype 
-
-  if ( ionode ) then
-    WRITE ( stdout ,'(a)') 'simple cubic structure'
-    WRITE ( kunit_OUTFF,'(a)') 'simple cubic structure'
-  endif
-
-  del = box / DBLE( ncell )
-  itel = 0 
-  dx = -del
-  do i = 1 , ncell
-    dx = dx + del
-    dy = -del
-    do j = 1 , ncell
-      dy = dy + del
-      dz = -del
-      do k = 1 , ncell
-        dz = dz + del
-        if ( itel .lt. natm ) then
-          itel = itel + 1
-          rx ( itel ) = dx 
-          ry ( itel ) = dy 
-          rz ( itel ) = dz 
-        endif
-      enddo
-    enddo
-  enddo
-
-  return
-
-END SUBROUTINE init_sc
-
-!*********************** SUBROUTINE init_bcc **********************************
-!!TEST
-! base centered cubic 
-!!TEST
-!******************************************************************************
-
-SUBROUTINE init_bcc
-
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
-
-  implicit none
-
-  if ( ionode ) then
-    WRITE ( stdout ,'(a)')     'body centered cubic structure'
-    WRITE ( kunit_OUTFF,'(a)') 'body centered cubic structure'
-  endif
-
-  return
-
-END SUBROUTINE init_bcc
 
 
 ! ===== fmV =====

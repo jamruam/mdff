@@ -19,82 +19,88 @@
 ! ======= Hardware =======
 !#define debug
 !#define debug2
+!#define debug_wfc
 ! ======= Hardware =======
 
 MODULE field 
 
-  USE config , ONLY : ntypemax , npolmax
+  USE config , ONLY : ntypemax 
   USE kspace 
   USE rspace
 
   implicit none
 
-  character*60 :: ctrunc
-  character*60 :: ctrunc_allowed(2)
-  data ctrunc_allowed / 'linear' , 'quadratic' /    ! see initialize_param_bmlj
-  integer   :: trunc
+  double precision :: utail                         ! long-range correction of short-range interaction 
+  integer          :: trunc
+  character*60     :: ctrunc
+  character*60     :: ctrunc_allowed(2)
+  data                ctrunc_allowed / 'linear' , 'quadratic' /    ! see initialize_param_bmlj
 
-  logical, SAVE :: lKA                              ! Kob-Andersen model for BMLJ                        
+  logical, SAVE    :: lKA                              ! Kob-Andersen model for BMLJ                        
+  logical, SAVE    :: lautoES                          ! auto-determination of Ewald parameter from epsw ( accuracy)
 
 
+  ! ============================================================  
+  !                         Lennard - Jones
+  ! ============================================================  
+  !
   !              eps    /    / sigma*\ q         / sigma*\ p  \
   !     V  =   ------- |  p | ------- |   -  q  | ------- |    |      sigma* = 2^(1/6)*sigma
   !             q - p   \    \   r   /           \   r   /    /
 
-  ! Lennard - Jones
+  ! main parameters
   double precision :: qlj     ( ntypemax , ntypemax )
   double precision :: plj     ( ntypemax , ntypemax )
   double precision :: epslj   ( ntypemax , ntypemax )
   double precision :: sigmalj ( ntypemax , ntypemax )
-  
-  ! Morse
+  ! others ( see init_bmlj )
+  double precision :: rcutsq  ( ntypemax , ntypemax )  
+  double precision :: sigsq   ( ntypemax , ntypemax ) 
+  double precision :: epsp    ( ntypemax , ntypemax )
+  double precision :: fc      ( ntypemax , ntypemax )
+  double precision :: uc      ( ntypemax , ntypemax )
+  double precision :: uc1     ( ntypemax , ntypemax )
+  double precision :: uc2     ( ntypemax , ntypemax )
+  double precision :: testtab ( ntypemax , ntypemax )
+
+  ! ============================================================  
+  !                            Morse
+  ! ============================================================  
+  !
+  !     V  =  
+  !
+  !
+  ! main parameters
   double precision :: rhomor  ( ntypemax , ntypemax )
   double precision :: epsmor  ( ntypemax , ntypemax )
   double precision :: sigmamor( ntypemax , ntypemax )
+  ! morse
+  double precision :: rs      ( ntypemax , ntypemax )
+  double precision :: fm      ( ntypemax , ntypemax )
 
-  double precision :: mass  ( ntypemax )    ! masses ( not yet )
-  double precision :: qch   ( ntypemax )    ! charges only for efg (no electrostatic interaction and forces)
-  double precision :: dip   ( ntypemax , 3 )! dipole for efg (no electrostatic interaction and forces)
-  double precision :: pol   ( npolmax  , 3 , 3 )! polarizability ( is defined at particular position )
+
+  ! ============================================================  
+  !                    FORCE FIELD 
+  ! ============================================================  
+
+  ! type dependent properties
+  double precision :: mass  ( ntypemax )            ! masses ( not yet )
+  double precision :: qch   ( ntypemax )            ! charges 
+  double precision :: dip   ( ntypemax , 3 )        ! dipoles 
+  double precision :: pol   ( ntypemax , 3 , 3 )    ! polarizability if lpolar( it ) .ne. 0  
+  integer          :: lpolar( ntypemax )            ! induced moment from pola 
+  double precision :: conv_tol_ind                  ! convergence tolerance of the scf induced dipole calculation
+  integer          :: lwfc  ( ntypemax )            ! moment from wannier centers 
+  double precision :: rcut_wfc                      ! radius cut-off for WFs searching
   
-  double precision ::  conv_tol_ind
-
-  double precision :: utail
-
-  !todo : make the following quantities dependent on ntypemax ( hardware parameter) 
-  ! or find a way to read them directly from control.F 
-
-  ! lennard-jones
-  double precision :: rcutsq ( ntypemax , ntypemax )  
-  double precision :: sigsq  ( ntypemax , ntypemax ) 
-  double precision :: epsp   ( ntypemax , ntypemax )
-  double precision :: fc     ( ntypemax , ntypemax )
-  double precision :: uc     ( ntypemax , ntypemax )
-  double precision :: uc1    ( ntypemax , ntypemax )
-  double precision :: uc2    ( ntypemax , ntypemax )
-  double precision :: testtab ( ntypemax , ntypemax )
-
-  !morse
-  double precision :: rs     ( ntypemax , ntypemax )
-  double precision :: fm     ( ntypemax , ntypemax )
-
-  ! about the charge:
-  ! the array  q (natm) should be defined in the config module even if it is only
-  ! called outside ( coulomb + EFG ) -----> one solution would be to read q(natm)
-  ! from the POSFF file 
-  ! alphaES should be read in control.F
-  !
-  ! one should be careful where the force are set to zero. 
-  ! fx , fy , fz are the total force (coulumb + LJ) 
-
-  ! problem defined twice ( is it a problem ?)
-  double precision                                :: alphaES            ! Ewald sum parameter 
-  integer                                         :: ncellewald
-  integer                                         :: ncelldirect
-  integer                                         :: lpolar(ntypemax)
-
-  TYPE ( kmesh ) :: km_coul
-  TYPE ( rmesh ) :: rm_coul
+  ! ewald sum
+  double precision :: epsw                          ! accuracy of the ewald sum 
+  double precision :: alphaES                       ! Ewald sum parameter 
+  integer          :: kES(3)                        ! kmax of ewald sum in reciprocal space
+  TYPE ( kmesh )   :: km_coul                       ! kpoint mesh ( see kspace.f90 )
+  ! direct sum
+  integer          :: ncelldirect                   ! number of cells  in the direct summation
+  TYPE ( rmesh )   :: rm_coul                       ! real space mesh ( see rspace.f90 )
 
   double precision, dimension ( : , : ) , allocatable :: ef_t
   double precision, dimension ( : , : , : ) , allocatable :: efg_t
@@ -128,14 +134,20 @@ SUBROUTINE field_default_tag
   mass          = 1.0d0
   ! Coulomb
   ncelldirect   =  2
-  ncellewald    = 10
+  kES(1)        = 10
+  kES(2)        = 10
+  kES(3)        = 10
   alphaES       =  1.0d0
   qch           =  0.0d0
   dip           =  0.0d0
   pol           =  0.0d0
   lpolar        =  0
+  lwfc          =  0
+  rcut_wfc      =  0.5d0
 
   conv_tol_ind  = 1e-5
+  epsw = 1e-7
+  lautoES = .false.
 
   return
 
@@ -150,7 +162,7 @@ END SUBROUTINE field_default_tag
 
 SUBROUTINE field_check_tag
 
-  USE config,   ONLY :  xn , ntype
+  USE config,   ONLY :  ntype
   USE io_file,  ONLY :  ionode , stdout
 
   implicit none
@@ -170,13 +182,8 @@ SUBROUTINE field_check_tag
     STOP
   endif
 
-  if ( ctrunc .eq. 'linear' ) then
-    trunc = 1
-  endif
-
-  if ( ctrunc .eq. 'quadratic' ) then
-    trunc = 2
-  endif
+  if ( ctrunc .eq. 'linear'    ) trunc = 1
+  if ( ctrunc .eq. 'quadratic' ) trunc = 2
 
   ! =====
   !  lKA
@@ -194,8 +201,6 @@ SUBROUTINE field_check_tag
     epslj   ( 2 , 2 ) = 0.5d0
     epslj   ( 1 , 2 ) = 1.5d0
     epslj   ( 2 , 1 ) = 1.5d0
-    xn    ( 1 )       = 0.8d0
-    xn    ( 2 )       = 0.2d0
   endif
 
   return 
@@ -212,6 +217,7 @@ SUBROUTINE field_init
 
   USE control,  ONLY :  calc , lbmlj , lcoulomb , lmorse
   USE io_file,  ONLY :  ionode, stdin, stdout , kunit_OUTFF
+  USE config ,  ONLY : dipia
 
   implicit none
 
@@ -222,7 +228,7 @@ SUBROUTINE field_init
   namelist /fieldtag/    lKA           , &       
                          ctrunc        , &
                          ncelldirect   , &
-                         ncellewald    , &
+                         kES           , &
                          alphaES       , &
                          qlj           , & 
                          plj           , & 
@@ -234,8 +240,13 @@ SUBROUTINE field_init
                          mass          , &
                          qch           , &
                          dip           , &
+                         dipia         , &
                          pol           , &  
                          conv_tol_ind  , &  
+                         epsw          , &  
+                         lautoES       , &  
+                         lwfc          , &            
+                         rcut_wfc      , &            
                          lpolar           
                   
   ! ================================
@@ -296,38 +307,38 @@ END SUBROUTINE field_init
 
 SUBROUTINE field_print_info(kunit)
 
-  USE config,   ONLY :  ntype , box, atypei , natmi
+  USE config,   ONLY :  ntype , atypei , natmi , simu_cell 
   USE control,  ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange
   USE io_file,  ONLY :  ionode 
-  USE constants,ONLY :  tpi
+  USE constants,ONLY :  pi , pisq
 
   implicit none
 
   !local
-  integer :: kunit, it , it1 , it2
-  double precision :: aaa , rcut2 , kmax2 , alpha2 , ereal , ereci , qtot
+  integer :: kunit, it , it1 , it2 , i , j, kmax
+  double precision :: aaa , aaa2 , rcut , rcut2 , kmax2 , alpha2 , ereal , ereal2 , ereci(3) , ereci2(3) , qtot , qtot2
   logical :: linduced
+  integer :: nc ( 3 )
+!dl_poly like
+  double precision :: eps , tol , tol1 ,alpha, Wa ,WB ,WC
+  integer :: kmax_1 , kmax_2 , kmax_3 
 
-  qtot = 0.0d0
-  kmax2 = tpi / box * ncellewald
-  kmax2 = kmax2 * kmax2 
-  rcut2 = box * box * 0.25d0
-  alpha2 = alphaES * alphaES
-  ereal = 2.0D0 * EXP ( - alpha2 * rcut2 ) / box
-  ereci = EXP ( - kmax2 / alpha2 * 0.25d0 ) / kmax2
+  qtot   = 0.0d0
+  qtot2  = 0.0d0
 
   if ( ionode ) then
     WRITE ( kunit ,'(a)')       '=============================================================' 
     WRITE ( kunit ,'(a)')       ''
     if ( .not. lcoulomb .and. calc .eq. 'efg' )  &
-    WRITE ( kunit ,'(a)')       'point charges: (no forces yet !)'
+    WRITE ( kunit ,'(a)')       'point charges: '
     do it = 1 , ntype 
       WRITE ( kunit ,'(a,a,a,f10.5)') 'q',atypei(it),'      =',qch(it)
-      qtot = qtot + qch(it) * natmi ( it ) 
+      qtot  = qtot  + qch(it) * natmi ( it ) 
+      qtot2 = qtot2 + ( qch(it) * natmi ( it ) ) * ( qch(it) * natmi ( it ) )
     enddo
     WRITE ( kunit ,'(a,f10.5)')       'total charge of the system = ',  qtot
     WRITE ( kunit ,'(a)')       ''
-    WRITE ( kunit ,'(a)')       'static dipoles: (no forces yet !)'
+    WRITE ( kunit ,'(a)')       'static dipoles: '
     do it = 1 , ntype
       WRITE ( kunit ,'(a,a,a,3f10.5)') 'mu',atypei(it),'      = ',dip(it,1),dip(it,2),dip(it,3)
     enddo
@@ -347,15 +358,62 @@ SUBROUTINE field_print_info(kunit)
         WRITE ( kunit ,'(a,i10)')   'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
       endif     
       if ( longrange .eq. 'ewald' )  then
-        CALL estimate_alpha( aaa )
-        WRITE ( kunit ,'(a)')       'ewald summation'
-        WRITE ( kunit ,'(a,f10.5)') 'alpha                            = ',alphaES
-        WRITE ( kunit ,'(a,i10)')   'ncellewald                       = ',ncellewald
-        WRITE ( kunit ,'(a,i10)')   '' 
-        WRITE ( kunit ,'(a,f10.5)') 'Note:this should hold alpha^2 * box^2 >> 1',alphaES*alphaES*box*box
-        WRITE ( kunit ,'(a,f10.5)') 'from estimate_alpha alpha should be ', aaa
-        WRITE ( kunit ,'(a,e12.5)') 'relative error in real space with alphaES from input : ',ereal
-        WRITE ( kunit ,'(a,e12.5)') 'relative error in reciprocal space with alphaES from input : ',ereci
+        alpha2 = alphaES * alphaES
+        do i=1,3
+          kmax2 = pi * kES(i) / simu_cell%ANORM(i) / alphaES
+          kmax2 = kmax2 * kmax2
+          ereci(i)  = EXP ( - kmax2 ) / kmax2 * ( SQRT ( DBLE(kES(i)) ) / alphaES / simu_cell%ANORM(i) / simu_cell%ANORM(i) )
+          ereci2(i) = qtot2 * alphaES / pisq / ( SQRT ( DBLE(kES(i)) * DBLE(kES(i)) * DBLE(kES(i)) ) ) * EXP ( - ( pi * DBLE(kES(i)) / alphaES / simu_cell%ANORM(i) ) ** 2 )
+        enddo
+
+        rcut =  0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1d0
+        rcut2  = rcut * rcut
+        ereal  = EXP ( - alpha2 * rcut2 ) / alpha2  / rcut2 * SQRT ( rcut / 2.0d0 / simu_cell%omega )
+        ereal2 = ereal * qtot2 
+        CALL estimate_alpha( aaa , epsw ,rcut )
+        CALL accur_ES_frenkel_smit( epsw , aaa2 , rcut , nc ) 
+!dl_poly like
+        cutoff = rcut 
+        eps=min(abs(epsw),0.5d0)
+        tol=sqrt(abs(log(eps*rcut)))
+        alpha=sqrt(abs(log(eps*rcut*tol)))/rcut
+        tol1=sqrt(-log(eps*rcut*(2.d0*tol*alpha)**2))
+        kmax_1=nint(0.25d0+simu_cell%ANORM(1)*alpha*tol1/pi)
+        kmax_2=nint(0.25d0+simu_cell%ANORM(2)*alpha*tol1/pi)
+        kmax_3=nint(0.25d0+simu_cell%ANORM(3)*alpha*tol1/pi)
+
+        WRITE ( kunit ,'(a)')        'ewald summation parameters ( from input file )'
+        WRITE ( kunit ,'(a,f10.5)')  'alpha                            = ',alphaES
+        WRITE ( kunit ,'(a,3i10)')   'kmax                             = ',(kES(i),i=1,3)
+        WRITE ( kunit ,'(a)')   '' 
+        WRITE ( kunit ,'(a,e12.5)')  'relative error in real space with alphaES from input : ',ereal
+        WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
+        WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
+        WRITE ( kunit ,'(a)')   '' 
+        WRITE ( kunit ,'(a,e14.6)') 'from estimate_alpha alpha should be ', aaa 
+        WRITE ( kunit ,'(a,e14.6,3i5)') 'from dl_poly like ', alpha,kmax_1,kmax_2,kmax_3
+        WRITE ( kunit ,'(a,e14.6,3i5)') 'from accur_ES_frenkel_smit', aaa2,(nc(i),i=1,3)
+        WRITE ( kunit ,'(a)')   '' 
+        if ( lautoES ) then
+          ! dl_poly like
+          alphaES = alpha 
+          kES(1)=kmax_1
+          kES(2)=kmax_2
+          kES(3)=kmax_3
+          ! frenkel_smit like
+          !alphaES = aaa2
+          !kES=nc
+          ! qe like
+          !alphaES = aaa
+          !kES=nc
+
+          WRITE ( kunit ,'(a)')           'ewald summation parameters ( automatic see field.f90 tmp construction )'
+          WRITE ( kunit ,'(a,f10.5)')     'alpha                            = ',alphaES
+          WRITE ( kunit ,'(a,f10.5)')     'rcut                             = ',rcut
+          WRITE ( kunit ,'(a,3i10)')      'kmax                             = ',(kES(i),i=1,3)
+          WRITE ( kunit ,'(a)')   '' 
+          WRITE ( kunit ,'(a,e12.5)')     'relative error (user defined) : ',epsw
+        endif
       endif
     endif
 
@@ -392,7 +450,7 @@ SUBROUTINE field_print_info(kunit)
               WRITE ( kunit ,'(a,f10.5)') 'q                                    = ',qlj     ( it1 , it2 )
               WRITE ( kunit ,'(a,f10.5)') 'p                                    = ',plj     ( it1 , it2 )
             else
-              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'sigma                                = ',sigmalj ( it1 , it2 ) , '( ',sigmalj ( it2 , it1 ), ' )'
+              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'sigma                                = ',sigmalj ( it1 , it2 ) , '( ',sigmalj ( it2 , it1 ), ' )' 
               WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'eps                                  = ',epslj   ( it1 , it2 ) , '( ',epslj   ( it2 , it1 ), ' )'
               WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'q                                    = ',qlj     ( it1 , it2 ) , '( ',qlj     ( it2 , it1 ), ' )'
               WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'p                                    = ',plj     ( it1 , it2 ) , '( ',plj     ( it2 , it1 ), ' )'
@@ -416,11 +474,10 @@ SUBROUTINE field_print_info(kunit)
       WRITE ( kunit ,'(a)')          '--------------------------------------------------------'
       do it = 1 , ntype
         if ( lpolar(it) .eq. 1 ) then
-          WRITE ( kunit ,'(a,a2,a)') 'polarizability tensor of type ', atypei(it),' : ' 
-          WRITE ( kunit ,'(a)')   ' '
-          WRITE ( kunit ,'(3f12.5)')  pol( it , 1 , 1 ) , pol( it , 1 , 2 ) , pol( it , 1 , 3 ) 
-          WRITE ( kunit ,'(3f12.5)')  pol( it , 2 , 1 ) , pol( it , 2 , 2 ) , pol( it , 2 , 3 ) 
-          WRITE ( kunit ,'(3f12.5)')  pol( it , 3 , 1 ) , pol( it , 3 , 2 ) , pol( it , 3 , 3 ) 
+          WRITE ( kunit ,'(a,a2,a,f12.4)') 'polarizability on type ', atypei(it),' : ' 
+          WRITE ( kunit ,'(3f12.4)') (pol(it,1,j),j=1,3) 
+          WRITE ( kunit ,'(3f12.4)') (pol(it,2,j),j=1,3) 
+          WRITE ( kunit ,'(3f12.4)') (pol(it,3,j),j=1,3) 
           WRITE ( kunit ,'(a)')   ' '
         else
           WRITE ( kunit ,'(a,a2)') 'no polarizability on type ', atypei(it)
@@ -444,7 +501,7 @@ END SUBROUTINE field_print_info
 SUBROUTINE initialize_param_bmlj_morse 
 
   USE constants,        ONLY :  pi
-  USE config,           ONLY :  ntypemax , natm , box , omega , natmi , rho , atype , itype  , ntype
+  USE config,           ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
   USE control,          ONLY :  skindiff , cutoff , lreduced, calc
   USE io_file,          ONLY :  ionode, stdout, kunit_OUTFF
 
@@ -598,7 +655,7 @@ SUBROUTINE initialize_param_bmlj_morse
                                                  qq ( it , jt ) * srp ( it , jt ) / pp3 ( it , jt )  )       
            ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * 2.0d0 * pi 
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
-           utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / omega
+           utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
 #ifdef debug 
   write ( * , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
 #endif
@@ -636,7 +693,7 @@ SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
   integer, intent(inout)  :: iastart , iaend 
   ! local 
   logical :: lj_and_coul
-  double precision :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , mutmp ( natm , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
+  double precision :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
 
   ! ====================================
   !  check if LJ and COULOMBIC 
@@ -746,11 +803,12 @@ END SUBROUTINE engforce_driver
 
 SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , box , rx , ry , rz , fx , fy , fz, tau_lj , atype , itype , list , point , ntype , omega
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, tau_lj , atype , itype , list , point , ntype , simu_cell 
   USE control,          ONLY : lvnlist , myrank
   USE thermodynamic,    ONLY : u_lj , vir_lj , write_thermo
-  USE time
   USE io_file,          ONLY : stdout
+  USE time
+  USE cell
 
   implicit none
   INCLUDE 'mpif.h'
@@ -759,23 +817,22 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   integer, intent(in)  :: iastart , iaend 
 
   ! local
-  integer          :: ia , ja , it , jt , j1 , je , jb , ierr , i
+  integer          :: ia , ja , it , jt , j1 , je , jb , ierr 
   integer          :: p1 , p2
-  integer          :: nxij , nyij , nzij
   double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij , sr2 , rijsq , srp , srq
+  double precision :: rxij , ryij , rzij 
+  double precision :: sxij , syij , szij 
+  double precision :: sr2 , rijsq , srp , srq
   double precision :: wij , fxij , fyij , fzij
   double precision :: ptwo ( ntype , ntype )
   double precision :: qtwo ( ntype , ntype )
-  double precision :: forcetime1 , forcetime2 , invbox
+  double precision :: forcetime1 , forcetime2 
   double precision :: u , vir 
 
 #ifdef debug
-  !do ia = 1 , natm
   ia = natm 
-    write( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
-    write( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
-  !enddo
+  write( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
+  write( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
 #endif
 
   forcetime1 = MPI_WTIME(ierr) ! timing info
@@ -786,14 +843,17 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   fy  = 0.0D0
   fz  = 0.0D0
  
-  invbox = 1.0d0 / box
-
   do jt = 1 , ntype
     do it = 1 , ntype
       ptwo ( it , jt ) = plj ( it , jt ) * 0.5d0
       qtwo ( it , jt ) = qlj ( it , jt ) * 0.5d0
     enddo
   enddo
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
   if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
   do ia = iastart , iaend
@@ -823,12 +883,12 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = NINT ( rxij * invbox )
-        nyij = NINT ( ryij * invbox )
-        nzij = NINT ( rzij * invbox )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1 = itype ( ia )
         p2 = itype ( ja )
@@ -870,7 +930,7 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
       endif
     enddo
   enddo
-  tau_lj = tau_lj / omega
+  tau_lj = tau_lj / simu_cell%omega 
   vir = vir/3.0D0
 
   forcetime2 = MPI_WTIME(ierr) ! timing info
@@ -890,6 +950,11 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   u_lj = u
   vir_lj = vir
 
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
   return
 
 END SUBROUTINE engforce_bmlj_pbc
@@ -903,7 +968,7 @@ END SUBROUTINE engforce_bmlj_pbc
 
 SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , box , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_lj , omega
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_lj , simu_cell 
   USE control,          ONLY : lvnlist , myrank
   USE thermodynamic,    ONLY : u_lj , vir_lj
   USE time
@@ -997,7 +1062,7 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
       endif
     enddo
   enddo
-  tau_lj = tau_lj / omega 
+  tau_lj = tau_lj / simu_cell%omega 
   vir = vir / 3.0D0
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u ) 
@@ -1030,7 +1095,7 @@ END SUBROUTINE engforce_bmlj_nopbc
 
 SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
 
-  USE config,           ONLY : natm , box , rx , ry , rz , fx , fy , fz , itype , list , point , ntype
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
   USE control,          ONLY : lvnlist , myrank
   USE thermodynamic,    ONLY : u_lj , vir_lj
   USE time
@@ -1040,18 +1105,18 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
 
   ! global
   integer, intent(in)  :: iastart , iaend 
-  !  integer, intent(out) :: list( 250 * natm ) , point( natm+1 )
 
   ! local
   integer :: ia , ja , it , jt , j1 , je , jb , ierr
   integer :: p1, p2
-  integer :: nxij , nyij , nzij
   double precision :: rxi, ryi, rzi
-  double precision :: rxij,ryij,rzij,sr2,rijsq,srp,srq
+  double precision :: rxij,ryij,rzij
+  double precision :: sxij,syij,szij
+  double precision :: sr2,rijsq,srp,srq
   double precision :: wij,fxij,fyij,fzij
   double precision :: ptwo ( ntype , ntype )
   double precision :: qtwo ( ntype , ntype )
-  double precision :: forcetime1, forcetime2, invbox
+  double precision :: forcetime1, forcetime2
   double precision :: u, vir
   
   forcetime1 = MPI_WTIME(ierr) ! timing info
@@ -1062,7 +1127,6 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
   fy  = 0.0D0
   fz  = 0.0D0
   
-  invbox = 1.0d0/box
 
   do jt = 1 , ntype
     do it = 1 , ntype
@@ -1093,12 +1157,15 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
         rxij  = rxi - rx ( ja )
         ryij  = ryi - ry ( ja )
         rzij  = rzi - rz ( ja )
-        nxij  = NINT ( rxij * invbox )
-        nyij  = NINT ( ryij * invbox )
-        nzij  = NINT ( rzij * invbox )
-        rxij  = rxij - box * nxij
-        ryij  = ryij - box * nyij
-        rzij  = rzij - box * nzij
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
+        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
+        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1    = itype ( ia )
         p2    = itype ( ja )
@@ -1183,8 +1250,10 @@ SUBROUTINE initialize_coulomb
   ! ============
   if ( longrange .eq. 'ewald')  then
     km_coul%meshlabel='km_coul'
-    km_coul%ncell = ncellewald
-    nkcut = ( 2 * ncellewald + 1 ) ** 3 
+    km_coul%kES(1) = kES(1)
+    km_coul%kES(2) = kES(2)
+    km_coul%kES(3) = kES(3)
+    nkcut = ( 2 * km_coul%kES(1) + 1 ) * ( 2 * km_coul%kES(2) + 1 ) * ( 2 * km_coul%kES(3) + 1 )   
     nkcut = nkcut - 1
     km_coul%nkcut = nkcut
     allocate( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
@@ -1204,7 +1273,7 @@ SUBROUTINE finalize_coulomb
 
   implicit none
 
-  if ( .not. lcoulomb ) return
+  if ( .not. lcoulomb .or. calc.ne.'md') return
 
   deallocate ( ef_t )
   deallocate ( efg_t )
@@ -1237,13 +1306,13 @@ END SUBROUTINE finalize_coulomb
 !                          
 !  mu_i,alpha =  POL_i,alpha,beta * E_i,beta   
 !
-! POL is the polarizability tensor
+! polia is the polarizability tensor
 !
 !******************************************************************************
 
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
-  USE config, ONLY : natm , itype , atypei, ntype
+  USE config, ONLY : natm , itype , atypei, ntype , polia
   USE io_file, ONLY : stdout
 
   implicit none
@@ -1266,7 +1335,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   do ia = 1 , natm 
     do alpha = 1 , 3 
       do beta = 1 , 3  
-        mu_ind ( ia , alpha ) = mu_ind ( ia , alpha ) + pol ( itype(ia) , alpha , beta ) * Efield ( ia , beta )  
+        mu_ind ( ia , alpha ) = mu_ind ( ia , alpha ) + polia ( ia , alpha , beta ) * Efield ( ia , beta )  
       enddo
     enddo
   enddo
@@ -1275,7 +1344,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   do ia = 1 , natm
     it = itype(ia) 
     if ( lpolar ( it ) .eq. 1 ) then 
-      invpol ( : , : )  = pol ( it , : , : )
+      invpol ( : , : )  = polia ( ia , : , : )
       CALL DGETRF( 3, 3, invpol, 3, ipiv, ierr )
       if ( ierr.lt.0 ) then
           WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRF failed in induced_moment',ierr
@@ -1305,10 +1374,11 @@ END SUBROUTINE induced_moment
 
 SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE config,  ONLY : natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , omega
+  USE config,  ONLY : natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
   USE control, ONLY : cutlongrange,myrank
   USE io_file, ONLY : stdout , ionode 
   USE thermodynamic , ONLY : u_pol, u_coul_tot , vir_coul_tot 
+  USE cell 
   USE time
 
   implicit none
@@ -1334,6 +1404,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   double precision :: rxi , ryi , rzi 
   double precision :: rxj , ryj , rzj
   double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
   double precision :: fxij , fyij , fzij
   double precision :: qi , qj , qij
   double precision :: muix , muiy , muiz
@@ -1349,7 +1420,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   logical          :: lcentralbox
   !debug 
   integer          :: it , ip
-  double precision :: mip    ( ntype , 3 ) , tmp ( 3 , 3 ) ! tmp
+  double precision :: mip    ( ntype , 3 )
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -1411,6 +1482,11 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   phi_coul_qq = 0.0d0
   phi_coul_dd = 0.0d0
   
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+
 ! ==================================================================================================
 !  MAIN LOOP calculate EF(i) , EFG(i) , virial , potential, forces ... for each atom i parallelized
 ! ==================================================================================================
@@ -1438,12 +1514,13 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
             rxj   = rx ( ja ) + rm_coul%boxxyz( 1 , ncell )
             ryj   = ry ( ja ) + rm_coul%boxxyz( 2 , ncell )
             rzj   = rz ( ja ) + rm_coul%boxxyz( 3 , ncell )
-
-            rxij  = rxi - rxj
-            ryij  = ryi - ryj
-            rzij  = rzi - rzj
-
-            d2    = rxij * rxij + ryij * ryij + rzij * rzij
+            sxij = rxi - rxj
+            syij = ryi - ryj
+            szij = rzi - rzj
+            rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+            ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+            rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+            d2   = rxij * rxij + ryij * ryij + rzij * rzij
 
             if ( d2 .lt. cutsq .and. d2 .ne. 0.0d0 ) then 
 
@@ -1704,7 +1781,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
   vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
   phi_coul = phi_coul_qq + phi_coul_dd
-  tau_coul = - tau_coul / omega * 0.5d0
+  tau_coul = - tau_coul / simu_cell%omega * 0.5d0
 
 #ifdef debug2 
   if ( ionode ) then
@@ -1749,6 +1826,11 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ttt3 = MPI_WTIME(ierr)
   fcoultimetot2 = fcoultimetot2 + ( ttt3 - ttt2 )
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
   return
 
 END SUBROUTINE multipole_DS
@@ -1757,12 +1839,13 @@ END SUBROUTINE multipole_DS
 
 SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE control,   ONLY : lsurf
-  USE config,    ONLY : natm , ntype , natmi , atype , rx , ry , rz , fx , fy , fz , tau_coul , qia , omega , box
+  USE control,   ONLY : lsurf , cutoff
+  USE config,    ONLY : natm , ntype , natmi , atype , rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell 
   USE constants, ONLY : imag , pi , piroot , tpi , fpi
   USE io_file  , ONLY : ionode , stdout 
-  USE time
   USE thermodynamic , ONLY : u_pol, u_coul_tot , vir_coul_tot 
+  USE cell 
+  USE time
 
   implicit none
 
@@ -1781,7 +1864,6 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! local 
   integer             :: ia , ja , ik , it , ip , ierr
-  integer             :: nxij , nyij , nzij
   double precision, dimension(:)    , allocatable :: fx_coul , fy_coul , fz_coul
   double precision, dimension(:)    , allocatable :: fx_dir , fy_dir , fz_dir
   double precision, dimension(:)    , allocatable :: fx_rec , fy_rec , fz_rec
@@ -1796,10 +1878,12 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   double precision :: mip    ( ntype , 3 )
 
+  double precision :: cutsq
   double precision :: rxi  , ryi  , rzi
   double precision :: rxj  , ryj  , rzj
   double precision :: kx   , ky   , kz 
   double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
   double precision :: fxij , fyij , fzij
   double precision :: kk   , kri  , Ak , kcoe
   double precision :: qi   , qj   , qij
@@ -1819,7 +1903,6 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   double precision :: selfa , selfa2 
   double precision, external :: errfc
   double precision :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 ) 
-  double precision :: invbox
   double precision :: tpi_V , tpi_3V , fpi_V , fpi_3V 
   double precision :: ttt1 , ttt2  , ttt3 , ttt4
 
@@ -1856,7 +1939,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   qmu_sum ( 3 ) = qtot ( 3 ) + mutot ( 3 ) 
 
 
-#ifdef debug
+#ifdef debug2
   if ( ionode ) then
   write( stdout , '(a)')          'debug : in engforce_charge_ES'
   write( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nkcut,' ',km_coul%meshlabel
@@ -1870,7 +1953,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     write( stdout , '(a,3f12.5)') 'debug : dipole (atom) ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
   enddo
   do it = 1 , ntype
-    write( stdout , '(a,3f12.5)') 'debug : dipole (type) ',  mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
+    write( stdout , '(a,3f12.5)') 'debug : dipole (type) ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
   enddo
   write( stdout , '(a,2i8)')      'debug : iastart iaend ',iastart ,iaend
   write( stdout , '(a,f20.5)')    'debug : alphaES       ', alphaES
@@ -1926,19 +2009,24 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! =====================
   CALL struc_fact ( km_coul )
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+
   ! =================
   !  some constants 
   ! =================
-  tpi_V  = tpi    / omega  ! 2pi / V
+  tpi_V  = tpi    / simu_cell%omega  ! 2pi / V
   tpi_3V = tpi_V  / 3.0d0  ! 2pi / 3V 
   fpi_V  = tpi_V  * 2.0d0  ! 4pi / V
   fpi_3V = tpi_3V * 2.0d0  ! 4pi / 3V
-  invbox = 1.0d0 / box
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
   selfa  = alphaES / piroot
   selfa2 = 2.0d0 * selfa * alpha2 / 3.0d0
+  cutsq  = cutoff * cutoff
 
   ! ==============================================
   !        direct space part
@@ -1968,15 +2056,14 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
         rxij = rxi - rxj
         ryij = ryi - ryj
         rzij = rzi - rzj
-
-        nxij = NINT ( rxij * invbox )
-        nyij = NINT ( ryij * invbox )
-        nzij = NINT ( rzij * invbox )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
-
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         d2  = rxij * rxij + ryij * ryij + rzij * rzij
+      !if ( d2 .lt. cutsq ) then
         d   = SQRT ( d2 )
         d3  = d2 * d 
         d5  = d3 * d2 
@@ -2179,6 +2266,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
         ! virial
         vir_dir = vir_dir + ( fxij * rxij + fyij * ryij + fzij * rzij )
+!       endif
 
       endif
 
@@ -2188,6 +2276,11 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
 
   ! ==============================================
   !            reciprocal space part
@@ -2214,10 +2307,10 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     ! ===============================
     rhon   = (0.d0, 0.d0)
     rhonmu = (0.d0, 0.d0)
-    do it = 1, ntype
-      k_dot_mu = ( mip ( it , 1 ) * kx + mip ( it , 2 ) * ky + mip ( it , 3 ) * kz  ) 
-      rhon = rhon + ( qch(it) + imag * k_dot_mu ) * km_coul%strf ( ik , it ) 
-      rhonmu = rhonmu + imag * k_dot_mu * km_coul%strf ( ik , it ) 
+    do ja = 1, natm
+      k_dot_mu = ( mu ( ja , 1 ) * kx + mu ( ja , 2 ) * ky + mu ( ja , 3 ) * kz  ) 
+      rhon = rhon + ( qia(ja) + imag * k_dot_mu ) * km_coul%strf ( ik , ja ) 
+      rhonmu = rhonmu + imag * k_dot_mu * km_coul%strf ( ik , ja ) 
     enddo
 
     str = rhon * CONJG(rhon)
@@ -2312,11 +2405,11 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
   ! ======================================================
 
-  tau_dir =   tau_dir * 0.5d0 !/ omega
+  tau_dir =   tau_dir * 0.5d0 
   u_dir   =   u_dir   * 0.5d0
   vir_dir = - vir_dir * 0.5d0
 
-  tau_rec =   tau_rec * tpi_V / omega
+  tau_rec =   tau_rec * tpi_V / simu_cell%omega
   u_rec   =   u_rec   * tpi_V  
   vir_rec =   vir_rec * tpi_V 
   phi_rec =   phi_rec * fpi_V 
@@ -2364,7 +2457,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! electrostic energy 
   u_self   = - selfa * qsq - selfa2 * musq
-!  vir_self = - 9.0d0 * pi / 2.0d0 * qsq / alpha2 / omega 
+!  vir_self = - 9.0d0 * pi / 2.0d0 * qsq / alpha2 / simu_cell%omega 
  
   ! potential , field , field gradient ( no contrib to forces ) 
   do ia = 1 , natm
@@ -2372,7 +2465,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
    ef_self( ia , 1 ) = 2.0d0 * selfa2 * mu ( ia , 1 ) 
    ef_self( ia , 2 ) = 2.0d0 * selfa2 * mu ( ia , 2 ) 
    ef_self( ia , 3 ) = 2.0d0 * selfa2 * mu ( ia , 3 ) 
-   efg_self ( ia , 1 , 1 ) = - 2.0d0 * selfa2 * qia ( ia ) 
+   efg_self ( ia , 1 , 1 ) = - 2.0d0 * selfa2 * qia ( ia )
    efg_self ( ia , 2 , 2 ) = - 2.0d0 * selfa2 * qia ( ia ) 
    efg_self ( ia , 3 , 3 ) = - 2.0d0 * selfa2 * qia ( ia ) 
   enddo
@@ -2411,7 +2504,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   efg ( : , 3 , 1 ) = efg ( : , 1 , 3 )
   efg ( : , 3 , 2 ) = efg ( : , 2 , 3 )
 
-#ifdef debug 
+#ifdef debug2 
   if ( ionode ) then
     WRITE ( stdout , '(a)' ) ' '
     WRITE ( stdout , '(a)' )     'Electric field at atoms : '
@@ -2479,13 +2572,6 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
   CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
 #endif
-    WRITE ( stdout , '(a)' ) 'Energy and virial : '
-    WRITE ( stdout , '(5(a,f16.8))' ) ,'vir_dir    = ', vir_dir    ,' vir_rec    = ', vir_rec    ,' vir_surf    = ',vir_surf   ,' vir_self    = '   ,vir_self   ,'                           vir_coul    = ',vir_coul
-    WRITE ( stdout , '(5(a,f16.8))' ) ,'phi_dir(1) = ', phi_dir(1) ,' phi_rec(1) = ', phi_rec(1) ,' phi_surf(1) = ',phi_surf(1),' phi_self(1) = '   ,phi_self(1),'                           phi_coul(1) = ',phi_coul (1)
-    WRITE ( stdout , '(6(a,f16.8))' ) ,'u_dir      = ', u_dir      ,' u_rec      = ', u_rec      ,' u_surf      = ',u_surf     ,' u_self      = '   ,u_self     ,' u_pol  = ',u_pol,' u_coul      = ',u_coul
-  CALL print_tensor( tau_dir  ( : , : )     , 'TAU_DIR ' )
-  CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
-  CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
 
   deallocate( ef_dir  , ef_rec , ef_surf , ef_self ) 
   deallocate( efg_dir , efg_rec , efg_self ) 
@@ -2515,7 +2601,7 @@ END SUBROUTINE multipole_ES
 
 SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , box , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell
   USE control,          ONLY : lvnlist , myrank 
   USE thermodynamic,    ONLY : u_morse , vir_morse
   USE time
@@ -2530,11 +2616,12 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! local
   integer          :: ia , ja , j1 , je , jb , ierr
   integer          :: p1 , p2
-  integer          :: nxij , nyij , nzij
   double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij , rijsq , rij , erh , erh2 
+  double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
+  double precision :: rijsq , rij , erh , erh2 
   double precision :: wij , fxij , fyij , fzij
-  double precision :: forcetime1 , forcetime2 , invbox
+  double precision :: forcetime1 , forcetime2 
   double precision :: u , vir
   double precision :: expon 
 
@@ -2554,8 +2641,6 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   fx  = 0.0D0
   fy  = 0.0D0
   fz  = 0.0D0
-
-  invbox = 1.0d0 / box
 
   if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
   do ia = iastart , iaend
@@ -2579,12 +2664,12 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        nxij = NINT ( rxij * invbox )
-        nyij = NINT ( ryij * invbox )
-        nzij = NINT ( rzij * invbox )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1 = itype ( ja )
         p2 = itype ( ia )
@@ -2637,7 +2722,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
 END SUBROUTINE engforce_morse_pbc
 
-!*********************** SUBROUTINE engforce_morse_pbc *************************
+!*********************** SUBROUTINE moment_from_pola *************************
 !
 ! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
 ! The evaluation is done self-consistently starting from the the field due the
@@ -2774,20 +2859,197 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
     WRITE ( stdout , '(a,i6,a)') 'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
     WRITE ( stdout , '(a,e10.3)') 'Electric field is converged within ',conv_tol_ind
     WRITE ( stdout , '(a)' ) ' '
-#ifdef debug
     WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
       ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
     enddo
     WRITE ( stdout , '(a)' ) ' '
-#endif 
   endif
 
 
   return
 
 END SUBROUTINE moment_from_pola
+
+!*********************** SUBROUTINE moment_from_pola *************************
+!
+! This routines evaluates the dipole moment induced by Wannier centers (Wfc).
+! the listing of Wfc are done has for the verlet list
+!  
+!          wfc_point         : array of size natm+1 
+!                            gives the starting and finishing index of array
+!                            list for a given atom i
+!                            jbegin = point(i)  jend = point(i+1) - 1
+!          wfc_list          : index list of neighboring atoms
+!
+! how to use it :
+!                          do ia = 1, natm
+!                            jbegin = wfc_point(i)
+!                            jend = wfc_point(i+1) - 1
+!                            do jvnl = jbegin , jend
+!                              ja = wfc_list ( jvnl ) 
+!                              then ia en ja are neighboors   
+!                            enddo
+!                          enddo
+
+!
+!******************************************************************************
+
+SUBROUTINE moment_from_WFc ( mu )
+
+  USE config , ONLY : natm , ntype , itype , atype , simu_cell , rx , ry , rz
+  USe cell
+
+  implicit none
+
+  ! global
+  double precision :: mu ( natm ,  3 ) 
+  ! local
+  integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
+  integer, dimension ( : ) , allocatable :: cwfc 
+  integer, dimension(:), allocatable :: wfc_list, wfc_point                   ! vnlist info
+  logical :: lwannier 
+  double precision :: rijsq, cutsq
+  double precision :: rxi , ryi , rzi
+  double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
+
+  ! =========================================================
+  !  Is there any Wannier center ? if yes lwannier = .TRUE.
+  ! =========================================================
+  lwannier = .false.
+  do it = 1 , ntype
+    if ( lwfc ( it ) .gt. 0 ) lwannier = .true.
+  enddo
+  if ( .not. lwannier ) then
+    return
+  endif
+
+#ifdef debug_wfc
+  write ( * , * ) 'in moment_from_WFs !!'
+#endif
+
+  cutsq = rcut_wfc * rcut_wfc
+  mu = 0.0d0
+
+  allocate( wfc_list ( natm * 250 ) , wfc_point(  natm + 1 ) )
+  allocate ( cwfc ( natm ) )
+  cwfc = 0
+  wfc_list      = 0
+  wfc_point     = 0
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+
+  icount = 1
+  do ia = 1 , natm 
+    it = itype ( ia ) 
+    if ( lwfc ( it ) .gt. 0 )  then
+      rxi = rx ( ia )
+      ryi = ry ( ia )
+      rzi = rz ( ia )
+      k = 0    
+      do ja = 1 , natm
+        jt = itype (ja) 
+        if ( lwfc ( jt ) .lt. 0 )  then
+          rxij  = rxi - rx ( ja )
+          ryij  = ryi - ry ( ja )
+          rzij  = rzi - rz ( ja )
+          sxij  = rxij - nint ( rxij )
+          syij  = ryij - nint ( ryij )
+          szij  = rzij - nint ( rzij )
+          rxij  = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+          ryij  = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+          rzij  = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+          rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+          if ( rijsq .lt. rcut_wfc ) then
+            cwfc ( ia ) = cwfc ( ia ) + 1
+            icount = icount+1
+            k = k + 1
+            wfc_list( icount - 1 ) = ja
+            ia_last = ia
+
+#ifdef debug_wfc
+          write(*,'(a4,i4,a4,i4,2e17.8)') atype(ia),ia,atype(ja),ja,SQRT(rijsq),rcut_wfc
+          write(*,'(a,5e17.8)') 'distance ',rxij,ryij,rzij,SQRT(rijsq),rcut_wfc
+#endif
+          endif
+
+        endif
+ 
+      enddo
+      wfc_point( ia ) = icount-k
+    endif
+  enddo
+  wfc_point ( ia_last + 1 ) = icount
+
+
+  ! ======================================
+  !  check if wannier centers are missing
+  ! ======================================
+  do ia = 1 , natm
+    it = itype ( ia ) 
+    if ( ( lwfc(it) .gt. 0) .and. (cwfc(ia).ne.lwfc(it)) ) then
+      WRITE ( * ,* ) 'ERROR is moment_from_WFc : wannier center is missing for atom ',ia , cwfc ( ia ) , lwfc ( it ) 
+      STOP 
+    endif
+  enddo
+
+  ! =============================================
+  !  compute dipole moments from Wannier centers
+  ! =============================================
+  do ia = 1 , natm
+    it = itype ( ia ) 
+    jb = wfc_point ( ia )
+    je = wfc_point ( ia + 1 ) - 1
+    if ( lwfc ( it ) .gt. 0 ) then
+      rxi = rx ( ia )
+      ryi = ry ( ia )
+      rzi = rz ( ia )
+      jb = wfc_point ( ia )
+      je = wfc_point ( ia + 1 ) - 1
+      do jwfc = jb , je
+        ja = wfc_list ( jwfc )
+        rxij  = rx ( ja ) - rxi
+        ryij  = ry ( ja ) - ryi
+        rzij  = rz ( ja ) - rzi
+        sxij  = rxij - nint ( rxij )
+        syij  = ryij - nint ( ryij )
+        szij  = rzij - nint ( rzij )
+        rxij  = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij  = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij  = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+        mu ( ia , 1 ) = mu ( ia , 1 ) + rxij 
+        mu ( ia , 2 ) = mu ( ia , 2 ) + ryij
+        mu ( ia , 3 ) = mu ( ia , 3 ) + rzij
+      enddo
+    endif
+  enddo
+
+  ! charges of Wfc
+  mu = -2.0d0 * mu 
+
+#ifdef debug_wfc
+  write ( *, '(a)' ) 'mu from Wannier centers'  
+  do ia= 1 , natm
+    write ( *, '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
+  enddo
+#endif
+
+  deallocate( wfc_list , wfc_point )
+  deallocate ( cwfc ) 
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
+  return
+
+END SUBROUTINE moment_from_WFc
 
 
 

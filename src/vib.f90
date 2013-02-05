@@ -20,6 +20,7 @@
 !#define debug
 ! ======= Hardware =======
 
+!!!! WARNING !!!!! only cubic cells
 
 MODULE vib
 
@@ -146,7 +147,7 @@ END SUBROUTINE vib_default_tag
 SUBROUTINE vib_print_info(kunit)
 
   USE control,  ONLY :  lpbc , calc 
-  USE config,   ONLY :  natm , box, ntype, rho
+  USE config,   ONLY :  natm , ntype, rho
   USE io_file,  ONLY :  ionode
 
   implicit none
@@ -171,7 +172,7 @@ SUBROUTINE vib_print_info(kunit)
                       WRITE ( kunit ,'(a)')       'program, and so is fvibhist.'
                       WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR and probably F. Affouard'
      endif
-     if (.not.lpbc)   WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic box)'
+     if (.not.lpbc)   WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic cell)'
      if (lpbc)        WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
                       WRITE ( kunit ,'(a)')       ''
                       WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
@@ -201,20 +202,21 @@ END SUBROUTINE vib_print_info
 SUBROUTINE vib_main 
 
   USE config,           ONLY :  system , natm , natmi , rx , ry , rz , fx ,  & 
-                                fy , fz , atype , atypei , itype , box , omega , & 
+                                fy , fz , atype , atypei , itype , simu_cell , & 
                                 rho , ntype, config_alloc , list , point, ncell
   USE md,               ONLY :  temp
   USE control,          ONLY :  calc , myrank , numprocs
   USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
                                 kunit_DOSFF , kunit_MODFF, kunit_OUTFF, kunit_DOSKFF , kunit_IBZKPTFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
+  USE cell
   USE field
 
   implicit none
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , j , ik , ikd , ia , ja , im , ic , PANdos , ka , it , cc , ccs , nk
+  integer :: i , j , ik , ikd , ia , ja , im , ic , PANdos , ka , it , nk
   double precision :: pressure0, pot0, ak
   double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
   integer, dimension(:), allocatable :: dostab
@@ -258,13 +260,17 @@ SUBROUTINE vib_main
   ! ==============================
   READ ( kunit_ISCFF , * ) natm  
   READ ( kunit_ISCFF , * ) system 
-  READ ( kunit_ISCFF , * ) box,ntype
+  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+  READ ( kunit_ISCFF , * ) ntype
   READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
-  omega = box * box * box      
-  rho = DBLE ( natm ) / omega 
+
+  CALL lattice ( simu_cell )
+  rho = DBLE ( natm ) / simu_cell%omega 
   ! ===================================
   !  here we know natm, then alloc 
   !  and decomposition can be applied 
@@ -297,19 +303,8 @@ SUBROUTINE vib_main
     do ia = 1 , natm
       READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
     enddo
-    ! ==========================
-    !  set some type parameters
-    ! ==========================      
-    natmi ( 0 ) = 0 
-    cc = 0
-    do it = 1 , ntype
-        ccs = cc
-        cc = cc + natmi ( it )
-      do ia = ccs + 1 , cc 
-        atype ( ia ) = atypei ( it ) 
-        itype ( ia ) = it 
-      enddo
-    enddo
+
+    CALL typeinfo_init
 
     ! ===============================================
     ! do we need forces or energy at this point ??? 
@@ -529,7 +524,7 @@ END SUBROUTINE vib_main
 
 SUBROUTINE hessian ( hess )
 
-  USE config,   ONLY :  natm, rx, ry, rz, box, itype  , ntype
+  USE config,   ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell
   USE io_file,  ONLY :  ionode , stdout
   USE field,    ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
 
@@ -572,12 +567,12 @@ SUBROUTINE hessian ( hess )
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
-      nxij = NINT ( rxij / box )
-      nyij = NINT ( ryij / box )
-      nzij = NINT ( rzij / box )
-      rxij = rxij - box * nxij
-      ryij = ryij - box * nyij
-      rzij = rzij - box * nzij
+      nxij = NINT ( rxij * simu_cell%BNORM(1) )
+      nyij = NINT ( ryij * simu_cell%BNORM(2) )
+      nzij = NINT ( rzij * simu_cell%BNORM(3) )
+      rxij = rxij - simu_cell%ANORM(1) * nxij
+      ryij = ryij - simu_cell%ANORM(2) * nyij
+      rzij = rzij - simu_cell%ANORM(3) * nzij
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
       p1 = itype ( ia )
@@ -948,7 +943,7 @@ END SUBROUTINE generate_modes
 
 SUBROUTINE band ( hess )
 
-  USE config,       ONLY :  natm , rx , ry , rz , box , ncell , itype
+  USE config,       ONLY :  natm , rx , ry , rz , ncell , itype , simu_cell
   USE control,      ONLY :  calc
   USE constants,    ONLY :  tpi , pi
   USE io_file,      ONLY :  stdout , kunit_DOSKFF
@@ -963,7 +958,9 @@ SUBROUTINE band ( hess )
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq
   double precision :: kxt , kyt , kzt
   integer          :: ik , ia , ja , p1 , p2
-  double precision :: ak , akn
+  double precision :: akx , aknx
+  double precision :: aky , akny
+  double precision :: akz , aknz
   double precision :: sphase
   double precision :: kxi , kyi , kzi , krx , kry , krz
   CHARACTER*1      :: jobz , uplo
@@ -978,10 +975,14 @@ SUBROUTINE band ( hess )
   jobz = 'V'
   uplo = 'U'
 
-  ak =  (tpi * ncell)/box
-  akn = (tpi * ncell)/(box * nkphon)
+  akx  = ( tpi * ncell ) * simu_cell%BNORM(1) 
+  aky  = ( tpi * ncell ) * simu_cell%BNORM(2) 
+  akz  = ( tpi * ncell ) * simu_cell%BNORM(3) 
+  aknx = akx / DBLE ( nkphon )  
+  akny = aky / DBLE ( nkphon )  
+  aknz = akz / DBLE ( nkphon )  
 #ifdef debug
-  write( stdout , '(a,f)') 'debug: ak,akn,ncell,box',ak,akn,ncell,box
+  write( stdout , '(a,f)') 'debug: ak,akn,ncell,cell',ak,akn,ncell,(simu_cell%ANORM(i),i=1,3)
 #endif
   kxt = kfx - ksx
   kyt = kfy - ksy
@@ -996,9 +997,9 @@ SUBROUTINE band ( hess )
   WRITE ( stdout ,'(a)') ''      
 
   do ik = 0,nkphon - 1
-     kxi = (kxt * akn * ik)  + ksx * ak
-     kyi = (kyt * akn * ik)  + ksy * ak 
-     kzi = (kzt * akn * ik)  + ksz * ak
+     kxi = (kxt * aknx * ik)  + ksx * akx
+     kyi = (kyt * akny * ik)  + ksy * aky 
+     kzi = (kzt * aknz * ik)  + ksz * akz
 
       tmp = 0.0d0
       hessij = 0.D0
@@ -1014,13 +1015,13 @@ SUBROUTINE band ( hess )
         ryij = ryi - ry(ja)
         rzij = rzi - rz(ja)
 
-        nxij = NINT ( rxij / box )
-        nyij = NINT ( ryij / box )
-        nzij = NINT ( rzij / box )
+        nxij = NINT ( rxij * simu_cell%BNORM(1) )
+        nyij = NINT ( ryij * simu_cell%BNORM(2) )
+        nzij = NINT ( rzij * simu_cell%BNORM(3) )
 
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        rxij = rxij - simu_cell%ANORM(1) * nxij
+        ryij = ryij - simu_cell%ANORM(2) * nyij
+        rzij = rzij - simu_cell%ANORM(3) * nzij
 
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
@@ -1078,7 +1079,7 @@ END SUBROUTINE band
 
 SUBROUTINE doskpt ( hess , eigenk , nk )
 
-  USE config,           ONLY :  natm , rx , ry , rz , box , ncell , itype
+  USE config,           ONLY :  natm , rx , ry , rz , ncell , itype , simu_cell
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  stdout , kunit_IBZKPTFF , kunit_DKFF
@@ -1096,7 +1097,9 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
   integer          :: ck ,kl, wi
   integer          :: ik, i, ia, ja, p1, p2
-  double precision :: ak, akn
+  double precision :: akx, aknx
+  double precision :: aky, akny
+  double precision :: akz, aknz
   double precision :: hessij(3,3), sphase
   double precision :: kxi, kyi, kzi, krx, kry, krz
   CHARACTER*1      :: jobz, uplo
@@ -1115,8 +1118,12 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   uplo = 'U'
 
   wi  = 1
-  ak  = ( tpi * ncell ) / ( box )
-  akn = ( tpi * ncell ) / ( box * nk )
+  akx  = ( tpi * ncell ) * simu_cell%BNORM(1) 
+  aky  = ( tpi * ncell ) * simu_cell%BNORM(2) 
+  akz  = ( tpi * ncell ) * simu_cell%BNORM(3) 
+  aknx = akx / DBLE ( nk )  
+  akny = aky / DBLE ( nk )  
+  aknz = akz / DBLE ( nk )  
 
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
@@ -1133,9 +1140,9 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
 
     READ ( kunit_IBZKPTFF , * ) kxi , kyi , kzi , wi
 
-    kxi = (kxi * ak)
-    kyi = (kyi * ak)
-    kzi = (kzi * ak)
+    kxi = (kxi * akx)
+    kyi = (kyi * aky)
+    kzi = (kzi * akz)
 
     tmpxx  = 0.0d0
     tmpyy  = 0.0d0
@@ -1157,12 +1164,12 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
         rxij = rxi - rx(ja)
         ryij = ryi - ry(ja)
         rzij = rzi - rz(ja)
-        nxij = NINT ( rxij / box )
-        nyij = NINT ( ryij / box )
-        nzij = NINT ( rzij / box )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
+        nxij = NINT ( rxij * simu_cell%BNORM(1) )
+        nyij = NINT ( ryij * simu_cell%BNORM(2) )
+        nzij = NINT ( rzij * simu_cell%BNORM(3) )
+        rxij = rxij - simu_cell%ANORM(1)* nxij
+        ryij = ryij - simu_cell%ANORM(2) * nyij
+        rzij = rzij - simu_cell%ANORM(3) * nzij
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
         p1 = itype(ia)

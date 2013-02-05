@@ -2,7 +2,7 @@
 SUBROUTINE Nymand_and_Linse_test
 
   USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , fx , fy ,fz , itype , &
-                        atypei , natmi, rho , box , omega , config_alloc , phi_coul_tot , phi_coul_qq , phi_coul_dd , qia , dipia , ipolar 
+                        atypei , natmi, rho , simu_cell , config_alloc , phi_coul_tot , qia , dipia , ipolar 
                        
   USE control,  ONLY :  longrange , myrank , numprocs , cutlongrange 
   USE io_file      , ONLY : ionode , stdout , kunit_OUTFF , kunit_POSFF, kunit_EFGALL, kunit_NMRFF 
@@ -10,13 +10,14 @@ SUBROUTINE Nymand_and_Linse_test
   USE efg,      ONLY : nmr_convention
   USE field,    ONLY : ef_t , efg_t , qch , dip , lpolar , field_init , rm_coul , km_coul , initialize_coulomb , finalize_coulomb,  &
                        alphaES , multipole_DS , multipole_ES 
+  USE cell
 
   implicit none
 
   INCLUDE 'mpif.h' 
 
   ! local
-  integer :: ia , it , cc , ccs , ifail , ierr
+  integer :: ia , it , ifail 
   integer :: iastart , iaend
   integer, parameter :: lwork = 6
   double precision , dimension(:,:)   , allocatable :: ef_tmp
@@ -33,17 +34,21 @@ SUBROUTINE Nymand_and_Linse_test
 
   READ ( kunit_POSFF, * )  natm 
   READ ( kunit_POSFF, * )  system
-  READ ( kunit_POSFF, * )  box,ntype
+  READ ( kunit_POSFF ,* ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+  READ ( kunit_POSFF ,* ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+  READ ( kunit_POSFF ,* ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+  READ ( kunit_POSFF, * )  ntype
   READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   READ( kunit_POSFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-  omega = box * box * box
+
+  CALL lattice ( simu_cell )
   natm = 0
   do it = 1 , ntype
     natm = natm + natmi(it)
   enddo
-  rho = DBLE ( natm ) / omega
+  rho = DBLE ( natm ) / simu_cell%omega
 
   allocate ( ef_tmp    ( natm , 3 ) ) 
   allocate ( efg_tmp    ( natm , 3 , 3 ) ) 
@@ -75,26 +80,7 @@ SUBROUTINE Nymand_and_Linse_test
     READ ( kunit_POSFF, * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
   enddo
 
-  ! ==========================
-  !  set some type parameters
-  ! ==========================      
-  natmi ( 0 ) = 0
-  cc = 0
-  do it = 1 , ntype
-    ccs = cc
-    cc = cc + natmi ( it )
-    do ia = ccs + 1 , cc
-      atype ( ia )     = atypei ( it )
-      itype ( ia )     = it
-      qia   ( ia )     = qch (it)
-      dipia ( ia , 1 ) = dip ( it , 1 )
-      dipia ( ia , 2 ) = dip ( it , 2 )
-      dipia ( ia , 3 ) = dip ( it , 3 )
-      ipolar ( ia )    = lpolar ( it )
-    enddo
-  enddo
-  natmi  ( 0 ) = natm
-  atypei ( 0 ) = 'ALL'
+  CALL typeinfo_init 
 
   CALL distance_tab ( stdout )
  
@@ -134,7 +120,10 @@ SUBROUTINE Nymand_and_Linse_test
   if ( ionode  ) then
     WRITE ( kunit_EFGALL , * )  natm
     WRITE ( kunit_EFGALL , * )  system
-    WRITE ( kunit_EFGALL , * )  box,ntype
+    WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(1,2) , simu_cell%A(1,3)
+    WRITE ( kunit_EFGALL , * )  simu_cell%A(2,1) , simu_cell%A(2,2) , simu_cell%A(3,3)
+    WRITE ( kunit_EFGALL , * )  simu_cell%A(3,1) , simu_cell%A(3,2) , simu_cell%A(3,3)
+    WRITE ( kunit_EFGALL , * )  ntype
     WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
     WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
     WRITE ( kunit_EFGALL ,'(a)') &
@@ -228,39 +217,22 @@ SUBROUTINE NL_field_print_info ( kunit )
 
   USE io_file,  ONLY :  ionode
   USE control,  ONLY :  calc , longrange , cutlongrange
-  USE config,   ONLY :  box
-  USE field,    ONLY :  ncelldirect , ncellewald , alphaES 
+  USE config,   ONLY :  simu_cell 
+  USE field,    ONLY :  ncelldirect , kES , alphaES 
 
   implicit none
 
   ! global 
   integer :: kunit
   ! local
-  double precision :: aaa
+  double precision :: aaa , i 
 
   if ( ionode ) then
       WRITE ( kunit ,'(a)')           '============================================================='
       WRITE ( kunit ,'(a)')           ''
       WRITE ( kunit ,'(a)')           'Nymand and Linse test simple systems : '
       WRITE ( kunit ,'(a)')           'atomic charge, dipole and polarisabilities'
-      if ( longrange .eq. 'direct' )  then
-        WRITE ( kunit ,'(a)')         'direct summation'
-        WRITE ( kunit ,'(a)')         'cubic cutoff in real space'
-        WRITE ( kunit ,'(a,f10.5)')   'distance cutoff           cutlongrange = ',cutlongrange
-        WRITE ( kunit ,'(a,i10)')     '-ncelldirect ... ncelldirect     = ',ncelldirect
-        WRITE ( kunit ,'(a,i10)')     'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
-      endif
-      if ( longrange .eq. 'ewald' )  then
-        CALL estimate_alpha( aaa )
-        WRITE ( kunit ,'(a)')                   'ewald summation' 
-        WRITE ( kunit ,'(a,f10.5,a,f10.5,a)')   'alpha = ',alphaES,' ( ',aaa,' ) '
-        WRITE ( kunit ,'(a,f10.5)')             'cutoff in real part = ',cutlongrange
-        WRITE ( kunit ,'(a,i10)')               'ncellewald = ',ncellewald
-        WRITE ( kunit ,'(a,i10)')               ''
-        WRITE ( kunit ,'(a,f10.5)')             'Note:this should hold alpha^2 * box^2 >> 1',alphaES*alphaES*box*box
-        WRITE ( kunit ,'(a,f10.5)')             'from estimate_alpha ', aaa
-      endif
-      WRITE ( kunit ,'(a)')         'read config from file            : POSFF'
+      WRITE ( kunit ,'(a)')           'read config from file            : POSFF'
   endif
  
   return

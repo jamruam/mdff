@@ -63,13 +63,13 @@ SUBROUTINE md_run ( iastart , iaend , offset )
 
 
   USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
-                        write_CONTFF , box , center_of_mass , ntypemax , tau_lj , tau_coul 
+                        write_CONTFF , center_of_mass , ntypemax , tau_lj , tau_coul 
   USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse
   USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
                         kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
   USE prop,     ONLY :  lstrfac , lmsd , lvacf , nprop , nprop_start
   USE md,       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
-                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , write_traj_xyz_test , integrator
+                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator
 
   USE thermodynamic
   USE time
@@ -251,11 +251,11 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! =========================    
          !  integration t -> t + dt 
          ! =========================
-         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend )!, list , point )
-         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend )!, list , point )
+         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend )
+         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend )
+         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend )
+         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend )
+         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend )
 
 #ifdef debug
          CALL print_config_sample(itime,0)
@@ -288,9 +288,6 @@ MAIN:  do itime = offset , npas + (offset-1)
            xtmp = rx
            ytmp = ry
            ztmp = rz
-#ifdef debug
-           CALL write_traj_xyz_test
-#endif 
            CALL write_traj_xyz
            rx = xtmp
            ry = ytmp

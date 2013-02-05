@@ -18,7 +18,8 @@
 
 ! ======= Hardware =======
 
-!#define debug
+#define debug
+#define debug2
 
 !fix_grid in efg
 !#define fix_grid
@@ -42,6 +43,7 @@ MODULE efg
   logical :: lefg_it_contrib            ! if ones want to get the contributions to EFG separated in types
   logical :: lefg_restart               ! if EFGALL files are ready
   logical :: lefg_old                   ! use efg_DS and efg_ES ( old routines ) 
+  logical :: lefg_stat                  ! compute statitics distribution on EFG's 
   integer :: ncefg                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
   integer :: ntcor                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
 
@@ -98,6 +100,7 @@ SUBROUTINE efg_init
                      lefg_it_contrib  , &
                      lefg_restart     , &
                      lefg_old         , &
+                     lefg_stat        , &
                      ncefg            , & 
                      ntcor            , &
                      resvzz           , &
@@ -119,10 +122,10 @@ SUBROUTINE efg_init
   OPEN ( stdin , file = filename)
   READ ( stdin , efgtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag section is absent'
+   if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : efgtag wrong tag'
+   if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag wrong tag'
    STOP
   endif
 
@@ -155,10 +158,11 @@ SUBROUTINE efg_default_tag
   ! =================
   !  default values
   ! =================
-  lefgprintall       = .false. 
+  lefgprintall       = .true. 
   lefg_it_contrib    = .false.
   lefg_old           = .false.
   lefg_restart       = .false.
+  lefg_stat          = .false.
   reseta             =   0.1D0
   resvzz             =   0.1D0
   resu               =   0.1D0 
@@ -181,13 +185,13 @@ END SUBROUTINE efg_default_tag
 SUBROUTINE efg_check_tag
 
   USE control,  ONLY :  calc , longrange
-  USE io_file,  ONLY :  ionode , stdout
+  USE io_file,  ONLY :  ionode , stderr
   USE config,   ONLY :  ntype
 
   implicit none
 
   if ( calc .eq. 'efg+acf' .and. ntype .gt. 2 ) then
-    if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
+    if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
     STOP 
   endif
 
@@ -197,7 +201,7 @@ SUBROUTINE efg_check_tag
   !  check vzzmin and Umin .ne. 0
   ! ==================================
   if ( vzzmin .eq. 0d0 .or. umin .eq. 0d0 ) then
-    if ( ionode ) WRITE ( stdout ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin   
+    if ( ionode ) WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin   
     STOP
   endif             
   ! ==========================================
@@ -221,56 +225,23 @@ SUBROUTINE efg_print_info(kunit)
 
   USE io_file,  ONLY :  ionode 
   USE control,  ONLY :  calc , longrange , cutlongrange
-  USE config,   ONLY :  box  , ntype , atypei , natmi
+  USE config,   ONLY :  ntype , atypei , natmi , simu_cell
   USE constants,ONLY :  tpi
-  USE field    ,ONLY :  qch , alphaES , ncellewald , ncelldirect
+  USE field    ,ONLY :  qch , alphaES , ncelldirect , kES
 
   implicit none
 
   !local
-  integer :: kunit , it
-  integer :: nkcut_full
-  double precision :: aaa , rcut2 , kmax2 , alpha2 , ereal , ereci , qtot
+  integer :: kunit , it, i
+  double precision :: aaa , rcut2 , kmax2 , alpha2 , ereal , ereci(3) , qtot
 
-  nkcut_full = ( 2 * ncellewald + 1 ) ** 3
-
-  kmax2 = tpi / box * ncellewald
-  kmax2 = kmax2 * kmax2 
-  rcut2 = box * box * 0.25d0
-  alpha2 = alphaES * alphaES
-  ereal = 2.0D0 * EXP ( - alpha2 * rcut2 ) / box
-  ereci = EXP ( - kmax2 / alpha2 * 0.25d0 ) / kmax2
-
-  qtot = 0.0d0 
   if ( ionode ) then
     if ( calc .eq. 'efg' ) then
       WRITE ( kunit ,'(a)')                     '=============================================================' 
       WRITE ( kunit ,'(a)')                     ''
       WRITE ( kunit ,'(a)')                     'electric field gradient:'
       WRITE ( kunit ,'(a)')                     'point charges calculation'
-      do it = 1 , ntype 
-        WRITE ( kunit ,'(a,a,a,f10.5)') 'q',atypei(it),'      =',qch(it)
-        qtot = qtot + qch(it) * natmi ( it ) 
-      enddo
     WRITE ( kunit ,'(a,f10.5)')                 'total charge of the system = ',  qtot
-      if ( longrange .eq. 'direct' )  then
-        WRITE ( kunit ,'(a)')                   'direct summation'
-        WRITE ( kunit ,'(a)')                   'cubic cutoff in real space'
-        WRITE ( kunit ,'(a,f10.5)')             'distance cutoff           cutlongrange = ',cutlongrange
-        WRITE ( kunit ,'(a,i10)')               '-ncelldirect ... ncelldirect     = ',ncelldirect
-        WRITE ( kunit ,'(a,i10)')               'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
-      endif     
-      if ( longrange .eq. 'ewald' )  then
-        CALL estimate_alpha( aaa )
-        WRITE ( kunit ,'(a)')                   'ewald summation'
-        WRITE ( kunit ,'(a,f10.5,a,f10.5,a)')   'alpha (estimate alpha)           = ',alphaES,' ( ',aaa,' ) '
-        WRITE ( kunit ,'(a,i10)')               'ncellewald                       = ',ncellewald
-        WRITE ( kunit ,'(a,i10)')               'nckut (full)                     = ',nkcut_full
-        WRITE ( kunit ,'(a,i10)')               '' 
-        WRITE ( kunit ,'(a,f10.5)')             'Note:this should hold alpha^2 * box^2 >> 1',alphaES*alphaES*box*box
-        WRITE ( kunit ,'(a,e12.5)')             'relative error in real space       : ',ereal
-        WRITE ( kunit ,'(a,e12.5)')             'relative error in reciprocal space : ',ereci
-      endif
       if ( calc .eq. 'efg')  then 
         WRITE ( kunit ,'(a)')         'read config from file            : TRAJFF'
         WRITE ( kunit ,'(a,i10)')     'numbers of config read ncefg     = ',ncefg 
@@ -284,7 +255,6 @@ SUBROUTINE efg_print_info(kunit)
       if ( lefgprintall )  then
         WRITE ( kunit ,'(a)')         'EFG for all atoms          : EFGALL '
       endif
-      WRITE ( kunit ,'(a)')           ''
       WRITE ( kunit ,'(a)')           'distributions parameters:'
       WRITE ( kunit ,'(a,f10.5)')     'eta between    0.00000 and    1.00000 with resolution ',reseta
       WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)') &
@@ -318,29 +288,33 @@ SUBROUTINE efgcalc
 
   USE io_file
   USE config,   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
-                        atypei , natmi, rho , box , omega , config_alloc , qia, &
-                        dipia , dipia_ind , ipolar , fx , phi_coul_tot
+                        atypei , natmi, rho , simu_cell , config_alloc , qia, &
+                        dipia , dipia_ind , dipia_wfc , ipolar , fx , fy , fz , phi_coul_tot , config_print_info 
   USE control,  ONLY :  longrange , myrank , numprocs
-  USE field,    ONLY :  qch , dip , field_init , lpolar , moment_from_pola , rm_coul , km_coul , alphaES
-
+  USE field,    ONLY :  qch , dip , field_init , lpolar , lwfc , moment_from_pola , moment_from_wfc , rm_coul , km_coul , alphaES , multipole_DS , multipole_ES
+  USE cell
   USE constants, ONLY : fpi
+  USE thermodynamic, ONLY : u_coul_tot , vir_coul_tot , u_pol
 
   implicit none
   INCLUDE 'mpif.h'
 
   ! local
   integer :: iastart , iaend
-  integer :: ia, iconf , na , it , it2 , cc , ccs
+  integer :: ia, iconf , na , it , it2 
   double precision :: aaaa 
   integer :: iiii , ierr
   character * 60 :: cccc 
   integer :: kunit
   integer :: kunit_it(2) ! <--  not general enough should be ntype dependent
   double precision :: ttt1 , ttt2
-
+  double precision , dimension(:,:)   , allocatable :: ef_tmp
+  double precision , dimension(:,:,:) , allocatable :: efg_tmp
+ 
 #ifdef fix_grid
   double precision, dimension ( : , : ) , allocatable :: rave !average positions
 #endif
+
 
   ! ==================================
   !  if lefg_restart EFGALL are ready
@@ -356,15 +330,22 @@ SUBROUTINE efgcalc
 
     OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
 
-    READ ( kunit_TRAJFF, * )  natm 
-    READ ( kunit_TRAJFF, * )  system
-    READ ( kunit_TRAJFF, * )  box,ntype
-    READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
+    READ ( kunit_TRAJFF , * ) natm 
+    READ ( kunit_TRAJFF , * ) system
+    READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+    READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+    READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+    READ ( kunit_TRAJFF , * ) ntype
+    READ ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
     IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
     IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
     READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-    omega = box * box * box
-    rho = natm / omega
+
+    allocate ( ef_tmp  ( natm , 3     ) )
+    allocate ( efg_tmp ( natm , 3 , 3 ) )
+
+    CALL lattice ( simu_cell ) 
+    rho = natm / simu_cell%omega
     ! ===================================
     !  here we know natm, then alloc 
     !  and decomposition can be applied 
@@ -375,14 +356,14 @@ SUBROUTINE efgcalc
     CALL field_init
     CALL efg_alloc
     CALL efg_mesh_alloc
+    CALL typeinfo_init
     ! =============
     !  print info
     ! =============
     CALL efg_print_info(stdout)
     CALL efg_print_info(kunit_OUTFF)
   
-    CALL print_general_info( stdout )
-    CALL print_general_info( kunit_OUTFF )
+    CALL config_print_info(stdout)
   
     ! =============================================
     !  not fix_grid: we calculate efg at 
@@ -406,26 +387,13 @@ SUBROUTINE efgcalc
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo
 
-      ! ==========================
-      !  set some type parameters
-      ! ==========================      
-      natmi ( 0 ) = 0
-      cc = 0
-      do it = 1 , ntype
-        ccs = cc
-        cc = cc + natmi ( it )
-        do ia = ccs + 1 , cc
-          atype ( ia )     = atypei ( it )
-          itype ( ia )     = it
-          qia   ( ia )     = qch (it)
-          dipia ( ia , 1 ) = dip ( it , 1 )
-          dipia ( ia , 2 ) = dip ( it , 2 )
-          dipia ( ia , 3 ) = dip ( it , 3 )
-          ipolar ( ia )    = lpolar ( it )
-        enddo
-      enddo
-      natmi  ( 0 ) = natm
-      atypei ( 0 ) = 'ALL'
+#ifdef debug
+      ! ============================
+      !  print minimum distance 
+      !  and distance distribution
+      ! ============================
+      call distance_tab( kunit )
+#endif
 
       ! =======================
       !  total tensor (efg_t)
@@ -436,11 +404,29 @@ SUBROUTINE efgcalc
       !     induced moment
       ! =======================
       CALL moment_from_pola ( iastart , iaend , dipia_ind )
-      mu = dipia + dipia_ind
 
-      ! ======================
-      !    efg from charges
-      ! ======================
+      CALL moment_from_WFc ( dipia_wfc ) 
+
+      mu = dipia + dipia_ind + dipia_wfc
+
+      ! test purpose
+      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
+      if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
+
+      write(10000, * ) '#electric field'
+      write(10001, * ) '#dipoles'
+      write(10002, * ) '#forces'
+      write(10003, * ) '#efg'
+      do ia = 1 , natm
+        write(10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
+        write(10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
+        write(10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
+        write(10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
+      enddo
+
+      ! =======================================
+      !       efg charge only lefg_old=.true. 
+      ! =======================================
       if ( lefg_old ) then 
         ! ===============
         ! use direct sum
@@ -451,6 +437,9 @@ SUBROUTINE efgcalc
         ! ===============
         if ( longrange .eq. 'ewald' )   CALL efg_ES ( iastart , iaend , km_coul , alphaES )
       else
+      ! =======================================
+      !       efg charge + dipoles  
+      ! =======================================
         ! ===============
         ! use direct sum
         ! ===============
@@ -474,16 +463,21 @@ SUBROUTINE efgcalc
       if ( ionode  .and. lefgprintall ) then
         WRITE ( kunit_EFGALL , * )  natm
         WRITE ( kunit_EFGALL , * )  system
-        WRITE ( kunit_EFGALL , * )  box,ntype
+        WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+        WRITE ( kunit_EFGALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+        WRITE ( kunit_EFGALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+        WRITE ( kunit_EFGALL , * )  ntype
         WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
         WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
         WRITE ( kunit_EFGALL ,'(a)') &
         '      ia type                   vxx                   vyy                   vzz                   vxy                   vxz                   vyz'
         do ia = 1 , natm 
-          WRITE ( kunit_EFGALL ,'(i8,2x,a3,6f22.16)') ia , atype ( ia ) , efg_t ( ia , 1 , 1) , efg_t ( ia , 2 , 2) , &
-                                                                          efg_t ( ia , 3 , 3) , efg_t ( ia , 1 , 2) , &
-                                                                          efg_t ( ia , 1 , 3) , efg_t ( ia , 2 , 3)
-  
+          it = itype ( ia ) 
+          if ( lwfc( it ) .ge. 0 ) then 
+            WRITE ( kunit_EFGALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , efg_t ( ia , 1 , 1) , efg_t ( ia , 2 , 2) , &
+                                                                            efg_t ( ia , 3 , 3) , efg_t ( ia , 1 , 2) , &
+                                                                            efg_t ( ia , 1 , 3) , efg_t ( ia , 2 , 3)
+          endif
         enddo
       endif
 
@@ -495,16 +489,22 @@ SUBROUTINE efgcalc
           if ( ionode  .and. lefgprintall ) then
             WRITE ( kunit , * )  natm
             WRITE ( kunit , * )  system
-            WRITE ( kunit , * )  box,ntype
+            WRITE ( kunit , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+            WRITE ( kunit , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+            WRITE ( kunit , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+            WRITE ( kunit , * )  ntype
             WRITE ( kunit , * )  ( atypei ( it2 ) , it2 = 1 , ntype )
             WRITE ( kunit , * )  ( natmi  ( it2 ) , it2 = 1 , ntype )
             WRITE ( kunit ,'(a)') &
            '      ia type                   vxx                   vyy                   vzz                   vxy                   vxz                   vyz'
             do ia = 1 , natm
-              WRITE ( kunit ,'(i8,2x,a3,6f22.16)') &
-              ia , atype ( ia ) , efg_t_it ( ia , it , 1 , 1) , efg_t_it ( ia , it , 2 , 2) , &
-                                  efg_t_it ( ia , it , 3 , 3) , efg_t_it ( ia , it , 1 , 2) , &
-                                  efg_t_it ( ia , it , 1 , 3) , efg_t_it ( ia , it , 2 , 3)
+              it2 = itype ( ia ) 
+              if ( lwfc( it2 ) .ge. 0 ) then 
+                WRITE ( kunit ,'(i8,2x,a3,6e24.16)') &
+                ia , atype ( ia ) , efg_t_it ( ia , it , 1 , 1) , efg_t_it ( ia , it , 2 , 2) , &
+                                    efg_t_it ( ia , it , 3 , 3) , efg_t_it ( ia , it , 1 , 2) , &
+                                    efg_t_it ( ia , it , 1 , 3) , efg_t_it ( ia , it , 2 , 3)
+              endif
             enddo
           endif
         enddo
@@ -526,7 +526,9 @@ SUBROUTINE efgcalc
 
   CALL MPI_BARRIER( MPI_COMM_WORLD , ierr )
 
-  !calculate statistical properties from EFGALL
+  ! ========================================================
+  !     calculate statistical properties from EFGALL
+  ! ========================================================
   CALL io_open  ( kunit_EFGALL , 'EFGALL' , 'unknown' )
   CALL io_open  ( kunit_EFGFF  , 'EFGFF'  , 'unknown' )
   CALL io_open  ( kunit_NMRFF  , 'NMRFF'  , 'unknown' )
@@ -608,8 +610,9 @@ END SUBROUTINE efgcalc
 SUBROUTINE efg_DS ( iastart , iaend , rm )
 
   USE control,  ONLY :  myrank , numprocs , calc , cutlongrange
-  USE config,   ONLY :  system , natm , natmi , atype , atypei , box , itype , rx , ry , rz , ntype , qia 
+  USE config,   ONLY :  system , natm , natmi , atype , atypei , itype , rx , ry , rz , ntype , qia , simu_cell
   USE prop,     ONLY :  nprop_print
+  USE cell
   USE time
   USE io_file
 
@@ -625,7 +628,7 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
   integer :: ia, ja, ierr , it 
   integer :: ncell
   double precision :: d , d2 , d5 , dm5
-  double precision :: rxi , ryi , rzi , rxj , ryj , rzj , rxij , ryij , rzij
+  double precision :: rxi , ryi , rzi , rxj , ryj , rzj , rxij , ryij , rzij , sxij , syij , szij 
   double precision :: cutefgsq
   double precision :: ttt1 , ttt2 , ttt3
   logical :: lcharge
@@ -659,6 +662,12 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
      write( stdout ,'(a,i)')     'debug : rm%ncmax',rm%ncmax
      write( stdout ,'(a,f16.5)') 'debug : cutefgsq ',cutefgsq
 #endif
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+
 atom : do ia = iastart , iaend
     rxi = rx(ia)
     ryi = ry(ia)
@@ -676,11 +685,13 @@ atom : do ia = iastart , iaend
             rxj  = rx(ja) + rm%boxxyz(1,ncell)
             ryj  = ry(ja) + rm%boxxyz(2,ncell)
             rzj  = rz(ja) + rm%boxxyz(3,ncell)
-            rxij = rxi - rxj
-            ryij = ryi - ryj
-            rzij = rzi - rzj
+            sxij = rxi - rxj  
+            syij = ryi - ryj  
+            szij = rzi - rzj  
+            rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+            ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+            rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
             d2   = rxij * rxij + ryij * ryij + rzij * rzij
-
             if ( d2 .lt. cutefgsq ) then
               d = SQRT (d2)
               d5 = d2 * d2 * d
@@ -722,11 +733,13 @@ atom : do ia = iastart , iaend
               rxj  = rx(ja)
               ryj  = ry(ja)
               rzj  = rz(ja)
-              rxij = rxi - rxj
-              ryij = ryi - ryj
-              rzij = rzi - rzj
+              sxij = rxi - rxj
+              syij = ryi - ryj
+              szij = rzi - rzj
+              rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+              ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+              rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
               d2   = rxij * rxij + ryij * ryij + rzij * rzij
- 
               if (d2.lt.cutefgsq) then
                 d = SQRT (d2)
                 d5 = d2 * d2 * d
@@ -818,6 +831,12 @@ atom : do ia = iastart , iaend
   ttt3 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + (ttt3-ttt2)
 
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
+
   return
 
 END SUBROUTINE efg_DS
@@ -837,12 +856,13 @@ END SUBROUTINE efg_DS
 SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
 
   USE control,    ONLY :  myrank , numprocs, calc
-  USE config,     ONLY :  system , natm , natmi , atype , atypei , box , &
-                          omega , itype , rx , ry , rz , ntype , qia 
+  USE config,     ONLY :  system , natm , natmi , atype , atypei , &
+                          simu_cell , itype , rx , ry , rz , ntype , qia 
   USE constants,  ONLY :  pi , fpi , piroot , imag
   USE field,      ONLY :  qch
   USE kspace,     ONLY :  struc_fact
   USE prop,       ONLY :  nprop_print , nprop
+  USE cell 
   USE time
   USE io_file 
 
@@ -857,13 +877,11 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
 
   ! local
   integer :: ia , ja ,  ierr , it 
-  integer :: nxij , nyij , nzij
   double precision :: d , d2 , d4 , d3 , d5 , expon 
   double precision :: alpha2 , alpha3
   double precision :: allrealpart
   double precision :: T0 , T1 , T2  ! real part 
-  double precision :: rxi , ryi , rzi , rxij , ryij , rzij 
-  double precision :: invbox 
+  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , sxij , syij , szij
   double precision :: ak, kx, ky, kz, kk
   integer :: ik
   double precision :: kri 
@@ -909,13 +927,8 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
   ! =================
   !  some constants 
   ! =================
-  !onethird = 1/3.0D0
-  invbox = 1.0d0 / box
-
-  ! related ewald parameter
   alpha2 = alphaES * alphaES      
   alpha3 = alpha2  * alphaES
-
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -923,6 +936,11 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
   ! facteur de structure 
   ! =====================
   CALL struc_fact ( km )
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
   ttt2 = MPI_WTIME(ierr)
   strftimetot = strftimetot + (ttt2 - ttt1)
@@ -947,13 +965,12 @@ atom1: do ia = iastart , iaend
          rxij = rxi - rx(ja)
          ryij = ryi - ry(ja)
          rzij = rzi - rz(ja)
-         nxij = NINT ( rxij * invbox )
-         nyij = NINT ( ryij * invbox )
-         nzij = NINT ( rzij * invbox )
-         rxij = rxij - box * nxij
-         ryij = ryij - box * nyij
-         rzij = rzij - box * nzij
-  
+         sxij = rxij - nint ( rxij )
+         syij = ryij - nint ( ryij )
+         szij = rzij - nint ( rzij )
+         rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
          d2 = rxij * rxij + ryij * ryij + rzij * rzij
          d = SQRT ( d2 )
          d3 = d2 * d
@@ -1003,6 +1020,11 @@ atom1: do ia = iastart , iaend
   ttt3 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + (ttt3-ttt2)
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
 ! ==============================================
 !            reciprocal space part
 ! ==============================================
@@ -1036,8 +1058,10 @@ kpoint: do ik = 1, km%nkcut
       !                              /__
       ! ===============================
       rhon = (0.d0, 0.d0)
-      do it = 1, ntype
-        rhon = rhon + qch(it) * CONJG( km%strf ( ik , it ) )
+!      do it = 1, ntype
+      do ja = 1, natm
+!        rhon = rhon + qch(it) * CONJG( km%strf ( ik , it ) )
+        rhon = rhon + qia(ja) * CONJG( km%strf ( ik , ja ) )
       enddo
 
       kri = ( kx * rxi + ky * ryi + kz * rzi ) 
@@ -1129,14 +1153,14 @@ kpoint: do ik = 1, km%nkcut
   ! 4pi/3V
   ! =======
   efg_ia_dual_real( : , : , :) = DBLE ( efg_ia_dual( : , : , :)  ) 
-  efg_ia_dual_real =  efg_ia_dual_real * fpi / omega / 3.0d0
+  efg_ia_dual_real =  efg_ia_dual_real * fpi / simu_cell%omega / 3.0d0
 
   if ( lefg_it_contrib ) then
     ! =======
     ! 4pi/3V
     ! =======
     efg_ia_dual_real_it( : , : , : , :) = DBLE ( efg_ia_dual_it( : , : , : , :)  ) 
-    efg_ia_dual_real_it =  efg_ia_dual_real_it * fpi / omega / 3.0d0
+    efg_ia_dual_real_it =  efg_ia_dual_real_it * fpi / simu_cell%omega / 3.0d0
   endif
 
   ! ==============
@@ -1153,6 +1177,13 @@ kpoint: do ik = 1, km%nkcut
   ttt5 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + (ttt5-ttt4)
 
+#ifdef debug2 
+  CALL print_tensor( efg_ia_real  ( 1 , : , : ) , 'EFG_DIRO' )
+  CALL print_tensor( efg_ia_dual_real  ( 1 , : , : ) , 'EFG_RECO' )
+  CALL print_tensor( efg_ia   ( 1 , : , : ) , 'EFG_TOTO' )
+#endif
+
+
   return
 
 END SUBROUTINE efg_ES
@@ -1160,10 +1191,11 @@ END SUBROUTINE efg_ES
 
 SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
-  USE config,  ONLY : natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , omega
+  USE config,  ONLY : natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
   USE control, ONLY : cutlongrange , myrank
   USE io_file, ONLY : stdout , ionode 
   USE field,   ONLY :  qch
+  USE cell
   USE time
 
   implicit none
@@ -1181,6 +1213,7 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
   double precision :: rxi , ryi , rzi 
   double precision :: rxj , ryj , rzj
   double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
   double precision :: qj 
   double precision :: mujx , mujy , mujz
   double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
@@ -1215,6 +1248,11 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 #endif  
 
   efg_ia   = 0.0d0
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
   
 ! ==================================================================================================
 !  MAIN LOOP calculate EFG(i)  for each atom i parallelized
@@ -1236,14 +1274,15 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
         if ( ( .not.lcentralbox ) .or. ( lcentralbox .and. ja .ne. ia )  ) then
  
-            rxj   = rx ( ja ) + rm%boxxyz( 1 , ncell )
-            ryj   = ry ( ja ) + rm%boxxyz( 2 , ncell )
-            rzj   = rz ( ja ) + rm%boxxyz( 3 , ncell )
-
-            rxij  = rxi - rxj
-            ryij  = ryi - ryj
-            rzij  = rzi - rzj
-
+            rxj  = rx ( ja ) + rm%boxxyz( 1 , ncell )
+            ryj  = ry ( ja ) + rm%boxxyz( 2 , ncell )
+            rzj  = rz ( ja ) + rm%boxxyz( 3 , ncell )
+            sxij = rxi - rxj
+            syij = ryi - ryj
+            szij = rzi - rzj
+            rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+            ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+            rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
             d2    = rxij * rxij + ryij * ryij + rzij * rzij
 
             if ( d2 .lt. cutsq .and. d2 .ne. 0.0d0 ) then 
@@ -1329,6 +1368,11 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
   ttt3 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + ( ttt3 - ttt2 )
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
   return
 
 END SUBROUTINE multipole_efg_DS
@@ -1337,11 +1381,12 @@ END SUBROUTINE multipole_efg_DS
 
 SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
 
-  USE control,   ONLY : lsurf
-  USE config,    ONLY : natm , ntype , natmi , atype , rx , ry , rz , fx , fy , fz , qia , omega , box
+  USE control,   ONLY : lsurf ,cutoff
+  USE config,    ONLY : natm , ntype , natmi , atype , rx , ry , rz , fx , fy , fz , qia , simu_cell 
   USE constants, ONLY : imag , pi , piroot , tpi , fpi
   USE io_file  , ONLY : ionode , stdout 
-  USE field,     ONLY :  qch
+  USE field,     ONLY : qch
+  USE cell
   USE time
 
   implicit none
@@ -1356,7 +1401,6 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
 
   ! local 
   integer             :: ia , ja , ik , it , ip , ierr
-  integer             :: nxij , nyij , nzij
   double precision, dimension(:,:,:), allocatable :: efg_dir , efg_rec , efg_self
 
   double precision :: mip    ( ntype , 3 )
@@ -1365,21 +1409,21 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
   double precision :: rxj  , ryj  , rzj
   double precision :: kx   , ky   , kz 
   double precision :: rxij , ryij , rzij
+  double precision :: sxij , syij , szij
   double precision :: kk   , kri  , Ak 
   double precision :: qj  
   double precision :: mujx , mujy , mujz
   double complex   :: rhon , carg 
   double precision :: recarg 
-  double precision :: expon , F0 , F1 , F2 , F3 
+  double precision :: expon , F1 , F2 , F3 
   double precision :: k_dot_mu
   double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
   double precision :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
   double precision :: d , d2 , d3  , d5 
-  double precision :: dm1 , dm3 , dm5 , dm7 
+  double precision :: dm1 , dm5 , dm7 
   double precision :: alpha2 , alpha3 , alpha5 
   double precision :: selfa 
   double precision, external :: errfc
-  double precision :: invbox
   double precision :: fpi_V 
   double precision :: ttt1 , ttt2  , ttt3 , ttt4 
   double precision :: ttt1p , ttt2p 
@@ -1436,14 +1480,18 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
   ! =================
   !  some constants 
   ! =================
-  fpi_V  = fpi / omega  ! 4pi / V
-  invbox = 1.0d0 / box
+  fpi_V  = fpi / simu_cell%omega  ! 4pi / V
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
   selfa  = - 4.0d0 * alpha3 / 3.0d0 / piroot
 
   ttt1 = MPI_WTIME(ierr)
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
   ! ==============================================
   !        direct space part
@@ -1468,26 +1516,25 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
         rxij = rxi - rxj
         ryij = ryi - ryj
         rzij = rzi - rzj
-
-        nxij = NINT ( rxij * invbox )
-        nyij = NINT ( ryij * invbox )
-        nzij = NINT ( rzij * invbox )
-        rxij = rxij - box * nxij
-        ryij = ryij - box * nyij
-        rzij = rzij - box * nzij
-
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         d2  = rxij * rxij + ryij * ryij + rzij * rzij
         d   = SQRT ( d2 )
-        d3  = d2 * d 
-        d5  = d3 * d2 
+        d3  = d2 * d
+        d5  = d3 * d2
         dm1 = 1.0d0 / d
-        dm5 = 1.0d0 / d2 / d3 * qj
+        !dm3 = dm1 / d2
+        dm5 = 1.0d0 / d2 / d3 
         dm7 = dm5 / d2 * 3.0d0
- 
+
         expon = EXP ( - alpha2 * d2 )    / piroot
-        F1    = errfc( alphaES * d ) + 2.0d0 * alphaES * d  * expon 
+        F1    = errfc( alphaES * d ) + 2.0d0 * alphaES * d  * expon
         F2    = F1 + 4.0d0 * alpha3  * d3 * expon / 3.0d0
-        F3    = 5.0d0 * F2 + 8.0d0 * alpha5  * d5 * expon / 3.0d0  
+        F3    = F2 + 8.0d0 * alpha5  * d5 * expon / 15.0d0
 
         ! multipole interaction tensor rank = 2
         Txx = ( 3.0d0 * rxij * rxij * F2 - d2 * F1 ) * dm5  
@@ -1498,40 +1545,39 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
         Tyz = ( 3.0d0 * ryij * rzij * F2           ) * dm5 
  
         ! multipole interaction tensor rank = 3  
-        Txxx = ( rxij * rxij * rxij * F3 -  3.0d0 * d2 * ( rxij ) * F2 ) * dm7 
-        Tyyy = ( ryij * ryij * ryij * F3 -  3.0d0 * d2 * ( ryij ) * F2 ) * dm7 
-        Tzzz = ( rzij * rzij * rzij * F3 -  3.0d0 * d2 * ( rzij ) * F2 ) * dm7
-        Txxy = ( rxij * rxij * ryij * F3 -          d2 * ( ryij ) * F2 ) * dm7 
-        Txxz = ( rxij * rxij * rzij * F3 -          d2 * ( rzij ) * F2 ) * dm7 
-        Tyyx = ( ryij * ryij * rxij * F3 -          d2 * ( rxij ) * F2 ) * dm7 
-        Tyyz = ( ryij * ryij * rzij * F3 -          d2 * ( rzij ) * F2 ) * dm7 
-        Tzzx = ( rzij * rzij * rxij * F3 -          d2 * ( rxij ) * F2 ) * dm7 
-        Tzzy = ( rzij * rzij * ryij * F3 -          d2 * ( ryij ) * F2 ) * dm7 
-        Txyz = ( rxij * ryij * rzij * F3                               ) * dm7 
-
+        Txxx = ( -5.0d0 * rxij * rxij * rxij * F3 +  3.0d0 * d2 * ( rxij ) * F2 ) * dm7 
+        Tyyy = ( -5.0d0 * ryij * ryij * ryij * F3 +  3.0d0 * d2 * ( ryij ) * F2 ) * dm7 
+        Tzzz = ( -5.0d0 * rzij * rzij * rzij * F3 +  3.0d0 * d2 * ( rzij ) * F2 ) * dm7
+        Txxy = ( -5.0d0 * rxij * rxij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 
+        Txxz = ( -5.0d0 * rxij * rxij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 
+        Tyyx = ( -5.0d0 * ryij * ryij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 
+        Tyyz = ( -5.0d0 * ryij * ryij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 
+        Tzzx = ( -5.0d0 * rzij * rzij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 
+        Tzzy = ( -5.0d0 * rzij * rzij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 
+        Txyz = ( -5.0d0 * rxij * ryij * rzij * F3                               ) * dm7 
         ! ===========================================================
         !                  charge-charge interaction
         ! ===========================================================
 
         ! electric field gradient 
-        efg_dir ( ia , 1 , 1 ) = efg_dir( ia , 1 , 1 ) - Txx 
-        efg_dir ( ia , 2 , 2 ) = efg_dir( ia , 2 , 2 ) - Tyy
-        efg_dir ( ia , 3 , 3 ) = efg_dir( ia , 3 , 3 ) - Tzz
-        efg_dir ( ia , 1 , 2 ) = efg_dir( ia , 1 , 2 ) - Txy
-        efg_dir ( ia , 1 , 3 ) = efg_dir( ia , 1 , 3 ) - Txz
-        efg_dir ( ia , 2 , 3 ) = efg_dir( ia , 2 , 3 ) - Tyz
+        efg_dir ( ia , 1 , 1 ) = efg_dir( ia , 1 , 1 ) - qj * Txx 
+        efg_dir ( ia , 2 , 2 ) = efg_dir( ia , 2 , 2 ) - qj * Tyy
+        efg_dir ( ia , 3 , 3 ) = efg_dir( ia , 3 , 3 ) - qj * Tzz
+        efg_dir ( ia , 1 , 2 ) = efg_dir( ia , 1 , 2 ) - qj * Txy
+        efg_dir ( ia , 1 , 3 ) = efg_dir( ia , 1 , 3 ) - qj * Txz
+        efg_dir ( ia , 2 , 3 ) = efg_dir( ia , 2 , 3 ) - qj * Tyz
 
         ! ===========================================================
         !                  dipole-dipole interaction
         ! ===========================================================
         
         ! electric field gradient 
-        efg_dir ( ia , 1 , 1 ) = efg_dir ( ia , 1 , 1 ) - ( Txxx * mujx + Txxy * mujy + Txxz * mujz ) 
-        efg_dir ( ia , 2 , 2 ) = efg_dir ( ia , 2 , 2 ) - ( Tyyx * mujx + Tyyy * mujy + Tyyz * mujz )
-        efg_dir ( ia , 3 , 3 ) = efg_dir ( ia , 3 , 3 ) - ( Tzzx * mujx + Tzzy * mujy + Tzzz * mujz )
-        efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) - ( Txxy * mujx + Tyyx * mujy + Txyz * mujz ) 
-        efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) - ( Txxz * mujx + Txyz * mujy + Tzzx * mujz )
-        efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) - ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz )
+        efg_dir ( ia , 1 , 1 ) = efg_dir ( ia , 1 , 1 ) + ( Txxx * mujx + Txxy * mujy + Txxz * mujz ) 
+        efg_dir ( ia , 2 , 2 ) = efg_dir ( ia , 2 , 2 ) + ( Tyyx * mujx + Tyyy * mujy + Tyyz * mujz )
+        efg_dir ( ia , 3 , 3 ) = efg_dir ( ia , 3 , 3 ) + ( Tzzx * mujx + Tzzy * mujy + Tzzz * mujz )
+        efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) + ( Txxy * mujx + Tyyx * mujy + Txyz * mujz ) 
+        efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) + ( Txxz * mujx + Txyz * mujy + Tzzx * mujz )
+        efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) + ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz )
  
       endif
 
@@ -1541,6 +1587,11 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
 
   ttt2 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + ( ttt2 - ttt1 )
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
 
   ! ==============================================
   !            reciprocal space part
@@ -1565,9 +1616,9 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
     !                              /__
     ! ===============================
     rhon   = (0.d0, 0.d0)
-    do it = 1, ntype
-      k_dot_mu = ( mip ( it , 1 ) * kx + mip ( it , 2 ) * ky + mip ( it , 3 ) * kz  ) 
-      rhon = rhon + ( qch(it) + imag * k_dot_mu ) * km%strf ( ik , it ) 
+    do ja = 1, natm
+      k_dot_mu = ( mu ( ja , 1 ) * kx + mu ( ja , 2 ) * ky + mu ( ja , 3 ) * kz  ) 
+      rhon = rhon + ( qia(ja) + imag * k_dot_mu ) * km%strf ( ik , ja ) 
     enddo
 
     do ia = 1 , natm
@@ -1631,11 +1682,15 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
   efg_ia ( : , 3 , 1 ) = efg_ia ( : , 1 , 3 )
   efg_ia ( : , 3 , 2 ) = efg_ia ( : , 2 , 3 )
 
-#ifdef debug 
-  CALL print_tensor( efg_dir  ( 1 , : , : ) , 'EFG_DIR ' )
-  CALL print_tensor( efg_rec  ( 1 , : , : ) , 'EFG_REC ' )
-  CALL print_tensor( efg_self ( 1 , : , : ) , 'EFG_SELF' )
-  CALL print_tensor( efg_ia   ( 1 , : , : ) , 'EFG_TOT ' )
+#ifdef debug2
+  CALL print_tensor( efg_dir  ( 1 , : , : ) , 'EFG_DIRN' )
+  CALL print_tensor( efg_dir  ( 2 , : , : ) , 'EFG_DIRN' )
+  CALL print_tensor( efg_rec  ( 1 , : , : ) , 'EFG_RECN' )
+  CALL print_tensor( efg_rec  ( 2 , : , : ) , 'EFG_RECN' )
+  CALL print_tensor( efg_self ( 1 , : , : ) , 'EFG_SELN' )
+  CALL print_tensor( efg_self ( 2 , : , : ) , 'EFG_SELN' )
+  CALL print_tensor( efg_ia   ( 1 , : , : ) , 'EFG_TOTN' )
+  CALL print_tensor( efg_ia   ( 2 , : , : ) , 'EFG_TOTN' )
 #endif
 
   deallocate( efg_dir , efg_rec , efg_self ) 
@@ -1721,8 +1776,9 @@ END SUBROUTINE efg_write_output
 
 SUBROUTINE efg_acf
 
-  USE config,           ONLY  : system , natm , ntype , itype , atype, omega ,box ,rho, config_alloc
+  USE config,           ONLY  : system , natm , ntype , itype , atype , simu_cell , rho , config_alloc
   USE io_file,          ONLY  : ionode , stdout , kunit_EFGALL , kunit_EFGACFFF  , kunit_OUTFF
+  USE cell
 
   implicit none
 
@@ -1739,11 +1795,15 @@ SUBROUTINE efg_acf
   character*200 :: XXXX
 
   OPEN(kunit_EFGALL,FILE='EFGALL')
-  READ(kunit_EFGALL,*) natm,box,ntype
-  READ(kunit_EFGALL,*) system,iiii
+  READ(kunit_EFGALL,*) natm
+  READ(kunit_EFGALL,*) system
+  READ(kunit_EFGALL,*) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+  READ(kunit_EFGALL,*) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+  READ(kunit_EFGALL,*) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+  READ(kunit_EFGALL,*) ntype
   READ(kunit_EFGALL,*) XXXX
-  omega = box * box * box
-  rho = natm / omega
+  CALL lattice ( simu_cell ) 
+  rho = natm / simu_cell%omega
   CALL config_alloc 
 
   CALL print_general_info ( stdout ) 
@@ -1762,8 +1822,12 @@ SUBROUTINE efg_acf
   
   do t0 = 1 , ncefg 
     if ( t0 .ne. 1 ) then
-      READ(kunit_EFGALL,*) natm,box,ntype
-      READ(kunit_EFGALL,*) system,iiii
+      READ(kunit_EFGALL,*) natm
+      READ(kunit_EFGALL,*) system
+      READ(kunit_EFGALL,*) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+      READ(kunit_EFGALL,*) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+      READ(kunit_EFGALL,*) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+      READ(kunit_EFGALL,*) ntype
       READ(kunit_EFGALL,*) XXXX
     endif
     do ia = 1 , natm
@@ -1844,9 +1908,11 @@ END SUBROUTINE efg_acf
 SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
   USE config,           ONLY  : system , natm , natmi , ntype , itype , &
-                                atype , atypei , omega , box , rho, config_alloc
-  USE io_file,          ONLY  : ionode , stdout , kunit_OUTFF 
-  USE prop,              ONLY : nprop_print
+                                atype , atypei , simu_cell , rho, config_alloc
+  USE io_file,          ONLY  : ionode , stdout , stderr , kunit_OUTFF 
+  USE prop,             ONLY : nprop_print
+  USE field,            ONLY : lwfc         
+  USE cell
   USE constants
 
   implicit none
@@ -1856,7 +1922,6 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
   integer            :: ifail
   integer            :: kvzz, keta ,ku
   integer            :: kunit_input , kunit_output , kunit_nmroutput
-  integer            :: cc , ccs
 
   double precision                                 :: sq3 , sq32
   double precision, dimension (:,:), allocatable   :: U
@@ -1878,14 +1943,18 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
   READ ( kunit_input , * )  natm
   READ ( kunit_input , * )  system
-  READ ( kunit_input , * )  box,ntype
+  READ ( kunit_input , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+  READ ( kunit_input , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+  READ ( kunit_input , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+  READ ( kunit_input , * )  ntype
   READ ( kunit_input ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on EFGALL : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on EFGALL : ', atypei ( 1:ntype )
   READ( kunit_input ,*)   ( natmi ( it ) , it = 1 , ntype )
   READ ( kunit_input , * )  xxxx
-  omega = box * box * box
-  rho = natm / omega
+
+  CALL lattice ( simu_cell )
+  rho = natm / simu_cell%omega
   ! ===================================
   !  here we know natm, then alloc 
   !  and decomposition can be applied 
@@ -1893,21 +1962,8 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
   if ( lefg_restart ) CALL config_alloc 
   if ( lefg_restart ) CALL efg_alloc
 
-  ! ==========================
-  !  set some type parameters
-  ! ==========================      
-  natmi ( 0 ) = 0 
-  cc = 0
-  do it = 1 , ntype
-    ccs = cc
-    cc = cc + natmi ( it )
-    do ia = ccs + 1 , cc
-      atype ( ia ) = atypei ( it )
-      itype ( ia ) = it
-    enddo
-  enddo
-  natmi  ( 0 ) = natm
-  atypei ( 0 ) = 'ALL'
+  CALL typeinfo_init
+
   !  ================
   !   allocation
   !  ================
@@ -1938,16 +1994,21 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
     if ( ic .ne. 1 ) then
       READ ( kunit_input , * )  natm
       READ ( kunit_input , * )  system
-      READ ( kunit_input , * )  box,ntype
+      READ ( kunit_input , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+      READ ( kunit_input , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+      READ ( kunit_input , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+      READ ( kunit_input , * )  ntype
       READ ( kunit_input , * )  ( xxxx , it = 1 , ntype )
       READ ( kunit_input , * )  ( iiii  , it = 1 , ntype )
       READ ( kunit_input , * )  xxxx
     endif
 
     do ia = 1 , natm
-
+      it = itype ( ia ) 
+      if ( lwfc ( it ) .ge. 0 ) then 
       READ( kunit_input , * ) iiii , xxxx , efgt(1,1) , efgt(2,2) , efgt(3,3) , &
                                             efgt(1,2) , efgt(1,3) , efgt(2,3)
+      endif
 
       ! ===================================================================== 
       !  Czjzek components (see J. Phys.: Condens. Matter 10 (1998). p10719)
@@ -1963,7 +2024,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
       ! =================
       CALL DSYEV ( 'N' , 'U' , 3 , efgt , 3 , w , work , 3 * lwork , ifail )
       if ( ifail .ne. 0 ) then
-        if ( ionode ) WRITE ( stdout , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
+        if ( ionode ) WRITE ( stderr , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
         STOP
       endif
 
@@ -2054,12 +2115,19 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         WRITE ( kunit_nmroutput , '(a)' ) &
         '#     site           xx          yy          zz               eta'
       do ia = 1 , natm
+        it = itype ( ia )   
+        if ( lwfc ( it ) .ge. 0 ) then
         WRITE ( kunit_nmroutput , 150 ) ia , atype ( ia ) , & 
                                         nmr( ia , 1 ) , nmr( ia , 2 ) , &
                                         nmr( ia , 3 ) , nmr( ia , 4 )
+        endif
       enddo
     endif
 
+   if ( .not. lefg_stat ) then
+     WRITE ( stdout , '(a)' ) "No statistic on EFG's"
+     return
+   endif
 
     ! =======================================================
     !  DISTRIBUTION CALCULATION LOOP 
@@ -2075,8 +2143,8 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         !  test out of bound
         ! ====================== 
         if (ku.lt.0.or.ku.gt.PANU) then
-          if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound dibU1'
-          if ( ionode ) WRITE ( stdout ,310) i,ku,U(i,ui),umin,ABS (umin)
+          if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dibU1'
+          if ( ionode ) WRITE ( stderr ,310) i,ku,U(i,ui),umin,ABS (umin)
           STOP
         endif
         ! all types
@@ -2109,17 +2177,17 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
       ! ====================== 
       if ( kvzz .lt. 0 .or. kvzz .gt. PANvzz ) then
         if ( ionode .and. itype(ia) .eq. 1 ) &
-        WRITE ( stdout , * ) 'ERROR: out of bound distribvzz A'
+        WRITE ( stderr , '(a)' ) 'ERROR: out of bound distribvzz A'
         if ( ionode .and. itype(ia) .eq. 2 ) &
-        WRITE ( stdout , * ) 'ERROR: out of bound distribvzz B'
-        if ( ionode ) WRITE ( stdout ,200) &
+        WRITE ( stderr , '(a)' ) 'ERROR: out of bound distribvzz B'
+        if ( ionode ) WRITE ( stderr ,200) &
         ia , kvzz , nmr ( ia , 3 ) , vzzmini( itype ( ia ) ) , vzzmaxi ( itype ( ia ) ) , &
                     nmr ( ia , 4 ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
         STOP
       endif
       if ( keta .lt. 0 .or. keta .gt. PANeta ) then
-        if ( ionode ) WRITE ( stdout , * ) 'ERROR: out of bound distribeta'
-        if ( ionode ) WRITE ( stdout ,210) ia, keta, nmr(ia,4), nmr(ia,4), &
+        if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR: out of bound distribeta'
+        if ( ionode ) WRITE ( stderr ,210) ia, keta, nmr(ia,4), nmr(ia,4), &
                                                      nmr(ia,1), nmr(ia,2), &
                                                      nmr(ia,3)
         STOP
@@ -2181,7 +2249,7 @@ END SUBROUTINE efg_stat
 
 SUBROUTINE nmr_convention( EIG , nmr , ia )
 
-  USE io_file,  ONLY :  stdout , ionode
+  USE io_file,  ONLY :  stdout , stderr , ionode
 
   implicit none
 
@@ -2194,7 +2262,7 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
   ! =======================================================
   diso=(EIG(1)+EIG(2)+EIG(3))/3.0d0
   if ( ABS ( diso ) .ne. 0.0d0 .and. ABS ( diso ) .gt. 1e-4 ) then
-    !if ( ionode ) WRITE ( stdout ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
+    if ( ionode ) WRITE ( stderr ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
      diso = 0.0d0
   !  STOP
   endif
@@ -2252,27 +2320,27 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
   if ( nmr(3) .eq. 0.0 )  nmr(4) = 0.0D0
   if ( ABS ( nmr(1) ) .lt. 1.0E-05 .and. ABS ( nmr(2) ) .lt. 1.0E-5 .and. ABS ( nmr(3) ) .lt. 1.0E-5 ) nmr(4) = 0.0D0
   if (ABS (nmr(3)- diso ).lt.ABS (nmr(1) -diso)) then
-    if ( ionode ) WRITE ( stdout , '(a,i4,3f12.5)' ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if (ABS (nmr(3) -diso ).lt.ABS (nmr(2) -diso )) then
-    if ( ionode ) WRITE ( stdout , '(a,i4,3f12.5)' ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
+    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if (ABS (nmr(2) -diso ).lt.ABS (nmr(1)-diso)) then
-    if ( ionode ) WRITE ( stdout , '(a,i4,3f12.5)' ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if ( nmr(4) .gt. 1.0d0 ) then
     if ( ionode ) &
-    WRITE ( stdout ,'(a,i6,5f48.24)') 'ERROR1: eta > 1.0d0 ',ia,nmr(4),ABS(nmr(1)-diso),ABS(nmr(2)-diso),ABS(nmr(3)-diso)
-    WRITE ( stdout ,'(a,i6,5f48.24)') 'ERROR2: eta > 1.0d0 ',ia,nmr(4),nmr(1),nmr(2),nmr(3)
+    WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR1: eta > 1.0d0 ',ia,nmr(4),ABS(nmr(1)-diso),ABS(nmr(2)-diso),ABS(nmr(3)-diso)
+    WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR2: eta > 1.0d0 ',ia,nmr(4),nmr(1),nmr(2),nmr(3)
     !STOP
   !  nmr(4) = 1.0d0
   endif
   if ( nmr(4) .gt. 1.0d0 .or. nmr(4) .lt. 0.0d0) then
     if ( ionode ) &
-    WRITE ( stdout ,'(a,i6,4f48.24)') 'ERROR: eta < 0.0d0',ia,nmr(4),nmr(1),nmr(2),nmr(3)
+    WRITE ( stderr ,'(a,i6,4f24.16)') 'ERROR: eta < 0.0d0',ia,nmr(4),nmr(1),nmr(2),nmr(3)
   !  nmr(4) = 0.0d0
     !STOP
   endif
@@ -2359,7 +2427,7 @@ SUBROUTINE efg_mesh_alloc
 
   USE control,  ONLY :  calc , longrange
   USE config,   ONLY :  natm, ntype , qia , itype
-  USE field,    ONLY :  km_coul ,rm_coul , ncelldirect , ncellewald
+  USE field,    ONLY :  km_coul ,rm_coul , ncelldirect , kES
 
   implicit none
 
@@ -2386,12 +2454,15 @@ SUBROUTINE efg_mesh_alloc
   ! ============
   if ( longrange .eq. 'ewald')  then
     km_coul%meshlabel='km_coul'
-    km_coul%ncell     = ncellewald
-    nkcut = ( 2 * ncellewald + 1 ) ** 3
+    km_coul%kES(1) = kES(1)
+    km_coul%kES(2) = kES(2)
+    km_coul%kES(3) = kES(3)
+    nkcut = ( 2 * kES(1) + 1 ) * ( 2 * kES(2) + 1 ) * ( 2 * kES(3) + 1 )
     nkcut = nkcut - 1
     km_coul%nkcut = nkcut
     allocate( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
-    allocate ( km_coul%strf ( nkcut, ntype) )
+!    allocate ( km_coul%strf ( nkcut, ntype) )
+    allocate ( km_coul%strf ( nkcut, natm) )
     CALL kpoint_sum_init ( km_coul )
   endif
 

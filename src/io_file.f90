@@ -32,6 +32,7 @@ MODULE io_file
 
   ! standard output
   integer, PARAMETER :: stdout          = 6  
+  integer, PARAMETER :: stderr          = 0  
 
   ! standard input file ( code argument control.F )
   integer, PARAMETER :: stdin           = 1001

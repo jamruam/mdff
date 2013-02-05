@@ -86,9 +86,12 @@ CONTAINS
 SUBROUTINE calc_thermo
 
   USE control,  ONLY :  lreduced 
-  USE config,   ONLY :  box , natm , rho , omega 
+  USE config,   ONLY :  natm , rho , simu_cell 
 
   implicit none
+  double precision :: omega
+
+  omega = simu_cell%omega
 
   if (lreduced) then
     u_lj_r   = u_lj                      / DBLE ( natm )
@@ -258,7 +261,7 @@ END SUBROUTINE general_accumulator
 
 SUBROUTINE write_thermo ( step , kunit , dummy )
 
-  USE config,   ONLY :  omega
+  USE config,   ONLY :  simu_cell 
   USE md,       ONLY :  dt
   USE io_file,  ONLY :  ionode
 
@@ -267,6 +270,11 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
   ! global
   integer, intent(in) :: kunit , step
   double precision, intent(in), optional :: dummy
+
+  ! local 
+  double precision :: omega
+  
+  omega = simu_cell%omega
 
   call calc_thermo
 
@@ -306,7 +314,6 @@ END SUBROUTINE write_thermo
 
 SUBROUTINE write_average_thermo ( kunit )
 
-  USE config,   ONLY :  omega
   USE md,       ONLY :  dt
   USE io_file,  ONLY :  ionode
 
