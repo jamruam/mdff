@@ -20,6 +20,9 @@
 !#define debug
 !#define debug2
 !#define debug_wfc
+#define debug_morse
+!#define debug_bmlj
+!#define debug_quadratic
 ! ======= Hardware =======
 
 MODULE field 
@@ -33,8 +36,8 @@ MODULE field
   double precision :: utail                         ! long-range correction of short-range interaction 
   integer          :: trunc
   character*60     :: ctrunc
-  character*60     :: ctrunc_allowed(2)
-  data                ctrunc_allowed / 'linear' , 'quadratic' /    ! see initialize_param_bmlj
+  character*60     :: ctrunc_allowed(3)
+  data                ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /    ! see initialize_param_bmlj
 
   logical, SAVE    :: lKA                              ! Kob-Andersen model for BMLJ                        
   logical, SAVE    :: lautoES                          ! auto-determination of Ewald parameter from epsw ( accuracy)
@@ -182,6 +185,7 @@ SUBROUTINE field_check_tag
     STOP
   endif
 
+  if ( ctrunc .eq. 'notrunc'   ) trunc = 0
   if ( ctrunc .eq. 'linear'    ) trunc = 1
   if ( ctrunc .eq. 'quadratic' ) trunc = 2
 
@@ -248,7 +252,9 @@ SUBROUTINE field_init
                          lwfc          , &            
                          rcut_wfc      , &            
                          lpolar           
-                  
+                 
+
+  if ( ionode ) WRITE ( stdout, '(a)')   'force field initialization'
   ! ================================
   ! defaults values for field tags 
   ! ================================
@@ -274,13 +280,14 @@ SUBROUTINE field_init
   ! ================================
   CALL field_check_tag
 
-  ! ================================
-  !  pint field info
-  ! ================================
-  CALL field_print_info(stdout)
-  CALL field_print_info(kunit_OUTFF)
-  
-  if ( calc .eq. 'efg' .or. calc .eq. 'NL_field' ) return
+  ! ================================  
+  !  if efg print field info and return 
+  ! ================================  
+  if ( calc .eq. 'efg' ) then 
+    CALL field_print_info(stdout)
+    CALL field_print_info(kunit_OUTFF)
+    return
+  endif
 
   ! ================================
   ! initialize constant parameters
@@ -295,6 +302,12 @@ SUBROUTINE field_init
     if ( ionode ) WRITE ( stdout ,'(a)') 'coulombic quantities initialized' 
   endif
 
+  ! ================================
+  !  pint field info
+  ! ================================
+  CALL field_print_info(stdout)
+  CALL field_print_info(kunit_OUTFF)
+
   return
 
 END SUBROUTINE field_init
@@ -307,20 +320,20 @@ END SUBROUTINE field_init
 
 SUBROUTINE field_print_info(kunit)
 
-  USE config,   ONLY :  ntype , atypei , natmi , simu_cell 
-  USE control,  ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange
+  USE config,   ONLY :  natm , ntype , atypei , natmi , simu_cell 
+  USE control,  ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange , lreduced
   USE io_file,  ONLY :  ionode 
   USE constants,ONLY :  pi , pisq
 
   implicit none
 
   !local
-  integer :: kunit, it , it1 , it2 , i , j, kmax
+  integer :: kunit, it , it1 , it2 , i , j
   double precision :: aaa , aaa2 , rcut , rcut2 , kmax2 , alpha2 , ereal , ereal2 , ereci(3) , ereci2(3) , qtot , qtot2
   logical :: linduced
   integer :: nc ( 3 )
 !dl_poly like
-  double precision :: eps , tol , tol1 ,alpha, Wa ,WB ,WC
+  double precision :: eps , tol , tol1 ,alpha
   integer :: kmax_1 , kmax_2 , kmax_3 
 
   qtot   = 0.0d0
@@ -418,7 +431,7 @@ SUBROUTINE field_print_info(kunit)
     endif
 
     ! RETURN ?
-    if ( calc .ne. 'efg' .and. calc .ne. 'NL_field' ) then
+    if ( .not. lcoulomb ) then
 
       if ( lbmlj )       then     
         WRITE ( kunit ,'(a)')       'force field information :                      '
@@ -437,6 +450,9 @@ SUBROUTINE field_print_info(kunit)
         WRITE ( kunit ,'(a)')       'USER DEFINED MODEL                             '
         WRITE ( kunit ,'(a,f10.5)') 'cutoff      = ',cutoff
         WRITE ( kunit ,'(a,a)')     'truncation  = ',ctrunc
+        if (.not.lreduced) WRITE( kunit     ,'(a,2f20.9)') 'long range correction : ',utail
+        if (lreduced)      WRITE( kunit     ,'(a,2f20.9)') 'long range correction : ',utail/natm
+        WRITE( kunit     ,'(a)') ' '
         WRITE ( kunit ,'(a)')       ''
 
         do it1 = 1 , ntype
@@ -509,7 +525,7 @@ SUBROUTINE initialize_param_bmlj_morse
 
   ! local
   integer :: it,jt
-  double precision :: one13, one16, two16, rskinmax, utail
+  double precision :: one13, one16, two16, rskinmax
   double precision :: rcut3 ( ntypemax , ntypemax )
   double precision :: rskin ( ntypemax , ntypemax ) 
   double precision :: rskinsq ( ntypemax , ntypemax ) 
@@ -592,24 +608,23 @@ SUBROUTINE initialize_param_bmlj_morse
   !  ctrunc = 'quadratic'
   !  trunc  = 2    
   ! 
-  !  Not sure !!!!!! 
   !
   !           eps    /    / sigma* \ q         / sigma* \ p  \
   !  V  =   ------- |  p | ------- |    -  q  | --------|    |   +  c1 r^2  -  c2    with  sigma* = 2^(1/6)*sigma
   !          q - p   \    \   r   /            \    r   /    /
   !
   !
-  ! Maple (november 2011)
+  ! Sage (January 2013) 
   !     
-  !               eps p  q          /  / sigma* \ q       /  sigma* \ p \
+  !              eps p  q           /  / sigma* \ q       /  sigma* \ p \
   !    c1 =  --------------------- |  | --------|    -   | --------- |  |
   !          2  ( q - p ) * rc^2    \  \   rc   /         \   rc    /   /
   ! 
   !    and
   !     
-  !          epsilon     /           / sigma* \ q               / sigma* \ p  \
-  !    c2 = ----------- |  (2p+qp)  | --------|     - (2q+pq)  | --------|   |
-  !         2 ( q - p )  \           \   rc   /                 \   rc   /   /       
+  !           epsilon     /           / sigma* \ q               / sigma* \ p  \
+  !    c2 =  ----------- |  (2p+qp)  | --------|     - (2q+pq)  | --------|   |
+  !          2 ( q - p )  \           \   rc   /                 \   rc   /   /       
   !
   ! ==================================================================================================
   do it = 1 , ntype 
@@ -643,8 +658,8 @@ SUBROUTINE initialize_param_bmlj_morse
            uc1 ( it , jt ) = epsp ( it , jt ) *  ppqq ( it , jt ) / ( 2.0d0 * rcutsq ( it , jt ) ) * ( srq( it , jt ) - srp( it , jt ) ) 
            ! c2
            uc2 ( it , jt ) = 0.5d0 * epsp( it , jt )  * (  &
-                         ( 2.0d0 * qq ( it , jt ) + ppqq ( it , jt )  ) * srq( it , jt ) - &
-                         ( 2.0d0 * pp ( it , jt ) + ppqq ( it , jt )  ) * srp( it , jt ) )
+                         ( 2.0d0 * pp ( it , jt ) + ppqq ( it , jt )  ) * srq( it , jt ) - &
+                         ( 2.0d0 * qq ( it , jt ) + ppqq ( it , jt )  ) * srp( it , jt ) )
            ! for the virial
            fc ( it , jt ) =  ppqq ( it , jt ) * epsp ( it , jt ) /  sigsq ( it , jt ) 
            ! morse
@@ -656,18 +671,19 @@ SUBROUTINE initialize_param_bmlj_morse
            ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * 2.0d0 * pi 
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
            utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
-#ifdef debug 
-  write ( * , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
+
+#ifdef debug
+  WRITE ( stdout , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
 #endif
     enddo
   enddo
  
-  if (ionode.and..not.lreduced) WRITE( stdout     ,'(a,2f20.9)') 'long range correction : ',utail
-  if (ionode.and.lreduced)      WRITE( stdout     ,'(a,2f20.9)') 'long range correction : ',utail/natm
-  if (ionode.and..not.lreduced) WRITE( kunit_OUTFF,'(a,2f20.9)') 'long range correction : ',utail
-  if (ionode.and.lreduced)      WRITE( kunit_OUTFF,'(a,2f20.9)') 'long range correction : ',utail/natm
-  if (ionode) WRITE( stdout     ,'(a)') ' '
-  if (ionode) WRITE( kunit_OUTFF,'(a)') ' '
+#ifdef debug_quadratic
+  do it = 1 , ntype 
+    WRITE ( stdout , '(a,<ntype>e16.6)' ) 'uc1 ',(uc1(it,jt),jt=1,ntype)
+    WRITE ( stdout , '(a,<ntype>e16.6)' ) 'uc2 ',(uc2(it,jt),jt=1,ntype)
+  enddo
+#endif
 
   return
 
@@ -792,8 +808,6 @@ SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
 
 END SUBROUTINE engforce_driver
 
-
-
 !*********************** SUBROUTINE engforce_bmlj_pbc *************************
 !
 ! total potential energy forces for each atoms for a bmlj potential with 
@@ -803,7 +817,7 @@ END SUBROUTINE engforce_driver
 
 SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, tau_lj , atype , itype , list , point , ntype , simu_cell 
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell 
   USE control,          ONLY : lvnlist , myrank
   USE thermodynamic,    ONLY : u_lj , vir_lj , write_thermo
   USE io_file,          ONLY : stdout
@@ -829,10 +843,10 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   double precision :: forcetime1 , forcetime2 
   double precision :: u , vir 
 
-#ifdef debug
+#ifdef debug_bmlj
   ia = natm 
-  write( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
-  write( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
+  WRITE ( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
+  WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
 #endif
 
   forcetime1 = MPI_WTIME(ierr) ! timing info
@@ -883,6 +897,10 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
+        !rxij = rxij -  simu_cell%ANORM(1) * nint( rxij / simu_cell%ANORM(1) )
+        !ryij = ryij -  simu_cell%ANORM(2) * nint( ryij / simu_cell%ANORM(2) )
+        !rzij = rzij -  simu_cell%ANORM(3) * nint( rzij / simu_cell%ANORM(3) )
+        !rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         sxij = rxij - nint ( rxij )
         syij = ryij - nint ( ryij )
         szij = rzij - nint ( rzij )
@@ -897,6 +915,9 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
           srp = sr2 ** (ptwo(p1,p2))
           srq = sr2 ** (qtwo(p1,p2))
           ! potential energy ( truncated )  
+          if ( trunc .eq. 0 ) then
+            u = u  + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp )
+          endif
           if ( trunc .eq. 1 ) then
             u =  u + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) - uc(p1,p2)
           endif
@@ -917,20 +938,20 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_lj(1,1) = tau_lj(1,1) + rxij * fxij
-          tau_lj(1,2) = tau_lj(1,2) + rxij * fyij
-          tau_lj(1,3) = tau_lj(1,3) + rxij * fzij
-          tau_lj(2,1) = tau_lj(2,1) + ryij * fxij
-          tau_lj(2,2) = tau_lj(2,2) + ryij * fyij
-          tau_lj(2,3) = tau_lj(2,3) + ryij * fzij
-          tau_lj(3,1) = tau_lj(3,1) + rzij * fxij
-          tau_lj(3,2) = tau_lj(3,2) + rzij * fyij
-          tau_lj(3,3) = tau_lj(3,3) + rzij * fzij
+          tau_nonb(1,1) = tau_nonb(1,1) + rxij * fxij
+          tau_nonb(1,2) = tau_nonb(1,2) + rxij * fyij
+          tau_nonb(1,3) = tau_nonb(1,3) + rxij * fzij
+          tau_nonb(2,1) = tau_nonb(2,1) + ryij * fxij
+          tau_nonb(2,2) = tau_nonb(2,2) + ryij * fyij
+          tau_nonb(2,3) = tau_nonb(2,3) + ryij * fzij
+          tau_nonb(3,1) = tau_nonb(3,1) + rzij * fxij
+          tau_nonb(3,2) = tau_nonb(3,2) + rzij * fyij
+          tau_nonb(3,3) = tau_nonb(3,3) + rzij * fzij
         endif
       endif
     enddo
   enddo
-  tau_lj = tau_lj / simu_cell%omega 
+  tau_nonb = tau_nonb / simu_cell%omega 
   vir = vir/3.0D0
 
   forcetime2 = MPI_WTIME(ierr) ! timing info
@@ -943,9 +964,9 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   CALL MPI_ALL_REDUCE_DOUBLE ( fy , natm ) 
   CALL MPI_ALL_REDUCE_DOUBLE ( fz , natm ) 
 
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj( 1, : ) , 3  )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj( 2, : ) , 3  )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj( 3, : ) , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 1, : ) , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 2, : ) , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 3, : ) , 3  )
 
   u_lj = u
   vir_lj = vir
@@ -968,7 +989,7 @@ END SUBROUTINE engforce_bmlj_pbc
 
 SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_lj , simu_cell 
+  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell 
   USE control,          ONLY : lvnlist , myrank
   USE thermodynamic,    ONLY : u_lj , vir_lj
   USE time
@@ -1049,20 +1070,20 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_lj(1,1) = tau_lj(1,1) + rxij * fxij
-          tau_lj(1,2) = tau_lj(1,2) + rxij * fyij
-          tau_lj(1,3) = tau_lj(1,3) + rxij * fzij
-          tau_lj(2,1) = tau_lj(2,1) + ryij * fxij
-          tau_lj(2,2) = tau_lj(2,2) + ryij * fyij
-          tau_lj(2,3) = tau_lj(2,3) + ryij * fzij
-          tau_lj(3,1) = tau_lj(3,1) + rzij * fxij
-          tau_lj(3,2) = tau_lj(3,2) + rzij * fyij
-          tau_lj(3,3) = tau_lj(3,3) + rzij * fzij
+          tau_nonb(1,1) = tau_nonb(1,1) + rxij * fxij
+          tau_nonb(1,2) = tau_nonb(1,2) + rxij * fyij
+          tau_nonb(1,3) = tau_nonb(1,3) + rxij * fzij
+          tau_nonb(2,1) = tau_nonb(2,1) + ryij * fxij
+          tau_nonb(2,2) = tau_nonb(2,2) + ryij * fyij
+          tau_nonb(2,3) = tau_nonb(2,3) + ryij * fzij
+          tau_nonb(3,1) = tau_nonb(3,1) + rzij * fxij
+          tau_nonb(3,2) = tau_nonb(3,2) + rzij * fyij
+          tau_nonb(3,3) = tau_nonb(3,3) + rzij * fzij
         endif
       endif
     enddo
   enddo
-  tau_lj = tau_lj / simu_cell%omega 
+  tau_nonb = tau_nonb / simu_cell%omega 
   vir = vir / 3.0D0
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u ) 
@@ -1071,9 +1092,9 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
   CALL MPI_ALL_REDUCE_DOUBLE ( fx , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fy , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fz , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj ( 1 , : )  , 3  )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj ( 2 , : )  , 3  )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_lj ( 3 , : )  , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb ( 1 , : )  , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb ( 2 , : )  , 3  )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb ( 3 , : )  , 3  )
 
   u_lj = u
   vir_lj = vir
@@ -1250,10 +1271,10 @@ SUBROUTINE initialize_coulomb
   ! ============
   if ( longrange .eq. 'ewald')  then
     km_coul%meshlabel='km_coul'
-    km_coul%kES(1) = kES(1)
-    km_coul%kES(2) = kES(2)
-    km_coul%kES(3) = kES(3)
-    nkcut = ( 2 * km_coul%kES(1) + 1 ) * ( 2 * km_coul%kES(2) + 1 ) * ( 2 * km_coul%kES(3) + 1 )   
+    km_coul%kmax(1) = kES(1)
+    km_coul%kmax(2) = kES(2)
+    km_coul%kmax(3) = kES(3)
+    nkcut = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
     nkcut = nkcut - 1
     km_coul%nkcut = nkcut
     allocate( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
@@ -1442,22 +1463,22 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 #ifdef debug
   if ( ionode ) then
-  write( stdout , '(a)')          'debug: in multipole_DS '
-  write( stdout , '(a,i8,a)')     'debug : rm_coul        ',rm_coul%ncmax,rm_coul%meshlabel
+  WRITE ( stdout , '(a)')          'debug: in multipole_DS '
+  WRITE ( stdout , '(a,i8,a)')     'debug : rm_coul        ',rm_coul%ncmax,rm_coul%meshlabel
   do ia = 1 , natm
-    write( stdout , '(a,f12.5)')  'debug : charge (atom)  ',qia(ia)
+    WRITE ( stdout , '(a,f12.5)')  'debug : charge (atom)  ',qia(ia)
   enddo
   do it = 1 , ntype
-    write( stdout , '(a,f12.5)')  'debug : charge (type ) ',qch(it)
+    WRITE ( stdout , '(a,f12.5)')  'debug : charge (type ) ',qch(it)
   enddo
   do ia = 1 , natm
-    write( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+    WRITE ( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
   enddo
   do it = 1 , ntype
-    write( stdout , '(a,3f12.5)') 'debug : dipole (type ) ',  mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
+    WRITE ( stdout , '(a,3f12.5)') 'debug : dipole (type ) ',  mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
   enddo
-  write( stdout , '(a,2i8)')      'debug : iastart iaend  ',iastart ,iaend
-  write( stdout , '(a,f20.5)')    'debug : cutsq          ',cutsq
+  WRITE ( stdout , '(a,2i8)')      'debug : iastart iaend  ',iastart ,iaend
+  WRITE ( stdout , '(a,f20.5)')    'debug : cutsq          ',cutsq
   endif
   call print_config_sample(0,0)
 #endif  
@@ -1941,22 +1962,22 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 #ifdef debug2
   if ( ionode ) then
-  write( stdout , '(a)')          'debug : in engforce_charge_ES'
-  write( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nkcut,' ',km_coul%meshlabel
+  WRITE( stdout , '(a)')          'debug : in engforce_charge_ES'
+  WRITE( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nkcut,' ',km_coul%meshlabel
   do ia = 1 , natm
-    write( stdout , '(a,f12.5)')  'debug : charge (atom) ',qia(ia)
+    WRITE( stdout , '(a,f12.5)')  'debug : charge (atom) ',qia(ia)
   enddo
   do it = 1 , ntype
-    write( stdout , '(a,f12.5)')  'debug : charge (type) ',qch(it)
+    WRITE( stdout , '(a,f12.5)')  'debug : charge (type) ',qch(it)
   enddo
   do ia = 1 , natm
-    write( stdout , '(a,3f12.5)') 'debug : dipole (atom) ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+    WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom) ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
   enddo
   do it = 1 , ntype
-    write( stdout , '(a,3f12.5)') 'debug : dipole (type) ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
+    WRITE( stdout , '(a,3f12.5)') 'debug : dipole (type) ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
   enddo
-  write( stdout , '(a,2i8)')      'debug : iastart iaend ',iastart ,iaend
-  write( stdout , '(a,f20.5)')    'debug : alphaES       ', alphaES
+  WRITE( stdout , '(a,2i8)')      'debug : iastart iaend ',iastart ,iaend
+  WRITE( stdout , '(a,f20.5)')    'debug : alphaES       ', alphaES
   endif
   call print_config_sample(0,0)
 #endif 
@@ -2625,11 +2646,11 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   double precision :: u , vir
   double precision :: expon 
 
-#ifdef debug
+#ifdef debug_morse
   if ( ionode ) then
   do ia=1, natm
-    write( stdout , '(a,a)' )  'debug : atype',atype(ia)
-    write( stdout , '(a,i4)' ) 'debug : itype',itype(ia)
+    WRITE ( stdout , '(a,a)' )  'debug : atype',atype(ia)
+    WRITE ( stdout , '(a,i4)' ) 'debug : itype',itype(ia)
   enddo
   endif
 #endif
@@ -2697,6 +2718,8 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
           fx ( ja ) = fx ( ja ) - fxij
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
+!TODO
+!!! stresss tensor tau_nonb 
         endif
       endif
     enddo
@@ -2716,7 +2739,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   u_morse = u
   vir_morse = vir
 
-  write(*,'(f24.12)') u_morse
+  WRITE ( stdout ,'(f24.12)') u_morse
 
   return
 
@@ -2819,10 +2842,10 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
 #ifdef debug
    do ia =1 , natm
-     write( stdout , '(a,3f12.5)' ) 'debug : induced moment from pola', mu_ind ( ia , 1 ),  mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
+     WRITE ( stdout , '(a,3f12.5)' ) 'debug : induced moment from pola', mu_ind ( ia , 1 ),  mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
    enddo
    do ia =1 , natm
-     write( stdout , '(a,3f12.5)' ) 'debug : Efield                  ', Efield ( ia , 1 ),  Efield ( ia , 2 ) , Efield ( ia , 3 )
+     WRITE ( stdout , '(a,3f12.5)' ) 'debug : Efield                  ', Efield ( ia , 1 ),  Efield ( ia , 2 ) , Efield ( ia , 3 )
    enddo
 #endif
 
@@ -2892,7 +2915,9 @@ END SUBROUTINE moment_from_pola
 !                              then ia en ja are neighboors   
 !                            enddo
 !                          enddo
-
+!
+! output :
+!            mu ( natm , 3 ) dipole 3 component vector
 !
 !******************************************************************************
 
@@ -2904,16 +2929,17 @@ SUBROUTINE moment_from_WFc ( mu )
   implicit none
 
   ! global
-  double precision :: mu ( natm ,  3 ) 
+  double precision, intent ( out )  :: mu ( natm ,  3 ) 
+
   ! local
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
   integer, dimension ( : ) , allocatable :: cwfc 
-  integer, dimension(:), allocatable :: wfc_list, wfc_point                   ! vnlist info
-  logical :: lwannier 
+  integer, dimension ( : ) , allocatable :: wfc_list, wfc_point                   ! wfc neighbour list info
   double precision :: rijsq, cutsq
   double precision :: rxi , ryi , rzi
   double precision :: rxij , ryij , rzij
   double precision :: sxij , syij , szij
+  logical          :: lwannier 
 
   ! =========================================================
   !  Is there any Wannier center ? if yes lwannier = .TRUE.
@@ -2927,7 +2953,7 @@ SUBROUTINE moment_from_WFc ( mu )
   endif
 
 #ifdef debug_wfc
-  write ( * , * ) 'in moment_from_WFs !!'
+  WRITE ( stdout , '(a)' ) 'debug : in moment_from_WFs'
 #endif
 
   cutsq = rcut_wfc * rcut_wfc
@@ -2971,10 +2997,9 @@ SUBROUTINE moment_from_WFc ( mu )
             k = k + 1
             wfc_list( icount - 1 ) = ja
             ia_last = ia
-
 #ifdef debug_wfc
-          write(*,'(a4,i4,a4,i4,2e17.8)') atype(ia),ia,atype(ja),ja,SQRT(rijsq),rcut_wfc
-          write(*,'(a,5e17.8)') 'distance ',rxij,ryij,rzij,SQRT(rijsq),rcut_wfc
+          WRITE ( stdout ,'(a4,i4,a4,i4,2e17.8)') atype(ia),ia,atype(ja),ja,SQRT(rijsq),rcut_wfc
+          WRITE ( stdout ,'(a,5e17.8)')          'distance ',rxij,ryij,rzij,SQRT(rijsq),rcut_wfc
 #endif
           endif
 
@@ -2987,13 +3012,13 @@ SUBROUTINE moment_from_WFc ( mu )
   wfc_point ( ia_last + 1 ) = icount
 
 
-  ! ======================================
-  !  check if wannier centers are missing
-  ! ======================================
+  ! ===========================================
+  !  check if some wannier centers is missing
+  ! ===========================================
   do ia = 1 , natm
     it = itype ( ia ) 
-    if ( ( lwfc(it) .gt. 0) .and. (cwfc(ia).ne.lwfc(it)) ) then
-      WRITE ( * ,* ) 'ERROR is moment_from_WFc : wannier center is missing for atom ',ia , cwfc ( ia ) , lwfc ( it ) 
+    if ( ( lwfc(it) .gt. 0 ) .and. ( cwfc ( ia ) .ne. lwfc ( it ) ) ) then
+      WRITE ( * ,* ) 'ERROR in moment_from_WFc : wannier center is missing for atom ',ia , cwfc ( ia ) , lwfc ( it ) 
       STOP 
     endif
   enddo
@@ -3033,9 +3058,9 @@ SUBROUTINE moment_from_WFc ( mu )
   mu = -2.0d0 * mu 
 
 #ifdef debug_wfc
-  write ( *, '(a)' ) 'mu from Wannier centers'  
+  WRITE ( stdout , '(a)' ) 'debug : mu from Wannier centers'  
   do ia= 1 , natm
-    write ( *, '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
+    WRITE ( stdout , '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
   enddo
 #endif
 

@@ -22,9 +22,9 @@ INSTALL_DIR=../bin
 #FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 
 # =================
-#   on mario 
+#   on mario / babar
 # =================
-FCFLAGS = -fpp -O3 -ip -xHost
+FCFLAGS = -fpp -O3 -ip -xSSE4.2
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
 #FCFLAGS = -fpp -O0 -check all -warn all 
@@ -72,7 +72,7 @@ OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o NL_field.o vacf.o runmd.o 
+     radial_distrib.o efg.o vacf.o runmd.o 
 
 #OBJ_= constants.o io_file.o control.o prop.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \

@@ -55,9 +55,9 @@ MODULE control
 
   ! type of calculation : md, opt, vib, efg ...              
   character*60, SAVE :: calc                
-  character*60, SAVE :: calc_allowed(12)    
+  character*60, SAVE :: calc_allowed(11)    
   data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr' , 'NL_field' /
+                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr' /
 
   ! algorithm for long-range calculation
   character*60, SAVE :: longrange            
@@ -169,9 +169,9 @@ SUBROUTINE control_default_tag
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  cutoff        = 2.5d0
+  cutoff        = 3.0d0
   cutlongrange  = 400.d0
-  skindiff      = 0.1d0
+  skindiff      = 0.15d0
 
   return 
  
@@ -297,7 +297,21 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a,a4,a1,a2,a1,a2,a4,a2,a1,a2,a1,a2)') &
                                 'date     : ',DATE(1:4),'/',DATE(5:6),'/',DATE(7:8),'   ',HOUR(1:2),&
                                 ':',HOUR(3:4),':',HOUR(5:6)
-     WRITE ( kunit ,'(a,a)')     'calc     : ', calc 
+     WRITE ( kunit ,'(a)'  )     ' '
+     WRITE ( kunit ,'(a)'  )     'Some control values :'
+     WRITE ( kunit ,'(a,a)')     'calc      : ', calc 
+     WRITE ( kunit ,'(a,l2)')    'lbmlj     = ', lbmlj 
+     WRITE ( kunit ,'(a,l2)')    'lmorse    = ', lmorse 
+     WRITE ( kunit ,'(a,l2)')    'lcoulomb  = ', lcoulomb
+     WRITE ( kunit ,'(a,l2)')    'lsurf     = ', lsurf
+     WRITE ( kunit ,'(a,l2)')    'lvnlist   = ', lvnlist
+     WRITE ( kunit ,'(a,l2)')    'lstatic   = ', lstatic
+     WRITE ( kunit ,'(a,l2)')    'lpbc      = ', lpbc
+     WRITE ( kunit ,'(a,l2)')    'lminimg   = ', lminimg
+     WRITE ( kunit ,'(a,l2)')    'lreduced  = ', lreduced 
+     WRITE ( kunit ,'(a,l2)')    'lshiftpot = ', lshiftpot
+     WRITE ( kunit ,'(a,l2)')    'lrestart  = ', lrestart 
+
      WRITE ( kunit ,'(a)')       ''
   endif
 

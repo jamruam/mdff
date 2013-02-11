@@ -383,7 +383,7 @@ SUBROUTINE write_average_thermo ( kunit )
 
 
   if ( ionode ) then
-  !    write ( kunit , '(30i6)' )  acc_e_tot%counter , acc_e_kin_r%counter, acc_u_tot%counter , acc_u_lj_r%counter , acc_u_coul_r%counter , acc_temp_r%counter , acc_pressure_tot%counter , acc_pressure_lj%counter , acc_pressure_coul%counter 
+  !   WRITE ( kunit , '(30i6)' )  acc_e_tot%counter , acc_e_kin_r%counter, acc_u_tot%counter , acc_u_lj_r%counter , acc_u_coul_r%counter , acc_temp_r%counter , acc_pressure_tot%counter , acc_pressure_lj%counter , acc_pressure_coul%counter 
 
       WRITE ( kunit , 100 ) e_tot_av    , e_kin_r_av       , u_tot_av         , u_lj_r_av         , u_coul_r_av        
       WRITE ( kunit , 102 ) e_tot_sig   , e_kin_r_sig      , u_tot_sig        , u_lj_r_sig        , u_coul_r_sig

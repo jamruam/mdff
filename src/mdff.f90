@@ -148,11 +148,6 @@ PROGRAM main_MDFF
     CALL config_init 
 
     ! =============================
-    ! force field initialization 
-    ! ============================= 
-    if ( calc .eq. 'md' ) CALL field_init
-
-    ! =============================
     ! properties initialization	 
     ! =============================
     CALL prop_init
@@ -293,10 +288,6 @@ PROGRAM main_MDFF
     ! ==============================================
     if ( calc .eq. 'gr' ) then
       CALL grcalc 
-    endif
-
-    if ( calc .eq. 'NL_field' ) then
-       CALL Nymand_and_Linse_test
     endif
 
     ! ========================================================

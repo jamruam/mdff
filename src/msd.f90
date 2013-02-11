@@ -232,6 +232,7 @@ SUBROUTINE msd_main ( nmsd )
   USE config,     ONLY :  natm , vx , vy , vz
   USE md,         ONLY :  dt
   USE time,       ONLY :  msdtimetot
+  USE io_file,    ONLY :  stdout       
 
   implicit none
 
@@ -264,7 +265,7 @@ SUBROUTINE msd_main ( nmsd )
     xtime = dtime * ( nblock ** ( iblm ) )
     if ( xtime .gt. tdifmax ) ii = 0
   enddo
-  write(*,'(2i5,3f8.3)') iblm , nmsd , dtime , xtime , tdifmax
+  WRITE ( stdout ,'(2i5,3f8.3)') iblm , nmsd , dtime , xtime , tdifmax
   ! =====================================
   !  limit the maximum number of blocks
   ! =====================================

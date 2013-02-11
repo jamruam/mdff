@@ -263,8 +263,8 @@ SUBROUTINE grcalc
   allocate ( grr ( 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
 #ifdef debug2
   if ( ionode ) then 
-    write ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
-    write ( stdout , '(a,2i6)' ) 'debug : number of type pairs ', pairs
+    WRITE ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
+    WRITE ( stdout , '(a,2i6)' ) 'debug : number of type pairs ', pairs
   endif
 #endif
 
@@ -288,15 +288,17 @@ SUBROUTINE grcalc
 
   ngr = 0
   do ic = nskip + 1, nc
-    if ( ionode ) write ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nc,' ] '
+    if ( ionode ) WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nc,' ] '
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) iiii
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) cccc
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0) READ ( kunit_TRAJFF , * ) aaaa , iiii
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
-    if ( ic .ne. (nskip + 1) .or. nskip.ne.0 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    if ( ic .ne. (nskip + 1) .or. nskip .ne. 0 ) then
+      READ ( kunit_TRAJFF , * ) iiii
+      READ ( kunit_TRAJFF , * ) cccc
+      READ ( kunit_TRAJFF , * ) aaaa , iiii
+      READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+      READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    endif
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
@@ -341,8 +343,9 @@ SUBROUTINE grcalc
       mp = mp + 1 
     enddo
   enddo
-  write ( kunit_GRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
-  write ( kunit_NRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
+
+  WRITE ( kunit_GRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
+  WRITE ( kunit_NRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
 
   nr ( 0 ) = 0 
 
@@ -360,7 +363,7 @@ SUBROUTINE grcalc
     do it1 = 1 , ntype
       do it2 = it1 , ntype
 #ifdef debug2
-       write ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
+       WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
 #endif        
         nr ( mp ) = it1          
         grr ( mp ) = DBLE ( gr ( i , it1 , it2 ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
@@ -369,8 +372,8 @@ SUBROUTINE grcalc
     enddo
     if ( pairs .ne. 1 ) then
       if ( ionode ) then
-        WRITE (kunit_GRTFF,'(<pairs+2>f15.10)') rr , ( grr ( mp ) , mp = 0 , pairs ) 
-        WRITE (kunit_NRTFF,'(<pairs+2>f20.10)') rr , ( DBLE ( grr (mp) ) * 4.0d0 * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
+        WRITE ( kunit_GRTFF ,'(<pairs+2>f15.10)') rr , ( grr ( mp ) , mp = 0 , pairs ) 
+        WRITE ( kunit_NRTFF ,'(<pairs+2>f20.10)') rr , ( DBLE ( grr (mp) ) * 4.0d0 * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
       endif
     else
       if ( ionode ) then

@@ -52,6 +52,7 @@ CONTAINS
 SUBROUTINE alloc
 
   USE config,   ONLY :  natm
+  USE io_file,  ONLY :  stdout
 
   implicit none
 
@@ -77,7 +78,7 @@ SUBROUTINE alloc
 ! tmp would be in check or print info
   do ii = 1 , S
     lambda = m ** (ii)
-    write(6,'(a,i16,a,i16)') 'average block every',lambda,' steps for level', ii 
+    WRITE ( stdout ,'(a,i16,a,i16)') 'average block every',lambda,' steps for level', ii 
   enddo
 
   return
@@ -209,7 +210,7 @@ END SUBROUTINE multi_tau_main
 !******************************************************************************
 SUBROUTINE multi_tau_write_output
 
-  USE io_file,  ONLY :  ionode
+  USE io_file,  ONLY :  ionode , stdout 
   USE md,       ONLY :  dt 
   USE prop,     ONLY :  nprop      
   USE config,   ONLY :  natm
@@ -231,8 +232,8 @@ SUBROUTINE multi_tau_write_output
         tk = j * m ** ( lv ) * dtime
         do ia = 1 , natm 
           fk = fk + ( CC ( lv , j , ia ) / DBLE ( NN ( lv , j , ia ) ) )  
-                      if ( NN ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'N1 0', lv, j ,ia
-                      if ( CC ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'C1 0', lv, j ,ia
+                      if ( NN ( lv , j , ia ) .eq. 0 ) WRITE ( stdout ,'(a,3i6)') 'N1 0', lv, j ,ia
+                      if ( CC ( lv , j , ia ) .eq. 0 ) WRITE ( stdout ,'(a,3i6)') 'C1 0', lv, j ,ia
         enddo
         if ( ionode )  WRITE ( 1000 , * ) tk , fk  
       enddo
@@ -241,8 +242,8 @@ SUBROUTINE multi_tau_write_output
         tk = j * m ** ( lv ) * dtime
         do ia = 1 , natm
           fk = fk + ( CC ( lv , j , ia ) / DBLE ( NN ( lv , j , ia ) )  )
-                      if ( NN ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'N1 p/m', lv, j ,ia
-                      if ( CC ( lv , j , ia ) .eq. 0 ) write(6,'(a,3i6)') 'C1 p/m', lv, j ,ia
+                      if ( NN ( lv , j , ia ) .eq. 0 ) WRITE ( stdout ,'(a,3i6)') 'N1 p/m', lv, j ,ia
+                      if ( CC ( lv , j , ia ) .eq. 0 ) WRITE ( stdout ,'(a,3i6)') 'C1 p/m', lv, j ,ia
         enddo
         if ( ionode )  WRITE ( 1000 , * ) tk , fk  
       enddo

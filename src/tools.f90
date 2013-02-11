@@ -17,6 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+!#define debug_vnl  ! verlet list debugging
 ! ======= Hardware =======
 
 !*********************** SUBROUTINE estimate_alpha ***********************
@@ -63,7 +64,8 @@ END SUBROUTINE estimate_alpha
 SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc ) 
 
   USE constants,  ONLY : pi
-  USE config,   ONLY : simu_cell 
+  USE config,     ONLY : simu_cell 
+  USE io_file,    ONLY : stderr
 
   implicit none
 
@@ -85,7 +87,7 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
     ra = exp ( - ss )  / ss
     if ( abs ( ra - epsw ) .gt. epsw ) exit  
     if ( s .le. 0.0d0 .or. k .gt.1e6 ) then
-      WRITE( *,* ) 'ERROR in accur_ES_frenkel_smit',s,k 
+      WRITE( stderr , * ) 'ERROR in accur_ES_frenkel_smit',s,k 
       stop
     endif
     k = k + 1
@@ -297,7 +299,6 @@ END SUBROUTINE distance_tab
 !                          enddo
 !
 !******************************************************************************
-
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   USE config,   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell
@@ -315,6 +316,10 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   integer :: p1 , p2
   double precision  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
+
+#ifdef debug_vnl
+   print*,'debug : in vnlist_pbc'
+#endif
 
   do jt = 1, ntype 
     do it = 1, ntype
@@ -344,9 +349,9 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
         sxij = rxij - nint ( rxij )
         syij = ryij - nint ( ryij )
         szij = rzij - nint ( rzij )
-        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
-        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
-        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1 = itype ( ia )
         p2 = itype ( ja )
@@ -365,6 +370,10 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   !         direct to cartesian
   ! ======================================
   CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+
+#ifdef debug_vnl
+   print*,'debug : out vnlist_pbc'
+#endif
 
   return
 
@@ -386,7 +395,6 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
 
   ! global
   integer :: iastart , iaend
-!  integer , intent (out) :: list(natm*250), point(natm+1)
 
   ! local
   integer :: icount , ia , ja , it , jt , k
@@ -450,7 +458,6 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
 
   ! global
   integer, intent (in) :: iastart , iaend 
-!  integer, intent (inout) :: list(natm*250), point(natm+1)
 
   ! local
   integer :: ia , ierr
@@ -472,21 +479,21 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
   enddo 
         
   ! ========================================
-  !  DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
+   DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
   !  I don't know where this come from, 
-  !  It was in the very old version
+  !  It was in the very first version
   ! ========================================
 
   if ( displ .ge. skindiff * 0.5d0 ) then
     updatevnl = updatevnl + 1
     if ( lpbc ) then
 !      if ( lminimg ) then 
-        CALL vnlist_pbc ( iastart, iaend )!, list , point )
+        CALL vnlist_pbc ( iastart, iaend )
 !      else
 !        CALL vnlist_noimg ( iastart, iaend )
 !      endif
     else
-      CALL vnlist_nopbc ( iastart, iaend )!, list , point )
+      CALL vnlist_nopbc ( iastart, iaend )
     endif
      
     do ia = 1, natm 
@@ -527,9 +534,9 @@ SUBROUTINE print_tensor( tens , key )
     WRITE ( stdout ,'(a)') ''
     WRITE ( stdout ,'(a)') key
     do i = 1 , 3
-      WRITE ( stdout ,'(3f15.8)') tens(i,1) , tens(i,2) , tens(i,3)
+      WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
-    WRITE ( stdout ,'(a,f15.8)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
+    WRITE ( stdout ,'(a,e16.8)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
     WRITE ( stdout , '(a)' ) ''
   endif
 

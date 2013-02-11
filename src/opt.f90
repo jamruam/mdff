@@ -312,7 +312,7 @@ SUBROUTINE opt_main
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
     enddo
-  if ( ionode ) write (stdout , '(i6,a)' ) nskipopt,' configs were skiped' 
+  if ( ionode ) WRITE ( stdout , '(i6,a)' ) nskipopt,' first configs not used' 
   endif
   do ic = nskipopt + 1, ncopt
 
@@ -320,11 +320,13 @@ SUBROUTINE opt_main
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) iiii
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) cccc
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) aaaa , iiii
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) then 
+      READ ( kunit_TRAJFF , * ) iiii
+      READ ( kunit_TRAJFF , * ) cccc
+      READ ( kunit_TRAJFF , * ) aaaa , iiii
+      READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
+      READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+    endif
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo

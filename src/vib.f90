@@ -982,7 +982,7 @@ SUBROUTINE band ( hess )
   akny = aky / DBLE ( nkphon )  
   aknz = akz / DBLE ( nkphon )  
 #ifdef debug
-  write( stdout , '(a,f)') 'debug: ak,akn,ncell,cell',ak,akn,ncell,(simu_cell%ANORM(i),i=1,3)
+  WRITE ( stdout , '(a,f)') 'debug: ak,akn,ncell,cell',ak,akn,ncell,(simu_cell%ANORM(i),i=1,3)
 #endif
   kxt = kfx - ksx
   kyt = kfy - ksy

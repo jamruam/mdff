@@ -63,7 +63,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
 
 
   USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
-                        write_CONTFF , center_of_mass , ntypemax , tau_lj , tau_coul 
+                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul 
   USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse
   USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
                         kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
@@ -202,10 +202,9 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   ! =======================
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
-  if ( ionode ) then
-    CALL print_tensor ( tau_lj   , 'TAU_LJ  ' ) 
-    CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
-  endif
+
+  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
+  if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 
   ! =========================
   !   MAIN LOOP ( TIME )
@@ -296,20 +295,17 @@ MAIN:  do itime = offset , npas + (offset-1)
 #ifdef stress_t
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
-  if ( ionode ) then
-    if ( lbmlj )    CALL print_tensor ( tau_lj    , 'TAU_LJ  ' ) 
-    if ( lcoulomb ) CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-    if ( lmorse )   CALL print_tensor ( tau_morse , 'TAU_MORS' ) 
-  endif
+  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
+  if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 #endif
        
 #ifdef com_t
      if ( MOD ( itime , nprint ) .eq. 0 ) then
        comcount = comcount + 1 
        CALL center_of_mass ( rx , ry , rz , com )
-       write(*,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
-       write(*,'(a3,i10,3e18.6)') 'A  ',itime , com(1,:)
-       write(*,'(a3,i10,3e18.6)') 'B  ',itime , com(2,:)
+       WRITE ( stdout ,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
+       WRITE ( stdout ,'(a3,i10,3e18.6)') 'A  ',itime , com(1,:)
+       WRITE ( stdout ,'(a3,i10,3e18.6)') 'B  ',itime , com(2,:)
        modcom1=com(1,1)*com(1,1)+com(1,2)*com(1,2)+com(1,3)*com(1,3) 
        modcom2=com(2,1)*com(2,1)+com(2,2)*com(2,2)+com(2,3)*com(2,3) 
        ! sum 
@@ -329,7 +325,7 @@ MAIN:  do itime = offset , npas + (offset-1)
        !fluctu
        scom1     = msqcom1 - mcom1*mcom1
        scom2     = msqcom2 - mcom2*mcom2
-       write(*,'(a3,i10,4e18.6)') 'MOY',itime,mcom1,mcom2,scom1,scom2
+       WRITE ( stdout ,'(a3,i10,4e18.6)') 'MOY',itime,mcom1,mcom2,scom1,scom2
     endif
 #endif
          ! =======================
@@ -397,10 +393,8 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( ionode ) WRITE ( stdout , '(a)' ) ' '
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
-  if ( ionode ) then
-    CALL print_tensor ( tau_lj   , 'TAU_LJ  ' ) 
-    CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
-  endif
+  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
+  if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 
   CALL  write_average_thermo ( stdout ) 
   CALL  write_average_thermo ( kunit_OUTFF ) 

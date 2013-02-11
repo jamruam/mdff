@@ -164,7 +164,7 @@ SUBROUTINE reorder_rpt ( rm )
 
 #ifdef debug
   do ir=1,rm%ncmax
-    write(*,'(4f16.6,i6)') rm%boxxyz(1,ir),rm%boxxyz(2,ir),rm%boxxyz(3,ir),rm%rr(ir),rm%lcell(ir)
+    WRITE (stdout , '(4f16.6,i6)' ) rm%boxxyz(1,ir),rm%boxxyz(2,ir),rm%boxxyz(3,ir),rm%rr(ir),rm%lcell(ir)
   enddo
 #endif
 

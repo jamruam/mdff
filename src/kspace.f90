@@ -28,7 +28,7 @@ MODULE kspace
 
   TYPE :: kmesh
     integer                                        :: nkcut  ! (internal) number of k-points in the kmesh
-    integer                                        :: kES(3) ! nb of kpts in each recip. direction in ewald sum.
+    integer                                        :: kmax(3) ! nb of kpts in each recip. direction in ewald sum.
     double precision, dimension(:,:) , allocatable :: kpt  
     double precision, dimension(:)   , allocatable :: kptk 
     double complex  , dimension(:,:) , allocatable :: strf   ! facteur de structure
@@ -66,9 +66,9 @@ SUBROUTINE kpoint_sum_init( km )
   if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
 
   nk = 0
-  do nx =  - km%kES(1) , km%kES(1)
-    do ny = - km%kES(2)  , km%kES(2)
-      do nz = - km%kES(3) , km%kES(3)
+  do nx =  - km%kmax(1) , km%kmax(1)
+    do ny = - km%kmax(2)  , km%kmax(2)
+      do nz = - km%kmax(3) , km%kmax(3)
         if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
           kx = tpi * ( DBLE (nx) * simu_cell%B(1,1) +  DBLE (ny) * simu_cell%B(1,2) + DBLE (nz) * simu_cell%B(1,3) )
@@ -130,9 +130,9 @@ SUBROUTINE kpoint_sum_init_half ( km )
   if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
   
   nk = 0
-  do nx =  0 , km%kES(1) 
-    do ny = 0  , km%kES(2)
-      do nz = 0 , km%kES(3)
+  do nx =  0 , km%kmax(1) 
+    do ny = 0  , km%kmax(2)
+      do nz = 0 , km%kmax(3)
         if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
           kx = tpi * DBLE (nx) * simu_cell%BNORM(1) 
@@ -271,58 +271,6 @@ SUBROUTINE struc_fact ( km )
   return
 
 END SUBROUTINE struc_fact
-
-
-!*********************** SUBROUTINE struct_fact *******************************
-!
-! calculate the structure factors for each type of atoms in the unit cell
-! Basically used to calculate k-space charge density. 
-!
-!******************************************************************************
-
-SUBROUTINE struc_fact_dip ( km , dip ) 
-  
-  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
-  USE io_file,          ONLY :  ionode , kunit_STRFACFF
-  USE constants,        ONLY :  imag , mimag
-
-  implicit none
-
-  ! global
-  TYPE ( kmesh ) :: km
-  double precision :: dip(ntype,3)
-
-  ! local
-  integer :: it, ia, ik
-  double precision :: arg , rxi , ryi , rzi , muk 
-
-#ifdef debug
-  do it = 1 , ntype 
-    write ( *, * ) dip ( it , 1 ) , dip ( it , 2 ) , dip ( it , 3 )
-  enddo
-#endif
-
-  !  exp ( i k . r ) 
-  km%strf(:,:) = (0.d0,0.d0)
-  do it = 1, ntype
-     do ia = 1, natm
-        rxi = rx ( ia ) 
-        ryi = ry ( ia ) 
-        rzi = rz ( ia ) 
-        if ( itype (ia) .eq. it ) then
-           do ik = 1, km%nkcut 
-              arg = ( km%kpt ( 1, ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
-              muk = ( km%kpt ( 1, ik ) * dip( it , 1 ) + km%kpt ( 2 , ik ) * dip( it , 2 ) + km%kpt ( 3 , ik ) * dip( it , 3 ) )
-              km%strf ( ik, it ) = km%strf (ik, it) + muk * EXP( imag * arg ) 
-           enddo
-        endif
-     enddo
-  enddo
-
-  return
-
-END SUBROUTINE struc_fact_dip
-
 
 END MODULE kspace 
 ! ===== fmV =====

@@ -18,8 +18,9 @@
 
 ! ======= Hardware =======
 
-#define debug
-#define debug2
+!#define debug
+!#define debug2
+#define debug_multipole
 
 !fix_grid in efg
 !#define fix_grid
@@ -231,9 +232,8 @@ SUBROUTINE efg_print_info(kunit)
 
   implicit none
 
-  !local
-  integer :: kunit , it, i
-  double precision :: aaa , rcut2 , kmax2 , alpha2 , ereal , ereci(3) , qtot
+  ! global 
+  integer :: kunit 
 
   if ( ionode ) then
     if ( calc .eq. 'efg' ) then
@@ -241,7 +241,6 @@ SUBROUTINE efg_print_info(kunit)
       WRITE ( kunit ,'(a)')                     ''
       WRITE ( kunit ,'(a)')                     'electric field gradient:'
       WRITE ( kunit ,'(a)')                     'point charges calculation'
-    WRITE ( kunit ,'(a,f10.5)')                 'total charge of the system = ',  qtot
       if ( calc .eq. 'efg')  then 
         WRITE ( kunit ,'(a)')         'read config from file            : TRAJFF'
         WRITE ( kunit ,'(a,i10)')     'numbers of config read ncefg     = ',ncefg 
@@ -400,29 +399,33 @@ SUBROUTINE efgcalc
       ! =======================
       efg_t = 0.0d0
 
-      ! =======================
-      !     induced moment
-      ! =======================
+      ! ======================================
+      !     induced moment from polarisation 
+      ! ======================================
       CALL moment_from_pola ( iastart , iaend , dipia_ind )
 
+      ! ======================================
+      !     induced moment from wannier center  
+      ! ======================================
       CALL moment_from_WFc ( dipia_wfc ) 
 
       mu = dipia + dipia_ind + dipia_wfc
 
-      ! test purpose
+#ifdef debug_multipole
       if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
       if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
 
-      write(10000, * ) '#electric field'
-      write(10001, * ) '#dipoles'
-      write(10002, * ) '#forces'
-      write(10003, * ) '#efg'
+      WRITE ( 10000, * ) '#electric field'
+      WRITE ( 10001, * ) '#dipoles'
+      WRITE (10002, * ) '#forces'
+      WRITE (10003, * ) '#efg'
       do ia = 1 , natm
-        write(10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
-        write(10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
-        write(10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
-        write(10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
+        WRITE (10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
+        WRITE (10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
+        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
+        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
       enddo
+#endif
 
       ! =======================================
       !       efg charge only lefg_old=.true. 
@@ -621,8 +624,8 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
   INCLUDE 'mpif.h'
 
   ! global
-  integer, intent(in)           :: iastart , iaend 
-  TYPE ( rmesh ) :: rm
+  integer, intent ( in )         :: iastart , iaend 
+  TYPE ( rmesh ) , intent ( in ) :: rm
 
   ! local
   integer :: ia, ja, ierr , it 
@@ -658,9 +661,9 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
 ! =========================================================
 
 #ifdef debug
-     write( stdout ,'(a,2i)')    'debug : iastart iaend',iastart , iaend
-     write( stdout ,'(a,i)')     'debug : rm%ncmax',rm%ncmax
-     write( stdout ,'(a,f16.5)') 'debug : cutefgsq ',cutefgsq
+     WRITE ( stdout ,'(a,2i)')    'debug : iastart iaend',iastart , iaend
+     WRITE ( stdout ,'(a,i)')     'debug : rm%ncmax',rm%ncmax
+     WRITE ( stdout ,'(a,f16.5)') 'debug : cutefgsq ',cutefgsq
 #endif
 
   ! ======================================
@@ -790,8 +793,8 @@ atom : do ia = iastart , iaend
   !      END OF EFG TENSOR CALCULATION
   !=========================================================
 #ifdef debug
-  CALL print_tensor( efg_ia( 1    , : , : ) , 'EFG_1B' )
-  CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NB' )
+  CALL print_tensor( efg_ia( 1    , : , : ) , 'EFG_1B  ' )
+  CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NB  ' )
 #endif
 
   ttt2 = MPI_WTIME(ierr)
@@ -824,8 +827,8 @@ atom : do ia = iastart , iaend
     efg_ia_it( : , : , 3, 2) = efg_ia_it( : , : , 2, 3)
   endif
 #ifdef debug
-  CALL print_tensor( efg_ia( 1    , : , : ) , 'EFG_1A' )
-  CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NA' )
+  CALL print_tensor( efg_ia( 1    , : , : ) , 'EFG_1A  ' )
+  CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NA  ' )
 #endif
 
   ttt3 = MPI_WTIME(ierr)
@@ -908,9 +911,9 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
 
 #ifdef debug
   CALL print_config_sample(0,0)
-  write( stdout ,'(a,2i)')    'debug in efg_ES : iastart iaend',iastart , iaend
-  write( stdout ,'(a,i)')     'debug in efg_ES : km%ncmax',km%nkcut
-  write( stdout ,'(a,f16.5)') 'debug in efg_ES : alphaES ',alphaES
+  WRITE ( stdout ,'(a,2i)')    'debug in efg_ES : iastart iaend',iastart , iaend
+  WRITE ( stdout ,'(a,i)')     'debug in efg_ES : km%ncmax',km%nkcut
+  WRITE ( stdout ,'(a,f16.5)') 'debug in efg_ES : alphaES ',alphaES
 #endif
   ! ==========================
   !  init some quantities
@@ -1233,16 +1236,16 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
 #ifdef debug
   if ( ionode ) then
-  write( stdout , '(a)')    'debug: in multipole_efg_DS'
-  write( stdout , '(a,i8,a)') 'debug : rm ',rm%ncmax,rm%meshlabel
+  WRITE( stdout , '(a)')    'debug: in multipole_efg_DS'
+  WRITE( stdout , '(a,i8,a)') 'debug : rm ',rm%ncmax,rm%meshlabel
   do ia = 1 , natm
-    write( stdout , '(a,f12.5)')  'debug : charge (atom)  ',qia(ia)
+    WRITE( stdout , '(a,f12.5)')  'debug : charge (atom)  ',qia(ia)
   enddo
   do ia = 1 , natm
-    write( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+    WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
   enddo
-  write( stdout , '(a,2i8)')     'debug : iastart iaend',iastart ,iaend
-  write( stdout , '(a,f20.5)')   'debug : cutsq ',cutsq
+  WRITE( stdout , '(a,2i8)')     'debug : iastart iaend',iastart ,iaend
+  WRITE( stdout , '(a,f20.5)')   'debug : cutsq ',cutsq
   endif
   call print_config_sample(0,0)
 #endif  
@@ -1442,22 +1445,22 @@ SUBROUTINE multipole_efg_ES ( iastart, iaend , km , alphaES , mu )
 
 #ifdef debug
   if ( ionode ) then
-    write( stdout , '(a)')          'debug : in multipole_efg_ES'
-    write( stdout , '(a,i8,a,a)')   'debug : km        ',km%nkcut,' ',km%meshlabel
+    WRITE( stdout , '(a)')          'debug : in multipole_efg_ES'
+    WRITE( stdout , '(a,i8,a,a)')   'debug : km        ',km%nkcut,' ',km%meshlabel
     do ia = 1 , natm
-      write( stdout , '(a,f12.5)')  'debug : charge (atom)  ', qia(ia)
+      WRITE( stdout , '(a,f12.5)')  'debug : charge (atom)  ', qia(ia)
     enddo
     do it = 1 , ntype
-      write( stdout , '(a,f12.5)')  'debug : charge (type)  ', qch(it)
+      WRITE( stdout , '(a,f12.5)')  'debug : charge (type)  ', qch(it)
     enddo
     do ia = 1 , natm
-      write( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+      WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
     enddo
     do it = 1 , ntype
-      write( stdout , '(a,3f12.5)') 'debug : dipole (type)  ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
+      WRITE( stdout , '(a,3f12.5)') 'debug : dipole (type)  ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
     enddo
-    write( stdout , '(a,2i8)')      'debug : iastart iaend  ', iastart ,iaend
-    write( stdout , '(a,f20.5)')    'debug : alphaES        ', alphaES
+    WRITE( stdout , '(a,2i8)')      'debug : iastart iaend  ', iastart ,iaend
+    WRITE( stdout , '(a,f20.5)')    'debug : alphaES        ', alphaES
   endif
   call print_config_sample(0,0)
 #endif 
@@ -2125,7 +2128,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
     endif
 
    if ( .not. lefg_stat ) then
-     WRITE ( stdout , '(a)' ) "No statistic on EFG's"
+     if ( ionode ) WRITE ( stdout , '(a)' ) "No statistic on EFG's"
      return
    endif
 
@@ -2364,7 +2367,7 @@ SUBROUTINE efg_alloc
 
   implicit none
 
-  if ( calc .ne. 'efg' .and. calc .ne. 'NL_field' ) return
+  if ( calc .ne. 'efg' ) return
 
   allocate( dibUtot(6,0:ntype,0:PANU) )
   allocate( dibvzztot(0:ntype,0:PANvzz) )
@@ -2397,7 +2400,7 @@ SUBROUTINE efg_dealloc
 
   implicit none
 
-  if ( calc .ne. 'efg' .and. calc .ne. 'NL_field' ) return
+  if ( calc .ne. 'efg' ) return
 
   deallocate( dibUtot )
   deallocate( dibvzztot )
@@ -2435,7 +2438,7 @@ SUBROUTINE efg_mesh_alloc
   integer :: nkcut
   integer :: ncmax
 
-  if ( calc .ne. 'efg' .and. calc .ne. 'NL_field' ) return
+  if ( calc .ne. 'efg' ) return
 
   ! ============
   !  direct sum
@@ -2454,10 +2457,10 @@ SUBROUTINE efg_mesh_alloc
   ! ============
   if ( longrange .eq. 'ewald')  then
     km_coul%meshlabel='km_coul'
-    km_coul%kES(1) = kES(1)
-    km_coul%kES(2) = kES(2)
-    km_coul%kES(3) = kES(3)
-    nkcut = ( 2 * kES(1) + 1 ) * ( 2 * kES(2) + 1 ) * ( 2 * kES(3) + 1 )
+    km_coul%kmax(1) = kES(1)
+    km_coul%kmax(2) = kES(2)
+    km_coul%kmax(3) = kES(3)
+    nkcut = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
     nkcut = nkcut - 1
     km_coul%nkcut = nkcut
     allocate( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
@@ -2477,7 +2480,7 @@ SUBROUTINE efg_mesh_dealloc
 
   implicit none
 
-  if ( calc .ne. 'efg' .and. calc .ne. 'NL_field' ) return
+  if ( calc .ne. 'efg' ) return
 
   if ( longrange .eq. 'direct' ) then
     deallocate( rm_coul%boxxyz , rm_coul%lcell )

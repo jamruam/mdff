@@ -787,7 +787,7 @@
          DGINIT = DGINIT + G(J)*S(J)
    10    CONTINUE
       IF (DGINIT .GE. ZERO) then
-         write(stdout,15)
+         WRITE ( stdout , 15 )
    15    FORMAT(/'  THE SEARCH DIRECTION IS NOT A DESCENT DIRECTION')
          RETURN
          ENDIF
