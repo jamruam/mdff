@@ -36,6 +36,7 @@ MODULE md
   integer :: itraj_period                  ! write trajectory each itraj_period steps 
   integer :: itraj_format                  ! choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
   integer :: updatevnl                     ! number of verlet list update  
+  integer :: itime
 
   double precision :: dt                   ! time step
   double precision :: temp                 ! temperature   

@@ -110,7 +110,7 @@ SUBROUTINE calc_thermo
   vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
   if (lreduced) then
-    pvirial_lj    = vir_lj   / omega / DBLE ( natm ) 
+    pvirial_lj    = vir_lj / omega / DBLE ( natm ) 
     pvirial_coul  = ( vir_coul_tot ) / omega / DBLE ( natm ) 
     pvirial_tot   = pvirial_lj + pvirial_coul  
 

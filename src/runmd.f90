@@ -69,7 +69,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
                         kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
   USE prop,     ONLY :  lstrfac , lmsd , lvacf , nprop , nprop_start
   USE md,       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
-                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator
+                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator , itime
 
   USE thermodynamic
   USE time
@@ -91,7 +91,8 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   double precision :: tempi , kin 
   double precision :: ttt1, ttt2 
   double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
-  integer :: itime , ierr , ia 
+  !integer :: itime 
+  integer :: ierr , ia 
   integer :: nefg , ngr , nmsd , ntau 
   character*60 :: rescale_allowed(2)
   data rescale_allowed / 'nve-vv' , 'nve-be' /
@@ -395,6 +396,7 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+  if ( ionode ) write ( stdout , '(a,i6,f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
 
   CALL  write_average_thermo ( stdout ) 
   CALL  write_average_thermo ( kunit_OUTFF ) 

@@ -864,12 +864,14 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
     enddo
   enddo
 
+
+  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
+
   ! ======================================
   !         cartesian to direct 
   ! ======================================
   CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
-  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
   do ia = iastart , iaend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -897,10 +899,6 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
-        !rxij = rxij -  simu_cell%ANORM(1) * nint( rxij / simu_cell%ANORM(1) )
-        !ryij = ryij -  simu_cell%ANORM(2) * nint( ryij / simu_cell%ANORM(2) )
-        !rzij = rzij -  simu_cell%ANORM(3) * nint( rzij / simu_cell%ANORM(3) )
-        !rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         sxij = rxij - nint ( rxij )
         syij = ryij - nint ( ryij )
         szij = rzij - nint ( rzij )
@@ -1184,9 +1182,6 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
         rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
-        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
-        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
-        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1    = itype ( ia )
         p2    = itype ( ja )

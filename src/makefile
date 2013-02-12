@@ -83,7 +83,7 @@ OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
 #test: $(EXE_)
 #	cp $(EXE_) $(INSTALL_DIR)
 
-all: $(EXE)
+all: $(EXE) 
 
 mdff.x: $(OBJ) mdff.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)

@@ -264,7 +264,7 @@ SUBROUTINE config_alloc
   allocate( fxs ( natm ) , fys ( natm ) , fzs ( natm ) )
   allocate( rxs ( natm ) , rys ( natm ) , rzs ( natm ) )
   allocate( atype ( natm ) , itype ( natm ) )
-  allocate( list ( natm * 500 ) , point (  natm + 1 ) )
+  allocate( list ( natm * 1000 ) , point (  natm + 1 ) )
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
   allocate( dipia ( natm , 3 ) )

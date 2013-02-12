@@ -48,7 +48,7 @@ SUBROUTINE fft_1D_real(in,out,N)
 
   integer :: N
   double precision, dimension(N)      :: in
-  double complex  ,dimension(N/2 + 1) :: out
+  double complex  ,dimension(N/2 +1 ) :: out
   integer*8 plan
      
   call dfftw_plan_dft_r2c_1d(plan,N,in,out,FFTW_ESTIMATE)

@@ -199,7 +199,7 @@ SUBROUTINE distance_tab ( kunit )
   integer, dimension (:) ,allocatable :: dist
   double precision :: resdis,mindis 
 
-  resdis = 0.5D0 ! should still local no need to be controled
+  resdis = 0.5D0 ! should be keep hardware no need to be controled
 
   PANdis = MAX(simu_cell%WA,simu_cell%WB,simu_cell%WC) / resdis
 
@@ -212,6 +212,7 @@ SUBROUTINE distance_tab ( kunit )
   ! ======================================
   CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
 
+  kdis =0
   do ia = 1 , natm - 1
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -224,22 +225,22 @@ SUBROUTINE distance_tab ( kunit )
         sxij = rxij - nint ( rxij )
         syij = ryij - nint ( ryij )
         szij = rzij - nint ( rzij )
-        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(2,1) + szij * simu_cell%A(3,1)
-        ryij = sxij * simu_cell%A(1,2) + syij * simu_cell%A(2,2) + szij * simu_cell%A(3,2)
-        rzij = sxij * simu_cell%A(1,3) + syij * simu_cell%A(2,3) + szij * simu_cell%A(3,3)
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
         rij = SQRT ( rijsq )  
         mindis = MIN ( mindis , rij )
         if ( rij .lt. sigmalj(1,1) * 0.001d0 ) then
           if ( ionode ) &
           WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
-          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij   
+          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij 
           STOP 
         endif
         rij = rij / resdis
         kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          if ( ionode ) WRITE ( stdout ,*) 'ERROR: out of bound dist in SUBROUTINE distance_tab'
+          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8)' ) 'ERROR: out of bound dist in SUBROUTINE distance_tab',kdis,PANdis,rij
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -318,7 +319,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
 
 #ifdef debug_vnl
-   print*,'debug : in vnlist_pbc'
+   WRITE ( stdout , '(a)') 'debug : in vnlist_pbc'
 #endif
 
   do jt = 1, ntype 
@@ -356,8 +357,13 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
         p1 = itype ( ia )
         p2 = itype ( ja )
         if ( rijsq .le. rskinsq(p1,p2)) then
-          icount = icount+1
+          icount = icount + 1
           k = k+1
+          if ( icount .lt. 1 .or. icount-1 .gt. 1000*natm ) then
+            if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in SUBROUTINE vnlist_pbc',icount-1,1000*natm
+            STOP
+          endif
+
           list(icount-1) = ja
         endif
       endif
@@ -371,10 +377,6 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
 
-#ifdef debug_vnl
-   print*,'debug : out vnlist_pbc'
-#endif
-
   return
 
 END SUBROUTINE vnlist_pbc
@@ -386,7 +388,7 @@ END SUBROUTINE vnlist_pbc
 !
 !******************************************************************************
 
-SUBROUTINE vnlist_nopbc ( iastart , iaend )!, list , point )
+SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
   USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype
   USE control,  ONLY :  skindiff , cutoff
@@ -450,8 +452,9 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
 
   USE config,   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
   USE control,  ONLY :  lpbc , lminimg , skindiff 
-  USE md,       ONLY :  updatevnl
+  USE md,       ONLY :  updatevnl , itime
   USE time,     ONLY :  vnlisttimetot
+  USE io_file,  ONLy :  stdout , ionode
 
   implicit none
   INCLUDE 'mpif.h'
@@ -461,46 +464,52 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
 
   ! local
   integer :: ia , ierr
-  double precision :: displ
+  double precision :: drneimax , drneimax2 , drnei
   double precision :: rxsi,rysi,rzsi
   double precision :: ttt1 , ttt2
 
 
   ttt1 = MPI_WTIME(ierr)
 
-  displ = 0.0D0
+  drneimax = 0.0d0
+  drneimax2 = 0.0d0
   do ia = 1, natm
-    rxsi = ABS ( rx ( ia ) - xs ( ia ) )
-    rysi = ABS ( ry ( ia ) - ys ( ia ) )
-    rzsi = ABS ( rz ( ia ) - zs ( ia ) )
-    if ( rxsi .gt. DISPL ) DISPL = rxsi
-    if ( rysi .gt. DISPL ) DISPL = rysi
-    if ( rzsi .gt. DISPL ) DISPL = rzsi
+    rxsi = rx ( ia ) - xs ( ia ) 
+    rysi = ry ( ia ) - ys ( ia ) 
+    rzsi = rz ( ia ) - zs ( ia ) 
+    drnei = SQRT ( rxsi * rxsi + rysi * rysi + rzsi * rzsi ) 
+    if ( drnei .gt. drneimax ) then
+      drneimax2 = drneimax
+      drneimax  = drnei
+    else
+      if ( drnei .gt. drneimax2 ) then
+        drneimax2 = drnei
+      endif
+    endif        
   enddo 
         
   ! ========================================
-   DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
+  ! DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
   !  I don't know where this come from, 
   !  It was in the very first version
   ! ========================================
 
-  if ( displ .ge. skindiff * 0.5d0 ) then
+  if ( drneimax + drneimax2 .gt. skindiff ) then
     updatevnl = updatevnl + 1
+#ifdef debug_vnl
+  if ( ionode .and. itime .ne. 0 ) write ( stdout , '(a,2i6,2f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl)
+#endif
     if ( lpbc ) then
-!      if ( lminimg ) then 
         CALL vnlist_pbc ( iastart, iaend )
-!      else
-!        CALL vnlist_noimg ( iastart, iaend )
-!      endif
     else
       CALL vnlist_nopbc ( iastart, iaend )
     endif
-     
     do ia = 1, natm 
       xs ( ia ) = rx ( ia )
       ys ( ia ) = ry ( ia )
       zs ( ia ) = rz ( ia )
     END do
+     
   endif
 
   ttt2 = MPI_WTIME(ierr)
@@ -519,6 +528,7 @@ END SUBROUTINE vnlistcheck
 
 SUBROUTINE print_tensor( tens , key )
 
+  USE config,   ONLY :  natm
   USE io_file,  ONLY :  ionode , stdout
 
   implicit none
@@ -536,7 +546,7 @@ SUBROUTINE print_tensor( tens , key )
     do i = 1 , 3
       WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
-    WRITE ( stdout ,'(a,e16.8)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0
+    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0 , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0d0 / dble(natm),')'
     WRITE ( stdout , '(a)' ) ''
   endif
 
