@@ -75,7 +75,7 @@ SUBROUTINE gr_init
   CLOSE ( stdin )
 
 ! define a new resolution 2^N points
-  cutgr=0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.1d0
+  cutgr=0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01d0
   PANGR=int(cutgr/resg)
   i = 1
   do while ( 2**i .lt. PANGR )
@@ -199,7 +199,7 @@ SUBROUTINE grcalc
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
                                 rho , config_alloc , simu_cell , atypei , itype, natmi
   USE control,          ONLY :  myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_OUTFF , kunit_GRTFF , kunit_NRTFF
+  USE io_file,          ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_OUTFF , kunit_GRTFF , kunit_NRTFF
   USE constants,        ONLY :  pi 
   USE cell
   USE time
@@ -252,8 +252,11 @@ SUBROUTINE grcalc
   CALL config_alloc 
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL gr_alloc
+
   pairs =  ntype * ( ntype + 1 ) / 2
   allocate ( grr ( 0 : PANGR-1 , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
+
+
 #ifdef debug2
   if ( ionode ) then 
     WRITE ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
@@ -362,8 +365,12 @@ SUBROUTINE grcalc
     do it1 = 1 , ntype
       do it2 = it1 , ntype
 #ifdef debug2
-       WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
+        WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
 #endif        
+        if ( mp .lt. 0 .and. mp .gt. pairs ) then
+          WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
+          STOP
+        endif 
         nr ( mp ) = it1          
         grr ( i , mp ) = DBLE ( gr ( i , it1 , it2 ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
         mp = mp + 1
@@ -406,10 +413,10 @@ END SUBROUTINE grcalc
 
 SUBROUTINE gr_main ( iastart , iaend )
 
-  USE control, ONLY : myrank
+  USE control,          ONLY :  myrank
   USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
   USE prop,             ONLY :  nprop, nprop_start
-  USE io_file,          ONLY :  ionode , stdout 
+  USE io_file,          ONLY :  ionode , stdout  , stderr
   USE time
 
   implicit none
@@ -455,6 +462,10 @@ SUBROUTINE gr_main ( iastart , iaend )
       if ( rijsq.lt.cut2 ) then
         rr = SQRT ( rijsq )
         igr = INT ( rr / resg )
+        if ( igr .lt. 0 .and. igr .gt. PANGR-1 ) then
+          WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
+          STOP
+        endif 
         ! all pairs
         gr ( igr , 0 , 0 )     = gr ( igr , 0 , 0 ) + 1 
         gr ( igr , ita , jta ) = gr ( igr , ita , jta ) + 1
@@ -502,7 +513,8 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
   if ( ionode ) WRITE ( stdout , '(a)' ) 'in static_struc_fac'
 
   allocate ( in ( PANGR ) , out ( PANGR ) )
-
+  in  = ( 0.0,0.0)
+  out = ( 0.0,0.0)
   ! ========
   !   FFT
   ! ========
@@ -512,15 +524,28 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
   CALL fft_1D_complex ( in , out , PANGR )
 
+
   do i= 0 , PANGR-1
     q = ( dble ( i )  + 0.5d0 ) * tpi / resg
-    Sk = 1.0d0 + rho * out( i + 1)  
+    Sk = 1.0d0 + rho * out( i + 1 )  
     rr = resg * ( DBLE (i) + 0.5D0 )
-    if ( ionode ) WRITE ( 20000 , '(5e16.8)' )  rr , q , Sk , gr ( i , 0 )
+    if ( ionode ) WRITE ( 20000 , '(7e16.8)' )  rr , q , Sk , out ( i + 1 ) , gr ( i , 0 ) 
   enddo
 
   deallocate ( in , out )
 
+  allocate ( in ( 4 ) , out  ( 4 ) )
+
+  in = ( 0.0,0.0)
+  in(2) = ( 1.0,0.0)
+  print*,'in in '
+  CALL fft_1D_complex ( in , out , 4 )
+
+  do i=1,4
+    write( stdout , '(4e16.8)' ) in(i),out(i)
+  enddo
+
+  deallocate ( in ,out )
   return
 
 END SUBROUTINE static_struc_fac

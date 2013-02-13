@@ -24,10 +24,10 @@ INSTALL_DIR=../bin
 # =================
 #   on mario / babar
 # =================
-FCFLAGS = -fpp -O3 -ip -xSSE4.2
+#FCFLAGS = -fpp -O3 -ip -xSSE4.2
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
-#FCFLAGS = -fpp -O0 -check all -warn all 
+FCFLAGS = -fpp -O0 -check all -warn all 
 
 EXE= mdff.x 
 EXE_= mdff_.x 

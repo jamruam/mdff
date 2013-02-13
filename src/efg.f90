@@ -379,7 +379,10 @@ SUBROUTINE efgcalc
       na = 0
       if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii 
       if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  cccc
-      if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa,iiii 
+      if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa, aaaa , aaaa 
+      if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa, aaaa , aaaa 
+      if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  aaaa, aaaa , aaaa 
+      if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii 
       if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
       if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
       do ia = 1 , natm
@@ -1734,7 +1737,7 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
    ! ======================== 
    WRITE (kunit_eta,'(a,<ntype+2>f15.8)') '#',reseta,(DBLE (natmi(it)),it=0,ntype )   
    WRITE (kunit_eta,'(<ntype+2>f15.8)')  dzero,(dzero,it=0,ntype)
-   do i = 0 , PANeta-1 
+   do i = 0 , PANeta 
      WRITE (kunit_eta,'(<ntype+2>f15.8)') &
      DBLE ((i+1-0.5D0) * reseta ), &
    ( DBLE (dibetatot(it,i)) / (reseta * DBLE (natmi(it)) * DBLE (ncefg)), it = 0 , ntype )  
