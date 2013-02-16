@@ -426,7 +426,7 @@ SUBROUTINE gr_main ( iastart , iaend )
   integer, intent(in) :: iastart , iaend
 
   ! local
-  integer :: ia , ja , ierr , ita , jta  
+  integer :: ia , ja , ierr , ita , jta 
   integer :: igr 
   integer :: nxij , nyij , nzij
   double precision :: cut2 , rijsq , rr 
@@ -496,7 +496,7 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
   USE io_file,  ONLY :  ionode , kunit_STRFACFF , stdout 
   USE config ,  ONLY :  rho
-  USE constants,ONLY :  tpi        
+  USE constants,ONLY :  pi , tpi       , imag
 
   implicit none
   ! global
@@ -504,49 +504,102 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
   double precision :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
 
   ! local
-  integer :: i , k 
-  double precision :: q 
+  integer :: i , j , is , NN
+  double precision :: q , qj , ri , rip
   double complex :: Sk
 !  double precision , dimension (:) , allocatable  :: stat_str
-  double complex   , dimension (:) , allocatable :: out , in 
+  double precision , dimension (:) , allocatable :: in 
+  double precision , dimension (:,:) , allocatable :: Uji 
+  double complex   , dimension (:) , allocatable :: out
+  double precision :: res , shift
+  double precision :: x , k
 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'in static_struc_fac'
 
-  allocate ( in ( PANGR ) , out ( PANGR ) )
+  allocate ( in ( PANGR ) , out ( PANGR /2 + 1 ) )
+
   in  = ( 0.0,0.0)
   out = ( 0.0,0.0)
   ! ========
   !   FFT
   ! ========
   do i=0,PANGR-1
-    in ( i + 1 ) = gr ( i , 0 )
+    in ( i + 1 ) = gr ( i , 0 ) 
   enddo
 
-  CALL fft_1D_complex ( in , out , PANGR )
+!  CALL fft_1D_complex ( in , out , PANGR )
+  CALL fft_1D_real(in,out,PANGR)
 
-
-  do i= 0 , PANGR-1
-    q = ( dble ( i )  + 0.5d0 ) * tpi / resg
-    Sk = 1.0d0 + rho * out( i + 1 )  
-    rr = resg * ( DBLE (i) + 0.5D0 )
-    if ( ionode ) WRITE ( 20000 , '(7e16.8)' )  rr , q , Sk , out ( i + 1 ) , gr ( i , 0 ) 
+  do i= 1 , PANGR/2+1
+    q = tpi * ( dble ( i )  + 0.5d0 ) / DBLE ( PANGR / 2 + 1) / resg
+    Sk = 1.0d0 + rho * out( i + 1 ) !* 0.5 / DBLE ( PANGR / 2 +  1) 
+    if ( ionode ) WRITE ( 20000 , '(3e16.8)' )  q , Sk  
   enddo
 
   deallocate ( in , out )
 
-  allocate ( in ( 4 ) , out  ( 4 ) )
+! other version
+  ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
+  allocate ( Uji ( PANGR , PANGR ) ) 
 
-  in = ( 0.0,0.0)
-  in(2) = ( 1.0,0.0)
-  print*,'in in '
-  CALL fft_1D_complex ( in , out , 4 )
+  do i = 1 , PANGR
+    ri  = ( dble ( i )  + 0.5d0 )  * res
+    rip = ( dble ( i + 1 )  + 0.5d0 )  * res
+    do j = 1 , PANGR
+      qj = tpi * DBLE ( j ) + 0.5d0 / DBLE ( PANGR / 2 + 1 ) / resg
+      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
+      Uji ( j , i ) = Uji ( j , i ) / qj  
+    enddo
+  enddo
+  Uji = 2.0d0 * tpi * Uji
 
-  do i=1,4
-    write( stdout , '(4e16.8)' ) in(i),out(i)
+  do i= 1 , PANGR/2+1
+    q = tpi * ( dble ( i )  + 0.5d0 ) / DBLE ( PANGR / 2 + 1) / resg
+    do j = 1 , PANGR
+      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0d0 )  
+    enddo
+    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
   enddo
 
-  deallocate ( in ,out )
+
+  deallocate ( Uji )
+! test purpose because I'm dumb
+! I was enable to get k in "real life" 
+! I did a simple discret case  ( N = 4 ) 
+! to find the relation between k and q 
+
+!  NN = 4
+!  allocate ( in ( NN ) , out  ( NN ) )
+!
+!  in = ( 0.0,0.0)
+!  is = 3 
+!  in(is) = ( 1.0,0.0)
+!  print*,'in in '
+!  CALL fft_1D_complex ( in , out , NN )
+!
+!  res = 2.0d0
+!  shift= (is-1) * res
+!  write( stdout , '(8a)' ) '            x       Re in(i)        Im in(i)            k          Re out(i)       Im out(i)        Re phase        Im phase'
+!  do i=1,NN
+!    x = DBLE(i-1)*res
+!    k = DBLE(i-1) / DBLE ( NN ) 
+!    q = DBLE(i-1) / DBLE ( NN ) / res
+!    write( stdout , '(8e16.8)' ) x , in(i) , k , out(i) , exp ( -imag * tpi * k * (is-1) )
+!    write( stdout , '(8e16.8)' ) x , in(i) , q , out(i) , exp ( -imag * tpi * q * shift )
+!  enddo
+!
+!  deallocate ( in ,out )
+
+
   return
+CONTAINS
+
+double precision function SR(r,qj)
+  implicit none
+  double precision :: r , qj  
+  SR = SIN ( qj * r ) / qj / qj 
+  SR = SR - r * COS ( qj * r ) / qj
+end function 
 
 END SUBROUTINE static_struc_fac
 

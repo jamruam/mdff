@@ -20,8 +20,8 @@
 
 !#define debug
 !#define debug2
-#define debug_multipole
-
+!#define debug_multipole
+!#define debug_efg_stat
 !fix_grid in efg
 !#define fix_grid
 
@@ -595,7 +595,8 @@ SUBROUTINE efgcalc
   CLOSE(kunit_TRAJFF)
 
   CALL efg_dealloc
-  CALL efg_mesh_dealloc
+  ! if not lefg_restart ... there is no efg mesh as we read EFGALL files
+  if ( .not. lefg_restart ) CALL efg_mesh_dealloc
 
   return
 
@@ -1923,7 +1924,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
   implicit none
 
-  integer            :: i , ic , ia , it , ui
+  integer            :: ic , ia , it , ui
   integer, parameter :: lwork = 6
   integer            :: ifail
   integer            :: kvzz, keta ,ku
@@ -1946,6 +1947,10 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
   sq3 = SQRT ( 3.0d0 )
   sq3 = 1.0d0 / sq3
   sq32 = sq3 * 0.5d0
+
+#ifdef debug_efg_stat
+  WRITE ( stdout , '(a)' ) 'debug : in efg_stat'
+#endif
 
   READ ( kunit_input , * )  natm
   READ ( kunit_input , * )  system
@@ -1995,6 +2000,10 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
   vzzma    = 0.0d0
   vzzsq    = 0.0d0
   U        = 0.0D0
+
+#ifdef debug_efg_stat
+  WRITE ( stdout , '(a)' ) 'debug : after main allocation in efg_stat'
+#endif
 
   do ic = 1 , ncefg
     if ( ic .ne. 1 ) then
@@ -2069,6 +2078,10 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
     ! =================================
     !  END OF STAT FOR A GIVEN CONFIG
     ! =================================
+
+#ifdef debug_efg_stat
+  WRITE ( stdout , '(a,i6)' ) 'debug : after reading efgt tensor for config',ic
+#endif
 
     if (ntype.eq.1) then
       vzzm  = vzzm  / DBLE ( natm )
@@ -2150,7 +2163,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         ! ====================== 
         if (ku.lt.0.or.ku.gt.PANU) then
           if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dibU1'
-          if ( ionode ) WRITE ( stderr ,310) i,ku,U(i,ui),umin,ABS (umin)
+          if ( ionode ) WRITE ( stderr ,310) ia,ku,U(ia,ui),umin,ABS (umin)
           STOP
         endif
         ! all types
@@ -2215,7 +2228,11 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
   enddo ! config loop
 
-  lefg_restart = .false. ! only allocate for the first EFGALL file
+#ifdef debug_efg_stat
+  WRITE ( stdout , '(a,i6)' ) 'debug : end of config loop in efg_stat'
+#endif
+
+!  lefg_restart = .false. ! only allocate for the first EFGALL file
 
   !  ================
   !   deallocation

@@ -396,7 +396,7 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-  if ( ionode ) write ( stdout , '(a,i6,f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
+  if ( ionode ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
 
   CALL  write_average_thermo ( stdout ) 
   CALL  write_average_thermo ( kunit_OUTFF ) 

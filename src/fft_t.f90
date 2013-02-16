@@ -50,10 +50,12 @@ SUBROUTINE fft_1D_real(in,out,N)
   double precision, dimension(N)      :: in
   double complex  ,dimension(N/2 +1 ) :: out
   integer*8 plan
-     
-  call dfftw_plan_dft_r2c_1d(plan,N,in,out,FFTW_ESTIMATE)
-  call dfftw_execute_dft_r2c(plan, in, out)
+
+  call dfftw_plan_dft_r2r_1d(plan,N,in,out,FFTW_RODFT00,FFTW_ESTIMATE)
+  call dfftw_execute(plan)
   call dfftw_destroy_plan(plan)
+
+  return
 
 END SUBROUTINE fft_1D_real
 ! ===== fmV =====

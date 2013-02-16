@@ -159,11 +159,11 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
   iaend = iendV(mrank)
 
   if ( ionode ) then
-    WRITE ( stdout ,'(a)') 'paralelisation - atom decomposition'
+    WRITE ( stdout ,'(a)')      'paralelisation - atom decomposition'
     WRITE ( kunit_OUTFF ,'(a)') 'paralelisation - atom decomposition'
     do me = 0,np-1
-      WRITE ( stdout ,'(a5,i4,a5,i5,a3,i5)') 'rank = ',me,'atom',istartV(me),'to',iendV(me)
-      WRITE ( kunit_OUTFF ,'(a5,i4,a5,i5,a3,i5)') 'rank = ',me,'atom',istartV(me),'to',iendV(me)
+      WRITE ( stdout ,'(a5,i4,a5,i8,a3,i8)')      'rank = ',me,'atom',istartV(me),'to',iendV(me)
+      WRITE ( kunit_OUTFF ,'(a5,i4,a5,i8,a3,i8)') 'rank = ',me,'atom',istartV(me),'to',iendV(me)
     enddo     
   endif
 

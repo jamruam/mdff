@@ -20,7 +20,7 @@
 !#define debug
 !#define debug2
 !#define debug_wfc
-#define debug_morse
+!#define debug_morse
 !#define debug_bmlj
 !#define debug_quadratic
 ! ======= Hardware =======
