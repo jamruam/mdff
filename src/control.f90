@@ -28,45 +28,55 @@
 !******************************************************************************
 MODULE control 
 
+  USE constants , ONLY : dp 
+      
   implicit none
 
-  integer, SAVE :: myrank                    ! rank of the actual proc   
-  integer, SAVE :: numprocs                  ! total number of procs    
-  character*8,  SAVE   :: DATE
-  character*10, SAVE   :: HOUR 
+  integer,           SAVE :: myrank           ! rank of the actual proc   
+  integer,           SAVE :: numprocs         ! total number of procs    
+  integer,           SAVE :: nprop            ! properties period
+  character(len=8),  SAVE :: DATE             ! execution DATE
+  character(len=10), SAVE :: HOUR             ! execution HOUR
 
-  logical, SAVE :: ltest
-  logical, SAVE :: lstatic                   ! no MD                                                
-  logical, SAVE :: lvnlist                   ! verlet list if .true.                            
-  logical, SAVE :: lpbc                      ! PBC (periodic ...) if .true.                     
-  logical, SAVE :: lminimg                   ! minimum convention image convention if .true.                     
-  logical, SAVE :: lrestart                  ! restart or not if true strart from the velocities read in POSFF
-  logical, SAVE :: lreduced                  ! print reduced thermo quantites by the number of atoms (natm)
-  logical, SAVE :: lshiftpot                 ! shifted potential
-  logical, SAVE :: lbmlj                     ! binary mixture lennard-jones potential
-  logical, SAVE :: lmorse                    ! morse potential 
-  logical, SAVE :: lcoulomb                  ! coulombic potential
-  logical, SAVE :: lsurf                     ! add surface contribution in electrostatic quantities  
+  logical,           SAVE :: lstatic          ! no MD                                                
+  logical,           SAVE :: lvnlist          ! verlet list if .true.                            
+  logical,           SAVE :: lpbc             ! PBC (periodic ...) if .true.                     
+  logical,           SAVE :: lminimg          ! minimum convention image convention if .true.                     
+  logical,           SAVE :: lrestart         ! restart or not if true strart from the velocities read in POSFF
+  logical,           SAVE :: lreduced         ! print reduced thermo quantites by the number of atoms (natm)
+  logical,           SAVE :: lshiftpot        ! shifted potential
+  logical,           SAVE :: lbmlj            ! binary mixture lennard-jones potential
+  logical,           SAVE :: lmorse           ! morse potential 
+  logical,           SAVE :: lcoulomb         ! coulombic potential
+  logical,           SAVE :: lsurf            ! add surface contribution in electrostatic quantities  
+  logical,           SAVE :: ltest            ! testing flag
 
-  double precision, SAVE :: cutoff           ! small-range cutoff
-  double precision, SAVE :: cutlongrange     ! longrange-range cutoff
-  double precision, SAVE :: skindiff         ! verlet-list cutoff ( cutoff + skindiff )
+  real(kind=dp),     SAVE :: cutoff           ! small-range cutoff
+  real(kind=dp),     SAVE :: cutlongrange     ! longrange-range cutoff
+  real(kind=dp),     SAVE :: skindiff         ! verlet-list cutoff ( cutoff + skindiff )
 
 
-  ! type of calculation : md, opt, vib, efg ...              
-  character*60, SAVE :: calc                
-  character*60, SAVE :: calc_allowed(11)    
+  ! =====================================================
+  !   type of calculation : md, opt, vib, efg ...              
+  ! =====================================================
+  character(len=60), SAVE :: calc                
+  character(len=60), SAVE :: calc_allowed(10)    
   data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'efg+stat' , 'gr' /
+                      'vib+dos' , 'efg' , 'efg+acf', 'gr' /
 
+  ! =====================================================
   ! algorithm for long-range calculation
-  character*60, SAVE :: longrange            
-  character*60, SAVE :: longrange_allowed(2) 
+  ! =====================================================
+  character(len=60), SAVE :: longrange            
+  character(len=60), SAVE :: longrange_allowed(2) 
   data longrange_allowed / 'ewald' , 'direct' /
 
-  ! algorithm for gaussian distribution (no fondamental difference just for fun)  
-  character*60, SAVE :: dgauss    
-  character*60, SAVE :: dgauss_allowed(3) 
+  ! =====================================================
+  !   algorithm for gaussian distribution 
+  !   (no fondamental difference just for fun)  
+  ! =====================================================
+  character(len=60), SAVE :: dgauss    
+  character(len=60), SAVE :: dgauss_allowed(3) 
   data dgauss_allowed / 'boxmuller_basic', 'boxmuller_polar' , 'knuth' /
 
 CONTAINS
@@ -80,14 +90,14 @@ CONTAINS
 
 SUBROUTINE control_init ( MDFF )
 
-  USE io_file,  ONLY :  ionode , stdin , stdout, kunit_OUTFF
+  USE io_file,  ONLY :  ionode , stdin , stdout
 
   implicit none
 
   ! local
-  character*132 :: filename
-  integer :: ioerr
-  CHARACTER (LEN=80) :: MDFF
+  integer            :: ioerr
+  character(len=80)  :: MDFF
+  character(len=132) :: filename
 
   namelist /controltag/  lbmlj        , &
                          lmorse       , &
@@ -106,8 +116,8 @@ SUBROUTINE control_init ( MDFF )
                          dgauss       , &
                          longrange    , &
                          cutoff       , &
-                         skindiff  
-
+                         skindiff     
+               
   ! ======================
   !  set default values
   ! ======================
@@ -134,7 +144,6 @@ SUBROUTINE control_init ( MDFF )
   !  print info to output
   ! ======================
   CALL control_print_info( stdout , MDFF )
-  CALL control_print_info( kunit_OUTFF , MDFF )
 
   return
 
@@ -169,9 +178,10 @@ SUBROUTINE control_default_tag
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  cutoff        = 3.0d0
-  cutlongrange  = 400.d0
-  skindiff      = 0.15d0
+  cutoff        = 3.0_dp
+  cutlongrange  = 400.0_dp
+  skindiff      = 0.15_dp
+  nprop         = 1
 
   return 
  
@@ -227,7 +237,6 @@ SUBROUTINE control_check_tag
 
   if ( calc .ne. 'md' ) return 
 
-
   if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse ) then
    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, morse or coulomb or all of them . Anyway make a choice !! '
    STOP
@@ -257,12 +266,17 @@ SUBROUTINE control_print_info( kunit , MDFF )
 #ifdef GFORTRAN
   character(len=80) :: host
 #endif
-  CHARACTER (LEN=80) :: MDFF
+  character(len=80) :: MDFF
+  character(len=30) :: user_name
  
   ! ===============
   !  date time info      
   ! ===============
   CALL DATE_AND_TIME( DATE, HOUR)
+  ! ===============
+  !  user name 
+  ! ===============
+  CALL GETENV ( 'USER', user_name )
 
   ! ===============
   !  hostname info      
@@ -289,6 +303,7 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a)')       MDFF
      WRITE ( kunit ,'(a)')       'filipe.manuel.vasconcelos@gmail.com  '
      WRITE ( kunit ,'(a,i4,a)')  'Running on',numprocs,' nodes                  '
+     WRITE ( kunit ,'(a,a)')     'by user :',user_name
      if ( status == 0 ) then
 #ifdef GFORTRAN
      WRITE ( kunit ,'(a,a)')     'host     : ',trim(host)

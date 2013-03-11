@@ -21,15 +21,19 @@
 
 MODULE cell
   
+  USE constants,                ONLY :  dp 
+
+  implicit none      
+
   TYPE celltype
-    double precision :: A(3,3),B(3,3)
-    double precision :: ANORM(3),BNORM(3)
-    double precision :: OMEGA                ! volume ( direct )
-    double precision :: ROMEGA               ! volume ( reciprocal )
-    double precision :: WA , WB , WC         ! perpendicular width (direct) 
-    double precision :: ALPH , BET , GAMM    ! angles ( direct )
-    double precision :: RWA , RWB , RWC      ! perpendicular width (reciprocal)
-    double precision :: RALPH , RBET , RGAMM ! angles ( reciprocal )
+    real(kind=dp) :: A(3,3),B(3,3)
+    real(kind=dp) :: ANORM(3),BNORM(3)
+    real(kind=dp) :: OMEGA                ! volume ( direct )
+    real(kind=dp) :: ROMEGA               ! volume ( reciprocal )
+    real(kind=dp) :: WA , WB , WC         ! perpendicular width (direct) 
+    real(kind=dp) :: ALPH , BET , GAMM    ! angles ( direct )
+    real(kind=dp) :: RWA , RWB , RWC      ! perpendicular width (reciprocal)
+    real(kind=dp) :: RALPH , RBET , RGAMM ! angles ( reciprocal )
   END TYPE
 
 CONTAINS
@@ -40,20 +44,20 @@ CONTAINS
 
 SUBROUTINE lattice (Mylatt)
 
-  USE constants, ONLY : radian
+  USE constants,                ONLY : radian
 
   implicit none 
  
   ! global
   TYPE(celltype) Mylatt
   ! local 
-  double precision :: omega , romega
+  real(kind=dp) :: omega , romega
   integer :: i, j 
   intrinsic SUM 
-  double precision :: WA , WB , WC 
-  double precision :: RWA , RWB , RWC 
-  double precision :: alph, bet , gamm 
-  double precision :: ralph, rbet , rgamm 
+  real(kind=dp) :: WA , WB , WC 
+  real(kind=dp) :: RWA , RWB , RWC 
+  real(kind=dp) :: alph, bet , gamm 
+  real(kind=dp) :: ralph, rbet , rgamm 
 
 
   CALL EXPRO(Mylatt%B(1:3,1),Mylatt%A(1:3,2),Mylatt%A(1:3,3))  ! B x C
@@ -137,21 +141,23 @@ SUBROUTINE lattice (Mylatt)
 
 END SUBROUTINE lattice
 
-!**************** SUBROUTINE KARDIR ************************************
+!**************** SUBROUTINE kardir ************************************
 ! transform a set of vectors from cartesian coordinates to
 ! ) direct lattice      (BASIS must be equal to B reciprocal lattice)
 ! ) reciprocal lattice  (BASIS must be equal to A direct lattice)
 !***********************************************************************
 
-SUBROUTINE KARDIR(NMAX,VX,VY,VZ,BASIS)
+SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
 
   implicit none 
+
   ! global
   integer :: NMAX
-  double precision :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+  real(kind=dp) :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+
   ! local 
   integer :: N
-  double precision :: V1 , V2 , V3
+  real(kind=dp) :: V1 , V2 , V3
 
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(2,1)+VZ(N)*BASIS(3,1)
@@ -166,23 +172,23 @@ SUBROUTINE KARDIR(NMAX,VX,VY,VZ,BASIS)
 
 END SUBROUTINE
 
-
-!**************** SUBROUTINE DIRKAR ************************************
+!**************** SUBROUTINE dirkar ************************************
 ! transform a set of vectors from
 ! ) direct lattice      (BASIS must be equal to A direct lattice)
 ! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
 ! to cartesian coordinates
 !***********************************************************************
 
-SUBROUTINE DIRKAR(NMAX,VX,VY,VZ,BASIS)
+SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
 
   implicit none
+
   ! global
   integer :: NMAX
-  double precision :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+  real(kind=dp) :: VX ( NMAX ) , VY ( NMAX ) , VZ ( NMAX ) , BASIS(3,3)
   ! local 
   integer :: N
-  double precision :: V1 , V2 , V3
+  real(kind=dp) :: V1 , V2 , V3
 
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(1,2)+VZ(N)*BASIS(1,3)
@@ -195,7 +201,7 @@ SUBROUTINE DIRKAR(NMAX,VX,VY,VZ,BASIS)
 
   return
 
-END SUBROUTINE DIRKAR 
+END SUBROUTINE dirkar 
 
 !*********************** SUBROUTINE periodicpbc *******************************
 !
@@ -216,7 +222,7 @@ SUBROUTINE periodicbc ( natm , rx , ry , rz , latt )
 
   ! global
   integer :: natm
-  double precision :: rx ( natm ) , ry ( natm ) , rz ( natm )
+  real(kind=dp) :: rx ( natm ) , ry ( natm ) , rz ( natm )
   TYPE(celltype) latt
 
   ! local
@@ -238,7 +244,5 @@ END SUBROUTINE periodicbc
 
 
 END MODULE cell
-
-
 
 ! ===== fmV =====

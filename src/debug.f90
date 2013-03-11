@@ -22,13 +22,15 @@
 
 MODULE debug 
 
+  USE constants,                ONLY : dp 
+
   implicit none
 
   !==============================
   !      DEBUG VARIABLES
   !==============================
   integer :: intdebug
-  double precision :: realdebug
+  real(kind=dp) :: realdebug
   logical :: logidebug
  
 END MODULE debug 

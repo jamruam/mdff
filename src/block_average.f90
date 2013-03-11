@@ -20,11 +20,15 @@
 
 MODULE block
 
+  USE constants,                ONLY :  dp 
+
+  implicit none
+
   TYPE accu
-    double precision :: accval
-    double precision :: accvalsq
-    double precision :: average
-    integer :: counter 
+    real(kind=dp) :: accval
+    real(kind=dp) :: accvalsq
+    real(kind=dp) :: average
+    integer       :: counter 
   END TYPE
 
 
@@ -42,8 +46,8 @@ CONTAINS
 
 SUBROUTINE block_
 
-  USE md,       ONLY :  npas , nequil
-  USE io_file,  ONLY :  ionode , stdout , kunit_EQUILFF
+  USE md,                       ONLY :  npas , nequil
+  USE io_file,                  ONLY :  ionode , stdout , kunit_EQUILFF
 
   implicit none
 
@@ -53,20 +57,20 @@ SUBROUTINE block_
   integer, PARAMETER :: nquan = 8                    !  number of thermo quantities
   integer, PARAMETER :: div = 20 
 
-  double precision , dimension ( :,: ), allocatable :: bdata
-  double precision , dimension ( : )  , allocatable :: av  
-  double precision , dimension ( : )  , allocatable :: sav 
-  double precision , dimension ( : )  , allocatable :: sum 
-  double precision , dimension ( : )  , allocatable :: ssum
-  double precision , dimension ( : )  , allocatable :: svv 
-  double precision , dimension ( : )  , allocatable :: avv 
-  integer          , dimension ( : )  , allocatable :: istep 
-  character*6      , dimension ( : )  , allocatable :: dname
+  real(kind=dp),    dimension ( : , : ), allocatable :: bdata
+  real(kind=dp),    dimension ( : )    , allocatable :: av  
+  real(kind=dp),    dimension ( : )    , allocatable :: sav 
+  real(kind=dp),    dimension ( : )    , allocatable :: sum 
+  real(kind=dp),    dimension ( : )    , allocatable :: ssum
+  real(kind=dp),    dimension ( : )    , allocatable :: svv 
+  real(kind=dp),    dimension ( : )    , allocatable :: avv 
+  integer,          dimension ( : )    , allocatable :: istep 
+  character(len=6), dimension ( : )    , allocatable :: dname
 
   !trash
-  integer :: iiii
-  double precision :: aaaa 
-  character*1 :: cccc 
+  integer          :: iiii
+  real(kind=dp)    :: aaaa 
+  character(len=1) :: cccc 
 
   nstep = npas - nequil + 1
   if ( nstep .le. 1 ) return
@@ -103,15 +107,15 @@ SUBROUTINE block_
   nb20 = nblock/div
 
   do j = 1, nquan 
-    avv(j) = 0.D0
-    svv(j) = 0.D0
+    avv(j) = 0.0_dp
+    svv(j) = 0.0_dp
   enddo
 
   do ii = 1, div
 
     do j = 1, nquan
-      sum(j)  = 0.D0
-      ssum(j) = 0.D0
+      sum(j)  = 0.0_dp
+      ssum(j) = 0.0_dp
     enddo
 
     do i = 1, nb20
@@ -176,7 +180,7 @@ SUBROUTINE block_
     do ii = 1, nblock
 
       do j = 1, nquan
-        bdata(ii, j) = (bdata(i,j)+bdata(i+1,j))/2.D0
+        bdata(ii, j) = (bdata(i,j)+bdata(i+1,j))/2.0_dp
         av(j)        = av(j)  + bdata(ii, j)
         sav(j)       = sav(j) + bdata(ii, j)*bdata(ii, j)
       enddo

@@ -26,24 +26,34 @@
 !
 !******************************************************************************
 MODULE constants 
-  
-  double precision, PARAMETER :: dzero  = 0.0d0
-  double precision, PARAMETER :: pi     = 3.14159265358979323846264338327950288419716939937510d0
-  double precision, PARAMETER :: pisq   = pi * pi 
-  double precision, PARAMETER :: tpi    = 2.d0*pi
-  double precision, PARAMETER :: fpi    = 2.d0*tpi    ! 4pi
-  double precision, PARAMETER :: piroot = SQRT ( pi ) ! sqrt(pi)
-  double precision, PARAMETER :: radian = 180.0d0 / pi 
-  double complex  , PARAMETER :: imag   = (0.d0,1.d0) ! imaginary number 
-  double complex  , PARAMETER :: mimag  = (0.d0,-1.d0)! negative imaginary number 
-  double complex  , PARAMETER :: citpi  = imag*tpi    ! 2*i*pi
 
-  double precision, PARAMETER :: hart   = 27.2113838565563D0  ! ( in eV ) 
-  double precision, PARAMETER :: bohr   = 0.52917720859000D0  ! ( in angstrom ) 
-  double precision, PARAMETER :: coulombic_factor = 138935.4835d0 ! ( for Dl_POLY comparison )
+  implicit none
+
+  integer, PARAMETER ,  public    :: dp      = selected_real_kind(15,300)  
+  real(kind=dp),        PARAMETER :: dzero   = 0.0_dp
+  real(kind=dp),        PARAMETER :: pi      = 3.14159265358979323846264338327950288419716939937510_dp
+  real(kind=dp),        PARAMETER :: pisq    = pi * pi 
+  real(kind=dp),        PARAMETER :: tpi     = 2.0_dp*pi
+  real(kind=dp),        PARAMETER :: fpi     = 2.0_dp*tpi    ! 4pi
+  real(kind=dp),        PARAMETER :: piroot  = SQRT ( pi ) ! sqrt(pi)
+  real(kind=dp),        PARAMETER :: radian  = 180.0_dp / pi 
+  complex(kind=dp),     PARAMETER :: imag    = (0.0_dp, 1.0_dp) ! imaginary number 
+  complex(kind=dp),     PARAMETER :: mimag   = (0.0_dp,-1.0_dp)! negative imaginary number 
+  complex(kind=dp),     PARAMETER :: citpi   = imag*tpi    ! 2*i*pi
+
+  real(kind=dp),        PARAMETER :: rytoev  = 13.605826_dp   ! ( Ry in eV )
+  real(kind=dp),        PARAMETER :: hart    = rytoev*2.0_dp  ! ( in eV ) 
+  real(kind=dp),        PARAMETER :: bohr    = 0.529177249_dp ! ( in angstrom ) 
+  real(kind=dp),        PARAMETER :: coulombic_factor = 138935.4835_dp ! ( for Dl_POLY comparison )
+  real(kind=dp),        PARAMETER :: boltz   = 0.831451115_dp
   ! if length  are in angstom and energy in eV 
   ! the square of the unit charge is :
-  double precision, PARAMETER :: e_2    = hart * bohr 
+  real(kind=dp),        PARAMETER :: e_2     = hart * bohr 
+  real(kind=dp),        PARAMETER :: evtoj   = 1.602176487e-19_dp
+  real(kind=dp),        PARAMETER :: hplanck = 6.62617636e-34_dp
+  real(kind=dp),        PARAMETER :: eh      = evtoj / 1e14_dp / hplanck
+  ! conversion from a.u to V/A^2 ( if length  are in angstom and energy in eV )
+  real(kind=dp),        PARAMETER :: CQ_UNIT = eh / 1000.0_dp 
 
 END MODULE constants
 ! ===== fmV =====

@@ -25,12 +25,13 @@
 !======================================
 SUBROUTINE fft_1D_complex(in,out,N)
 
+  USE constants , ONLY : dp 
   implicit none
   INCLUDE "fftw3.f"
   INCLUDE "mpif.h"
 
   integer :: N
-  double complex, dimension(N) :: in, out
+  complex(kind=dp), dimension(N) :: in, out
   integer plan
 
   CALL dfftw_plan_dft_1d ( plan , N  , in , out , FFTW_FORWARD , FFTW_ESTIMATE )
@@ -42,17 +43,18 @@ SUBROUTINE fft_1D_complex(in,out,N)
 END SUBROUTINE fft_1D_complex
 
 SUBROUTINE fft_1D_real(in,out,N)
- 
+  
+  USE constants , ONLY : dp 
   implicit none
   INCLUDE "fftw3.f"
 
   integer :: N
-  double precision, dimension(N)      :: in
-  double complex  ,dimension(N/2 +1 ) :: out
+  real(kind=dp), dimension(N)      :: in
+  complex(kind=dp)  ,dimension(N/2 +1 ) :: out
   integer*8 plan
 
-  call dfftw_plan_dft_r2r_1d(plan,N,in,out,FFTW_RODFT00,FFTW_ESTIMATE)
-  call dfftw_execute(plan)
+  call dfftw_plan_dft_r2c_1d(plan,N,in,out,FFTW_ESTIMATE)
+  call dfftw_execute_dft_r2c(plan, in, out)
   call dfftw_destroy_plan(plan)
 
   return

@@ -22,12 +22,16 @@
 
 MODULE radial_distrib 
 
-  integer :: PANGR             ! (internal) number of bins in g(r) distribution
+  USE constants,                ONLY :  dp
+
+  implicit none
+
+  integer :: PANGR              ! (internal) number of bins in g(r) distribution
   integer :: nskip
   integer :: nconf
-  double precision :: cutgr
+  real(kind=dp) :: cutgr
  
-  double precision :: resg     ! resolution in g(r) distribution 
+  real(kind=dp) :: resg     ! resolution in g(r) distribution 
 
   integer, dimension(:,:,:), allocatable :: gr 
 
@@ -40,15 +44,15 @@ CONTAINS
 
 SUBROUTINE gr_init
 
-  USE config,   ONLY :  simu_cell
-  USE control,  ONLY :  calc
-  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF, ionode
+  USE config,                   ONLY :  simu_cell
+  USE control,                  ONLY :  calc
+  USE io_file,                  ONLY :  stdin , stdout , ionode
 
   implicit none
 
   ! local
-  integer :: ioerr , npangr , i
-  character * 132 :: filename
+  integer            :: ioerr , npangr , i
+  character(len=132) :: filename
 
   namelist /grtag/   nconf , &
                      nskip , &
@@ -74,8 +78,10 @@ SUBROUTINE gr_init
 
   CLOSE ( stdin )
 
-! define a new resolution 2^N points
-  cutgr=0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01d0
+  ! ==========================================
+  ! define a new resolution to be 2^N points
+  ! ==========================================
+  cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01_dp
   PANGR=int(cutgr/resg)
   i = 1
   do while ( 2**i .lt. PANGR )
@@ -85,11 +91,7 @@ SUBROUTINE gr_init
   PANGR = 2** npangr
   resg = cutgr / DBLE ( PANGR  )
 
-
-
-
   CALL gr_print_info(stdout)
-  CALL gr_print_info(kunit_OUTFF)
 
   return 
  
@@ -102,8 +104,8 @@ END SUBROUTINE gr_init
 
 SUBROUTINE gr_alloc
 
-  USE control,  ONLY :  calc
-  USE config ,  ONLY : ntype
+  USE control,                  ONLY :  calc
+  USE config,                   ONLY :  ntype
 
   implicit none
 
@@ -124,7 +126,7 @@ END SUBROUTINE gr_alloc
 
 SUBROUTINE gr_dealloc
 
-  USE control,  ONLY :  calc
+  USE control,                  ONLY :  calc
 
   implicit none
 
@@ -150,7 +152,7 @@ SUBROUTINE gr_default_tag
   ! ===============
   !  default value
   ! ===============
-  resg = 0.1d0
+  resg = 0.1_dp
   nskip = 0
   nconf = 0
 
@@ -166,8 +168,8 @@ END SUBROUTINE gr_default_tag
 
 SUBROUTINE gr_print_info(kunit)
 
-  USe control,  ONLY :  calc
-  USE io_file,  ONLY :  ionode 
+  USe control,                  ONLY :  calc
+  USE io_file,                  ONLY :  ionode 
 
   implicit none
  
@@ -175,7 +177,7 @@ SUBROUTINE gr_print_info(kunit)
   integer :: kunit
 
    if ( ionode ) then
-                  WRITE ( kunit ,'(a,f10.5,a)')         'resolution of g(r) function resg     = ',resg,' new value to get 2^N points in g(r)'
+                  WRITE ( kunit ,'(a,f10.5,a)')         'resolution of g(r) function resg     = ',resg,' new value to have 2^N points in g(r)'
                   WRITE ( kunit ,'(a,i5)')              'number of points in g(r)             = ',PANGR
                   WRITE ( kunit ,'(a)')                 'save radial_distribution in file     :   GRTFF' 
       if ( calc .eq. 'gr' )     then 
@@ -196,35 +198,36 @@ END SUBROUTINE gr_print_info
 !******************************************************************************
 SUBROUTINE grcalc
 
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                rho , config_alloc , simu_cell , atypei , itype, natmi
-  USE control,          ONLY :  myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_OUTFF , kunit_GRTFF , kunit_NRTFF
-  USE constants,        ONLY :  pi 
-  USE cell
-  USE time
+  USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
+                                        rho , config_alloc , simu_cell , atypei , itype, natmi
+  USE control,                  ONLY :  myrank , numprocs
+  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
+  USE constants,                ONLY :  pi 
+  USE cell,                     ONLY :  lattice
+  USE time,                     ONLY :  grtimetot_comm
 
   implicit none
   INCLUDE 'mpif.h'
 
   ! local 
-  integer :: ia , ic , it , ngr , i , k , pairs , it1 , it2 , mp , ierr 
-  integer :: iastart , iaend 
-  double precision, dimension ( : , : ) , allocatable :: grr 
-  integer, dimension ( : ) , allocatable :: nr 
-  character(len=15), dimension ( : ) , allocatable :: cint
-  double precision :: rr , vol
+  integer                                              :: ia , ic , it , ngr , i , k 
+  integer                                              :: pairs , it1 , it2 , mp , ierr 
+  integer                                              :: iastart , iaend 
+  real(kind=dp),     dimension ( : , : ) , allocatable :: grr 
+  integer,           dimension ( : )     , allocatable :: nr 
+  character(len=15), dimension ( : )     , allocatable :: cint
+  real(kind=dp)                                        :: rr , vol
+  real(kind=dp)                                        :: ttt1 , ttt2      
+
   ! trash 
-  double precision :: aaaa
-  integer :: iiii
-  character * 60 :: cccc
-  double precision :: grtime1 , grtime2      
+  integer            :: iiii
+  real(kind=dp)      :: aaaa
+  character(len=60)  :: cccc
 
 
   OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
   OPEN ( kunit_GRTFF , file = 'GRTFF' )
   OPEN ( kunit_NRTFF , file = 'NRTFF' )
-
 
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
@@ -233,7 +236,6 @@ SUBROUTINE grcalc
   READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
   READ ( kunit_TRAJFF , * ) ntype
   READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
 
@@ -243,7 +245,6 @@ SUBROUTINE grcalc
   CALL gr_init
 
   CALL print_general_info( stdout )
-  CALL print_general_info( kunit_OUTFF )
 
   ! ===================================
   !  here we know natm, then alloc 
@@ -255,7 +256,6 @@ SUBROUTINE grcalc
 
   pairs =  ntype * ( ntype + 1 ) / 2
   allocate ( grr ( 0 : PANGR-1 , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
-
 
 #ifdef debug2
   if ( ionode ) then 
@@ -316,7 +316,7 @@ SUBROUTINE grcalc
   ! ===========================================
   !        merge results  
   ! ===========================================
-  grtime1 = MPI_WTIME(ierr)
+  ttt1 = MPI_WTIME(ierr)
 
   CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), PANGR )
   do it1 = 1 , ntype
@@ -324,8 +324,8 @@ SUBROUTINE grcalc
       CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), PANGR )
     enddo  
   enddo
-  grtime2 = MPI_WTIME(ierr)
-  grtimetot_comm = grtimetot_comm + ( grtime2 - grtime1 )
+  ttt2 = MPI_WTIME(ierr)
+  grtimetot_comm = grtimetot_comm + ( ttt2 - ttt1 )
 
 
 #ifdef debug2
@@ -352,12 +352,12 @@ SUBROUTINE grcalc
   nr ( 0 ) = 0 
 
   do i = 0 , PANGR-1
-    rr = resg * ( DBLE (i) + 0.5D0 )
+    rr = resg * ( DBLE (i) + 0.5_dp )
     k  = i+1
     k  = k*k*k
     k  = k-(i*i*i)
     vol = DBLE (k)*resg*resg*resg ! r^3
-    vol = (4.0D0/3.0D0)*pi*vol/simu_cell%omega !4/3pir^3
+    vol = (4.0_dp/3.0_dp)*pi*vol/simu_cell%omega !4/3pir^3
     ! all - all pairs 
     grr ( i , 0 ) = DBLE (gr(i,0,0))/(ngr*vol*natm*natm)
     ! type pairs
@@ -379,7 +379,7 @@ SUBROUTINE grcalc
     if ( pairs .ne. 1 ) then
       if ( ionode ) then
         WRITE ( kunit_GRTFF ,'(<pairs+2>f15.10)') rr , ( grr ( i , mp ) , mp = 0 , pairs ) 
-        WRITE ( kunit_NRTFF ,'(<pairs+2>f20.10)') rr , ( DBLE ( grr ( i , mp) ) * 4.0d0 * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
+        WRITE ( kunit_NRTFF ,'(<pairs+2>f20.10)') rr , ( DBLE ( grr ( i , mp) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
       endif
     else
       if ( ionode ) then
@@ -395,8 +395,7 @@ SUBROUTINE grcalc
 
   CLOSE( kunit_TRAJFF )
 
-  CALL static_struc_fac ( grr , PANGR , pairs ) 
-  
+  !CALL static_struc_fac ( grr , PANGR , pairs ) 
 
   deallocate ( grr , nr , cint )
   CALL gr_dealloc
@@ -413,11 +412,10 @@ END SUBROUTINE grcalc
 
 SUBROUTINE gr_main ( iastart , iaend )
 
-  USE control,          ONLY :  myrank
-  USE config,           ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
-  USE prop,             ONLY :  nprop, nprop_start
-  USE io_file,          ONLY :  ionode , stdout  , stderr
-  USE time
+  USE control,                  ONLY :  myrank
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
+  USE io_file,                  ONLY :  ionode , stdout  , stderr
+  USE time,                     ONLY :  grtimetot
 
   implicit none
   INCLUDE 'mpif.h'
@@ -429,12 +427,12 @@ SUBROUTINE gr_main ( iastart , iaend )
   integer :: ia , ja , ierr , ita , jta 
   integer :: igr 
   integer :: nxij , nyij , nzij
-  double precision :: cut2 , rijsq , rr 
-  double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij
-  double precision :: grtime1 , grtime2      
+  real(kind=dp) :: cut2 , rijsq , rr 
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: ttt1 , ttt2      
 
-  grtime1 = MPI_WTIME(ierr)
+  ttt1 = MPI_WTIME(ierr)
 
   ! =======================
   !  cut-off half box
@@ -480,8 +478,8 @@ SUBROUTINE gr_main ( iastart , iaend )
   enddo
 #endif 
 
-  grtime2 = MPI_WTIME(ierr)
-  grtimetot = grtimetot + ( grtime2 - grtime1 )
+  ttt2 = MPI_WTIME(ierr)
+  grtimetot = grtimetot + ( ttt2 - ttt1 )
 
   return
  
@@ -492,77 +490,78 @@ END SUBROUTINE gr_main
 !
 !******************************************************************************
 
-SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
+!SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
-  USE io_file,  ONLY :  ionode , kunit_STRFACFF , stdout 
-  USE config ,  ONLY :  rho
-  USE constants,ONLY :  pi , tpi       , imag
+!  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
+!  USE config,                   ONLY :  rho
+!  USE constants,                ONLY :  pi , tpi , imag
 
-  implicit none
-  ! global
-  integer :: PANGR , pairs
-  double precision :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
+!  implicit none
+!  ! global
+!  integer :: PANGR , pairs
+!  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
+!
+!  ! local
+!  integer :: i , j , is , NN
+!  real(kind=dp) :: q , qj , ri , rip
+!  complex(kind=dp) :: Sk
+!  real(kind=dp) , dimension (:) , allocatable  :: stat_str
+!  real(kind=dp) , dimension (:) , allocatable :: in 
+!  real(kind=dp) , dimension (:,:) , allocatable :: Uji 
+!  complex(kind=dp)   , dimension (:) , allocatable :: out
+!  real(kind=dp) :: res , shift
+!  real(kind=dp) :: x , k
+!
+!  if ( ionode ) WRITE ( stdout , '(a)' ) 'in static_struc_fac'
+!
+!  allocate ( in ( PANGR ) , out ( PANGR /2 + 1 ) )
+!
+!  in  = ( 0.0,0.0)
+!  out = ( 0.0,0.0)
+!  ! ========
+!  !   FFT
+!  ! ========
+!  do i=0,PANGR-1
+!    in ( i + 1 ) = gr ( i , 0 ) 
+!  enddo
+!
+!!  CALL fft_1D_complex ( in , out , PANGR )
+!  CALL fft_1D_real(in,out,PANGR)
+!
+!  do i= 1 , PANGR/2+1
+!    q = ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR ) / resg
+!    Sk = 1.0_dp + rho * out( i + 1 )  
+!    if ( ionode ) WRITE ( 20000 , '(3e16.8)' )  q , Sk  
+!  enddo
+!
+!  deallocate ( in , out )
+!
+!! other version
+! ! ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
+!!  allocate ( Uji ( PANGR , PANGR ) ) 
+!
+!!  do i = 1 , PANGR
+!!    ri  = ( dble ( i )  + 0.5_dp )  * res
+!!    rip = ( dble ( i + 1 )  + 0.5_dp )  * res
+!!    do j = 1 , PANGR
+!!      qj = tpi * DBLE ( j ) + 0.5_dp / DBLE ( PANGR / 2 + 1 ) / resg
+!!      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
+!!      Uji ( j , i ) = Uji ( j , i ) / qj  
+!!    enddo
+!!  enddo
+!!  Uji = 2.0_dp * tpi * Uji
+!
+!!  do i= 1 , PANGR/2+1
+!!    q = tpi * ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR / 2 + 1) / resg
+!!    do j = 1 , PANGR
+!!      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0_dp )  
+!!    enddo
+!!    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
+!!  enddo
+!
+!
+!  deallocate ( Uji )
 
-  ! local
-  integer :: i , j , is , NN
-  double precision :: q , qj , ri , rip
-  double complex :: Sk
-!  double precision , dimension (:) , allocatable  :: stat_str
-  double precision , dimension (:) , allocatable :: in 
-  double precision , dimension (:,:) , allocatable :: Uji 
-  double complex   , dimension (:) , allocatable :: out
-  double precision :: res , shift
-  double precision :: x , k
-
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'in static_struc_fac'
-
-  allocate ( in ( PANGR ) , out ( PANGR /2 + 1 ) )
-
-  in  = ( 0.0,0.0)
-  out = ( 0.0,0.0)
-  ! ========
-  !   FFT
-  ! ========
-  do i=0,PANGR-1
-    in ( i + 1 ) = gr ( i , 0 ) 
-  enddo
-
-!  CALL fft_1D_complex ( in , out , PANGR )
-  CALL fft_1D_real(in,out,PANGR)
-
-  do i= 1 , PANGR/2+1
-    q = tpi * ( dble ( i )  + 0.5d0 ) / DBLE ( PANGR / 2 + 1) / resg
-    Sk = 1.0d0 + rho * out( i + 1 ) !* 0.5 / DBLE ( PANGR / 2 +  1) 
-    if ( ionode ) WRITE ( 20000 , '(3e16.8)' )  q , Sk  
-  enddo
-
-  deallocate ( in , out )
-
-! other version
-  ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
-  allocate ( Uji ( PANGR , PANGR ) ) 
-
-  do i = 1 , PANGR
-    ri  = ( dble ( i )  + 0.5d0 )  * res
-    rip = ( dble ( i + 1 )  + 0.5d0 )  * res
-    do j = 1 , PANGR
-      qj = tpi * DBLE ( j ) + 0.5d0 / DBLE ( PANGR / 2 + 1 ) / resg
-      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
-      Uji ( j , i ) = Uji ( j , i ) / qj  
-    enddo
-  enddo
-  Uji = 2.0d0 * tpi * Uji
-
-  do i= 1 , PANGR/2+1
-    q = tpi * ( dble ( i )  + 0.5d0 ) / DBLE ( PANGR / 2 + 1) / resg
-    do j = 1 , PANGR
-      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0d0 )  
-    enddo
-    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
-  enddo
-
-
-  deallocate ( Uji )
 ! test purpose because I'm dumb
 ! I was enable to get k in "real life" 
 ! I did a simple discret case  ( N = 4 ) 
@@ -577,7 +576,7 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 !  print*,'in in '
 !  CALL fft_1D_complex ( in , out , NN )
 !
-!  res = 2.0d0
+!  res = 2.0_dp
 !  shift= (is-1) * res
 !  write( stdout , '(8a)' ) '            x       Re in(i)        Im in(i)            k          Re out(i)       Im out(i)        Re phase        Im phase'
 !  do i=1,NN
@@ -590,18 +589,17 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 !
 !  deallocate ( in ,out )
 
+!  return
+!CONTAINS
 
-  return
-CONTAINS
+!real(kind=dp) function SR(r,qj)
+!  implicit none
+!  real(kind=dp) :: r , qj  
+!  SR = SIN ( qj * r ) / qj / qj 
+!  SR = SR - r * COS ( qj * r ) / qj
+!end function 
 
-double precision function SR(r,qj)
-  implicit none
-  double precision :: r , qj  
-  SR = SIN ( qj * r ) / qj / qj 
-  SR = SR - r * COS ( qj * r ) / qj
-end function 
-
-END SUBROUTINE static_struc_fac
+!END SUBROUTINE static_struc_fac
 
 
 END MODULE radial_distrib 

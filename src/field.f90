@@ -18,6 +18,8 @@
 
 ! ======= Hardware =======
 !#define debug
+!#define debug_units
+!#define debug_multipole_ES
 !#define debug2
 !#define debug_wfc
 !#define debug_morse
@@ -27,20 +29,25 @@
 
 MODULE field 
 
-  USE config , ONLY : ntypemax 
-  USE kspace 
-  USE rspace
+  USE constants,                        ONLY :  dp 
+  USE config,                           ONLY :  ntypemax 
+  USE kspace,                           ONLY :  kmesh 
+  USE rspace,                           ONLY :  rmesh
 
   implicit none
 
-  double precision :: utail                         ! long-range correction of short-range interaction 
-  integer          :: trunc
-  character*60     :: ctrunc
-  character*60     :: ctrunc_allowed(3)
-  data                ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /    ! see initialize_param_bmlj
+  real(kind=dp)     :: utail               ! long-range correction of short-range interaction 
+  character(len=60) :: units 
+  character(len=60) :: units_allowed(5)
+  data                 units_allowed / 'eV' , 'K' , 'kcal' , 'kJ' , 'internal' /  ! see define_units 
+  character(len=60) :: ctrunc
+  character(len=60) :: ctrunc_allowed(3)                                          ! truncation of bmlj 
+  data                 ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /       ! see initialize_param_bmlj
+  integer           :: trunc                                                      ! integer definition of truncation 
 
-  logical, SAVE    :: lKA                              ! Kob-Andersen model for BMLJ                        
-  logical, SAVE    :: lautoES                          ! auto-determination of Ewald parameter from epsw ( accuracy)
+  logical, SAVE     :: lKA               ! Kob-Andersen model for BMLJ                        
+  logical, SAVE     :: lautoES           ! auto-determination of Ewald parameter from epsw ( accuracy)
+  logical, SAVE     :: lwrite_dip_wfc    ! write dipoles from wannier centers to file
 
 
   ! ============================================================  
@@ -52,19 +59,19 @@ MODULE field
   !             q - p   \    \   r   /           \   r   /    /
 
   ! main parameters
-  double precision :: qlj     ( ntypemax , ntypemax )
-  double precision :: plj     ( ntypemax , ntypemax )
-  double precision :: epslj   ( ntypemax , ntypemax )
-  double precision :: sigmalj ( ntypemax , ntypemax )
+  real(kind=dp) :: qlj     ( ntypemax , ntypemax )
+  real(kind=dp) :: plj     ( ntypemax , ntypemax )
+  real(kind=dp) :: epslj   ( ntypemax , ntypemax )
+  real(kind=dp) :: sigmalj ( ntypemax , ntypemax )
   ! others ( see init_bmlj )
-  double precision :: rcutsq  ( ntypemax , ntypemax )  
-  double precision :: sigsq   ( ntypemax , ntypemax ) 
-  double precision :: epsp    ( ntypemax , ntypemax )
-  double precision :: fc      ( ntypemax , ntypemax )
-  double precision :: uc      ( ntypemax , ntypemax )
-  double precision :: uc1     ( ntypemax , ntypemax )
-  double precision :: uc2     ( ntypemax , ntypemax )
-  double precision :: testtab ( ntypemax , ntypemax )
+  real(kind=dp) :: rcutsq  ( ntypemax , ntypemax )  
+  real(kind=dp) :: sigsq   ( ntypemax , ntypemax ) 
+  real(kind=dp) :: epsp    ( ntypemax , ntypemax )
+  real(kind=dp) :: fc      ( ntypemax , ntypemax )
+  real(kind=dp) :: uc      ( ntypemax , ntypemax )
+  real(kind=dp) :: uc1     ( ntypemax , ntypemax )
+  real(kind=dp) :: uc2     ( ntypemax , ntypemax )
+  real(kind=dp) :: testtab ( ntypemax , ntypemax )
 
   ! ============================================================  
   !                            Morse
@@ -74,12 +81,12 @@ MODULE field
   !
   !
   ! main parameters
-  double precision :: rhomor  ( ntypemax , ntypemax )
-  double precision :: epsmor  ( ntypemax , ntypemax )
-  double precision :: sigmamor( ntypemax , ntypemax )
+  real(kind=dp) :: rhomor  ( ntypemax , ntypemax )
+  real(kind=dp) :: epsmor  ( ntypemax , ntypemax )
+  real(kind=dp) :: sigmamor( ntypemax , ntypemax )
   ! morse
-  double precision :: rs      ( ntypemax , ntypemax )
-  double precision :: fm      ( ntypemax , ntypemax )
+  real(kind=dp) :: rs      ( ntypemax , ntypemax )
+  real(kind=dp) :: fm      ( ntypemax , ntypemax )
 
 
   ! ============================================================  
@@ -87,26 +94,29 @@ MODULE field
   ! ============================================================  
 
   ! type dependent properties
-  double precision :: mass  ( ntypemax )            ! masses ( not yet )
-  double precision :: qch   ( ntypemax )            ! charges 
-  double precision :: dip   ( ntypemax , 3 )        ! dipoles 
-  double precision :: pol   ( ntypemax , 3 , 3 )    ! polarizability if lpolar( it ) .ne. 0  
-  integer          :: lpolar( ntypemax )            ! induced moment from pola 
-  double precision :: conv_tol_ind                  ! convergence tolerance of the scf induced dipole calculation
-  integer          :: lwfc  ( ntypemax )            ! moment from wannier centers 
-  double precision :: rcut_wfc                      ! radius cut-off for WFs searching
+  real(kind=dp)    :: mass     ( ntypemax )            ! masses ( not yet )
+  real(kind=dp)    :: qch      ( ntypemax )            ! charges 
+  real(kind=dp)    :: quad_efg ( ntypemax )            ! quadrupolar moment
+  real(kind=dp)    :: dip      ( ntypemax , 3 )        ! dipoles 
+  real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    ! polarizability if lpolar( it ) .ne. 0  
+  integer          :: lpolar   ( ntypemax )            ! induced moment from pola 
+  integer          :: lwfc     ( ntypemax )            ! moment from wannier centers 
+  real(kind=dp)    :: conv_tol_ind                     ! convergence tolerance of the scf induced dipole calculation
+  real(kind=dp)    :: rcut_wfc                         ! radius cut-off for WFs searching
   
   ! ewald sum
-  double precision :: epsw                          ! accuracy of the ewald sum 
-  double precision :: alphaES                       ! Ewald sum parameter 
-  integer          :: kES(3)                        ! kmax of ewald sum in reciprocal space
-  TYPE ( kmesh )   :: km_coul                       ! kpoint mesh ( see kspace.f90 )
+  real(kind=dp)    :: epsw                             ! accuracy of the ewald sum 
+  real(kind=dp)    :: alphaES                          ! Ewald sum parameter 
+  integer          :: kES(3)                           ! kmax of ewald sum in reciprocal space
+  TYPE ( kmesh )   :: km_coul                          ! kpoint mesh ( see kspace.f90 )
   ! direct sum
-  integer          :: ncelldirect                   ! number of cells  in the direct summation
-  TYPE ( rmesh )   :: rm_coul                       ! real space mesh ( see rspace.f90 )
+  integer          :: ncelldirect                      ! number of cells  in the direct summation
+  TYPE ( rmesh )   :: rm_coul                          ! real space mesh ( see rspace.f90 )
 
-  double precision, dimension ( : , : ) , allocatable :: ef_t
-  double precision, dimension ( : , : , : ) , allocatable :: efg_t
+  real(kind=dp), dimension ( : , : )     , allocatable :: ef_t
+  real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t
+
+  logical, SAVE    :: lquiet
 
 CONTAINS
 
@@ -124,29 +134,33 @@ SUBROUTINE field_default_tag
   !  default values
   ! =================
 
+  units         = 'internal'
+
   ! BMLJ
   lKA           = .false.
   ctrunc        = 'linear' 
-  epslj         = 1.0d0
-  sigmalj       = 1.0d0
-  epsmor        = 1.0d0 
-  sigmamor      = 1.0d0 
-  rhomor        = 3.0d0 
-  qlj           = 12.0d0
-  plj           = 6.0d0
-  mass          = 1.0d0
+  epslj         = 1.0_dp
+  sigmalj       = 1.0_dp
+  epsmor        = 1.0_dp 
+  sigmamor      = 1.0_dp 
+  rhomor        = 3.0_dp 
+  qlj           = 12.0_dp
+  plj           = 6.0_dp
+  mass          = 1.0_dp
   ! Coulomb
   ncelldirect   =  2
   kES(1)        = 10
   kES(2)        = 10
   kES(3)        = 10
-  alphaES       =  1.0d0
-  qch           =  0.0d0
-  dip           =  0.0d0
-  pol           =  0.0d0
-  lpolar        =  0
-  lwfc          =  0
-  rcut_wfc      =  0.5d0
+  alphaES       = 1.0_dp
+  qch           = 0.0_dp
+  quad_efg      = 0.0_dp
+  dip           = 0.0_dp
+  pol           = 0.0_dp
+  lpolar        = 0
+  lwfc          = 0
+  lwrite_dip_wfc= .false.            
+  rcut_wfc      = 0.5_dp
 
   conv_tol_ind  = 1e-5
   epsw = 1e-7
@@ -165,13 +179,27 @@ END SUBROUTINE field_default_tag
 
 SUBROUTINE field_check_tag
 
-  USE config,   ONLY :  ntype
-  USE io_file,  ONLY :  ionode , stdout
+  USE config,                   ONLY :  ntype
+  USE io_file,                  ONLY :  ionode , stdout
 
   implicit none
 
   integer :: i
   logical :: allowed
+
+  allowed = .false.
+  ! ========
+  !  units 
+  ! ========
+  do i = 1 , size ( units_allowed )
+    if ( trim ( units ) .eq. units_allowed ( i ) )  allowed = .true.
+  enddo
+
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR fieldtag: units should be ', units_allowed
+    STOP
+  endif
+  allowed = .false.
 
   ! ========
   !  ctrunc
@@ -197,14 +225,14 @@ SUBROUTINE field_check_tag
     STOP 
   endif
   if ( lKA ) then
-    sigmalj ( 1 , 1 ) = 1.0d0
-    sigmalj ( 2 , 2 ) = 0.88d0
-    sigmalj ( 1 , 2 ) = 0.8d0
-    sigmalj ( 2 , 1 ) = 0.8d0
-    epslj   ( 1 , 1 ) = 1.0d0
-    epslj   ( 2 , 2 ) = 0.5d0
-    epslj   ( 1 , 2 ) = 1.5d0
-    epslj   ( 2 , 1 ) = 1.5d0
+    sigmalj ( 1 , 1 ) = 1.0_dp
+    sigmalj ( 2 , 2 ) = 0.88_dp
+    sigmalj ( 1 , 2 ) = 0.8_dp
+    sigmalj ( 2 , 1 ) = 0.8_dp
+    epslj   ( 1 , 1 ) = 1.0_dp
+    epslj   ( 2 , 2 ) = 0.5_dp
+    epslj   ( 1 , 2 ) = 1.5_dp
+    epslj   ( 2 , 1 ) = 1.5_dp
   endif
 
   return 
@@ -219,18 +247,19 @@ END SUBROUTINE field_check_tag
 
 SUBROUTINE field_init
 
-  USE control,  ONLY :  calc , lbmlj , lcoulomb , lmorse
-  USE io_file,  ONLY :  ionode, stdin, stdout , kunit_OUTFF
-  USE config ,  ONLY : dipia
+  USE control,                  ONLY :  calc , lbmlj , lcoulomb , lmorse , longrange
+  USE io_file,                  ONLY :  ionode, stdin, stdout 
+  USE config,                   ONLY :  dipia
 
   implicit none
 
   ! local
-  character * 132 :: filename
-  integer :: ioerr
+  character(len=132)    :: filename
+  integer               :: ioerr
 
   namelist /fieldtag/    lKA           , &       
                          ctrunc        , &
+                         units         , &
                          ncelldirect   , &
                          kES           , &
                          alphaES       , &
@@ -243,6 +272,7 @@ SUBROUTINE field_init
                          rhomor        , &
                          mass          , &
                          qch           , &
+                         quad_efg      , &
                          dip           , &
                          dipia         , &
                          pol           , &  
@@ -250,11 +280,12 @@ SUBROUTINE field_init
                          epsw          , &  
                          lautoES       , &  
                          lwfc          , &            
+                         lwrite_dip_wfc, &            
                          rcut_wfc      , &            
                          lpolar           
                  
-
   if ( ionode ) WRITE ( stdout, '(a)')   'force field initialization'
+
   ! ================================
   ! defaults values for field tags 
   ! ================================
@@ -280,12 +311,18 @@ SUBROUTINE field_init
   ! ================================
   CALL field_check_tag
 
-  ! ================================  
+  CALL define_units
+
+  ! ===============================================
+  !  this routines generates the ewald parameters
+  ! ===============================================
+  if ( longrange .eq. 'ewald' ) CALL ewald_param
+ 
+  ! =====================================  
   !  if efg print field info and return 
-  ! ================================  
+  ! =====================================  
   if ( calc .eq. 'efg' ) then 
-    CALL field_print_info(stdout)
-    CALL field_print_info(kunit_OUTFF)
+    CALL field_print_info(stdout,quiet=.true.)
     return
   endif
 
@@ -305,8 +342,7 @@ SUBROUTINE field_init
   ! ================================
   !  pint field info
   ! ================================
-  CALL field_print_info(stdout)
-  CALL field_print_info(kunit_OUTFF)
+  CALL field_print_info(stdout,quiet=.false.)
 
   return
 
@@ -318,26 +354,29 @@ END SUBROUTINE field_init
 !
 !******************************************************************************
 
-SUBROUTINE field_print_info(kunit)
+SUBROUTINE field_print_info ( kunit , quiet )
 
-  USE config,   ONLY :  natm , ntype , atypei , natmi , simu_cell 
-  USE control,  ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange , lreduced
-  USE io_file,  ONLY :  ionode 
-  USE constants,ONLY :  pi , pisq
+  USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell 
+  USE control,          ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange , lreduced
+  USE io_file,          ONLY :  ionode 
+  USE constants,        ONLY :  pi , pisq
 
   implicit none
 
   !local
+  logical , optional :: quiet
   integer :: kunit, it , it1 , it2 , i , j
-  double precision :: aaa , aaa2 , rcut , rcut2 , kmax2 , alpha2 , ereal , ereal2 , ereci(3) , ereci2(3) , qtot , qtot2
+  real(kind=dp) :: rcut , rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2
   logical :: linduced
-  integer :: nc ( 3 )
-!dl_poly like
-  double precision :: eps , tol , tol1 ,alpha
-  integer :: kmax_1 , kmax_2 , kmax_3 
 
-  qtot   = 0.0d0
-  qtot2  = 0.0d0
+  if ( ( present ( quiet ) .and. quiet ) .and. .not. lquiet ) then 
+    lquiet = .true.
+  else if ( ( present ( quiet ) .and. quiet ) .and. lquiet ) then
+    return
+  endif
+
+  qtot   = 0.0_dp
+  qtot2  = 0.0_dp
 
   if ( ionode ) then
     WRITE ( kunit ,'(a)')       '=============================================================' 
@@ -345,7 +384,8 @@ SUBROUTINE field_print_info(kunit)
     if ( .not. lcoulomb .and. calc .eq. 'efg' )  &
     WRITE ( kunit ,'(a)')       'point charges: '
     do it = 1 , ntype 
-      WRITE ( kunit ,'(a,a,a,f10.5)') 'q',atypei(it),'      =',qch(it)
+      WRITE ( kunit ,'(a,a,a,f10.5)') 'q   ',atypei(it),'      =',qch(it)
+      WRITE ( kunit ,'(a,a,a,f10.5,a)') 'quad',atypei(it),'      =',quad_efg(it),' mb'
       qtot  = qtot  + qch(it) * natmi ( it ) 
       qtot2 = qtot2 + ( qch(it) * natmi ( it ) ) * ( qch(it) * natmi ( it ) )
     enddo
@@ -371,69 +411,43 @@ SUBROUTINE field_print_info(kunit)
         WRITE ( kunit ,'(a,i10)')   'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
       endif     
       if ( longrange .eq. 'ewald' )  then
-        alpha2 = alphaES * alphaES
-        do i=1,3
-          kmax2 = pi * kES(i) / simu_cell%ANORM(i) / alphaES
-          kmax2 = kmax2 * kmax2
-          ereci(i)  = EXP ( - kmax2 ) / kmax2 * ( SQRT ( DBLE(kES(i)) ) / alphaES / simu_cell%ANORM(i) / simu_cell%ANORM(i) )
-          ereci2(i) = qtot2 * alphaES / pisq / ( SQRT ( DBLE(kES(i)) * DBLE(kES(i)) * DBLE(kES(i)) ) ) * EXP ( - ( pi * DBLE(kES(i)) / alphaES / simu_cell%ANORM(i) ) ** 2 )
-        enddo
-
-        rcut =  0.5d0 * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1d0
-        rcut2  = rcut * rcut
-        ereal  = EXP ( - alpha2 * rcut2 ) / alpha2  / rcut2 * SQRT ( rcut / 2.0d0 / simu_cell%omega )
-        ereal2 = ereal * qtot2 
-        CALL estimate_alpha( aaa , epsw ,rcut )
-        CALL accur_ES_frenkel_smit( epsw , aaa2 , rcut , nc ) 
-!dl_poly like
-        cutoff = rcut 
-        eps=min(abs(epsw),0.5d0)
-        tol=sqrt(abs(log(eps*rcut)))
-        alpha=sqrt(abs(log(eps*rcut*tol)))/rcut
-        tol1=sqrt(-log(eps*rcut*(2.d0*tol*alpha)**2))
-        kmax_1=nint(0.25d0+simu_cell%ANORM(1)*alpha*tol1/pi)
-        kmax_2=nint(0.25d0+simu_cell%ANORM(2)*alpha*tol1/pi)
-        kmax_3=nint(0.25d0+simu_cell%ANORM(3)*alpha*tol1/pi)
-
-        WRITE ( kunit ,'(a)')        'ewald summation parameters ( from input file )'
-        WRITE ( kunit ,'(a,f10.5)')  'alpha                            = ',alphaES
-        WRITE ( kunit ,'(a,3i10)')   'kmax                             = ',(kES(i),i=1,3)
-        WRITE ( kunit ,'(a)')   '' 
-        WRITE ( kunit ,'(a,e12.5)')  'relative error in real space with alphaES from input : ',ereal
-        WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
-        WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
-        WRITE ( kunit ,'(a)')   '' 
-        WRITE ( kunit ,'(a,e14.6)') 'from estimate_alpha alpha should be ', aaa 
-        WRITE ( kunit ,'(a,e14.6,3i5)') 'from dl_poly like ', alpha,kmax_1,kmax_2,kmax_3
-        WRITE ( kunit ,'(a,e14.6,3i5)') 'from accur_ES_frenkel_smit', aaa2,(nc(i),i=1,3)
-        WRITE ( kunit ,'(a)')   '' 
         if ( lautoES ) then
-          ! dl_poly like
-          alphaES = alpha 
-          kES(1)=kmax_1
-          kES(2)=kmax_2
-          kES(3)=kmax_3
-          ! frenkel_smit like
-          !alphaES = aaa2
-          !kES=nc
-          ! qe like
-          !alphaES = aaa
-          !kES=nc
-
+          rcut =  0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1_dp
           WRITE ( kunit ,'(a)')           'ewald summation parameters ( automatic see field.f90 tmp construction )'
           WRITE ( kunit ,'(a,f10.5)')     'alpha                            = ',alphaES
           WRITE ( kunit ,'(a,f10.5)')     'rcut                             = ',rcut
           WRITE ( kunit ,'(a,3i10)')      'kmax                             = ',(kES(i),i=1,3)
           WRITE ( kunit ,'(a)')   '' 
-          WRITE ( kunit ,'(a,e12.5)')     'relative error (user defined) : ',epsw
+          WRITE ( kunit ,'(a,e12.5)')     'relative error (user defined)    : ',epsw
+        else
+          alpha2 = alphaES * alphaES
+          do i=1,3
+            kmax2 = pi * kES(i) / simu_cell%ANORM(i) / alphaES
+            kmax2 = kmax2 * kmax2    
+            ereci(i)  = EXP ( - kmax2 ) / kmax2 * ( SQRT ( DBLE(kES(i)) ) / alphaES / simu_cell%ANORM(i) / simu_cell%ANORM(i) )
+            ereci2(i) = qtot2 * alphaES / pisq / ( SQRT ( DBLE(kES(i)) * DBLE(kES(i)) * DBLE(kES(i)) ) ) &
+            * EXP ( - ( pi * DBLE(kES(i)) / alphaES / simu_cell%ANORM(i) ) ** 2 )
+          enddo
+          rcut =  0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1_dp
+          rcut2  = rcut * rcut
+          ereal  = EXP ( - alpha2 * rcut2 ) / alpha2  / rcut2 * SQRT ( rcut / 2.0_dp / simu_cell%omega )
+          WRITE ( kunit ,'(a)')        'ewald summation parameters ( from input file )'
+          WRITE ( kunit ,'(a,f10.5)')  'alpha                            = ',alphaES
+          WRITE ( kunit ,'(a,3i10)')   'kmax                             = ',(kES(i),i=1,3)
+          WRITE ( kunit ,'(a)')   '' 
+          WRITE ( kunit ,'(a,e12.5)')  'relative error in real space       with alphaES from input : ',ereal
+          WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
+          WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
+          WRITE ( kunit ,'(a)')   '' 
+          WRITE ( kunit ,'(a)')   '' 
         endif
       endif
     endif
 
-    ! RETURN ?
-    if ( .not. lcoulomb ) then
-
       if ( lbmlj )       then     
+        WRITE ( kunit ,'(a)')       '' 
+        WRITE ( kunit ,'(a)')       'energy units in input/output ',units 
+        WRITE ( kunit ,'(a)')       '' 
         WRITE ( kunit ,'(a)')       'force field information :                      '
         WRITE ( kunit ,'(a)')       'no masses are implemented                      '
         WRITE ( kunit ,'(a)')       'LENNARD-JONES                  '
@@ -447,7 +461,7 @@ SUBROUTINE field_print_info(kunit)
         if ( ntype .eq. 2 .and. lKA )  &
         WRITE ( kunit ,'(a)')       'KOB-ANDERSEN MODEL --- PhysRevE 51-4626 (1995) '
         if ( .not. lKA ) &
-        WRITE ( kunit ,'(a)')       'USER DEFINED MODEL                             '
+        WRITE ( kunit ,'(a)')       'user defined model                           '
         WRITE ( kunit ,'(a,f10.5)') 'cutoff      = ',cutoff
         WRITE ( kunit ,'(a,a)')     'truncation  = ',ctrunc
         if (.not.lreduced) WRITE( kunit     ,'(a,2f20.9)') 'long range correction : ',utail
@@ -458,7 +472,7 @@ SUBROUTINE field_print_info(kunit)
         do it1 = 1 , ntype
           do it2 = it1 , ntype          
             WRITE ( kunit ,'(a)')       '--------------------------------------------------------' 
-            WRITE ( kunit ,'(a1,a1,a1,a)')       atypei(it1),'-',atypei(it2),' interactions:'    
+            WRITE ( kunit ,'(a,a,a,a)')       atypei(it1),'-',atypei(it2),' interactions:'    
             WRITE ( kunit ,'(a)')       '--------------------------------------------------------' 
             if ( it1 .eq. it2 ) then
               WRITE ( kunit ,'(a,f10.5)') 'sigma                                = ',sigmalj ( it1 , it2 )
@@ -473,8 +487,7 @@ SUBROUTINE field_print_info(kunit)
             endif
           enddo
         enddo
-      endif
-    endif ! efg
+    endif
 
     WRITE ( kunit ,'(a)') '' 
 
@@ -508,6 +521,86 @@ SUBROUTINE field_print_info(kunit)
 
 END SUBROUTINE field_print_info
 
+
+!*********************** SUBROUTINE gen_ewald_param ***************************
+!
+!******************************************************************************
+
+SUBROUTINE ewald_param
+   
+  USE constants,                ONLY :  pi , pisq
+  USE config,                   ONLY :  simu_cell 
+  USE control,                  ONLY :  cutoff 
+  USE io_file,                  ONLY :  stdout
+
+  implicit none
+
+  !local
+  real(kind=dp) :: aaa , aaa2 , rcut 
+  real(kind=dp) :: alpha , eps , tol , tol1
+  integer       :: nc ( 3 )
+  integer       :: kmax_1 , kmax_2 , kmax_3
+
+  rcut =  0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1_dp
+  CALL estimate_alpha( aaa , epsw ,rcut )
+  CALL accur_ES_frenkel_smit( epsw , aaa2 , rcut , nc )
+  ! dl_poly like
+  if ( min (cutoff,rcut) .ne. cutoff ) &
+  WRITE ( stdout , '(a)') 'WARNING : cutoff will be changed accroding to simu_cell%W*'
+  cutoff = min (cutoff,rcut)
+  eps=min(abs(epsw),0.5_dp)
+  tol=sqrt(abs(log(eps*rcut)))
+  alpha=sqrt(abs(log(eps*rcut*tol)))/rcut
+  tol1=sqrt(-log(eps*rcut*(2.0_dp*tol*alpha)**2))
+  kmax_1=nint(0.25_dp+simu_cell%ANORM(1)*alpha*tol1/pi)
+  kmax_2=nint(0.25_dp+simu_cell%ANORM(2)*alpha*tol1/pi)
+  kmax_3=nint(0.25_dp+simu_cell%ANORM(3)*alpha*tol1/pi)
+  if ( lautoES ) then
+    ! dl_poly like
+    alphaES = alpha
+    kES(1)=kmax_1
+    kES(2)=kmax_2
+    kES(3)=kmax_3
+    ! frenkel_smit like
+    !alphaES = aaa2
+    !kES=nc
+    ! qe like
+    !alphaES = aaa
+    !kES=nc
+  endif
+
+  return
+
+END SUBROUTINE ewald_param
+
+SUBROUTINE define_units
+
+  USE constants,                ONLY :  dp , boltz
+  USE thermodynamic,            ONLY :  engunit
+
+  implicit none
+
+    engunit = 1.0_dp
+!   eV => internal 
+   if ( units.eq.'eV')   engunit = 9648.530821_dp
+!  kcal ==> internal
+   if ( units.eq.'kcal') engunit = 418.4_dp
+!  kJ ==> internal
+   if ( units.eq.'kJ')   engunit = 100.0_dp
+!  K ==> internal
+   if ( units.eq.'kJ')   engunit = boltz
+
+   epslj  = epslj  * engunit
+   epsmor = epsmor * engunit
+
+#ifdef debug_units
+   if ( ionode ) WRITE ( stderr , * ) 'engunit',engunit
+#endif
+
+  return
+
+END SUBROUTINE
+
 !*********************** SUBROUTINE initialize_param_bmlj_morse ***************
 !
 ! iniitialisation of BMLJ parameters
@@ -516,46 +609,46 @@ END SUBROUTINE field_print_info
 
 SUBROUTINE initialize_param_bmlj_morse 
 
-  USE constants,        ONLY :  pi
-  USE config,           ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
-  USE control,          ONLY :  skindiff , cutoff , lreduced, calc
-  USE io_file,          ONLY :  ionode, stdout, kunit_OUTFF
+  USE constants,                ONLY :  pi
+  USE config,                   ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
+  USE control,                  ONLY :  skindiff , cutoff , lreduced, calc
+  USE io_file,                  ONLY :  ionode, stdout
 
   implicit none
 
   ! local
   integer :: it,jt
-  double precision :: one13, one16, two16, rskinmax
-  double precision :: rcut3 ( ntypemax , ntypemax )
-  double precision :: rskin ( ntypemax , ntypemax ) 
-  double precision :: rskinsq ( ntypemax , ntypemax ) 
-  double precision :: ut ( ntypemax , ntypemax ) 
+  real(kind=dp) :: one13, one16, two16, rskinmax
+  real(kind=dp) :: rcut3 ( ntypemax , ntypemax )
+  real(kind=dp) :: rskin ( ntypemax , ntypemax ) 
+  real(kind=dp) :: rskinsq ( ntypemax , ntypemax ) 
+  real(kind=dp) :: ut ( ntypemax , ntypemax ) 
 
-  double precision :: rcut ( ntype , ntype ) 
-  double precision :: ppqq ( ntype , ntype )
-  double precision :: pp ( ntype , ntype )
-  double precision :: qq ( ntype , ntype )
-  double precision :: pp3 ( ntype , ntype ) 
-  double precision :: qq3 ( ntype , ntype ) 
-  double precision :: sr2 ( ntype , ntype ) 
-  double precision :: sr ( ntype , ntype ) 
-  double precision :: srp ( ntype , ntype ) 
-  double precision :: srq ( ntype , ntype ) 
+  real(kind=dp) :: rcut ( ntype , ntype ) 
+  real(kind=dp) :: ppqq ( ntype , ntype )
+  real(kind=dp) :: pp ( ntype , ntype )
+  real(kind=dp) :: qq ( ntype , ntype )
+  real(kind=dp) :: pp3 ( ntype , ntype ) 
+  real(kind=dp) :: qq3 ( ntype , ntype ) 
+  real(kind=dp) :: sr2 ( ntype , ntype ) 
+  real(kind=dp) :: sr ( ntype , ntype ) 
+  real(kind=dp) :: srp ( ntype , ntype ) 
+  real(kind=dp) :: srq ( ntype , ntype ) 
 
-  rskinmax = 0.0D0
-  utail    = 0.0d0
-  rcut3    = 0.0d0
-  rcut     = 0.0d0
-  rskin    = 0.0d0
-  rskinsq  = 0.0d0
-  ut       = 0.0d0
-  ppqq     = 0.0d0
-  pp       = 0.0d0
-  qq       = 0.0d0
-  sr2      = 0.0d0
-  sr       = 0.0d0
-  srp      = 0.0d0
-  srq      = 0.0d0
+  rskinmax = 0.0_dp
+  utail    = 0.0_dp
+  rcut3    = 0.0_dp
+  rcut     = 0.0_dp
+  rskin    = 0.0_dp
+  rskinsq  = 0.0_dp
+  ut       = 0.0_dp
+  ppqq     = 0.0_dp
+  pp       = 0.0_dp
+  qq       = 0.0_dp
+  sr2      = 0.0_dp
+  sr       = 0.0_dp
+  srp      = 0.0_dp
+  srq      = 0.0_dp
   
   do it = 1 , ntype
     do jt = 1 , ntype
@@ -563,12 +656,12 @@ SUBROUTINE initialize_param_bmlj_morse
       qq ( it , jt ) = qlj ( it , jt ) 
     enddo
   enddo
-  pp3 = pp - 3.0d0
-  qq3 = qq - 3.0d0
+  pp3 = pp - 3.0_dp
+  qq3 = qq - 3.0_dp
 
-  one13 = (1.0D0 / 3.0D0)
-  one16 = (1.0D0 / 6.0D0)
-  two16 = 2.D0 **  one16
+  one13 = (1.0_dp / 3.0_dp)
+  one16 = (1.0_dp / 6.0_dp)
+  two16 = 2.0_dp **  one16
 
   ! ==================================================================================================
   ! TAIL ( checked september 2011) :
@@ -655,20 +748,20 @@ SUBROUTINE initialize_param_bmlj_morse
            uc ( it , jt )  = epsp ( it , jt ) * ( pp ( it , jt ) * srq( it , jt ) - qq ( it , jt ) * srp( it , jt ) )
            ! trunc = 2
            ! c1
-           uc1 ( it , jt ) = epsp ( it , jt ) *  ppqq ( it , jt ) / ( 2.0d0 * rcutsq ( it , jt ) ) * ( srq( it , jt ) - srp( it , jt ) ) 
+           uc1 ( it , jt ) = epsp ( it , jt ) *  ppqq ( it , jt ) / ( 2.0_dp * rcutsq ( it , jt ) ) * ( srq( it , jt ) - srp( it , jt ) ) 
            ! c2
-           uc2 ( it , jt ) = 0.5d0 * epsp( it , jt )  * (  &
-                         ( 2.0d0 * pp ( it , jt ) + ppqq ( it , jt )  ) * srq( it , jt ) - &
-                         ( 2.0d0 * qq ( it , jt ) + ppqq ( it , jt )  ) * srp( it , jt ) )
+           uc2 ( it , jt ) = 0.5_dp * epsp( it , jt )  * (  &
+                         ( 2.0_dp * pp ( it , jt ) + ppqq ( it , jt )  ) * srq( it , jt ) - &
+                         ( 2.0_dp * qq ( it , jt ) + ppqq ( it , jt )  ) * srp( it , jt ) )
            ! for the virial
            fc ( it , jt ) =  ppqq ( it , jt ) * epsp ( it , jt ) /  sigsq ( it , jt ) 
            ! morse
-           fm ( it , jt ) = - 2.0d0 * epsmor ( it , jt ) * rhomor ( it , jt ) * EXP ( rhomor ( it , jt ) * sigmamor ( it , jt ) )  
+           fm ( it , jt ) = - 2.0_dp * epsmor ( it , jt ) * rhomor ( it , jt ) * EXP ( rhomor ( it , jt ) * sigmamor ( it , jt ) )  
            rs ( it , jt ) = EXP ( rhomor ( it , jt ) * sigmamor( it , jt ) ) 
            ! tail energy
            ut ( it , jt ) = epsp ( it , jt ) * ( pp ( it , jt ) * srq ( it , jt ) / qq3 ( it , jt ) - &
                                                  qq ( it , jt ) * srp ( it , jt ) / pp3 ( it , jt )  )       
-           ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * 2.0d0 * pi 
+           ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * 2.0_dp * pi 
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
            utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
 
@@ -699,9 +792,9 @@ END SUBROUTINE initialize_param_bmlj_morse
 
 SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
 
-  USE config,   ONLY :  natm , dipia
-  USE control,  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lshiftpot , longrange
-  USE io_file,  ONLY :  stdout 
+  USE config,                   ONLY :  natm , dipia
+  USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lshiftpot , longrange
+  USE io_file,                  ONLY :  stdout 
 
   implicit none
 
@@ -709,7 +802,7 @@ SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
   integer, intent(inout)  :: iastart , iaend 
   ! local 
   logical :: lj_and_coul
-  double precision :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
+  real(kind=dp) :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
 
   ! ====================================
   !  check if LJ and COULOMBIC 
@@ -737,16 +830,27 @@ SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
     !   PBC
     ! =======
     if ( lpbc ) then
+#ifdef debug  
+      print*,'before lj'
+      CALL print_config_sample(0,0)
+#endif
       if ( lshiftpot .and. lminimg ) CALL engforce_bmlj_pbc         ( iastart , iaend )
       if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift ( iastart , iaend )
+#ifdef debug  
+      print*,'before coul'
+      CALL print_config_sample(0,0)
+#endif
       if ( longrange .eq. 'ewald'  ) CALL multipole_ES              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
       if ( longrange .eq. 'direct' ) CALL multipole_DS              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+#ifdef debug  
+      print*,'before after coul'
+      CALL print_config_sample(0,0)
+#endif
       ! =======
       !  NO PBC
       ! =======
     else
       WRITE ( stdout ,'(a)') 'ERROR sick job: coulomb + nopbc'
-      STOP 
       if ( lshiftpot )               CALL engforce_bmlj_nopbc       ( iastart , iaend )
 !      if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift ( iastart , iaend ) 
     endif
@@ -817,12 +921,12 @@ END SUBROUTINE engforce_driver
 
 SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell 
-  USE control,          ONLY : lvnlist , myrank
-  USE thermodynamic,    ONLY : u_lj , vir_lj , write_thermo
-  USE io_file,          ONLY : stdout
-  USE time
-  USE cell
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell 
+  USE control,                  ONLY :  lvnlist , myrank
+  USE thermodynamic,            ONLY :  u_lj , vir_lj , write_thermo
+  USE io_file,                  ONLY :  stdout
+  USE time,                     ONLY :  forcetimetot 
+  USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
   INCLUDE 'mpif.h'
@@ -833,15 +937,15 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ! local
   integer          :: ia , ja , it , jt , j1 , je , jb , ierr 
   integer          :: p1 , p2
-  double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij 
-  double precision :: sxij , syij , szij 
-  double precision :: sr2 , rijsq , srp , srq
-  double precision :: wij , fxij , fyij , fzij
-  double precision :: ptwo ( ntype , ntype )
-  double precision :: qtwo ( ntype , ntype )
-  double precision :: forcetime1 , forcetime2 
-  double precision :: u , vir 
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij 
+  real(kind=dp) :: sxij , syij , szij 
+  real(kind=dp) :: sr2 , rijsq , srp , srq
+  real(kind=dp) :: wij , fxij , fyij , fzij
+  real(kind=dp) :: ptwo ( ntype , ntype )
+  real(kind=dp) :: qtwo ( ntype , ntype )
+  real(kind=dp) :: ttt1 , ttt2 
+  real(kind=dp) :: u , vir 
 
 #ifdef debug_bmlj
   ia = natm 
@@ -849,18 +953,18 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
 #endif
 
-  forcetime1 = MPI_WTIME(ierr) ! timing info
+  ttt1 = MPI_WTIME(ierr) ! timing info
 
-  u   = 0.0D0
-  vir = 0.0D0
-  fx  = 0.0D0
-  fy  = 0.0D0
-  fz  = 0.0D0
+  u   = 0.0_dp
+  vir = 0.0_dp
+  fx  = 0.0_dp
+  fy  = 0.0_dp
+  fz  = 0.0_dp
  
   do jt = 1 , ntype
     do it = 1 , ntype
-      ptwo ( it , jt ) = plj ( it , jt ) * 0.5d0
-      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5d0
+      ptwo ( it , jt ) = plj ( it , jt ) * 0.5_dp
+      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5_dp
     enddo
   enddo
 
@@ -870,7 +974,7 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   do ia = iastart , iaend
     rxi = rx ( ia )
@@ -950,10 +1054,10 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
     enddo
   enddo
   tau_nonb = tau_nonb / simu_cell%omega 
-  vir = vir/3.0D0
+  vir = vir/3.0_dp
 
-  forcetime2 = MPI_WTIME(ierr) ! timing info
-  forcetimetot = forcetimetot+(forcetime2-forcetime1)
+  ttt2 = MPI_WTIME(ierr) ! timing info
+  forcetimetot = forcetimetot + ( ttt2 - ttt1 )
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   ) 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir ) 
@@ -972,7 +1076,7 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -987,10 +1091,10 @@ END SUBROUTINE engforce_bmlj_pbc
 
 SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell 
-  USE control,          ONLY : lvnlist , myrank
-  USE thermodynamic,    ONLY : u_lj , vir_lj
-  USE time
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell 
+  USE control,                  ONLY :  lvnlist , myrank
+  USE thermodynamic,            ONLY :  u_lj , vir_lj
+  !USE time,                     ONLY :  
 
   implicit none
   INCLUDE 'mpif.h'
@@ -1001,23 +1105,23 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
   ! local
   integer :: ia , ja , it, jt, j1, je, jb !, ierr
   integer :: p1, p2
-  double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij , sr2 , rijsq , srp , srq
-  double precision :: wij , fxij , fyij , fzij
-  double precision :: ptwo ( ntype , ntype )
-  double precision :: qtwo ( ntype , ntype )
-  double precision :: u, vir
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij , sr2 , rijsq , srp , srq
+  real(kind=dp) :: wij , fxij , fyij , fzij
+  real(kind=dp) :: ptwo ( ntype , ntype )
+  real(kind=dp) :: qtwo ( ntype , ntype )
+  real(kind=dp) :: u, vir
 
-  u = 0.0D0
-  vir = 0.0D0
-  fx = 0.0D0
-  fy = 0.0D0
-  fz = 0.0D0
+  u = 0.0_dp
+  vir = 0.0_dp
+  fx = 0.0_dp
+  fy = 0.0_dp
+  fz = 0.0_dp
 
   do jt = 1 , ntype
     do it = 1 , ntype
-      ptwo ( it , jt ) = plj ( it , jt ) * 0.5d0
-      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5d0
+      ptwo ( it , jt ) = plj ( it , jt ) * 0.5_dp
+      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5_dp
     enddo
   enddo
 
@@ -1082,7 +1186,7 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
     enddo
   enddo
   tau_nonb = tau_nonb / simu_cell%omega 
-  vir = vir / 3.0D0
+  vir = vir / 3.0_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u ) 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir ) 
@@ -1114,10 +1218,10 @@ END SUBROUTINE engforce_bmlj_nopbc
 
 SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
-  USE control,          ONLY : lvnlist , myrank
-  USE thermodynamic,    ONLY : u_lj , vir_lj
-  USE time
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
+  USE control,                  ONLY :  lvnlist , myrank
+  USE thermodynamic,            ONLY :  u_lj , vir_lj
+  USE time,                     ONLY :  forcetimetot
 
   implicit none
   INCLUDE 'mpif.h'
@@ -1126,31 +1230,31 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
   integer, intent(in)  :: iastart , iaend 
 
   ! local
-  integer :: ia , ja , it , jt , j1 , je , jb , ierr
-  integer :: p1, p2
-  double precision :: rxi, ryi, rzi
-  double precision :: rxij,ryij,rzij
-  double precision :: sxij,syij,szij
-  double precision :: sr2,rijsq,srp,srq
-  double precision :: wij,fxij,fyij,fzij
-  double precision :: ptwo ( ntype , ntype )
-  double precision :: qtwo ( ntype , ntype )
-  double precision :: forcetime1, forcetime2
-  double precision :: u, vir
+  integer       :: ia , ja , it , jt , j1 , je , jb , ierr
+  integer       :: p1 , p2
+  real(kind=dp) :: rxi , ryi, rzi
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: sr2 , rijsq , srp , srq
+  real(kind=dp) :: wij , fxij , fyij , fzij
+  real(kind=dp) :: ptwo ( ntype , ntype )
+  real(kind=dp) :: qtwo ( ntype , ntype )
+  real(kind=dp) :: ttt1 , ttt2
+  real(kind=dp) :: u , vir
   
-  forcetime1 = MPI_WTIME(ierr) ! timing info
+  ttt1 = MPI_WTIME(ierr) ! timing info
   
-  u   = 0.0D0
-  vir = 0.0D0
-  fx  = 0.0D0
-  fy  = 0.0D0
-  fz  = 0.0D0
+  u   = 0.0_dp
+  vir = 0.0_dp
+  fx  = 0.0_dp
+  fy  = 0.0_dp
+  fz  = 0.0_dp
   
 
   do jt = 1 , ntype
     do it = 1 , ntype
-      ptwo ( it , jt ) = plj ( it , jt ) * 0.5d0
-      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5d0
+      ptwo ( it , jt ) = plj ( it , jt ) * 0.5_dp
+      qtwo ( it , jt ) = qlj ( it , jt ) * 0.5_dp
     enddo
   enddo
 
@@ -1205,10 +1309,10 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
       endif
     enddo
   enddo
-  vir = vir/3.0D0
+  vir = vir/3.0_dp
 
-  forcetime2 = MPI_WTIME(ierr) ! timing info
-  forcetimetot = forcetimetot+(forcetime2-forcetime1)
+  ttt2 = MPI_WTIME(ierr) ! timing info
+  forcetimetot = forcetimetot + ( ttt2 - ttt1 )
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )
@@ -1272,9 +1376,8 @@ SUBROUTINE initialize_coulomb
     nkcut = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
     nkcut = nkcut - 1
     km_coul%nkcut = nkcut
-    allocate( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
-    allocate ( km_coul%strf ( nkcut, ntype ) ) 
-    allocate ( km_coul%strf2 ( nkcut, ntype ) ) 
+    allocate ( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
+    allocate ( km_coul%strf ( nkcut, natm ) ) 
     CALL kpoint_sum_init ( km_coul )
   endif
 
@@ -1306,7 +1409,6 @@ SUBROUTINE finalize_coulomb
   if ( longrange .eq. 'ewald')  then
     deallocate( km_coul%kptk , km_coul%kpt )
     deallocate ( km_coul%strf )
-    deallocate ( km_coul%strf2 )
   endif
 
 
@@ -1334,20 +1436,20 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   implicit none
 
   ! global
-  double precision , intent ( in  ) :: Efield ( natm , 3 ) 
-  double precision , intent ( out ) :: mu_ind ( natm , 3 ) 
-  double precision , intent ( out ) :: u_pol   
+  real(kind=dp) , intent ( in  ) :: Efield ( natm , 3 ) 
+  real(kind=dp) , intent ( out ) :: mu_ind ( natm , 3 ) 
+  real(kind=dp) , intent ( out ) :: u_pol   
 
   ! local 
   integer :: alpha , beta
   integer :: ia , it 
-  double precision :: invpol ( 3 , 3 )   
+  real(kind=dp) :: invpol ( 3 , 3 )   
   integer, parameter :: LWORK=1000  
-  double precision :: WORK ( LWORK ) 
+  real(kind=dp) :: WORK ( LWORK ) 
   integer :: ipiv ( 3 ) 
   integer :: ierr
 
-  mu_ind = 0.0d0
+  mu_ind = 0.0_dp
   do ia = 1 , natm 
     do alpha = 1 , 3 
       do beta = 1 , 3  
@@ -1356,7 +1458,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
     enddo
   enddo
 
-  u_pol = 0.0d0 
+  u_pol = 0.0_dp 
   do ia = 1 , natm
     it = itype(ia) 
     if ( lpolar ( it ) .eq. 1 ) then 
@@ -1381,7 +1483,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
     endif
   enddo
 
-  u_pol = u_pol * 0.5d0
+  u_pol = u_pol * 0.5_dp
 
   return
 
@@ -1390,12 +1492,12 @@ END SUBROUTINE induced_moment
 
 SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE config,  ONLY : natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
-  USE control, ONLY : cutlongrange,myrank
-  USE io_file, ONLY : stdout , ionode 
-  USE thermodynamic , ONLY : u_pol, u_coul_tot , vir_coul_tot 
-  USE cell 
-  USE time
+  USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
+  USE control,                  ONLY :  cutlongrange,myrank
+  USE io_file,                  ONLY :  stdout , ionode 
+  USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
+  USE cell,                     ONLY :  kardir , dirkar
+  USE time,                     ONLY :  fcoultimetot1 , fcoultimetot3
 
   implicit none
 
@@ -1403,40 +1505,40 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! global 
   integer, intent(in) :: iastart , iaend
-  double precision , intent(in)    :: mu     ( natm , 3 )
-  double precision , intent(out)   :: ef     ( natm , 3 )
-  double precision , intent(out)   :: efg    ( natm , 3 , 3 )
-  double precision , intent(out)   :: u_coul 
-  double precision , intent(out)   :: vir_coul
-  double precision , intent(out)   :: phi_coul ( natm ) 
+  real(kind=dp) , intent(in)    :: mu     ( natm , 3 )
+  real(kind=dp) , intent(out)   :: ef     ( natm , 3 )
+  real(kind=dp) , intent(out)   :: efg    ( natm , 3 , 3 )
+  real(kind=dp) , intent(out)   :: u_coul 
+  real(kind=dp) , intent(out)   :: vir_coul
+  real(kind=dp) , intent(out)   :: phi_coul ( natm ) 
 
   ! local 
   integer :: ia, ja , ierr , ncell 
-  double precision, dimension(:), allocatable :: fx_coul , fy_coul , fz_coul
-  double precision, dimension(:), allocatable :: phi_coul_qq , phi_coul_dd 
-  double precision :: u_coul_qq , u_coul_dd , u_coul_qd 
-  double precision :: vir_coul_qq , vir_coul_dd , vir_coul_qd
-  double precision :: cutsq
-  double precision :: rxi , ryi , rzi 
-  double precision :: rxj , ryj , rzj
-  double precision :: rxij , ryij , rzij
-  double precision :: sxij , syij , szij
-  double precision :: fxij , fyij , fzij
-  double precision :: qi , qj , qij
-  double precision :: muix , muiy , muiz
-  double precision :: mujx , mujy , mujz
-  double precision :: T
-  double precision :: Tx , Ty , Tz
-  double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
-  double precision :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
-  double precision :: d , d2 
-  double precision :: dm1 , dm3 , dm5 , dm7 
+  real(kind=dp), dimension(:), allocatable :: fx_coul , fy_coul , fz_coul
+  real(kind=dp), dimension(:), allocatable :: phi_coul_qq , phi_coul_dd 
+  real(kind=dp) :: u_coul_qq , u_coul_dd , u_coul_qd 
+  real(kind=dp) :: vir_coul_qq , vir_coul_dd , vir_coul_qd
+  real(kind=dp) :: cutsq
+  real(kind=dp) :: rxi , ryi , rzi 
+  real(kind=dp) :: rxj , ryj , rzj
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: fxij , fyij , fzij
+  real(kind=dp) :: qi , qj , qij
+  real(kind=dp) :: muix , muiy , muiz
+  real(kind=dp) :: mujx , mujy , mujz
+  real(kind=dp) :: T
+  real(kind=dp) :: Tx , Ty , Tz
+  real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
+  real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
+  real(kind=dp) :: d , d2 
+  real(kind=dp) :: dm1 , dm3 , dm5 , dm7 
 
-  double precision :: ttt1 , ttt2  , ttt3
+  real(kind=dp) :: ttt1 , ttt2  , ttt3
   logical          :: lcentralbox
   !debug 
   integer          :: it , ip
-  double precision :: mip    ( ntype , 3 )
+  real(kind=dp) :: mip    ( ntype , 3 )
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -1481,27 +1583,27 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   allocate( fx_coul ( natm ), fy_coul ( natm ), fz_coul ( natm ) )
   allocate( phi_coul_qq ( natm ), phi_coul_dd ( natm ) )
-  ef          = 0.0d0
-  efg         = 0.0d0
-  vir_coul    = 0.0d0
-  vir_coul_qq = 0.0d0
-  vir_coul_qd = 0.0d0
-  vir_coul_dd = 0.0d0
-  u_coul      = 0.0d0
-  u_coul_qq   = 0.0d0
-  u_coul_qd   = 0.0d0
-  u_coul_dd   = 0.0d0
-  fx_coul     = 0.0D0
-  fy_coul     = 0.0D0
-  fz_coul     = 0.0D0
-  phi_coul    = 0.0d0
-  phi_coul_qq = 0.0d0
-  phi_coul_dd = 0.0d0
+  ef          = 0.0_dp
+  efg         = 0.0_dp
+  vir_coul    = 0.0_dp
+  vir_coul_qq = 0.0_dp
+  vir_coul_qd = 0.0_dp
+  vir_coul_dd = 0.0_dp
+  u_coul      = 0.0_dp
+  u_coul_qq   = 0.0_dp
+  u_coul_qd   = 0.0_dp
+  u_coul_dd   = 0.0_dp
+  fx_coul     = 0.0_dp
+  fy_coul     = 0.0_dp
+  fz_coul     = 0.0_dp
+  phi_coul    = 0.0_dp
+  phi_coul_qq = 0.0_dp
+  phi_coul_dd = 0.0_dp
   
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
 ! ==================================================================================================
 !  MAIN LOOP calculate EF(i) , EFG(i) , virial , potential, forces ... for each atom i parallelized
@@ -1538,7 +1640,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
             rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
             d2   = rxij * rxij + ryij * ryij + rzij * rzij
 
-            if ( d2 .lt. cutsq .and. d2 .ne. 0.0d0 ) then 
+            if ( d2 .lt. cutsq .and. d2 .ne. 0.0_dp ) then 
 
               qj    = qia ( ja )
               qij   = qi * qj
@@ -1546,7 +1648,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
               mujy  = mu ( ja , 2 )  
               mujz  = mu ( ja , 3 )  
               d     = SQRT ( d2 )
-              dm1   = 1.0d0 / d 
+              dm1   = 1.0_dp / d 
               dm3   = dm1 / d2
               dm5   = dm3 / d2
               dm7   = dm5 / d2
@@ -1560,24 +1662,24 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
               Tz = - rzij * dm3 
 
               ! multipole interaction tensor rank = 2
-              Txx = ( 3.0d0 * rxij * rxij - d2 ) * dm5
-              Tyy = ( 3.0d0 * ryij * ryij - d2 ) * dm5
-              Tzz = ( 3.0d0 * rzij * rzij - d2 ) * dm5
-              Txy = ( 3.0d0 * rxij * ryij      ) * dm5
-              Txz = ( 3.0d0 * rxij * rzij      ) * dm5
-              Tyz = ( 3.0d0 * ryij * rzij      ) * dm5
+              Txx = ( 3.0_dp * rxij * rxij - d2 ) * dm5
+              Tyy = ( 3.0_dp * ryij * ryij - d2 ) * dm5
+              Tzz = ( 3.0_dp * rzij * rzij - d2 ) * dm5
+              Txy = ( 3.0_dp * rxij * ryij      ) * dm5
+              Txz = ( 3.0_dp * rxij * rzij      ) * dm5
+              Tyz = ( 3.0_dp * ryij * rzij      ) * dm5
 
               ! multipole interaction tensor rank = 3  
-              Txxx = ( - 5.0d0 * rxij * rxij * rxij +  3.0d0 * d2 * ( rxij ) ) * dm7 * 3.0d0
-              Tyyy = ( - 5.0d0 * ryij * ryij * ryij +  3.0d0 * d2 * ( ryij ) ) * dm7 * 3.0d0
-              Tzzz = ( - 5.0d0 * rzij * rzij * rzij +  3.0d0 * d2 * ( rzij ) ) * dm7 * 3.0d0
-              Txxy = ( - 5.0d0 * rxij * rxij * ryij +          d2 * ( ryij ) ) * dm7 * 3.0d0
-              Txxz = ( - 5.0d0 * rxij * rxij * rzij +          d2 * ( rzij ) ) * dm7 * 3.0d0
-              Tyyx = ( - 5.0d0 * ryij * ryij * rxij +          d2 * ( rxij ) ) * dm7 * 3.0d0
-              Tyyz = ( - 5.0d0 * ryij * ryij * rzij +          d2 * ( rzij ) ) * dm7 * 3.0d0
-              Tzzx = ( - 5.0d0 * rzij * rzij * rxij +          d2 * ( rxij ) ) * dm7 * 3.0d0
-              Tzzy = ( - 5.0d0 * rzij * rzij * ryij +          d2 * ( ryij ) ) * dm7 * 3.0d0
-              Txyz = ( - 5.0d0 * rxij * ryij * rzij                          ) * dm7 * 3.0d0
+              Txxx = ( - 5.0_dp * rxij * rxij * rxij +  3.0_dp * d2 * ( rxij ) ) * dm7 * 3.0_dp
+              Tyyy = ( - 5.0_dp * ryij * ryij * ryij +  3.0_dp * d2 * ( ryij ) ) * dm7 * 3.0_dp
+              Tzzz = ( - 5.0_dp * rzij * rzij * rzij +  3.0_dp * d2 * ( rzij ) ) * dm7 * 3.0_dp
+              Txxy = ( - 5.0_dp * rxij * rxij * ryij +          d2 * ( ryij ) ) * dm7 * 3.0_dp
+              Txxz = ( - 5.0_dp * rxij * rxij * rzij +          d2 * ( rzij ) ) * dm7 * 3.0_dp
+              Tyyx = ( - 5.0_dp * ryij * ryij * rxij +          d2 * ( rxij ) ) * dm7 * 3.0_dp
+              Tyyz = ( - 5.0_dp * ryij * ryij * rzij +          d2 * ( rzij ) ) * dm7 * 3.0_dp
+              Tzzx = ( - 5.0_dp * rzij * rzij * rxij +          d2 * ( rxij ) ) * dm7 * 3.0_dp
+              Tzzy = ( - 5.0_dp * rzij * rzij * ryij +          d2 * ( ryij ) ) * dm7 * 3.0_dp
+              Txyz = ( - 5.0_dp * rxij * ryij * rzij                          ) * dm7 * 3.0_dp
 
               ! ===========================================================
               !                  charge-charge interaction
@@ -1650,23 +1752,23 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
               ! forces 
               fxij = ( muix * Txxx * mujx         + &
-                       muix * Txxy * mujy * 2.0d0 + &
-                       muix * Txxz * mujz * 2.0d0 + &
-                       muiy * Txyz * mujz * 2.0d0 + &   
+                       muix * Txxy * mujy * 2.0_dp + &
+                       muix * Txxz * mujz * 2.0_dp + &
+                       muiy * Txyz * mujz * 2.0_dp + &   
                        muiy * Tyyx * mujy         + &    
                        muiz * Tzzx * mujz )
 
               fyij = ( muiy * Tyyy * mujy         + &
-                       muix * Tyyx * mujy * 2.0d0 + &
-                       muiy * Tyyz * mujz * 2.0d0 + &
-                       muiy * Txyz * mujz * 2.0d0 + &     
+                       muix * Tyyx * mujy * 2.0_dp + &
+                       muiy * Tyyz * mujz * 2.0_dp + &
+                       muiy * Txyz * mujz * 2.0_dp + &     
                        muix * Txxy * mujx         + &
                        muiz * Tzzy * mujz )
 
               fzij = ( muiz * Tzzz * mujz         + &
-                       muiz * Tzzx * mujx * 2.0d0 + &
-                       muiy * Tzzy * mujz * 2.0d0 + &
-                       muiy * Txyz * mujx * 2.0d0 + &
+                       muiz * Tzzx * mujx * 2.0_dp + &
+                       muiy * Tzzy * mujz * 2.0_dp + &
+                       muiy * Txyz * mujx * 2.0_dp + &
                        muix * Txxz * mujx         + &
                        muiy * Tyyz * mujy )
 
@@ -1783,12 +1885,12 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   CALL MPI_BARRIER( MPI_COMM_WORLD , ierr )
 
-  u_coul_qq   = u_coul_qq * 0.5d0
-  u_coul_dd   = u_coul_dd * 0.5d0
-  u_coul_qd   = u_coul_qd * 0.5d0
-  vir_coul_qq = - vir_coul_qq  * 0.5d0
-  vir_coul_qd = - vir_coul_qd  * 0.5d0
-  vir_coul_dd = - vir_coul_dd  * 0.5d0
+  u_coul_qq   = u_coul_qq * 0.5_dp
+  u_coul_dd   = u_coul_dd * 0.5_dp
+  u_coul_qd   = u_coul_qd * 0.5_dp
+  vir_coul_qq = - vir_coul_qq  * 0.5_dp
+  vir_coul_qd = - vir_coul_qd  * 0.5_dp
+  vir_coul_dd = - vir_coul_dd  * 0.5_dp
 
   fx = fx + fx_coul
   fy = fy + fy_coul
@@ -1797,7 +1899,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   u_coul   = u_coul_qq   + u_coul_dd   + u_coul_qd + u_pol
   vir_coul = vir_coul_qq + vir_coul_dd + vir_coul_qd
   phi_coul = phi_coul_qq + phi_coul_dd
-  tau_coul = - tau_coul / simu_cell%omega * 0.5d0
+  tau_coul = - tau_coul / simu_cell%omega * 0.5_dp
 
 #ifdef debug2 
   if ( ionode ) then
@@ -1840,12 +1942,12 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   vir_coul_tot = vir_coul
 
   ttt3 = MPI_WTIME(ierr)
-  fcoultimetot2 = fcoultimetot2 + ( ttt3 - ttt2 )
+  fcoultimetot3 = fcoultimetot3 + ( ttt3 - ttt2 )
 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -1855,13 +1957,15 @@ END SUBROUTINE multipole_DS
 
 SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE control,   ONLY : lsurf , cutoff
-  USE config,    ONLY : natm , ntype , natmi , atype , rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell 
-  USE constants, ONLY : imag , pi , piroot , tpi , fpi
-  USE io_file  , ONLY : ionode , stdout 
-  USE thermodynamic , ONLY : u_pol, u_coul_tot , vir_coul_tot 
-  USE cell 
-  USE time
+  USE control,                  ONLY :  lsurf , cutoff
+  USE config,                   ONLY :  natm , ntype , natmi , atype , &
+                                        rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell 
+  USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
+  USE io_file,                  ONLY :  ionode , stdout 
+  USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
+  USE cell,                     ONLY :  kardir , dirkar 
+  USE time,                     ONLY :  strftimetot , fcoultimetot1 , fcoultimetot2 , fcoultimetot3
+  USE kspace,                   ONLY :  struc_fact
 
   implicit none
 
@@ -1869,58 +1973,60 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! global 
   integer, intent(in) :: iastart , iaend
-  double precision    :: ef     ( natm , 3 )
-  double precision    :: efg    ( natm , 3 , 3 )
-  double precision    :: mu     ( natm , 3 )
-  double precision    :: tau_dir( 3 , 3 )
-  double precision    :: tau_rec( 3 , 3 )
-  double precision    :: u_coul 
-  double precision    :: vir_coul 
-  double precision    :: phi_coul ( natm )  
+  real(kind=dp)    :: ef     ( natm , 3 )
+  real(kind=dp)    :: efg    ( natm , 3 , 3 )
+  real(kind=dp)    :: mu     ( natm , 3 )
+  real(kind=dp)    :: tau_dir( 3 , 3 )
+  real(kind=dp)    :: tau_rec( 3 , 3 )
+  real(kind=dp)    :: u_coul 
+  real(kind=dp)    :: vir_coul 
+  real(kind=dp)    :: phi_coul ( natm )  
 
   ! local 
   integer             :: ia , ja , ik , it , ip , ierr
-  double precision, dimension(:)    , allocatable :: fx_coul , fy_coul , fz_coul
-  double precision, dimension(:)    , allocatable :: fx_dir , fy_dir , fz_dir
-  double precision, dimension(:)    , allocatable :: fx_rec , fy_rec , fz_rec
-  double precision, dimension(:)    , allocatable :: fx_surf , fy_surf , fz_surf
-  double precision, dimension(:)    , allocatable :: phi_dir , phi_rec , phi_surf , phi_self
-  double precision, dimension(:,:)  , allocatable :: ef_dir , ef_rec , ef_surf , ef_self
-  double precision, dimension(:,:,:), allocatable :: efg_dir , efg_rec , efg_self
+  real(kind=dp), dimension(:)    , allocatable :: fx_coul , fy_coul , fz_coul
+  real(kind=dp), dimension(:)    , allocatable :: fx_dir , fy_dir , fz_dir
+  real(kind=dp), dimension(:)    , allocatable :: fx_rec , fy_rec , fz_rec
+  real(kind=dp), dimension(:)    , allocatable :: fx_surf , fy_surf , fz_surf
+  real(kind=dp), dimension(:)    , allocatable :: phi_dir , phi_rec , phi_surf , phi_self
+  real(kind=dp), dimension(:,:)  , allocatable :: ef_dir , ef_rec , ef_surf , ef_self
+  real(kind=dp), dimension(:,:,:), allocatable :: efg_dir , efg_rec , efg_self
 
-  double precision :: u_dir , u_rec , u_surf , u_self
-  double precision :: u_surf_qq , u_surf_qd , u_surf_dd
-  double precision :: vir_dir , vir_rec , vir_surf , vir_self
+  real(kind=dp) :: u_dir , u_rec , u_surf , u_self
+  real(kind=dp) :: u_surf_qq , u_surf_qd , u_surf_dd
+  real(kind=dp) :: vir_dir , vir_rec , vir_surf , vir_self
 
-  double precision :: mip    ( ntype , 3 )
+  real(kind=dp) :: mip    ( ntype , 3 )
 
-  double precision :: cutsq
-  double precision :: rxi  , ryi  , rzi
-  double precision :: rxj  , ryj  , rzj
-  double precision :: kx   , ky   , kz 
-  double precision :: rxij , ryij , rzij
-  double precision :: sxij , syij , szij
-  double precision :: fxij , fyij , fzij
-  double precision :: kk   , kri  , Ak , kcoe
-  double precision :: qi   , qj   , qij
-  double precision :: muix , muiy , muiz
-  double precision :: mujx , mujy , mujz
-  double complex   :: rhon , rhonmu , carg 
-  double precision :: str  , recarg , recargi1 
-  double precision :: expon , F0 , F1 , F2 , F3 
-  double precision :: k_dot_mu
-  double precision :: T
-  double precision :: Tx , Ty , Tz
-  double precision :: Txx , Tyy , Tzz , Txy , Txz , Tyz
-  double precision :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
-  double precision :: d , d2 , d3  , d5 
-  double precision :: dm1 , dm3 , dm5 , dm7 
-  double precision :: alpha2 , alpha3 , alpha5 
-  double precision :: selfa , selfa2 
-  double precision, external :: errfc
-  double precision :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 ) 
-  double precision :: tpi_V , tpi_3V , fpi_V , fpi_3V 
-  double precision :: ttt1 , ttt2  , ttt3 , ttt4
+  real(kind=dp) :: cutsq
+  real(kind=dp) :: rxi  , ryi  , rzi
+  real(kind=dp) :: rxj  , ryj  , rzj
+  real(kind=dp) :: kx   , ky   , kz 
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: fxij , fyij , fzij
+  real(kind=dp) :: kk   , kri  , Ak , kcoe
+  real(kind=dp) :: qi   , qj   , qij
+  real(kind=dp) :: muix , muiy , muiz
+  real(kind=dp) :: mujx , mujy , mujz
+  complex(kind=dp)   :: rhon , rhonmu , carg 
+  real(kind=dp) :: str  , recarg , recargi1 
+  real(kind=dp) :: expon , F0 , F1 , F2 , F3 
+  real(kind=dp) :: k_dot_mu
+  real(kind=dp) :: T
+  real(kind=dp) :: Tx , Ty , Tz
+  real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
+  real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
+  real(kind=dp) :: d , d2 , d3  , d5 
+  real(kind=dp) :: dm1 , dm3 , dm5 , dm7 
+  real(kind=dp) :: alpha2 , alpha3 , alpha5 
+  real(kind=dp) :: selfa , selfa2 
+  real(kind=dp), external :: errfc
+  real(kind=dp) :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 ) 
+  real(kind=dp) :: tpi_V , tpi_3V , fpi_V , fpi_3V 
+  real(kind=dp) :: ttt1 , ttt2  , ttt3 , ttt4 , ttt5
+
+  ttt1 = MPI_WTIME(ierr)
 
   ! =============================
   !  init mip ( itype dependent ) 
@@ -1936,10 +2042,10 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! =============================
   !  total charge / moment / square
   ! =============================
-  mutot = 0.0d0
-  musq  = 0.0d0
-  qtot  = 0.0d0
-  qsq   = 0.0d0
+  mutot = 0.0_dp
+  musq  = 0.0_dp
+  qtot  = 0.0_dp
+  qsq   = 0.0_dp
   do ia = 1 , natm
     mutot ( 1 ) = mutot ( 1 ) + mu ( ia , 1 )
     mutot ( 2 ) = mutot ( 2 ) + mu ( ia , 2 )
@@ -1955,7 +2061,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   qmu_sum ( 3 ) = qtot ( 3 ) + mutot ( 3 ) 
 
 
-#ifdef debug2
+#ifdef debug_multipole_ES
   if ( ionode ) then
   WRITE( stdout , '(a)')          'debug : in engforce_charge_ES'
   WRITE( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nkcut,' ',km_coul%meshlabel
@@ -1977,7 +2083,6 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   call print_config_sample(0,0)
 #endif 
 
-  ttt1 = MPI_WTIME(ierr)
 
   allocate( ef_dir ( natm , 3 ) , ef_rec ( natm , 3 ) , ef_surf ( natm , 3 ) , ef_self ( natm , 3 ) ) 
   allocate( efg_dir ( natm , 3 , 3 ) , efg_rec ( natm , 3 , 3 ) , efg_self ( natm , 3 , 3 ) ) 
@@ -1987,61 +2092,70 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   allocate( fx_surf (natm) , fy_surf (natm) , fz_surf (natm) )
   allocate( phi_dir ( natm ) , phi_rec ( natm ) , phi_surf ( natm ) , phi_self ( natm ) )
 
-  ef_dir   = 0.0d0
-  ef_rec   = 0.0d0
-  ef_surf  = 0.0d0
-  efg_dir  = 0.0d0
-  efg_rec  = 0.0d0
-  efg_self = 0.0d0
-  fx   = 0.0D0
-  fy   = 0.0D0
-  fz   = 0.0D0
-  fx_dir   = 0.0D0
-  fy_dir   = 0.0D0
-  fz_dir   = 0.0D0
-  fx_rec   = 0.0D0
-  fy_rec   = 0.0D0
-  fz_rec   = 0.0D0
-  fx_surf  = 0.0D0
-  fy_surf  = 0.0D0
-  fz_surf  = 0.0D0
-  phi_dir  = 0.0D0
-  phi_rec  = 0.0D0
-  phi_surf = 0.0D0
-  phi_self = 0.0D0
-  u_dir    = 0.0d0 
-  u_rec    = 0.0d0 
-  u_self   = 0.0d0 
-  u_surf   = 0.0d0 
-  vir_dir  = 0.0d0 
-  vir_rec  = 0.0d0 
-  vir_surf = 0.0d0 
-  vir_self = 0.0d0 
-  tau_dir  = 0.0d0
-  tau_rec  = 0.0d0
+#ifdef debug_multipole_ES
+  WRITE( stdout , '(a)')   'debug : in multipole_ES after allocating '
+#endif
+
+  ef_dir   = 0.0_dp
+  ef_rec   = 0.0_dp
+  ef_surf  = 0.0_dp
+  efg_dir  = 0.0_dp
+  efg_rec  = 0.0_dp
+  efg_self = 0.0_dp
+  !fx   = 0.0_dp
+  !fy   = 0.0_dp
+  !fz   = 0.0_dp
+  fx_dir   = 0.0_dp
+  fy_dir   = 0.0_dp
+  fz_dir   = 0.0_dp
+  fx_rec   = 0.0_dp
+  fy_rec   = 0.0_dp
+  fz_rec   = 0.0_dp
+  fx_surf  = 0.0_dp
+  fy_surf  = 0.0_dp
+  fz_surf  = 0.0_dp
+  phi_dir  = 0.0_dp
+  phi_rec  = 0.0_dp
+  phi_surf = 0.0_dp
+  phi_self = 0.0_dp
+  u_dir    = 0.0_dp 
+  u_rec    = 0.0_dp 
+  u_self   = 0.0_dp 
+  u_surf   = 0.0_dp 
+  vir_dir  = 0.0_dp 
+  vir_rec  = 0.0_dp 
+  vir_surf = 0.0_dp 
+  vir_self = 0.0_dp 
+  tau_dir  = 0.0_dp
+  tau_rec  = 0.0_dp
 
   ! =====================
   ! facteur de structure 
   ! =====================
   CALL struc_fact ( km_coul )
+  ttt2 = MPI_WTIME(ierr)
+  strftimetot = strftimetot + (ttt2 - ttt1)
 
+#ifdef debug_multipole_ES
+  WRITE( stdout , '(a)')   'debug : in multipole_ES after struct fact '
+#endif
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   ! =================
   !  some constants 
   ! =================
   tpi_V  = tpi    / simu_cell%omega  ! 2pi / V
-  tpi_3V = tpi_V  / 3.0d0  ! 2pi / 3V 
-  fpi_V  = tpi_V  * 2.0d0  ! 4pi / V
-  fpi_3V = tpi_3V * 2.0d0  ! 4pi / 3V
+  tpi_3V = tpi_V  / 3.0_dp  ! 2pi / 3V 
+  fpi_V  = tpi_V  * 2.0_dp  ! 4pi / V
+  fpi_3V = tpi_3V * 2.0_dp  ! 4pi / 3V
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
   selfa  = alphaES / piroot
-  selfa2 = 2.0d0 * selfa * alpha2 / 3.0d0
+  selfa2 = 2.0_dp * selfa * alpha2 / 3.0_dp
   cutsq  = cutoff * cutoff
 
   ! ==============================================
@@ -2083,16 +2197,16 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
         d   = SQRT ( d2 )
         d3  = d2 * d 
         d5  = d3 * d2 
-        dm1 = 1.0d0 / d
+        dm1 = 1.0_dp / d
         dm3 = dm1 / d2 
         dm5 = dm3 / d2 
         dm7 = dm5 / d2 
  
         expon = EXP ( - alpha2 * d2 )    / piroot
         F0    = errfc( alphaES * d )
-        F1    = F0 + 2.0d0 * alphaES * d  * expon 
-        F2    = F1 + 4.0d0 * alpha3  * d3 * expon / 3.0d0
-        F3    = F2 + 8.0d0 * alpha5  * d5 * expon / 15.0d0
+        F1    = F0 + 2.0_dp * alphaES * d  * expon 
+        F2    = F1 + 4.0_dp * alpha3  * d3 * expon / 3.0_dp
+        F3    = F2 + 8.0_dp * alpha5  * d5 * expon / 15.0_dp
 
         ! multipole interaction tensor rank = 0 
         T  = dm1 * F0
@@ -2103,24 +2217,24 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
         Tz = - rzij * F1 * dm3
 
         ! multipole interaction tensor rank = 2
-        Txx = ( 3.0d0 * rxij * rxij * F2 - d2 * F1 ) * dm5 
-        Tyy = ( 3.0d0 * ryij * ryij * F2 - d2 * F1 ) * dm5 
-        Tzz = ( 3.0d0 * rzij * rzij * F2 - d2 * F1 ) * dm5
-        Txy = ( 3.0d0 * rxij * ryij * F2           ) * dm5
-        Txz = ( 3.0d0 * rxij * rzij * F2           ) * dm5 
-        Tyz = ( 3.0d0 * ryij * rzij * F2           ) * dm5 
+        Txx = ( 3.0_dp * rxij * rxij * F2 - d2 * F1 ) * dm5 
+        Tyy = ( 3.0_dp * ryij * ryij * F2 - d2 * F1 ) * dm5 
+        Tzz = ( 3.0_dp * rzij * rzij * F2 - d2 * F1 ) * dm5
+        Txy = ( 3.0_dp * rxij * ryij * F2           ) * dm5
+        Txz = ( 3.0_dp * rxij * rzij * F2           ) * dm5 
+        Tyz = ( 3.0_dp * ryij * rzij * F2           ) * dm5 
  
         ! multipole interaction tensor rank = 3  
-        Txxx = ( - 5.0d0 * rxij * rxij * rxij * F3 +  3.0d0 * d2 * ( rxij ) * F2 ) * dm7 * 3.0d0
-        Tyyy = ( - 5.0d0 * ryij * ryij * ryij * F3 +  3.0d0 * d2 * ( ryij ) * F2 ) * dm7 * 3.0d0
-        Tzzz = ( - 5.0d0 * rzij * rzij * rzij * F3 +  3.0d0 * d2 * ( rzij ) * F2 ) * dm7 * 3.0d0
-        Txxy = ( - 5.0d0 * rxij * rxij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0d0
-        Txxz = ( - 5.0d0 * rxij * rxij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0d0
-        Tyyx = ( - 5.0d0 * ryij * ryij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0d0
-        Tyyz = ( - 5.0d0 * ryij * ryij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0d0
-        Tzzx = ( - 5.0d0 * rzij * rzij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0d0
-        Tzzy = ( - 5.0d0 * rzij * rzij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0d0
-        Txyz = ( - 5.0d0 * rxij * ryij * rzij * F3                               ) * dm7 * 3.0d0
+        Txxx = ( - 5.0_dp * rxij * rxij * rxij * F3 +  3.0_dp * d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+        Tyyy = ( - 5.0_dp * ryij * ryij * ryij * F3 +  3.0_dp * d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+        Tzzz = ( - 5.0_dp * rzij * rzij * rzij * F3 +  3.0_dp * d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+        Txxy = ( - 5.0_dp * rxij * rxij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+        Txxz = ( - 5.0_dp * rxij * rxij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+        Tyyx = ( - 5.0_dp * ryij * ryij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+        Tyyz = ( - 5.0_dp * ryij * ryij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+        Tzzx = ( - 5.0_dp * rzij * rzij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+        Tzzy = ( - 5.0_dp * rzij * rzij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+        Txyz = ( - 5.0_dp * rxij * ryij * rzij * F3                               ) * dm7 * 3.0_dp
 
         ! ===========================================================
         !                  charge-charge interaction
@@ -2290,18 +2404,18 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   enddo 
 
-  ttt2 = MPI_WTIME(ierr)
-  fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )
+  ttt3 = MPI_WTIME(ierr)
+  fcoultimetot1 = fcoultimetot1 + ( ttt3 - ttt2 )
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ! ==============================================
   !            reciprocal space part
   ! ==============================================
-  kpoint : do ik = 1, km_coul%nkcut
+  kpoint : do ik = 1 , km_coul%nkcut
     ! =================
     !   k-space  
     ! =================
@@ -2309,8 +2423,8 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     ky   = km_coul%kpt(2,ik)
     kz   = km_coul%kpt(3,ik)
     kk   = km_coul%kptk(ik)
-    Ak   = EXP ( - kk * 0.25d0 / alpha2 ) / kk
-    kcoe = 2.0d0 * ( 1.0d0 / alpha2  + 1.0d0 / kk )
+    Ak   = EXP ( - kk * 0.25_dp / alpha2 ) / kk
+    kcoe = 2.0_dp * ( 1.0_dp / alpha2  + 1.0_dp / kk )
 
     if (km_coul%kptk(ik) .eq. 0 ) then
       WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
@@ -2321,8 +2435,8 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     !  charge density in k-space ( \   q * facteur de structure  )
     !                              /__
     ! ===============================
-    rhon   = (0.d0, 0.d0)
-    rhonmu = (0.d0, 0.d0)
+    rhon   = (0.0_dp, 0.0_dp)
+    rhonmu = (0.0_dp, 0.0_dp)
     do ja = 1, natm
       k_dot_mu = ( mu ( ja , 1 ) * kx + mu ( ja , 2 ) * ky + mu ( ja , 3 ) * kz  ) 
       rhon = rhon + ( qia(ja) + imag * k_dot_mu ) * km_coul%strf ( ik , ja ) 
@@ -2332,7 +2446,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     str = rhon * CONJG(rhon)
 
     u_rec   = u_rec   + Ak * str 
-    vir_rec = vir_rec + Ak * str * ( 3.0d0 - kcoe * kk ) / 3.0d0
+    vir_rec = vir_rec + Ak * str * ( 3.0_dp - kcoe * kk ) / 3.0_dp
 
     do ia = 1 , natm
 
@@ -2366,7 +2480,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij + Ak * k_dot_mu * recarg * ky 
       fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij + Ak * k_dot_mu * recarg * kz 
 
-      ! elecctric field gradient
+      ! electric field gradient
       efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) +  Ak * kx * kx * recarg
       efg_rec ( ia , 2 , 2 ) = efg_rec ( ia , 2 , 2 ) +  Ak * ky * ky * recarg 
       efg_rec ( ia , 3 , 3 ) = efg_rec ( ia , 3 , 3 ) +  Ak * kz * kz * recarg 
@@ -2375,22 +2489,22 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       efg_rec ( ia , 2 , 3 ) = efg_rec ( ia , 2 , 3 ) +  Ak * ky * kz * recarg 
  
       ! stress tensor
-      tau_rec(1,1) = tau_rec(1,1) + ( 1.0d0 - kcoe * kx * kx ) * str * ak
+      tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str * ak
       tau_rec(1,2) = tau_rec(1,2) -           kcoe * kx * ky   * str * ak
       tau_rec(1,3) = tau_rec(1,3) -           kcoe * kx * kz   * str * ak
       tau_rec(2,1) = tau_rec(2,1) -           kcoe * ky * kx   * str * ak 
-      tau_rec(2,2) = tau_rec(2,2) + ( 1.0d0 - kcoe * ky * ky ) * str * ak
+      tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str * ak
       tau_rec(2,3) = tau_rec(2,3) -           kcoe * ky * kz   * str * ak
       tau_rec(3,1) = tau_rec(3,1) -           kcoe * kz * kx   * str * ak
       tau_rec(3,2) = tau_rec(3,2) -           kcoe * kz * ky   * str * ak
-      tau_rec(3,3) = tau_rec(3,3) + ( 1.0d0 - kcoe * kz * kz ) * str * ak
+      tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str * ak
 
     enddo
 
   enddo kpoint
 
-  ttt3 = MPI_WTIME(ierr)
-  fcoultimetot2 = fcoultimetot2 + ( ttt3 - ttt2 )
+  ttt4 = MPI_WTIME(ierr)
+  fcoultimetot2 = fcoultimetot2 + ( ttt4 - ttt3 )
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_dir )
@@ -2421,9 +2535,9 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
   ! ======================================================
 
-  tau_dir =   tau_dir * 0.5d0 
-  u_dir   =   u_dir   * 0.5d0
-  vir_dir = - vir_dir * 0.5d0
+  tau_dir =   tau_dir * 0.5_dp 
+  u_dir   =   u_dir   * 0.5_dp
+  vir_dir = - vir_dir * 0.5_dp
 
   tau_rec =   tau_rec * tpi_V / simu_cell%omega
   u_rec   =   u_rec   * tpi_V  
@@ -2443,12 +2557,12 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! qq
   u_surf_qq = qtot ( 1 ) * qtot ( 1 ) + qtot ( 2 ) * qtot ( 2 ) + qtot ( 3 ) * qtot ( 3 )
   u_surf_dd = mutot ( 1 ) * mutot ( 1 ) + mutot ( 2 ) * mutot ( 2 ) + mutot ( 3 ) * mutot ( 3 )
-  u_surf_qd = 2.0d0 * ( qtot ( 1 ) * mutot ( 1 ) + qtot ( 2 ) * mutot ( 2 ) + qtot ( 3 ) * mutot ( 3 ) )
+  u_surf_qd = 2.0_dp * ( qtot ( 1 ) * mutot ( 1 ) + qtot ( 2 ) * mutot ( 2 ) + qtot ( 3 ) * mutot ( 3 ) )
   u_surf = u_surf_qq + u_surf_qd + u_surf_dd
 
   u_surf = u_surf * tpi_3V 
 
-  vir_surf = - ( u_surf_qq + 4.0d0 * u_surf_qd + 3.0d0 * u_surf_dd ) 
+  vir_surf = - ( u_surf_qq + 4.0_dp * u_surf_qd + 3.0_dp * u_surf_dd ) 
   vir_surf = vir_surf * tpi_3V 
 
   ! potential, field , forces ( no contrib to efg ) 
@@ -2473,17 +2587,17 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! electrostic energy 
   u_self   = - selfa * qsq - selfa2 * musq
-!  vir_self = - 9.0d0 * pi / 2.0d0 * qsq / alpha2 / simu_cell%omega 
+!  vir_self = - 9.0_dp * pi / 2.0_dp * qsq / alpha2 / simu_cell%omega 
  
   ! potential , field , field gradient ( no contrib to forces ) 
   do ia = 1 , natm
-   phi_self ( ia ) = - 2.0d0 * selfa * qia ( ia )
-   ef_self( ia , 1 ) = 2.0d0 * selfa2 * mu ( ia , 1 ) 
-   ef_self( ia , 2 ) = 2.0d0 * selfa2 * mu ( ia , 2 ) 
-   ef_self( ia , 3 ) = 2.0d0 * selfa2 * mu ( ia , 3 ) 
-   efg_self ( ia , 1 , 1 ) = - 2.0d0 * selfa2 * qia ( ia )
-   efg_self ( ia , 2 , 2 ) = - 2.0d0 * selfa2 * qia ( ia ) 
-   efg_self ( ia , 3 , 3 ) = - 2.0d0 * selfa2 * qia ( ia ) 
+   phi_self ( ia ) = - 2.0_dp * selfa * qia ( ia )
+   ef_self( ia , 1 ) = 2.0_dp * selfa2 * mu ( ia , 1 ) 
+   ef_self( ia , 2 ) = 2.0_dp * selfa2 * mu ( ia , 2 ) 
+   ef_self( ia , 3 ) = 2.0_dp * selfa2 * mu ( ia , 3 ) 
+   efg_self ( ia , 1 , 1 ) = - 2.0_dp * selfa2 * qia ( ia )
+   efg_self ( ia , 2 , 2 ) = - 2.0_dp * selfa2 * qia ( ia ) 
+   efg_self ( ia , 3 , 3 ) = - 2.0_dp * selfa2 * qia ( ia ) 
   enddo
 
   ! =====================================================
@@ -2600,8 +2714,8 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   u_coul_tot = u_coul
   vir_coul_tot = vir_coul
 
-  ttt4 = MPI_WTIME(ierr)
-  fcoultimetot3 = fcoultimetot3 + ( ttt4 - ttt3 )
+  ttt5 = MPI_WTIME(ierr)
+  fcoultimetot3 = fcoultimetot3 + ( ttt5 - ttt4 )
 
   return
 
@@ -2617,11 +2731,11 @@ END SUBROUTINE multipole_ES
 
 SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
-  USE config,           ONLY : natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell
-  USE control,          ONLY : lvnlist , myrank 
-  USE thermodynamic,    ONLY : u_morse , vir_morse
-  USE time
-  USE io_file,          ONLY : stdout , ionode
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell
+  USE control,                  ONLY :  lvnlist , myrank 
+  USE thermodynamic,            ONLY :  u_morse , vir_morse
+  USE time,                     ONLY :  forcetimetot
+  USE io_file,                  ONLY :  stdout , ionode
 
   implicit none
   INCLUDE 'mpif.h'
@@ -2632,14 +2746,14 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! local
   integer          :: ia , ja , j1 , je , jb , ierr
   integer          :: p1 , p2
-  double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij
-  double precision :: sxij , syij , szij
-  double precision :: rijsq , rij , erh , erh2 
-  double precision :: wij , fxij , fyij , fzij
-  double precision :: forcetime1 , forcetime2 
-  double precision :: u , vir
-  double precision :: expon 
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: rijsq , rij , erh , erh2 
+  real(kind=dp) :: wij , fxij , fyij , fzij
+  real(kind=dp) :: forcetime1 , forcetime2 
+  real(kind=dp) :: u , vir
+  real(kind=dp) :: expon 
 
 #ifdef debug_morse
   if ( ionode ) then
@@ -2652,11 +2766,11 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
   forcetime1 = MPI_WTIME(ierr) ! timing info
 
-  u   = 0.0D0
-  vir = 0.0D0
-  fx  = 0.0D0
-  fy  = 0.0D0
-  fz  = 0.0D0
+  u   = 0.0_dp
+  vir = 0.0_dp
+  fx  = 0.0_dp
+  fy  = 0.0_dp
+  fz  = 0.0_dp
 
   if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
   do ia = iastart , iaend
@@ -2693,8 +2807,8 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
            rij   = SQRT ( rijsq ) 
            erh   = EXP ( - rij * rhomor (p1,p2) ) 
            erh2  = erh * erh 
-           expon = erh * rs (p1,p2) - 1.0d0
-           expon = expon * expon - 1.0d0 
+           expon = erh * rs (p1,p2) - 1.0_dp
+           expon = expon * expon - 1.0_dp 
            u     = u + epsmor(p1,p2) * expon 
 !          if ( trunc .eq. 1 ) theni
 !            u =  u + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) - uc(p1,p2)
@@ -2719,7 +2833,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
       endif
     enddo
   enddo
-!  vir = vir/3.0D0
+!  vir = vir/3.0_dp
 
   forcetime2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot+(forcetime2-forcetime1)
@@ -2760,16 +2874,16 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
   ! global
   integer :: iastart , iaend 
-  double precision :: mu_ind ( natm , 3 ) 
+  real(kind=dp) :: mu_ind ( natm , 3 ) 
 
   ! local
   integer :: ia , iscf , it 
   logical :: linduced
-  double precision :: Efield_old , diff_efield
-  double precision :: u_tmp , vir_tmp
-  double precision :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ) 
-  double precision :: ef_tmp( natm , 3 ) , efg_tmp ( natm , 3 , 3 ) , phi_tmp ( natm ) 
-  double precision :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) 
+  real(kind=dp) :: Efield_old , diff_efield
+  real(kind=dp) :: u_tmp , vir_tmp
+  real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ) 
+  real(kind=dp) :: ef_tmp( natm , 3 ) , efg_tmp ( natm , 3 , 3 ) , phi_tmp ( natm ) 
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) 
 
   ! =========================================================
   !  Is there any polarizability ? if yes linduced = .TRUE.
@@ -2785,7 +2899,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
   ! =============================================
   !  calculate static Efield ( charge + dipoles )
   ! =============================================
-  Efield_stat = 0.0d0
+  Efield_stat = 0.0_dp
 
   ! =============================================
   !  coulombic energy , forces (field) and virial
@@ -2795,12 +2909,12 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
   Efield_stat = Efield_stat + ef_tmp
 
-  fx      = 0.0d0 ; fy = 0.0d0 ; fz = 0.0d0
-  ef_tmp  = 0.0d0
-  efg_tmp = 0.0d0
-  u_tmp   = 0.0d0
-  vir_tmp = 0.0d0
-  phi_tmp = 0.0d0
+  fx      = 0.0_dp ; fy = 0.0_dp ; fz = 0.0_dp
+  ef_tmp  = 0.0_dp
+  efg_tmp = 0.0_dp
+  u_tmp   = 0.0_dp
+  vir_tmp = 0.0_dp
+  phi_tmp = 0.0_dp
 
   ! =============================================
   !  init total Efield to static only
@@ -2813,7 +2927,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
     WRITE ( stdout , '(a)' ) 'We start from the static electric field (charge + static dipole)'
     WRITE ( stdout , '(a)' ) ' '
   endif
-  diff_efield = 1000.0d0
+  diff_efield = 1000.0_dp
   Efield_old  = Efield(1,1)
   iscf = 0
   ! =========================
@@ -2821,8 +2935,8 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
   ! =========================
   qch_tmp = qch
   qia_tmp = qia
-  qch = 0.0d0
-  qia = 0.0d0
+  qch = 0.0_dp
+  qia = 0.0_dp
   ! =============================
   !           SCF LOOP
   ! =============================
@@ -2850,7 +2964,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
     ! ==========================================================
     if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
     if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
-    fx = 0.0d0 ; fy = 0.0d0 ; fz = 0.0d0
+    fx = 0.0_dp ; fy = 0.0_dp ; fz = 0.0_dp
 
     Efield = Efield_stat + Efield_ind
 
@@ -2893,7 +3007,7 @@ END SUBROUTINE moment_from_pola
 !*********************** SUBROUTINE moment_from_pola *************************
 !
 ! This routines evaluates the dipole moment induced by Wannier centers (Wfc).
-! the listing of Wfc are done has for the verlet list
+! the listing of Wfc are done as for the verlet list
 !  
 !          wfc_point         : array of size natm+1 
 !                            gives the starting and finishing index of array
@@ -2918,22 +3032,23 @@ END SUBROUTINE moment_from_pola
 
 SUBROUTINE moment_from_WFc ( mu )
 
-  USE config , ONLY : natm , ntype , itype , atype , simu_cell , rx , ry , rz
-  USe cell
+  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz
+  USE cell,                     ONLY :  kardir , dirkar 
+  USE io_file,                  ONLY :  ionode , kunit_DIPWFC
 
   implicit none
 
   ! global
-  double precision, intent ( out )  :: mu ( natm ,  3 ) 
+  real(kind=dp), intent ( out )  :: mu ( natm ,  3 ) 
 
   ! local
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
   integer, dimension ( : ) , allocatable :: cwfc 
   integer, dimension ( : ) , allocatable :: wfc_list, wfc_point                   ! wfc neighbour list info
-  double precision :: rijsq, cutsq
-  double precision :: rxi , ryi , rzi
-  double precision :: rxij , ryij , rzij
-  double precision :: sxij , syij , szij
+  real(kind=dp) :: rijsq, cutsq
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
   logical          :: lwannier 
 
   ! =========================================================
@@ -2952,7 +3067,7 @@ SUBROUTINE moment_from_WFc ( mu )
 #endif
 
   cutsq = rcut_wfc * rcut_wfc
-  mu = 0.0d0
+  mu = 0.0_dp
 
   allocate( wfc_list ( natm * 250 ) , wfc_point(  natm + 1 ) )
   allocate ( cwfc ( natm ) )
@@ -2963,7 +3078,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   icount = 1
   do ia = 1 , natm 
@@ -3050,22 +3165,24 @@ SUBROUTINE moment_from_WFc ( mu )
   enddo
 
   ! charges of Wfc
-  mu = -2.0d0 * mu 
+  mu = -2.0_dp * mu 
 
-#ifdef debug_wfc
-  WRITE ( stdout , '(a)' ) 'debug : mu from Wannier centers'  
-  do ia= 1 , natm
-    WRITE ( stdout , '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
-  enddo
-#endif
+  if ( ionode .and. lwrite_dip_wfc ) then 
+    OPEN ( UNIT = kunit_DIPWFC , FILE='DIPWFC' )     
+    do ia= 1 , natm
+      WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
+    enddo
+    CLOSE ( kunit_DIPWFC ) 
+  endif
+  
 
-  deallocate( wfc_list , wfc_point )
+  deallocate ( wfc_list , wfc_point )
   deallocate ( cwfc ) 
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 

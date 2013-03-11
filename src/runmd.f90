@@ -62,49 +62,53 @@
 SUBROUTINE md_run ( iastart , iaend , offset )
 
 
-  USE config,   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
-                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul 
-  USE control,  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse
-  USE io_file,  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
-                        kunit_EFGALL , kunit_OUTFF , kunit_EQUILFF
-  USE prop,     ONLY :  lstrfac , lmsd , lvacf , nprop , nprop_start
-  USE md,       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
-                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator , itime
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
+                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul 
+  USE control,                  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , nprop
+  USE io_file,                  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
+                                        kunit_EFGALL , kunit_EQUILFF
+  USE md,                       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
+                                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator , itime
 
-  USE thermodynamic
-  USE time
-  USE field 
-  USE efg
-  USE radial_distrib
-  USE msd
-  USE vacf 
-  USE multi_tau 
+  USE thermodynamic,            ONLY :  e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
+  USE time,                     ONLY :  mdsteptimetot
+  USE field,                    ONLY :  engforce_driver 
+!  USE efg
+!  USE radial_distrib
+!  USE msd
+!  USE vacf 
+!  USE multi_tau 
 
   implicit none
   INCLUDE "mpif.h"
 
   ! global
-  integer, intent(inout) :: iastart , iaend 
-  integer, intent(in) :: offset
+  integer, intent(inout)                   :: iastart , iaend 
+  integer, intent(in)                      :: offset
 
   ! local
-  double precision :: tempi , kin 
-  double precision :: ttt1, ttt2 
-  double precision, dimension(:), allocatable :: xtmp , ytmp , ztmp
-  !integer :: itime 
-  integer :: ierr , ia 
-  integer :: nefg , ngr , nmsd , ntau 
-  character*60 :: rescale_allowed(2)
-  data rescale_allowed / 'nve-vv' , 'nve-be' /
- ! tmp 
+  integer                                  :: ierr , ia 
+  integer                                  :: nefg , ngr , nmsd , ntau 
+  real(kind=dp)                            :: tempi , kin 
+  real(kind=dp), dimension(:), allocatable :: xtmp , ytmp , ztmp
+  real(kind=dp)                            :: ttt1, ttt2 
+
+  ! =============================================
+  !   integration algorithm allowed to rescale
+  ! =============================================
+  character(len=60) :: rescale_allowed(2)
+  data                 rescale_allowed / 'nve-vv' , 'nve-be' /
+
+
 #ifdef com_t
-  double precision :: com(0:ntypemax,3) !center of mass
-  double precision :: ddtt , sumcom1 , sumcom2, sumcom1sq , sumcom2sq 
-  double precision :: mcom1 , mcom2 , msqcom1 , msqcom2, scom1 , scom2 , modcom1 , modcom2      
   integer :: comcount
+  real(kind=dp) :: com(0:ntypemax,3) !center of mass
+  real(kind=dp) :: ddtt , sumcom1 , sumcom2, sumcom1sq , sumcom2sq 
+  real(kind=dp) :: mcom1 , mcom2 , msqcom1 , msqcom2, scom1 , scom2 , modcom1 , modcom2      
 
   comcount = 0
-  ddtt=0.0d0;sumcom1sq=0.0d0;sumcom2sq=0.0d0;sumcom1=0.0d0;sumcom2=0.0d0
+  ddtt=0.0_dp;sumcom1sq=0.0_dp;sumcom2sq=0.0_dp;sumcom1=0.0_dp;sumcom2=0.0_dp
 #endif
 
   ! =========================================
@@ -125,11 +129,7 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   if ( ionode ) WRITE ( stdout , '(a,a)' ) &
   '===============================================================================================', &
   '======================================'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a,a)' ) &
-  '===============================================================================================', &
-  '======================================'
   if ( ionode ) WRITE ( stdout , '(a)' )      'properties at t=0'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'properties at t=0'
  
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
 
@@ -161,7 +161,6 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! write thermodynamic information of config at t=0
     ! ==================================================
     CALL write_thermo( offset-1 , stdout )
-    CALL write_thermo( offset-1 , kunit_OUTFF )
     CALL write_thermo( offset-1 , kunit_OSZIFF )
 
 #ifdef debug
@@ -191,13 +190,15 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! write thermodynamic information of the starting point
     ! =======================================================
     CALL write_thermo( offset-1 , stdout )
-    CALL write_thermo( offset-1 , kunit_OUTFF )
     CALL write_thermo( offset-1 , kunit_OSZIFF )
      rx = xtmp
      ry = ytmp
      rz = ztmp
   endif 
 
+#ifdef debug
+         CALL print_config_sample(0,0)
+#endif
   ! =======================
   !  stress tensor at t=0
   ! =======================
@@ -213,11 +214,6 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   if ( ionode ) WRITE ( stdout , '(a)' ) ''
   if ( ionode ) WRITE ( stdout , '(a)' ) 'starting main loop'
   if ( ionode ) WRITE ( stdout , '(a,a)' ) &
-  '===============================================================================================', &
-  '======================================'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) ''
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'starting main loop'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a,a)' ) &
   '===============================================================================================', &
   '======================================'
 ! be careful with the offset !!!!
@@ -316,7 +312,7 @@ MAIN:  do itime = offset , npas + (offset-1)
        sumcom1sq = sumcom1sq + modcom1
        sumcom2sq = sumcom2sq + modcom2
        ! counting  
-       ddtt      =1.0D0 / DBLE (comcount)
+       ddtt      =1.0_dp / DBLE (comcount)
        ! average
        mcom1     = sumcom1*ddtt
        mcom2     = sumcom2*ddtt 
@@ -333,38 +329,37 @@ MAIN:  do itime = offset , npas + (offset-1)
          !  properties on-the-fly
          ! =======================
          ! -----------------------------------------------------------------------------------------
-         if ( MOD (itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
+!         if ( MOD (itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
 
            ! =======
            !  lvacf
            ! =======
-           if ( lvacf ) then
-             CALL vacf_main 
-           endif
+!           if ( lvacf ) then
+!             CALL vacf_main 
+!           endif
 
            ! =======
            !  lmsd
            ! =======
-           if ( lmsd ) then
-             nmsd = nmsd + 1
-             CALL msd_main ( nmsd )
-           endif
+!           if ( lmsd ) then
+!             nmsd = nmsd + 1
+!             CALL msd_main ( nmsd )
+!           endif
   
-#ifdef multi_tau
-             ntau = ntau + 1
-             CALL multi_tau_main ( vx , vy , vz , ntau )
-#endif
+!#ifdef multi_tau
+!             ntau = ntau + 1
+!             CALL multi_tau_main ( vx , vy , vz , ntau )
+!#endif
 
-         endif 
+!         endif 
         ! ----------------------------------------------------------------------------------
 
         ! =============================================
         !  write instanteanous thermodynamic properties
-        !  to standard output and OUTFF
+        !  to standard output 
         ! =============================================
         if ( MOD ( itime , nprint ) .eq. 0 ) then  
               CALL write_thermo(itime, stdout)
-              CALL write_thermo(itime, kunit_OUTFF)
         endif
 
         ! =============================================
@@ -387,10 +382,6 @@ MAIN:  do itime = offset , npas + (offset-1)
   '===============================================================================================', &
   '======================================'
   if ( ionode ) WRITE ( stdout , '(a)' ) 'end of the main loop'
-  if ( ionode .and. .not. lstatic ) WRITE ( kunit_OUTFF , '(a,a)' ) &
-  '===============================================================================================', & 
-  '======================================'
-  if ( ionode ) WRITE ( kunit_OUTFF , '(a)' ) 'end of the main loop'
   if ( ionode ) WRITE ( stdout , '(a)' ) ' '
   if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
   if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
@@ -399,7 +390,6 @@ MAIN:  do itime = offset , npas + (offset-1)
   if ( ionode ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
 
   CALL  write_average_thermo ( stdout ) 
-  CALL  write_average_thermo ( kunit_OUTFF ) 
 
   ! ===================
   !  properties output
@@ -415,28 +405,27 @@ MAIN:  do itime = offset , npas + (offset-1)
   ! =======
   !  lmsd
   ! =======
-  if ( lmsd ) then
-    CALL msd_write_output ( 1 )
-  endif
+!  if ( lmsd ) then
+!    CALL msd_write_output ( 1 )
+!  endif
 
   ! =======
   !  lvacf
   ! =======
-  if ( lvacf ) then
-   CALL vacf_write_output 
-  endif 
+!  if ( lvacf ) then
+!   CALL vacf_write_output 
+!  endif 
 
-#ifdef multi_tau
-    CALL multi_tau_write_output
-    call dealloc 
-#endif
+!#ifdef multi_tau
+!    CALL multi_tau_write_output
+!    call dealloc 
+!#endif
 
 #ifdef block
   CLOSE ( kunit_EQUILFF )
 #endif
   CLOSE ( kunit_TRAJFF )
   CLOSE ( kunit_OSZIFF )
-
   deallocate( xtmp, ytmp, ztmp )
 
   return 

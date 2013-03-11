@@ -30,19 +30,22 @@ MODULE vacf
 ! tmax , t0max, tdifmax ????????????????? 
 ! ===============================================================================================================
 
+  USE constants, ONLY : dp
   implicit none
 
   integer, PARAMETER  :: tmax=10000, t0max=10000 
   integer             :: it0  
-  double precision    :: tdifmax
+  real(kind=dp)    :: tdifmax
 
   integer             :: tvacf , t0 
-  double precision    :: dtime 
+  real(kind=dp)    :: dtime 
 
   integer , dimension (:) , allocatable :: ttv0                           ! t0max
   integer , dimension (:) , allocatable :: nvacf                          ! tmax
-  double precision , dimension (:)   , allocatable :: vacff               ! tmax 
-  double precision , dimension (:,:) , allocatable :: vxt0 , vyt0 , vzt0  ! natm , t0max
+  real(kind=dp) , dimension (:)   , allocatable :: vacff               ! tmax 
+  real(kind=dp) , dimension (:,:) , allocatable :: vxt0 , vyt0 , vzt0  ! natm , t0max
+  integer :: nprop
+  logical :: lvacf
 
 CONTAINS
 
@@ -55,14 +58,13 @@ CONTAINS
 
 SUBROUTINE vacf_init
 
-  USE prop,     ONLY :  lvacf
-  USE io_file,  ONLY :  stdin , stdout , kunit_OUTFF , ionode
+  USE io_file,  ONLY :  stdin , stdout , ionode
 
   implicit none
 
   ! local
-  integer :: ioerr
-  character * 132 :: filename
+  integer            :: ioerr
+  character(len=132) :: filename
 
   namelist /vacftag/   it0     ,  &
                        tdifmax 
@@ -90,7 +92,6 @@ SUBROUTINE vacf_init
   CALL vacf_check_tag
 
   CALL vacf_print_info(stdout)
-  CALL vacf_print_info(kunit_OUTFF)
 
   return 
  
@@ -107,7 +108,7 @@ SUBROUTINE vacf_default_tag
 
   implicit none
 
-  tdifmax = 100.0d0
+  tdifmax = 100.0_dp
   it0     = 1
 
   return 
@@ -131,7 +132,7 @@ END SUBROUTINE vacf_check_tag
 
 !*********************** SUBROUTINE vacf_print_info ****************************
 !
-! print info to outputs (stdout / OUTFF)
+! print info to outputs (stdout)
 !
 !******************************************************************************
 
@@ -165,7 +166,6 @@ END SUBROUTINE vacf_print_info
 SUBROUTINE vacf_alloc
 
   USE md,       ONLY :  dt
-  USE prop,     ONLY :  nprop , lvacf
   USE config,   ONLY :  natm
 
   implicit none
@@ -193,8 +193,6 @@ SUBROUTINE vacf_alloc
 END SUBROUTINE vacf_alloc
 
 SUBROUTINE vacf_dealloc
-
-  USE prop,     ONLY :  lvacf
 
   implicit none
 
@@ -233,7 +231,7 @@ SUBROUTINE vacf_main
   ! local
   integer :: ia , dtt , t , ttel , ierr
   ! timeinfo
-  double precision :: ttt1 , ttt2 
+  real(kind=dp) :: ttt1 , ttt2 
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -282,7 +280,7 @@ END SUBROUTINE vacf_main
 SUBROUTINE vacf_write_output
 
   USE config,   ONLY :  natm 
-  USE io_file,  ONLY :  ionode , kunit_VACFFF , kunit_OUTFF 
+  USE io_file,  ONLY :  ionode , stdout , kunit_VACFFF  
   USE time,     ONLY :  vacftimetot2
 
   implicit none
@@ -290,12 +288,12 @@ SUBROUTINE vacf_write_output
 
   ! local
   integer :: ihbmax , i , ierr
-  double precision :: vtime , dif
-  double precision :: thmax
-  double precision :: tauc , tau0 , errvacf 
-  double complex   ,dimension (:), allocatable :: in , out 
-  double precision ,dimension (:), allocatable :: rout
-  double precision :: ttt1 , ttt2
+  real(kind=dp) :: vtime , dif
+  real(kind=dp) :: thmax
+  real(kind=dp) :: tauc , tau0 , errvacf 
+  complex(kind=dp)   ,dimension (:), allocatable :: in , out 
+  real(kind=dp) ,dimension (:), allocatable :: rout
+  real(kind=dp) :: ttt1 , ttt2
 
   ttt1 = MPI_WTIME(ierr)
   
@@ -327,7 +325,7 @@ SUBROUTINE vacf_write_output
     ! total averaging time:
     ! =======================================
     tau0 = dtime*it0*t0
-    errvacf = SQRT ( 2.0d0 * tauc * ( vacff ( 1 ) / ( natm * nvacf ( 1 ) ) ** 2 / tau0 ) )
+    errvacf = SQRT ( 2.0_dp * tauc * ( vacff ( 1 ) / ( natm * nvacf ( 1 ) ) ** 2 / tau0 ) )
     thmax = 0
     ihbmax = 0
 
@@ -351,7 +349,7 @@ SUBROUTINE vacf_write_output
       vtime = dtime * ( i - 1 )
       if ( nvacf ( i ) .ne. 0 ) then 
         dif = dif + vacff ( i ) * dtime
-        WRITE ( kunit_VACFFF , '(4e16.8)' ) vtime, vacff ( i ) , 1.0d0 / vtime , rout ( i ) 
+        WRITE ( kunit_VACFFF , '(4e16.8)' ) vtime, vacff ( i ) , 1.0_dp / vtime , rout ( i ) 
         if ( vtime .gt. thmax ) then 
           ihbmax = nvacf ( i )
           thmax = vtime
@@ -360,10 +358,10 @@ SUBROUTINE vacf_write_output
     enddo 
 
     if ( ionode ) then
-      WRITE ( kunit_OUTFF , 99002) tauc
-      WRITE ( kunit_OUTFF , 99004 ) tvacf , t0 , dtime , dtime * it0 , dif/3.0d0
-      WRITE ( kunit_OUTFF , '(a)' ) 'Diffusion calculated with conventional scheme '
-      WRITE ( kunit_OUTFF , 99001 ) 2 * dtime , nvacf(3) , thmax , ihbmax 
+      WRITE ( stdout , 99002) tauc
+      WRITE ( stdout , 99004 ) tvacf , t0 , dtime , dtime * it0 , dif/3.0_dp
+      WRITE ( stdout , '(a)' ) 'Diffusion calculated with conventional scheme '
+      WRITE ( stdout , 99001 ) 2 * dtime , nvacf(3) , thmax , ihbmax 
     endif
   endif 
 

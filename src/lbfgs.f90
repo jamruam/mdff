@@ -25,13 +25,14 @@
 !C
       SUBROUTINE LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
 
+      USE constants , ONLY : dp 
       USE io_file,      ONLY :  ionode , stdout
 
       IMPLICIT NONE
 !C
       INTEGER N,M,IPRINT(2),IFLAG
-      DOUBLE PRECISION X(N),G(N),DIAG(N),W(N*(2*M+1)+2*M)
-      DOUBLE PRECISION F,EPS,XTOL
+      real(kind=dp) X(N),G(N),DIAG(N),W(N*(2*M+1)+2*M)
+      real(kind=dp) F,EPS,XTOL
       LOGICAL DIAGCO
 !C
 !C        LIMITED MEMORY BFGS METHOD FOR LARGE SCALE OPTIMIZATION
@@ -81,17 +82,17 @@
 !C             not recommended; large values of M will result in excessive
 !C             computing time. 3<= M <=7 is recommended. Restriction: M>0.
 !C 
-!C     X       is a DOUBLE PRECISION array of length N. On initial entry
+!C     X       is a real(kind=dp) array of length N. On initial entry
 !C             it must be set by the user to the values of the initial
 !C             estimate of the solution vector. On exit with IFLAG=0, it
 !C             contains the values of the variables at the best point
 !C             found (usually a solution).
 !C 
-!C     F       is a DOUBLE PRECISION variable. Before initial entry and on
+!C     F       is a real(kind=dp) variable. Before initial entry and on
 !C             a re-entry with IFLAG=1, it must be set by the user to
 !C             contain the value of the function F at the point X.
 !C 
-!C     G       is a DOUBLE PRECISION array of length N. Before initial
+!C     G       is a real(kind=dp) array of length N. Before initial
 !C             entry and on a re-entry with IFLAG=1, it must be set by
 !C             the user to contain the components of the gradient G at
 !C             the point X.
@@ -105,7 +106,7 @@
 !C              matrix Hk0  must be provided in the array DIAG.
 !C 
 !C 
-!C     DIAG    is a DOUBLE PRECISION array of length N. If DIAGCO=.TRUE.,
+!C     DIAG    is a real(kind=dp) array of length N. If DIAGCO=.TRUE.,
 !C             then on initial entry or on re-entry with IFLAG=2, DIAG
 !C             it must be set by the user to contain the values of the 
 !C             diagonal matrix Hk0.  Restriction: all elements of DIAG
@@ -131,7 +132,7 @@
 !C                IPRINT(2) = 3 : same as IPRINT(2)=2, plus gradient vector.
 !C 
 !C 
-!C     EPS     is a positive DOUBLE PRECISION variable that must be set by
+!C     EPS     is a positive real(kind=dp) variable that must be set by
 !C             the user, and determines the accuracy with which the solution
 !C             is to be found. The subroutine terminates when
 !C
@@ -139,13 +140,13 @@
 !C
 !C             where ||.|| denotes the Euclidean norm.
 !C 
-!C     XTOL    is a  positive DOUBLE PRECISION variable that must be set by
+!C     XTOL    is a  positive real(kind=dp) variable that must be set by
 !C             the user to an estimate of the machine precision (e.g.
 !C             10**(-16) on a SUN station 3/60). The line search routine will
 !C             terminate if the relative width of the interval of uncertainty
 !C             is less than XTOL.
 !C 
-!C     W       is a DOUBLE PRECISION array of length N(2M+1)+2M used as
+!C     W       is a real(kind=dp) array of length N(2M+1)+2M used as
 !C             workspace for LBFGS. This array must not be altered by the
 !C             user.
 !C 
@@ -208,7 +209,7 @@
 !C 
          COMMON /LB3/GTOL,STPMIN,STPMAX
 !C 
-!C    GTOL is a DOUBLE PRECISION variable with default value 0.9, which
+!C    GTOL is a real(kind=dp) variable with default value 0.9, which
 !C        controls the accuracy of the line search routine MCSRCH. If the
 !C        function and gradient evaluations are inexpensive with respect
 !C        to the cost of the iteration (which is sometimes the case when
@@ -216,7 +217,7 @@
 !C        to a small value. A typical small value is 0.1.  Restriction:
 !C        GTOL should be greater than 1.D-04.
 !C 
-!C    STPMIN and STPMAX are non-negative DOUBLE PRECISION variables which
+!C    STPMIN and STPMAX are non-negative real(kind=dp) variables which
 !C        specify lower and uper bounds for the step in the line search.
 !C        Their default values are 1.D-20 and 1.D+20, respectively. These
 !C        values need not be modified unless the exponents are too large
@@ -239,7 +240,7 @@
 !C 
 !C     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !C
-      DOUBLE PRECISION GTOL,ONE,ZERO,GNORM,DDOT,STP1,FTOL,STPMIN,STPMAX,STP,YS,YY,SQ,YR,BETA,XNORM
+      real(kind=dp) GTOL,ONE,ZERO,GNORM,DDOT,STP1,FTOL,STPMIN,STPMAX,STP,YS,YY,SQ,YR,BETA,XNORM
       INTEGER ITER,NFUN,POINT,ISPT,IYPT,MAXFEV,INFO,BOUND,NPT,CP,I,NFEV,INMC,IYCN,ISCN
       LOGICAL FINISH
 !C
@@ -265,7 +266,7 @@
  30      IF (DIAG(I).LE.ZERO) GO TO 195
       ELSE
          DO 40 I=1,N
- 40      DIAG(I)= 1.0D0
+ 40      DIAG(I)= 1.0_dp
       ENDIF
 !C
 !C     THE WORK VECTOR W IS DIVIDED AS FOLLOWS:
@@ -398,7 +399,7 @@
 !C
       GNORM= SQRT (DDOT(N,G,1,G,1))
       XNORM= SQRT (DDOT(N,X,1,X,1))
-      XNORM= DMAX1(1.0D0,XNORM)
+      XNORM= DMAX1(1.0_dp,XNORM)
       IF (GNORM/XNORM .LE. EPS) FINISH=.TRUE.
 !C
 ! fmv moved to the driver  
@@ -444,6 +445,7 @@
 !C
       SUBROUTINE LB1(IPRINT,ITER,NFUN,GNORM,N,M,X,F,G,STP,FINISH)
  
+      USE constants , ONLY : dp 
       USE io_file,    ONLY :    stdout , ionode 
 
       IMPLICIT NONE
@@ -454,7 +456,7 @@
 !C     -------------------------------------------------------------
 !C
       INTEGER IPRINT(2),ITER,NFUN,N,M,I
-      DOUBLE PRECISION X(N),G(N),F,GNORM,STP,GTOL,STPMIN,STPMAX
+      real(kind=dp) X(N),G(N),F,GNORM,STP,GTOL,STPMIN,STPMAX
       LOGICAL FINISH
       COMMON /LB3/GTOL,STPMIN,STPMAX
 !C
@@ -519,7 +521,8 @@
 !C   ----------------------------------------------------------
 !C
       BLOCK DATA LB2
-      DOUBLE PRECISION GTOL,STPMIN,STPMAX
+      USE constants , ONLY : dp 
+      real(kind=dp) GTOL,STPMIN,STPMAX
       COMMON /LB3/GTOL,STPMIN,STPMAX
       DATA GTOL,STPMIN,STPMAX/9.0D-01,1.0D-20,1.0D+20/
       END
@@ -528,16 +531,17 @@
 !C   ----------------------------------------------------------
 !C
       subroutine daxpy(n,da,dx,incx,dy,incy)
+      USE constants , ONLY : dp 
 !c
 !c     constant times a vector plus a vector.
 !c     uses unrolled loops for increments equal to one.
 !c     jack dongarra, linpack, 3/11/78.
 !c
-      double precision dx(1),dy(1),da
+      real(kind=dp) dx(1),dy(1),da
       integer i,incx,incy,ix,iy,m,mp1,n
 !c
       if (n.le.0)return
-      if (da .eq. 0.0d0) return
+      if (da .eq. 0.0_dp) return
       if (incx.eq.1.and.incy.eq.1)go to 20
 !c
 !c        code for unequal increments or equal increments
@@ -578,18 +582,19 @@
 !C
 !C   ----------------------------------------------------------
 !C
-      double precision FUNCTION DDOT(n,dx,incx,dy,incy)
+      real(kind=dp) FUNCTION DDOT(n,dx,incx,dy,incy)
+      USE constants , ONLY : dp 
       IMPLICIT NONE  
 !c
 !c     forms the dot product of two vectors.
 !c     uses unrolled loops for increments equal to one.
 !c     jack dongarra, linpack, 3/11/78.
 !c
-      double precision dx(1),dy(1),dtemp
+      real(kind=dp) dx(1),dy(1),dtemp
       integer i,incx,incy,ix,iy,m,mp1,n
 !c
-      ddot = 0.0d0
-      dtemp = 0.0d0
+      ddot = 0.0_dp
+      dtemp = 0.0_dp
       if (n.le.0)return
       if (incx.eq.1.and.incy.eq.1)go to 20
 !c
@@ -635,12 +640,13 @@
 !C
       SUBROUTINE MCSRCH(N,X,F,G,S,STP,FTOL,XTOL,MAXFEV,INFO,NFEV,WA)
       
+      USE constants , ONLY : dp 
       USE io_file,      ONLY :  stdout
      
       IMPLICIT NONE
       INTEGER N,MAXFEV,INFO,NFEV
-      DOUBLE PRECISION F,STP,FTOL,GTOL,XTOL,STPMIN,STPMAX
-      DOUBLE PRECISION X(N),G(N),S(N),WA(N)
+      real(kind=dp) F,STP,FTOL,GTOL,XTOL,STPMIN,STPMAX
+      real(kind=dp) X(N),G(N),S(N),WA(N)
       COMMON /LB3/GTOL,STPMIN,STPMAX
       SAVE
 !C
@@ -766,10 +772,10 @@
 !C     **********
       INTEGER INFOC,J
       LOGICAL BRACKT,STAGE1
-      DOUBLE PRECISION DG,DGM,DGINIT,DGTEST,DGX,DGXM,DGY,DGYM, &
+      real(kind=dp) DG,DGM,DGINIT,DGTEST,DGX,DGXM,DGY,DGYM, &
              FINIT,FTEST1,FM,FX,FXM,FY,FYM,P5,P66,STX,STY, &
              STMIN,STMAX,WIDTH,WIDTH1,XTRAPF,ZERO
-      DATA P5,P66,XTRAPF,ZERO /0.5D0,0.66D0,4.0D0,0.0D0/
+      DATA P5,P66,XTRAPF,ZERO /0.5_dp,0.66_dp,4.0_dp,0.0_dp/
       IF(INFO.EQ.-1) GO TO 45
       INFOC = 1
 !C
@@ -937,10 +943,11 @@
       END
 
 
-      SUBROUTINE MCSTEP(STX,FX,DX,STY,FY,DY,STP,FP,DP,BRACKT,STPMIN,STPMAX,INFO)
+      SUBROUTINE MCSTEP(STX,FX,DX,STY,FY,DY,STP,FP,DPP,BRACKT,STPMIN,STPMAX,INFO)
+      USE constants , ONLY : dp 
       IMPLICIT NONE 
       INTEGER INFO
-      DOUBLE PRECISION STX,FX,DX,STY,FY,DY,STP,FP,DP,STPMIN,STPMAX
+      real(kind=dp) STX,FX,DX,STY,FY,DY,STP,FP,DPP,STPMIN,STPMAX
       LOGICAL BRACKT,BOUND
 !C
 !C     SUBROUTINE MCSTEP
@@ -958,7 +965,7 @@
 !C
 !C     THE SUBROUTINE STATEMENT IS
 !C
-!C       SUBROUTINE MCSTEP(STX,FX,DX,STY,FY,DY,STP,FP,DP,BRACKT,
+!C       SUBROUTINE MCSTEP(STX,FX,DX,STY,FY,DY,STP,FP,DPP,BRACKT,
 !C                        STPMIN,STPMAX,INFO)
 !C
 !C     WHERE
@@ -974,7 +981,7 @@
 !C         THE INTERVAL OF UNCERTAINTY. ON OUTPUT THESE PARAMETERS ARE
 !C         UPDATED APPROPRIATELY.
 !C
-!C       STP, FP, AND DP ARE VARIABLES WHICH SPECIFY THE STEP,
+!C       STP, FP, AND DPP ARE VARIABLES WHICH SPECIFY THE STEP,
 !C         THE FUNCTION, AND THE DERIVATIVE AT THE CURRENT STEP.
 !C         IF BRACKT IS SET TRUE THEN ON INPUT STP MUST BE
 !C         BETWEEN STX AND STY. ON OUTPUT STP IS SET TO THE NEW STEP.
@@ -999,7 +1006,7 @@
 !C     ARGONNE NATIONAL LABORATORY. MINPACK PROJECT. JUNE 1983
 !C     JORGE J. MORE', DAVID J. THUENTE
 !C
-      DOUBLE PRECISION GAMMA,P,Q,R,S,SGND,STPC,STPF,STPQ,THETA
+      real(kind=dp) GAMMA,P,Q,R,S,SGND,STPC,STPF,STPQ,THETA
       INFO = 0
 !C
 !C     CHECK THE INPUT PARAMETERS FOR ERRORS.
@@ -1008,7 +1015,7 @@
 !C
 !C     DETERMINE IF THE DERIVATIVES HAVE OPPOSITE SIGN.
 !C
-      SGND = DP*(DX/ABS(DX))
+      SGND = DPP*(DX/ABS(DX))
 !C
 !C     FIRST CASE. A HIGHER FUNCTION VALUE.
 !C     THE MINIMUM IS BRACKETED. IF THE CUBIC STEP IS CLOSER
@@ -1018,12 +1025,12 @@
       IF (FP .GT. FX) THEN
          INFO = 1
          BOUND = .TRUE.
-         THETA = 3*(FX - FP)/(STP - STX) + DX + DP
-         S = MAX(ABS(THETA),ABS(DX),ABS(DP))
-         GAMMA = S*SQRT((THETA/S)**2 - (DX/S)*(DP/S))
+         THETA = 3*(FX - FP)/(STP - STX) + DX + DPP
+         S = MAX(ABS(THETA),ABS(DX),ABS(DPP))
+         GAMMA = S*SQRT((THETA/S)**2 - (DX/S)*(DPP/S))
          IF (STP .LT. STX) GAMMA = -GAMMA
          P = (GAMMA - DX) + THETA
-         Q = ((GAMMA - DX) + GAMMA) + DP
+         Q = ((GAMMA - DX) + GAMMA) + DPP
          R = P/Q
          STPC = STX + R*(STP - STX)
          STPQ = STX + ((DX/((FX-FP)/(STP-STX)+DX))/2)*(STP - STX)
@@ -1042,15 +1049,15 @@
       ELSE IF (SGND .LT. 0.0) THEN
          INFO = 2
          BOUND = .FALSE.
-         THETA = 3*(FX - FP)/(STP - STX) + DX + DP
-         S = MAX(ABS(THETA),ABS(DX),ABS(DP))
-         GAMMA = S*SQRT((THETA/S)**2 - (DX/S)*(DP/S))
+         THETA = 3*(FX - FP)/(STP - STX) + DX + DPP
+         S = MAX(ABS(THETA),ABS(DX),ABS(DPP))
+         GAMMA = S*SQRT((THETA/S)**2 - (DX/S)*(DPP/S))
          IF (STP .GT. STX) GAMMA = -GAMMA
-         P = (GAMMA - DP) + THETA
-         Q = ((GAMMA - DP) + GAMMA) + DX
+         P = (GAMMA - DPP) + THETA
+         Q = ((GAMMA - DPP) + GAMMA) + DX
          R = P/Q
          STPC = STP + R*(STX - STP)
-         STPQ = STP + (DP/(DP-DX))*(STX - STP)
+         STPQ = STP + (DPP/(DPP-DX))*(STX - STP)
          IF (ABS(STPC-STP) .GT. ABS(STPQ-STP)) THEN
             STPF = STPC
          ELSE
@@ -1067,19 +1074,19 @@
 !C     COMPUTED AND IF THE MINIMUM IS BRACKETED THEN THE THE STEP
 !C     CLOSEST TO STX IS TAKEN, ELSE THE STEP FARTHEST AWAY IS TAKEN.
 !C
-      ELSE IF (ABS(DP) .LT. ABS(DX)) THEN
+      ELSE IF (ABS(DPP) .LT. ABS(DX)) THEN
          INFO = 3
          BOUND = .TRUE.
-         THETA = 3*(FX - FP)/(STP - STX) + DX + DP
-         S = MAX(ABS(THETA),ABS(DX),ABS(DP))
+         THETA = 3*(FX - FP)/(STP - STX) + DX + DPP
+         S = MAX(ABS(THETA),ABS(DX),ABS(DPP))
 !C
 !C        THE CASE GAMMA = 0 ONLY ARISES IF THE CUBIC DOES NOT TEND
 !C        TO INFINITY IN THE DIRECTION OF THE STEP.
 !C
-         GAMMA = S*SQRT(MAX(0.0D0,(THETA/S)**2 - (DX/S)*(DP/S)))
+         GAMMA = S*SQRT(MAX(0.0_dp,(THETA/S)**2 - (DX/S)*(DPP/S)))
          IF (STP .GT. STX) GAMMA = -GAMMA
-         P = (GAMMA - DP) + THETA
-         Q = (GAMMA + (DX - DP)) + GAMMA
+         P = (GAMMA - DPP) + THETA
+         Q = (GAMMA + (DX - DPP)) + GAMMA
          R = P/Q
          IF (R .LT. 0.0 .AND. GAMMA .NE. 0.0) THEN
             STPC = STP + R*(STX - STP)
@@ -1088,7 +1095,7 @@
          ELSE
             STPC = STPMIN
             END IF
-         STPQ = STP + (DP/(DP-DX))*(STX - STP)
+         STPQ = STP + (DPP/(DPP-DX))*(STX - STP)
          IF (BRACKT) THEN
             IF (ABS(STP-STPC) .LT. ABS(STP-STPQ)) THEN
                STPF = STPC
@@ -1112,12 +1119,12 @@
          INFO = 4
          BOUND = .FALSE.
          IF (BRACKT) THEN
-            THETA = 3*(FP - FY)/(STY - STP) + DY + DP
-            S = MAX(ABS(THETA),ABS(DY),ABS(DP))
-            GAMMA = S*SQRT((THETA/S)**2 - (DY/S)*(DP/S))
+            THETA = 3*(FP - FY)/(STY - STP) + DY + DPP
+            S = MAX(ABS(THETA),ABS(DY),ABS(DPP))
+            GAMMA = S*SQRT((THETA/S)**2 - (DY/S)*(DPP/S))
             IF (STP .GT. STY) GAMMA = -GAMMA
-            P = (GAMMA - DP) + THETA
-            Q = ((GAMMA - DP) + GAMMA) + DY
+            P = (GAMMA - DPP) + THETA
+            Q = ((GAMMA - DPP) + GAMMA) + DY
             R = P/Q
             STPC = STP + R*(STY - STP)
             STPF = STPC
@@ -1134,7 +1141,7 @@
       IF (FP .GT. FX) THEN
          STY = STP
          FY = FP
-         DY = DP
+         DY = DPP
       ELSE
          IF (SGND .LT. 0.0) THEN
             STY = STX
@@ -1143,7 +1150,7 @@
             END IF
          STX = STP
          FX = FP
-         DX = DP
+         DX = DPP
          END IF
 !C
 !C     COMPUTE THE NEW STEP AND SAFEGUARD IT.

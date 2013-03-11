@@ -23,19 +23,23 @@
 
 MODULE msd
 
+  USE constants,  ONLY : dp
   implicit none
 
 !  integer ,PARAMETER :: nblock=10, ibmax=20
   integer                                            :: nblock, ibmax
 
-  double precision , dimension (:,:,:) , allocatable ::  vxb , vyb , vzb
-  double precision , dimension (:,:) , allocatable   ::  avb
+  real(kind=dp) , dimension (:,:,:) , allocatable ::  vxb , vyb , vzb
+  real(kind=dp) , dimension (:,:) , allocatable   ::  avb
 
   integer :: iblm
   integer ,dimension (:,:) , allocatable :: telav
   integer ,dimension (:)   , allocatable :: ibl
 
-  double precision :: tdifmax , dtime
+  real(kind=dp) :: tdifmax , dtime
+  logical :: lmsd
+
+  integer :: nprop
 
 CONTAINS
 
@@ -47,14 +51,13 @@ CONTAINS
 
 SUBROUTINE msd_init
 
-  USE prop,     ONLY :  lmsd
-  USE io_file,  ONLY :  stdin, stdout, kunit_OUTFF, ionode
+  USE io_file,  ONLY :  stdin, stdout, ionode
 
   implicit none
 
   ! local
-  integer :: ioerr
-  character * 132 :: filename
+  integer            :: ioerr
+  character(len=132) :: filename
 
 
   namelist /msdtag/  nblock  , &
@@ -84,7 +87,6 @@ SUBROUTINE msd_init
   CALL msd_check_tag
 
   CALL msd_print_info(stdout)
-  CALL msd_print_info(kunit_OUTFF)
 
   return 
  
@@ -101,7 +103,7 @@ SUBROUTINE msd_default_tag
 
   implicit none
 
-  tdifmax = 100.0d0
+  tdifmax = 100.0_dp
   nblock  = 10
   ibmax   = 20
 
@@ -164,7 +166,6 @@ END SUBROUTINE msd_print_info
 SUBROUTINE msd_alloc
 
   USE md,         ONLY :  dt
-  USE prop,       ONLY :  nprop , lmsd
   USE config,     ONLY :  natm
 
   implicit none
@@ -183,11 +184,11 @@ SUBROUTINE msd_alloc
     ibl ( ib ) = 0
     DO j = 1, nblock
       telav ( ib , j ) = 0
-      avb ( ib , j ) = 0.0d0
+      avb ( ib , j ) = 0.0_dp
       DO i = 1, natm 
-        vxb ( ib , j , i ) = 0.0d0
-        vyb ( ib , j , i ) = 0.0d0
-        vzb ( ib , j , i ) = 0.0d0
+        vxb ( ib , j , i ) = 0.0_dp
+        vyb ( ib , j , i ) = 0.0_dp
+        vzb ( ib , j , i ) = 0.0_dp
       ENDDO
     ENDDO
   ENDDO
@@ -205,7 +206,6 @@ END SUBROUTINE msd_alloc
 
 SUBROUTINE msd_dealloc
 
-  USE prop,     ONLY :  lmsd
 
   implicit none
 
@@ -228,7 +228,6 @@ END SUBROUTINE msd_dealloc
 
 SUBROUTINE msd_main ( nmsd )
  
-  USE prop,       ONLY :  nprop
   USE config,     ONLY :  natm , vx , vy , vz
   USE md,         ONLY :  dt
   USE time,       ONLY :  msdtimetot
@@ -242,12 +241,12 @@ SUBROUTINE msd_main ( nmsd )
 
   ! local
   integer :: ia , iblock, ib, it,  inp, ii, inmax, ierr
-  double precision :: delx, dely, delz, xtime
+  real(kind=dp) :: delx, dely, delz, xtime
 #ifdef debug 
-  double precision :: r2asum
+  real(kind=dp) :: r2asum
 #endif
   ! timeinfo
-  double precision :: ttt1 , ttt2 
+  real(kind=dp) :: ttt1 , ttt2 
 
   ttt1 = MPI_WTIME(ierr)
  
@@ -353,7 +352,7 @@ END SUBROUTINE msd_main
 
 SUBROUTINE msd_write_output ( quite ) 
 
-  USE io_file,    ONLY :  ionode , kunit_MSDFF , stdout, kunit_OUTFF
+  USE io_file,    ONLY :  ionode , kunit_MSDFF , stdout
 
   implicit none
 
@@ -362,7 +361,7 @@ SUBROUTINE msd_write_output ( quite )
 
   ! local
   integer :: j, ib, ihbmax
-  double precision :: thmax
+  real(kind=dp) :: thmax
 
   if ( ionode ) then
     OPEN( kunit_MSDFF , file = 'MSDFF' ) 
@@ -388,8 +387,6 @@ SUBROUTINE msd_write_output ( quite )
     if ( ionode ) then
       WRITE ( stdout , '(a)') 'Diffusion calculated with order-n scheme '
       WRITE ( stdout , 99001) 2*dtime, telav(1, 2), thmax, ihbmax
-      WRITE ( kunit_OUTFF , '(a)') 'Diffusion calculated with order-n scheme '
-      WRITE ( kunit_OUTFF , 99001) 2*dtime, telav(1, 2), thmax, ihbmax
     endif 
   endif
 

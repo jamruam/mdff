@@ -30,28 +30,30 @@
 
 SUBROUTINE estimate_alpha(alpha,epsw,rcut)
   
-  USE config,   ONLY : simu_cell 
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  simu_cell 
+
   implicit none
 
   ! global
-  double precision :: alpha , epsw , rcut
+  real(kind=dp) :: alpha , epsw , rcut
   ! local 
-  double precision :: alpha2 , rcut2 , rcut3 , e
+  real(kind=dp) :: alpha2 , rcut2 , rcut3 , e
 
-  alpha = 4.0d0
+  alpha = 4.0_dp
   alpha2 = alpha*alpha
   rcut2=rcut*rcut
   rcut3=rcut2*rcut
 
   e = EXP ( -alpha2*rcut2 )
   e = e / alpha2 / rcut3
-  e = e * 0.56d0  
+  e = e * 0.56_dp  
   do while ( e .le. epsw )
-    alpha = alpha - 0.01d0
+    alpha = alpha - 0.01_dp
     alpha2 = alpha*alpha
     e = EXP ( -alpha2*rcut2 )
     e = e / alpha2 / rcut3
-    e = e * 0.56d0
+    e = e * 0.56_dp
   enddo
 
   return
@@ -63,30 +65,30 @@ END SUBROUTINE estimate_alpha
 
 SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc ) 
 
-  USE constants,  ONLY : pi
-  USE config,     ONLY : simu_cell 
-  USE io_file,    ONLY : stderr
+  USE constants,                ONLY :  dp , pi
+  USE config,                   ONLY :  simu_cell 
+  USE io_file,                  ONLY :  stderr
 
   implicit none
 
   ! global
-  double precision :: epsw
-  double precision :: alpha
-  double precision :: rc
+  real(kind=dp) :: epsw
+  real(kind=dp) :: alpha
+  real(kind=dp) :: rc
   integer :: nc ( 3 )
   
   ! local
-  double precision :: s , ss , ra
+  real(kind=dp) :: s , ss , ra
   integer :: i , k
 
   k = 0
-  s = 10.0d0
+  s = 10.0_dp
   do 
-    s = s - 0.01d0
+    s = s - 0.01_dp
     ss = s * s   
     ra = exp ( - ss )  / ss
     if ( abs ( ra - epsw ) .gt. epsw ) exit  
-    if ( s .le. 0.0d0 .or. k .gt.1e6 ) then
+    if ( s .le. 0.0_dp .or. k .gt.1e6 ) then
       WRITE( stderr , * ) 'ERROR in accur_ES_frenkel_smit',s,k 
       stop
     endif
@@ -118,7 +120,7 @@ END SUBROUTINE accur_ES_frenkel_smit
 
 SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
 
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
+  USE io_file,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -160,10 +162,8 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
 
   if ( ionode ) then
     WRITE ( stdout ,'(a)')      'paralelisation - atom decomposition'
-    WRITE ( kunit_OUTFF ,'(a)') 'paralelisation - atom decomposition'
     do me = 0,np-1
       WRITE ( stdout ,'(a5,i4,a5,i8,a3,i8)')      'rank = ',me,'atom',istartV(me),'to',iendV(me)
-      WRITE ( kunit_OUTFF ,'(a5,i4,a5,i8,a3,i8)') 'rank = ',me,'atom',istartV(me),'to',iendV(me)
     enddo     
   endif
 
@@ -175,50 +175,54 @@ END SUBROUTINE do_split
 !*********************** SUBROUTINE distance_tab ******************************
 !
 ! this subroutine calculates distance between atoms and check if the smallest distance 
-! is not too small ( i.e < sigmaAA*0.001d0) 
+! is not too small ( i.e < sigmaAA*0.001_dp) 
+!
+! 01/03/13 : do not check distance to wannier centers
 !
 !******************************************************************************
 
-SUBROUTINE distance_tab ( kunit )
+SUBROUTINE distance_tab 
 
-  USE config,   ONLY :  natm , rx , ry , rz , simu_cell
-  USE field,    ONLY :  sigmalj
-  USE io_file,  ONLY :  ionode , stdout
-  USE cell
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype
+  USE field,                    ONLY :  sigmalj , lwfc
+  USE io_file,                  ONLY :  ionode , stdout, stderr
+  USE cell,                     ONLY :  kardir , dirkar 
 
   implicit none
   
-  ! global
-  integer :: kunit
-
   ! local
-  double precision :: rxi, ryi, rzi
-  double precision :: sxij, syij, szij
-  double precision :: rxij, ryij, rzij, rij, rijsq, norm
-  integer :: ia , ja , PANdis, kdis
+  integer                             :: ia , ja , PANdis, kdis , it , jt 
+  real(kind=dp)                       :: rxi, ryi, rzi
+  real(kind=dp)                       :: sxij, syij, szij
+  real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm
+  real(kind=dp)                       :: resdis,mindis 
   integer, dimension (:) ,allocatable :: dist
-  double precision :: resdis,mindis 
 
-  resdis = 0.5D0 ! should be keep hardware no need to be controled
+  resdis = 0.5_dp ! should be keep hardware no need to be controled
 
   PANdis = MAX(simu_cell%WA,simu_cell%WB,simu_cell%WC) / resdis
 
   allocate ( dist ( 0:PANdis ) )
   dist = 0
-  mindis = 100000.0D0
+  mindis = 100000.0_dp
 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   kdis =0
   do ia = 1 , natm - 1
+    it = itype ( ia ) 
+    if ( lwfc ( it ) .eq. -1 ) cycle
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
     do ja = ia + 1 , natm
       if ( ia .ne. ja ) then
+        jt = itype ( ja ) 
+        if ( lwfc ( jt ) .eq. -1 ) cycle
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -231,7 +235,7 @@ SUBROUTINE distance_tab ( kunit )
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
         rij = SQRT ( rijsq )  
         mindis = MIN ( mindis , rij )
-        if ( rij .lt. sigmalj(1,1) * 0.001d0 ) then
+        if ( rij .lt. sigmalj(1,1) * 0.001_dp ) then
           if ( ionode ) &
           WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
           'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij 
@@ -240,7 +244,7 @@ SUBROUTINE distance_tab ( kunit )
         rij = rij / resdis
         kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8)' ) 'ERROR: out of bound dist in SUBROUTINE distance_tab',kdis,PANdis,rij
+          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in SUBROUTINE distance_tab',kdis,PANdis,rij,ia,ja
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -250,14 +254,12 @@ SUBROUTINE distance_tab ( kunit )
   norm = natm * ( natm - 1 ) / 2
  
   if ( ionode ) then
-    WRITE ( kunit ,'(a)')       'distance check subroutine'
-    WRITE ( kunit ,'(a,f6.2)')  'smallest distance = ',mindis
-!    WRITE ( kunit ,'(a)')       'distance ditribution:'
-!    WRITE ( kunit ,'(a)')       'dist  pct(%)'      
-!    do i = 0, PANdis
-!      WRITE ( kunit ,'(2f6.2)') i * resdis , dist( i ) / norm * 100.0D0
-!    enddo
-    WRITE ( kunit ,'(a)')       ''
+    WRITE ( stderr ,'(a)')       'distance check subroutine'
+    WRITE ( stderr ,'(a,f13.5)') 'smallest distance = ',mindis
+    if  ( any(lwfc .eq. -1) )  then
+    WRITE ( stderr ,'(a)')       'WARNING : we do not check distance to wannier centers'
+    endif
+    WRITE ( stderr ,'(a)')       ''
   endif
   
   deallocate(dist)
@@ -265,7 +267,7 @@ SUBROUTINE distance_tab ( kunit )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
 
   return
@@ -302,10 +304,11 @@ END SUBROUTINE distance_tab
 !******************************************************************************
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell
-  USE control,  ONLY :  skindiff , cutoff
-  USE cell
-  USE io_file
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell
+  USE control,                  ONLY :  skindiff , cutoff
+  USE cell,                     ONLY :  kardir , dirkar
+  USE io_file,                  ONLY :  ionode , stdout , stderr
 
   implicit none
 
@@ -315,8 +318,8 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! local
   integer :: icount , ia , ja , it , jt , k
   integer :: p1 , p2
-  double precision  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
-  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
+  real(kind=dp)  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
+  real(kind=dp) :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
 
 #ifdef debug_vnl
    WRITE ( stdout , '(a)') 'debug : in vnlist_pbc'
@@ -333,7 +336,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL KARDIR(natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   icount = 1
   do ia = iastart , iaend
@@ -360,7 +363,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
           icount = icount + 1
           k = k+1
           if ( icount .lt. 1 .or. icount-1 .gt. 1000*natm ) then
-            if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in SUBROUTINE vnlist_pbc',icount-1,1000*natm
+            if ( ionode ) WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in SUBROUTINE vnlist_pbc',icount-1,1000*natm
             STOP
           endif
 
@@ -375,7 +378,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL DIRKAR(natm,rx,ry,rz,simu_cell%A)
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -390,6 +393,7 @@ END SUBROUTINE vnlist_pbc
 
 SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
+  USE constants, ONLY : dp
   USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype
   USE control,  ONLY :  skindiff , cutoff
 
@@ -401,8 +405,8 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
   ! local
   integer :: icount , ia , ja , it , jt , k
   integer :: p1,p2
-  double precision :: rskinsq ( ntype , ntype ) , rcut ( ntype , ntype ) , rskin ( ntype , ntype )
-  double precision :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
+  real(kind=dp) :: rskinsq ( ntype , ntype ) , rcut ( ntype , ntype ) , rskin ( ntype , ntype )
+  real(kind=dp) :: rxi,ryi,rzi,rxij,ryij,rzij,rijsq
 
   do jt = 1, ntype
     do it = 1, ntype
@@ -450,11 +454,12 @@ END SUBROUTINE vnlist_nopbc
 
 SUBROUTINE vnlistcheck ( iastart , iaend ) 
 
-  USE config,   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
-  USE control,  ONLY :  lpbc , lminimg , skindiff 
-  USE md,       ONLY :  updatevnl , itime
-  USE time,     ONLY :  vnlisttimetot
-  USE io_file,  ONLy :  stdout , ionode
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
+  USE control,                  ONLY :  lpbc , lminimg , skindiff 
+  USE md,                       ONLY :  updatevnl , itime
+  USE time,                     ONLY :  vnlisttimetot
+  USE io_file,                  ONLY :  stdout , ionode
 
   implicit none
   INCLUDE 'mpif.h'
@@ -464,15 +469,15 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
 
   ! local
   integer :: ia , ierr
-  double precision :: drneimax , drneimax2 , drnei
-  double precision :: rxsi,rysi,rzsi
-  double precision :: ttt1 , ttt2
+  real(kind=dp) :: drneimax , drneimax2 , drnei
+  real(kind=dp) :: rxsi,rysi,rzsi
+  real(kind=dp) :: ttt1 , ttt2
 
 
   ttt1 = MPI_WTIME(ierr)
 
-  drneimax = 0.0d0
-  drneimax2 = 0.0d0
+  drneimax = 0.0_dp
+  drneimax2 = 0.0_dp
   do ia = 1, natm
     rxsi = rx ( ia ) - xs ( ia ) 
     rysi = ry ( ia ) - ys ( ia ) 
@@ -528,13 +533,14 @@ END SUBROUTINE vnlistcheck
 
 SUBROUTINE print_tensor( tens , key )
 
+  USE constants, ONLY : dp
   USE config,   ONLY :  natm
   USE io_file,  ONLY :  ionode , stdout
 
   implicit none
 
   ! global
-  double precision :: tens(3,3)
+  real(kind=dp) :: tens(3,3)
   character(len=8) :: key
 
   ! local
@@ -546,13 +552,53 @@ SUBROUTINE print_tensor( tens , key )
     do i = 1 , 3
       WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
-    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0d0 , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0d0 / dble(natm),')'
+    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0_dp , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0_dp / dble(natm),')'
     WRITE ( stdout , '(a)' ) ''
   endif
 
   return
 
 END SUBROUTINE print_tensor
+
+!*********************** SUBROUTINE print_tensor_6x6 ******************************
+!
+! subroutine which print an (6,6) array in a tensor format 
+! the trace is also given in output 
+!
+!******************************************************************************
+
+SUBROUTINE print_tensor_nxn ( tens , key , n )
+
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm
+  USE io_file,                  ONLY :  ionode , stdout
+
+  implicit none
+
+  ! global
+  integer          :: n 
+  real(kind=dp)    :: tens(n,n) 
+  character(len=8) :: key
+
+  ! local
+  integer          :: i , j
+  real(kind=dp)    :: trace
+  
+
+  if ( ionode ) then
+    WRITE ( stdout ,'(a)') ''
+    WRITE ( stdout ,'(a)') key
+    do i = 1 , n
+      WRITE ( stdout ,'(<n>e16.8)') ( tens(i,j) , j=1,n)
+      trace = trace + tens ( i , i ) 
+    enddo
+    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',( trace )/3.0_dp , '(', ( trace ) / 3.0_dp / dble(natm),')'
+    WRITE ( stdout , '(a)' ) ''
+  endif
+
+  return
+
+END SUBROUTINE print_tensor_nxn
 
 !*********************** SUBROUTINE merge_sort ********************************
 !
@@ -564,14 +610,15 @@ END SUBROUTINE print_tensor
 !******************************************************************************
 
 SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
-
+  
+  USE constants, ONLY : dp
   implicit none
     
   ! global
   integer, intent(in)              :: NA,NB,NC                  ! Normal usage: NA+NB = NC
-  double precision, intent(in out) :: A(NA)        ! B overlays C(NA+1:NC)
-  double precision, intent(in)     :: B(NB)
-  double precision, intent(in out) :: C(NC)
+  real(kind=dp), intent(in out) :: A(NA)        ! B overlays C(NA+1:NC)
+  real(kind=dp), intent(in)     :: B(NB)
+  real(kind=dp), intent(in out) :: C(NC)
   integer, intent(in out)          :: labelA(NA)       
   integer, intent(in)              :: labelB(NB)
   integer, intent(in out)          :: labelC(NC)
@@ -604,18 +651,19 @@ SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
 END SUBROUTINE merge_1
  
 RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
-
+  
+  USE constants, ONLY : dp
   implicit none 
 
   ! global
   integer, intent(in)                                :: N
-  double precision, dimension(N), intent(in out)     :: A
-  double precision, dimension((N+1)/2), intent (out) :: T
+  real(kind=dp), dimension(N), intent(in out)     :: A
+  real(kind=dp), dimension((N+1)/2), intent (out) :: T
   integer, dimension(N), intent(in out)              :: labelA
   integer, dimension((N+1)/2), intent(out)           :: labelt
 
   ! local
-  double precision :: V
+  real(kind=dp) :: V
   integer :: NA,NB,labelv
  
   if (N .lt. 2) return
@@ -654,8 +702,9 @@ end subroutine merge_sort
 !***********************************************************************
 
       SUBROUTINE EXPRO(H,U1,U2)
+      USE constants, ONLY : dp
       IMPLICIT none 
-      double precision, dimension ( 3 ) :: H ,U1 ,U2
+      real(kind=dp), dimension ( 3 ) :: H ,U1 ,U2
 
       H(1)=U1(2)*U2(3)-U1(3)*U2(2)
       H(2)=U1(3)*U2(1)-U1(1)*U2(3)
@@ -724,7 +773,7 @@ END SUBROUTINE print_config_sample
 SUBROUTINE print_general_info(kunit)
 
   USE io_file,  ONLY :  ionode 
-  USE config,   ONLY : natm , ncell , ntype , rho , simu_cell
+  USE config,   ONLY : natm , ntype , rho , simu_cell
 
   implicit none
 
@@ -737,7 +786,6 @@ SUBROUTINE print_general_info(kunit)
     WRITE ( kunit ,'(a)')          ''
     WRITE ( kunit ,'(a)')          'Remind some parameters of the system:'
     WRITE ( kunit ,'(a,i5)')       'natm            = ', natm
-    if ( ncell .ne. 0 ) WRITE ( kunit ,'(a,i5,a)')       'ncell = ', ncell
     WRITE ( kunit ,'(a,i5)')       'ntype           = ', ntype
     WRITE ( kunit ,'(a,f10.3)')    'density         = ', rho
     WRITE ( kunit ,'(a,3f10.3)')   'cell parameters = ', (simu_cell%ANORM(i),i=1,3)
@@ -777,18 +825,19 @@ END SUBROUTINE dumb_guy
 
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE( vec_result , ndim )
 
+  USE constants, ONLY : dp
   implicit none
   INCLUDE 'mpif.h'
 
   ! global
   integer :: ndim
-  double precision, dimension ( ndim ) :: vec_result 
+  real(kind=dp), dimension ( ndim ) :: vec_result 
   ! local 
   integer :: ierr
-  double precision, dimension ( : ) , allocatable :: vec_sum
+  real(kind=dp), dimension ( : ) , allocatable :: vec_sum
 
   allocate ( vec_sum ( ndim ) )
-  vec_sum=0.0d0
+  vec_sum=0.0_dp
 
   CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
   vec_result = vec_sum 
@@ -812,7 +861,7 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER( vec_result , ndim )
   integer , dimension ( : ) , allocatable :: vec_sum
 
   allocate ( vec_sum ( ndim ) )
-  vec_sum=0.0d0
+  vec_sum=0
 
   CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
   vec_result = vec_sum
@@ -825,15 +874,16 @@ END SUBROUTINE MPI_ALL_REDUCE_INTEGER
 
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
 
+  USE constants, ONLY : dp
   implicit none
   INCLUDE 'mpif.h'
 
-  double precision, intent (inout) :: sresult
+  real(kind=dp), intent (inout) :: sresult
   ! local 
   integer          :: ierr
-  double precision :: ssum
+  real(kind=dp) :: ssum
 
-  ssum=0.0d0
+  ssum=0.0_dp
   CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
   sresult = ssum
 

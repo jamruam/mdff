@@ -21,6 +21,8 @@
 
 MODULE md
 
+  USE constants,                ONLY :  dp
+
   implicit none
 
   logical, SAVE :: ltraj                   ! save trajectory                                    
@@ -38,19 +40,25 @@ MODULE md
   integer :: updatevnl                     ! number of verlet list update  
   integer :: itime
 
-  double precision :: dt                   ! time step
-  double precision :: temp                 ! temperature   
-  double precision :: Qnosehoover          ! Q parameter in Nose-Hoover Chain 
-  double precision :: tauberendsen         ! characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
-  double precision :: nuandersen           ! characteristic frequency in andersen thermostat
-  double precision :: vxi1, vxi2, xi1, xi2 ! extra variables of Nose-Hoover Chain
+  real(kind=dp) :: dt                   ! time step
+  real(kind=dp) :: temp                 ! temperature   
+  real(kind=dp) :: Qnosehoover          ! Q parameter in Nose-Hoover Chain 
+  real(kind=dp) :: tauberendsen         ! characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
+  real(kind=dp) :: nuandersen           ! characteristic frequency in andersen thermostat
+  real(kind=dp) :: vxi1, vxi2, xi1, xi2 ! extra variables of Nose-Hoover Chain
 
-  character*60 :: integrator               ! algorithm for dynamic integration             
-  character*60 :: integrator_allowed(7) 
-  data integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nve-lfq'/
+  ! ================================================
+  !     algorithm for dynamic integration
+  ! ================================================
+  character(len=60) :: integrator            
+  character(len=60) :: integrator_allowed(7) 
+  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nve-lfq'/
 
-  character*60 :: setvel                   ! velocity distribution (Maxwell-Boltzmann or uniform)    
-  character*60 :: setvel_allowed(2) 
+  ! ================================================
+  !  velocity distribution (Maxwell-Boltzmann or uniform)
+  ! ================================================
+  character(len=60) :: setvel                 
+  character(len=60) :: setvel_allowed(2) 
   data setvel_allowed / 'MaxwBoltz', 'Uniform' /
 
 CONTAINS
@@ -65,12 +73,12 @@ CONTAINS
 SUBROUTINE md_init
 
   USE control,  ONLY :  lpbc , lstatic , calc
-  USE io_file,  ONLY :  ionode ,stdin, stdout, kunit_OUTFF
+  USE io_file,  ONLY :  ionode ,stdin, stdout
 
   implicit none
 
-  character*132 :: filename
-  integer :: ioerr
+  integer            :: ioerr
+  character(len=132) :: filename
 
   namelist /mdtag/    ltraj         , &
                       integrator    , & 
@@ -116,7 +124,6 @@ SUBROUTINE md_init
   !  print mdtag info
   ! ===================
   CALL md_print_info(stdout)
-  CALL md_print_info(kunit_OUTFF)
 
   return
 
@@ -149,9 +156,9 @@ SUBROUTINE md_default_tag
   itraj_period  = 10000
   itraj_format  = 1
   spas          = 1000           
-  dt            = 0.001d0
-  temp          = 1.0d0
-  tauberendsen  = 0.0d0
+  dt            = 0.001_dp
+  temp          = 1.0_dp
+  tauberendsen  = 0.0_dp
 
   return
 
@@ -178,7 +185,7 @@ SUBROUTINE md_check_tag
   !  scaling velocities berendsen, 
   !  if not defined simple velocity rescale 
   ! =========================================
-  if (tauberendsen.eq.0.0D0 ) tauberendsen = dt
+  if (tauberendsen.eq.0.0_dp ) tauberendsen = dt
 
   ! ====================
   !  check integrator
@@ -205,7 +212,7 @@ SUBROUTINE md_check_tag
   ! ===================
   !  check Qnosehoover
   ! ===================
-  if ( integrator .eq. 'nvt-nhc2' .and. Qnosehoover .eq. 0.0d0 ) then
+  if ( integrator .eq. 'nvt-nhc2' .and. Qnosehoover .eq. 0.0_dp ) then
      if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" Qnoseehoover should be set',Qnosehoover
     STOP
   endif
@@ -241,8 +248,8 @@ END SUBROUTINE md_check_tag
 
 SUBROUTINE md_print_info(kunit)
 
-  USE control,  ONLY :  lpbc , lstatic , lvnlist , lreduced , lminimg 
-  USE io_file,  ONLY :  ionode 
+  USE control,          ONLY :  lpbc , lstatic , lvnlist , lreduced , lminimg 
+  USE io_file,          ONLY :  ionode 
 
   implicit none
   
@@ -325,10 +332,10 @@ END SUBROUTINE md_print_info
 
 SUBROUTINE write_traj_xyz 
 
-  USE io_file,  ONLY :  ionode , kunit_TRAJFF , stdout
-  USE config,   ONLY :  system , natm , natmi , ntype , &
-                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell
-  USE cell
+  USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
+  USE config,                   ONLY :  system , natm , natmi , ntype , &
+                                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell
+  USE cell,                     ONLY :  periodicbc
 
   implicit none
 

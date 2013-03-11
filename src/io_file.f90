@@ -40,9 +40,6 @@ MODULE io_file
   ! tmp working file
   integer, PARAMETER :: kunit_tmp       =  8
 
-  ! OUTFF file 
-  integer, PARAMETER :: kunit_OUTFF     = 9
-
   ! thermodynamic info
   integer, PARAMETER :: kunit_OSZIFF    = 10
 
@@ -134,11 +131,14 @@ MODULE io_file
   ! mean number of atoms in a shell of width at distance r
   integer, PARAMETER :: kunit_NRTFF     = 260
 
+  ! dipole moments on atoms from Wannier centers
+  integer, PARAMETER :: kunit_DIPWFC     = 270
+
 CONTAINS
 
 !*********************** SUBROUTINE io_init ***********************************
 !
-! initialize the ionode logical variable and open OUTFF file
+! initialize the ionode logical variable
 !
 ! usage :
 !         if ( ionode ) WRITE ( unit , * )   
@@ -159,30 +159,10 @@ SUBROUTINE io_init
    else
      ionode = .false.
    endif
-  ! ===================
-  !  open main file
-  ! ===================
-  OPEN (unit = kunit_OUTFF  ,file = 'OUTFF',STATUS = 'UNKNOWN')
 
   return
 
 END SUBROUTINE io_init
-
-!*********************** SUBROUTINE io_end ***********************************
-!
-! close OUTFF file
-!
-!******************************************************************************
-
-SUBROUTINE io_end
-
-  implicit none
-
-  CLOSE(kunit_OUTFF)
-
-  return
- 
-END SUBROUTINE io_end
 
 !*********************** SUBROUTINE io_open ***********************************
 !
@@ -195,11 +175,12 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
   implicit none
 
   ! global
-  integer       , intent (in) :: kunit 
-  character(*)  , intent (in) :: cunit 
-  character(*)  , intent (in) :: iostatus
+  integer,      intent (in) :: kunit 
+  character(*), intent (in) :: cunit 
+  character(*), intent (in) :: iostatus
+
   ! local
-  integer                 :: ioerr
+  integer                   :: ioerr
 
 
   OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
@@ -218,7 +199,8 @@ SUBROUTINE io_close ( kunit )
   implicit none
 
   ! global
-  integer   , intent (in) :: kunit 
+  integer, intent (in)    :: kunit 
+
   ! local
   integer                 :: ioerr
 
@@ -233,17 +215,19 @@ SUBROUTINE io_close ( kunit )
 
 END SUBROUTINE io_close
 
-! **********************************************************************
+!*********************** SUBROUTINE sweep_blanks ******************************
+!
 !  to remove leading and trailing spaces
-! **********************************************************************
-character(30) function sweep_blanks(in_str)
+!
+!******************************************************************************
+character(len=30) function sweep_blanks ( in_str )
 
   implicit none
 
-  character(*), intent(in) :: in_str
-  character(30)            :: out_str
-  character                :: ch
-  integer                  :: j
+  character(*), intent(in)  :: in_str
+  character(len=30)         :: out_str
+  character                 :: ch
+  integer                   :: j
 
   out_str = " "
 
@@ -256,7 +240,7 @@ character(30) function sweep_blanks(in_str)
     endif
     sweep_blanks = out_str
   enddo
-
+        
 end function sweep_blanks
 
 

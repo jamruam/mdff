@@ -35,3 +35,50 @@ TODO:
 
 ===============================================================
 
+
+===============================================================
+CLEAN CHARACTER * => character(len=) 
+===============================================================
+block_average.f90:  character*6      , dimension ( : )  , allocatable :: dname
+block_average.f90:  character*1 :: cccc 
+config.f90:  character*60, SAVE :: system                                        ! system name                                              
+config.f90:  character*3, dimension(:), allocatable           :: atype           ! atom type A or B 
+config.f90:  character*3, dimension(0:ntypemax)               :: atypei          ! type of atoms (per type)
+config.f90:  character*60 :: struct                                              ! crystal structure for fcc
+config.f90:  character*60 :: struct_allowed(2)                     
+control.f90:  character*8,  SAVE   :: DATE
+control.f90:  character*10, SAVE   :: HOUR 
+control.f90:  character*60, SAVE :: calc                
+control.f90:  character*60, SAVE :: calc_allowed(11)    
+control.f90:  character*60, SAVE :: longrange            
+control.f90:  character*60, SAVE :: longrange_allowed(2) 
+control.f90:  character*60, SAVE :: dgauss    
+control.f90:  character*60, SAVE :: dgauss_allowed(3) 
+control.f90:  character*132 :: filename
+efg.f90:  character * 132 :: filename
+efg.f90:  character*200 :: XXXX
+io_file.f90:  character(*)  , intent (in) :: cunit 
+io_file.f90:  character(*)  , intent (in) :: iostatus
+io_file.f90:  character(*), intent(in) :: in_str
+m1qn3.f90:      character*3 normtype
+m1qn3.f90:      character*3 normtype
+md.f90:  character*60 :: integrator               ! algorithm for dynamic integration             
+md.f90:  character*60 :: integrator_allowed(7) 
+md.f90:  character*60 :: setvel                   ! velocity distribution (Maxwell-Boltzmann or uniform)    
+md.f90:  character*60 :: setvel_allowed(2) 
+md.f90:  character*132 :: filename
+mdff.f90:  character*60 :: vib_allowed(5)                     
+msd.f90:  character * 132 :: filename
+opt.f90:  character*60 :: optalgo      ! choose optimization algorithm
+opt.f90:  character*60 :: optalgo_allowed(3)
+opt.f90:  character*132 :: filename
+opt.f90:  character * 60 :: cccc
+opt.f90:  character*3 normtype
+prop.f90:  character * 132 :: filename
+radial_distrib.f90:  character * 132 :: filename
+radial_distrib.f90:  character * 60 :: cccc
+runmd.f90:  character*60 :: rescale_allowed(2)
+vacf.f90:  character * 132 :: filename
+vib.f90:  character * 60 :: cccc
+vib.f90:  character * 100  header
+vib.f90:  character*60     :: cccc

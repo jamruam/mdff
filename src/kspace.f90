@@ -17,27 +17,98 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 
 
 MODULE kspace 
 
+  USE constants , ONLY : dp 
+
   implicit none
 
   TYPE :: kmesh
-    integer                                        :: nkcut  ! (internal) number of k-points in the kmesh
-    integer                                        :: kmax(3) ! nb of kpts in each recip. direction in ewald sum.
-    double precision, dimension(:,:) , allocatable :: kpt  
-    double precision, dimension(:)   , allocatable :: kptk 
-    double complex  , dimension(:,:) , allocatable :: strf   ! facteur de structure
-    double complex  , dimension(:,:) , allocatable :: strf2   ! facteur de structure
-    character(len=15)                              :: meshlabel
+    integer                                        :: nk        ! total number of kpoints
+    integer                                        :: nkcut     ! (internal) number of k-points in each direction 
+    integer                                        :: kmax(3)   ! nb of kpts in each recip. direction in ewald sum.
+    real(kind=dp)   , dimension(:,:) , allocatable :: kpt       ! kpoints mesh : dimension ( 3 , nk )
+    real(kind=dp)   , dimension(:)   , allocatable :: kptk      ! k module
+    complex(kind=dp), dimension(:,:) , allocatable :: strf      ! facteur de structure
+    character(len=15)                              :: meshlabel ! giving a name to kmesh
   END TYPE
+
+  TYPE :: kpath
+    integer                                        :: nk        ! number of kpoints in the path
+    real(kind=dp), dimension(:,:) , allocatable    :: kpt       ! kpoint path : dimension ( 3 , nk )
+    real(kind=dp)                                  :: kdir(3)   ! path vector  
+    character(len=3)                               :: pathlabel ! giving a name to kpath
+  END TYPE
+
 
 CONTAINS
 
+!*********************** SUBROUTINE get_path **********************************
+!
+! this subroutine initialized kpoint path for band structure calculation
+!
+!******************************************************************************
+
+SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
+
+  USE config,           ONLY :  simu_cell
+  USE io_file,          ONLY :  ionode , stdout
+  USE cell,             ONLY :  dirkar
+
+  implicit none
+
+  ! global 
+  real(kind=dp)    :: ks(3) , ke(3)
+  integer          :: nk 
+  TYPE ( kpath )   :: kp
+  character(len=3) :: path
+  ! local  
+  integer        :: ik , i
+  real(kind=dp)  :: step , r_ik
+  
+  ! initialize
+  kp%kpt = 0.0d0
+  ! first kpoint
+  kp%kpt ( 1 , 1  ) = ks ( 1 )
+  kp%kpt ( 2 , 1  ) = ks ( 2 )
+  kp%kpt ( 3 , 1  ) = ks ( 3 )
+  ! last kpoint
+  kp%kpt ( 1 , nk ) = ke ( 1 )
+  kp%kpt ( 2 , nk ) = ke ( 2 )
+  kp%kpt ( 3 , nk ) = ke ( 3 )
+  ! path direction
+  kp%kdir ( 1 ) = kp%kpt ( 1 , nk ) - kp%kpt ( 1 , 1 )
+  kp%kdir ( 2 ) = kp%kpt ( 2 , nk ) - kp%kpt ( 2 , 1 )
+  kp%kdir ( 3 ) = kp%kpt ( 3 , nk ) - kp%kpt ( 3 , 1 )
+  kp%nk = nk
+  kp%pathlabel = path
+
+  if ( ionode ) then
+    WRITE ( stdout , '(a,a     )' ) 'path name : ', kp%pathlabel
+    WRITE ( stdout , '(a,3f12.5)' ) 'start     : ', ( kp%kpt ( i , 1  ) , i = 1 , 3 )
+    WRITE ( stdout , '(a,3f12.5)' ) 'end       : ', ( kp%kpt ( i , nk ) , i = 1 , 3 )
+    WRITE ( stdout , '(a,3f12.5)' ) 'direction : ', ( kp%kdir( i )      , i = 1 , 3 )
+ endif
+
+  step = 1.0_dp / REAL ( nk - 1 )
+
+  do ik = 2 , nk
+    r_ik = REAL ( ik - 1 , kind = dp )
+    kp%kpt(1,ik) = kp%kpt(1,1) + r_ik * kp%kdir ( 1 ) * step
+    kp%kpt(2,ik) = kp%kpt(2,1) + r_ik * kp%kdir ( 2 ) * step
+    kp%kpt(3,ik) = kp%kpt(3,1) + r_ik * kp%kdir ( 3 ) * step
+  enddo
+
+  if ( ionode ) WRITE ( stdout , '(a,a,a)' ) 'path ',kp%pathlabel,' generated'
+
+  return
+
+END SUBROUTINE get_kpath
 
 !*********************** SUBROUTINE kpoint_sum_init ***************************
 !
@@ -50,7 +121,7 @@ CONTAINS
 SUBROUTINE kpoint_sum_init( km ) 
 
   USE config,           ONLY :  simu_cell 
-  USE io_file,          ONLY :  ionode , stdout, kunit_OUTFF
+  USE io_file,          ONLY :  ionode , stdout
   USE constants,        ONLY :  tpi
 
   implicit none
@@ -60,10 +131,9 @@ SUBROUTINE kpoint_sum_init( km )
 
   ! local
   integer :: nx , ny , nz , nk 
-  double precision :: kx, ky, kz, kk
+  real(kind=dp) :: kx, ky, kz, kk
 
   if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
 
   nk = 0
   do nx =  - km%kmax(1) , km%kmax(1)
@@ -75,10 +145,10 @@ SUBROUTINE kpoint_sum_init( km )
           ky = tpi * ( DBLE (nx) * simu_cell%B(2,1) +  DBLE (ny) * simu_cell%B(2,2) + DBLE (nz) * simu_cell%B(2,3) )
           kz = tpi * ( DBLE (nx) * simu_cell%B(3,1) +  DBLE (ny) * simu_cell%B(3,2) + DBLE (nz) * simu_cell%B(3,3) )
           kk = kx * kx + ky * ky + kz * kz
-          km%kpt(1,nk) = kx
-          km%kpt(2,nk) = ky
-          km%kpt(3,nk) = kz
-          km%kptk(nk)  = kk
+          km%kpt ( 1 , nk ) = kx
+          km%kpt ( 2 , nk ) = ky
+          km%kpt ( 3 , nk ) = kz
+          km%kptk ( nk )    = kk
         endif
       enddo
     enddo
@@ -89,12 +159,13 @@ SUBROUTINE kpoint_sum_init( km )
     STOP
   endif
 
+  km%nk = nk 
+
   ! ======================
   !  organized kpt arrays 
   ! ======================
   call reorder_kpt ( km ) 
   if ( ionode ) WRITE ( stdout      ,'(a)') '(full) kpt arrays sorted'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') '(full) kpt arrays sorted'
 
   return
 
@@ -113,7 +184,7 @@ END SUBROUTINE kpoint_sum_init
 SUBROUTINE kpoint_sum_init_half ( km )
 
   USE config,           ONLY :  simu_cell 
-  USE io_file,          ONLY :  ionode , stdout, kunit_OUTFF
+  USE io_file,          ONLY :  ionode , stdout
   USE constants,        ONLY :  pi , tpi
 
   implicit none
@@ -124,10 +195,9 @@ SUBROUTINE kpoint_sum_init_half ( km )
   
   ! local
   integer :: nx , ny , nz , nk 
-  double precision :: kx, ky, kz, kk
+  real(kind=dp) :: kx, ky, kz, kk
 
   if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
   
   nk = 0
   do nx =  0 , km%kmax(1) 
@@ -158,13 +228,10 @@ SUBROUTINE kpoint_sum_init_half ( km )
   ! ======================
   call reorder_kpt ( km )
   if ( ionode ) WRITE ( stdout      ,'(a)')     '(half) kpt arrays sorted'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)')     '(half) kpt arrays sorted'
 
   return
 
 END SUBROUTINE kpoint_sum_init_half
-
-
 
 !*********************** SUBROUTINE reorder_kpt *******************************
 !
@@ -174,7 +241,7 @@ END SUBROUTINE kpoint_sum_init_half
 
 SUBROUTINE reorder_kpt ( km )
 
-  USE io_file,  ONLY :  ionode , stdout , kunit_OUTFF        
+  USE io_file,  ONLY :  ionode , stdout 
 
   implicit none
 
@@ -183,8 +250,8 @@ SUBROUTINE reorder_kpt ( km )
 
   !local
   integer :: ik, lk
-  double precision, dimension (:), allocatable :: tkpt
-  double precision, dimension (:), allocatable :: tmpkx , tmpky , tmpkz
+  real(kind=dp), dimension (:), allocatable :: tkpt
+  real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz
  
   integer, dimension (:), allocatable :: labelkpt, labelt
 
@@ -229,7 +296,6 @@ SUBROUTINE reorder_kpt ( km )
 
 END SUBROUTINE reorder_kpt
 
-
 !*********************** SUBROUTINE struct_fact *******************************
 !
 ! calculate the structure factors for each type of atoms in the unit cell
@@ -249,11 +315,12 @@ SUBROUTINE struc_fact ( km )
   TYPE ( kmesh ) :: km
 
   ! local
-  integer :: it, ia, ik
-  double precision :: arg , rxi , ryi , rzi 
+  !integer :: it
+  integer :: ia, ik
+  real(kind=dp) :: arg , rxi , ryi , rzi 
 
   !  exp ( i k . r ) 
-  km%strf(:,:) = (0.d0,0.d0)
+  km%strf(:,:) = (0.0_dp,0.0_dp)
 !  do it = 1, ntype
      do ia = 1, natm
         rxi = rx ( ia ) 

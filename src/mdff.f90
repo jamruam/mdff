@@ -52,7 +52,6 @@ PROGRAM main_MDFF
   USE field 
   USE vib
   USE opt
-  USE prop
   USE efg
   USE radial_distrib 
   USE msd
@@ -63,26 +62,24 @@ PROGRAM main_MDFF
   INCLUDE 'mpif.h'
 
   ! local
-  integer :: argc
-  integer :: ierr 
-  integer :: iastart , iaend   ! atom decomposition
-  integer :: offset         
-  double precision :: ttt2, ttt1
+  integer       :: argc
+  integer       :: ierr 
+  integer       :: iastart , iaend   ! atom decomposition
+  integer       :: offset            ! offset ( not used yet )
+  real(kind=dp) :: ttt2, ttt1        
 #ifdef MULTRUN
   integer :: irun          
-  double precision :: tempi
+  real(kind=dp) :: tempi
 #endif
-  character*60 :: vib_allowed(5)                     
-  data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
+  character(len=60) :: vib_allowed(5)                     
+  data                 vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
   
-  !integer :: it , ik ! tmp
 
   ! from vasp 5.3 ;)
   CHARACTER (LEN=80),PARAMETER :: MDFF = &
         'mdff.0.3.1' // ' ' // &
         ' (build ' // __DATE__// ' ' //__TIME__// ') ' // &
         'parallel'
-
 
   ! ====================================================
   ! MPI initialisation
@@ -96,9 +93,10 @@ PROGRAM main_MDFF
   ! ====================================================      
   ! random number generator init
   ! ====================================================      
-  ! CALL init_random_seed   ! MD is too sensitive to the initial velocities 
-                            ! for test purpose keep it commented
-                            ! uncomment it if you want uncorrelated runs  
+  ! MD is too sensitive to the initial velocities
+  ! for test purpose keep it commented
+  ! uncomment it if you want uncorrelated runs  
+  ! CALL init_random_seed 
   ! ====================================================
   ! gives rank index (myrank) 
   ! ====================================================
@@ -116,8 +114,8 @@ PROGRAM main_MDFF
   ! reads command line
   ! ========================================
   argc = iargc ( )
-  if ( argc .ne. 1 ) then
-    if (  ionode  ) WRITE ( stdout , * ) '* command: mdff.x <input_file>'
+  if ( argc .lt. 1 ) then
+    if (  ionode  ) WRITE ( stdout , * ) 'usage : mdff.x <input_file>'
     STOP 
   endif
 
@@ -142,15 +140,16 @@ PROGRAM main_MDFF
     ! =============================
     CALL md_init
  
-    ! =============================
+    ! =============================================
     ! configuration initialization + force_field
-    ! =============================
+    ! =============================================
     CALL config_init 
 
     ! =============================
     ! properties initialization	 
+    ! ( removed feb 2013)
     ! =============================
-    CALL prop_init
+    !CALL prop_init
 
     ! ===========================================================
     ! parallelization: atom decomposition split atom into
@@ -190,7 +189,7 @@ PROGRAM main_MDFF
           CALL vacf_alloc
 
     ! ==================================================
-    ! OUTSIDE LOOP (not USE yet)
+    ! OUTSIDE LOOP (not used yet)
     ! can be useful for some applications
     ! temperature variations or any other parameter
     ! as only one parameters will variate with time
@@ -201,7 +200,7 @@ PROGRAM main_MDFF
     RUN: DO irun = 1 , 1
     tempi = temp
     RUN: DO irun = 0 , 2
-        temp = ( 0.1d0 * irun  ) + tempi
+        temp = ( 0.1_dp * irun  ) + tempi
         if (  ionode  ) WRITE ( stdout ,'(a)') ''
         if (  ionode  ) WRITE ( stdout , '(a,f8.5)' ) 'T = ' , temp
 #endif
@@ -224,7 +223,7 @@ PROGRAM main_MDFF
              CALL init_velocities 
              ! ===============================================================
              ! time offset = zero is the static step (first step of dynamic) 
-             ! this offset will be USEd if the OUTSIDE LOOP is USEd
+             ! this offset will be used if the OUTSIDE LOOP is used
              ! ===============================================================
 !             offset = ( ( irun - 1 ) * npas ) + 1  
              CALL md_run ( iastart , iaend , 1 ) 
@@ -238,29 +237,30 @@ PROGRAM main_MDFF
   
     ENDIF MDLOOP
 
-    ! todo add some comments on opt vib efg here
-     
     ! ==============================================
     ! IF OPT :
-    ! optimisation of structures read in TRAJFF 
+    ! - optimisation of structures read in TRAJFF 
+    ! - write the optimize strutures to ISCFF
     ! ==============================================
     if ( calc .eq. 'opt' ) then  
       CALL opt_init
       CALL opt_main 
     endif
-  
     ! ==============================================
     ! IF VIB : 
-    ! phonon related calculations
+    ! - phonon related calculations
+    ! - structures read in ISCFF ( optimize structure )
     ! ==============================================
     if ( any( calc .eq. vib_allowed ) ) then       
       CALL vib_init
       CALL vib_main 
     endif 
-  
     ! ==============================================
     ! IF EFG : 
-    !  calculates EFG of structures read in TRAJFF   
+    ! - electric field gradient calculation 
+    ! - structures read in TRAJFF   
+    ! - main output EFGALL file
+    ! - calculate from point charges and dipoles
     ! ==============================================
     if ( calc .eq. 'efg' ) then
       CALL efg_init
@@ -268,28 +268,21 @@ PROGRAM main_MDFF
     endif
     ! ==============================================
     ! IF EFG+ACF : 
-    ! calculates EFG auto-correlation functions from 
-    ! data in EFGALL    
+    ! - calculate EFG auto-correlation functions 
+    ! - data in EFGALL    
     ! ==============================================
     if ( calc .eq. 'efg+acf' ) then
       CALL efg_init
       CALL efg_acf 
     endif
     ! ==============================================
-    ! ==============================================
-!    if ( calc .eq. 'efg+stat' ) then
-!      CALL efg_init
-!      CALL efg_stat
-!    endif
-    ! ==============================================
     ! IF GR : 
-    ! calculates radial distribution  of structures 
-    ! read in TRAJFF   
+    ! - radial distribution function  of structures 
+    ! - structures read in TRAJFF   
     ! ==============================================
     if ( calc .eq. 'gr' ) then
       CALL grcalc 
     endif
-
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
@@ -324,26 +317,22 @@ PROGRAM main_MDFF
   ! =======================
 
     if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
-    if ( ionode ) WRITE ( stdout      ,'(a)'  ) '                           TEST                              '
+    if ( ionode ) WRITE ( stdout      , '(a)' ) '                           TEST                              '
     if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
-    if ( ionode ) WRITE ( stdout ,'(a)') ' ############################# '
+    if ( ionode ) WRITE ( stdout      , '(a)' ) ' ############################# '
     ! 
     !    WRITE HERE YOUR CODE TO BE TESTED 
     ! 
-
   endif
 
 
   if ( ionode ) then
     WRITE ( stdout      , '(a)' ) '============================================================='
     WRITE ( stdout      , '(a)' ) ''
-    WRITE ( kunit_OUTFF , '(a)' ) '============================================================='
-    WRITE ( kunit_OUTFF , '(a)' ) ''
   endif
   ttt2 = MPI_WTIME(ierr)
   timetot = ttt2 - ttt1
   CALL print_time_info ( stdout ) 
-  CALL print_time_info ( kunit_OUTFF ) 
   !CALL io_end
   CALL MPI_FINALIZE(ierr)
 

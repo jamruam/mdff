@@ -27,16 +27,17 @@
 !******************************************************************************
 SUBROUTINE init_velocities
 
-  USE config,   ONLY :  vx , vy , vz , natm , ntype , ntypemax , atypei , center_of_mass
-  USE md,       ONLY :  nequil , setvel , temp
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
-  USE control,  ONLY :  lrestart
+  USE constants,        ONLY :  dp 
+  USE config,           ONLY :  vx , vy , vz , natm , ntype , ntypemax , atypei , center_of_mass
+  USE md,               ONLY :  nequil , setvel , temp
+  USE io_file,          ONLY :  ionode , stdout
+  USE control,          ONLY :  lrestart
 
   implicit none
 
   ! local
-  double precision :: T, ekin 
-  double precision :: com ( 0:ntypemax , 3 )
+  real(kind=dp) :: T, ekin 
+  real(kind=dp) :: com ( 0:ntypemax , 3 )
   integer :: key , ia , it 
 
   ! =======================================
@@ -46,21 +47,18 @@ SUBROUTINE init_velocities
   ! =======================================
   key = 0
   do ia = 1 , natm
-    if ( vx (ia) .ne. 0.0d0 ) key = 1
-    if ( vy (ia) .ne. 0.0d0 ) key = 1
-    if ( vz (ia) .ne. 0.0d0 ) key = 1
+    if ( vx (ia) .ne. 0.0_dp ) key = 1
+    if ( vy (ia) .ne. 0.0_dp ) key = 1
+    if ( vz (ia) .ne. 0.0_dp ) key = 1
   enddo
 
   
   ! ===============================================
   !  generate velocities from a given distribution
   ! ===============================================
-  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0d0 .and. (nequil.ne.0)) then
+  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp .and. (nequil.ne.0)) then
 
     if ( ionode ) then
-      WRITE ( kunit_OUTFF ,'(a)') '============================================================='
-      WRITE ( kunit_OUTFF ,'(a)') ''
-      WRITE ( kunit_OUTFF ,'(a)') 'generate velocities'
       WRITE ( stdout      ,'(a)') '============================================================='
       WRITE ( stdout      ,'(a)') ''
       WRITE ( stdout      ,'(a)') 'generate velocities'
@@ -93,7 +91,6 @@ SUBROUTINE init_velocities
 
     if ( ionode ) then
       WRITE ( stdout      ,'(a,f10.4)') 'input temperature                    = ',T
-      WRITE ( kunit_OUTFF ,'(a,f10.4)') 'input temperature                    = ',T
     endif
 
   else 
@@ -101,13 +98,12 @@ SUBROUTINE init_velocities
     ! ============================
     !  no initial kinetic energy
     ! ============================
-    vx = 0.0d0
-    vy = 0.0d0
-    vz = 0.0d0
+    vx = 0.0_dp
+    vy = 0.0_dp
+    vz = 0.0_dp
 
     if ( ionode ) then 
       WRITE ( stdout      , '(a)' ) 'no initial kinetic energy' 
-      WRITE ( kunit_OUTFF , '(a)' ) 'no initial kinetic energy' 
     endif
 
   endif
@@ -132,9 +128,10 @@ END SUBROUTINE init_velocities
 
 SUBROUTINE rescale_velocities (quite)
 
-  USE config,   ONLY :  natm , vx , vy , vz
-  USE md,       ONLY :  dt , temp , tauberendsen
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
+  USE constants,                ONLY :  dp 
+  USE config,                   ONLY :  natm , vx , vy , vz
+  USE md,                       ONLY :  dt , temp , tauberendsen
+  USE io_file,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -143,11 +140,11 @@ SUBROUTINE rescale_velocities (quite)
 
   ! local
   integer :: ia
-  double precision :: T, lambda, ekin
+  real(kind=dp) :: T, lambda, ekin
 
   CALL calc_temp(T,ekin)
 
-  lambda = ( 1.0D0 + (dt / tauberendsen) * (  (temp / T) - 1.0D0) ) ** 0.5D0
+  lambda = ( 1.0_dp + (dt / tauberendsen) * (  (temp / T) - 1.0_dp) ) ** 0.5_dp
 
   do ia = 1 , natm
      vx ( ia ) = vx ( ia ) * lambda
@@ -156,11 +153,6 @@ SUBROUTINE rescale_velocities (quite)
   enddo
 
   if ( ionode .and. quite .eq. 1) then
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'Berendsen thermostat'
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'effective temperature      T        = ',T
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
-    WRITE ( kunit_OUTFF ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
-    WRITE ( kunit_OUTFF ,'(a)')       ''
     WRITE ( stdout ,'(a,f10.4)') 'Berendsen thermostat'
     WRITE ( stdout ,'(a,f10.4)') 'effective temperature      T        = ',T
     WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
@@ -187,15 +179,16 @@ END SUBROUTINE rescale_velocities
 
 SUBROUTINE andersen_velocities
 
-  USE config,   ONLY :  natm , vx , vy , vz
-  USE md,       ONLY :  dt , temp , nuandersen 
-  USE control,  ONLY :  myrank , dgauss
+  USE constants,                ONLY :  dp 
+  USE config,                   ONLY :  natm , vx , vy , vz
+  USE md,                       ONLY :  dt , temp , nuandersen 
+  USE control,                  ONLY :  myrank , dgauss
 
   implicit none
 
   ! local
   integer :: ia , iseed
-  double precision :: T, ekin, sigma, U, G
+  real(kind=dp) :: T, ekin, sigma, U, G
   
   
   CALL calc_temp(T,ekin)
@@ -206,25 +199,25 @@ SUBROUTINE andersen_velocities
   CALL RANDOM_NUMBER(HARVEST = U)
      if ( U .lt. nuandersen * dt) then  
        if ( dgauss .eq. 'boxmuller_basic' ) then
-         CALL boxmuller_basic(G,0.0D0,sigma)
+         CALL boxmuller_basic(G,0.0_dp,sigma)
          vx ( ia ) = G
-         CALL boxmuller_basic(G,0.0D0,sigma)
+         CALL boxmuller_basic(G,0.0_dp,sigma)
          vy ( ia ) = G
-         CALL boxmuller_basic(G,0.0D0,sigma)
+         CALL boxmuller_basic(G,0.0_dp,sigma)
          vz ( ia ) = G
        elseif ( dgauss .eq. 'boxmuller_polar' ) then
-         CALL boxmuller_polar(G,0.0D0,sigma)
+         CALL boxmuller_polar(G,0.0_dp,sigma)
          vx ( ia ) = G
-         CALL boxmuller_polar(G,0.0D0,sigma)
+         CALL boxmuller_polar(G,0.0_dp,sigma)
          vy ( ia ) = G
-         CALL boxmuller_polar(G,0.0D0,sigma)
+         CALL boxmuller_polar(G,0.0_dp,sigma)
          vz ( ia ) = G
        elseif ( dgauss .eq. 'knuth' ) then
-         CALL knuth(G,0.0D0,sigma)
+         CALL knuth(G,0.0_dp,sigma)
          vx ( ia ) = G
-         CALL knuth(G,0.0D0,sigma)
+         CALL knuth(G,0.0_dp,sigma)
          vy ( ia ) = G
-         CALL knuth(G,0.0D0,sigma)
+         CALL knuth(G,0.0_dp,sigma)
          vz ( ia ) = G
        endif
      endif
@@ -244,44 +237,44 @@ END SUBROUTINE andersen_velocities
 
 SUBROUTINE uniform_random_velocities
 
-
+  USE constants,        ONLY :  dp 
   USE config,   ONLY :  natm , vx , vy , vz
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
-  USE io_file,  ONLY :  ionode , stdout, kunit_OUTFF
+  USE io_file,  ONLY :  ionode , stdout
 
   implicit none
   INCLUDE "mpif.h"
 
   ! local
   integer :: i
-  double precision :: G
+  real(kind=dp) :: G
   integer :: iseed
   DOUBLE PRECISION v2, vx0, vy0, vz0, Vx0t, Vy0t, Vz0t, f
 
   if ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)') 'Velocities from uniform distribution' 
-    WRITE ( kunit_OUTFF ,'(a)') 'routine from Frenkel Smit Case Study 4'
-    WRITE ( kunit_OUTFF ,'(a)') 'only   USEd to test the code'
+    WRITE ( stdout ,'(a)') 'Velocities from uniform distribution' 
+    WRITE ( stdout ,'(a)') 'routine from Frenkel Smit Case Study 4'
+    WRITE ( stdout ,'(a)') 'only used to test the code'
   endif
 
   ! ===========================
   !  give particle a velocity
   ! ===========================
-  vx0 = 0.D0
-  vy0 = 0.D0
-  vz0 = 0.D0
-  v2 = 0.D0
+  vx0 = 0.0_dp
+  vy0 = 0.0_dp
+  vz0 = 0.0_dp
+  v2 = 0.0_dp
   DO i = 1, natm
     CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = G)
-    VX(i) = G - 0.5D0
+    VX(i) = G - 0.5_dp
     CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = G)
-    VY(i) = G - 0.5D0
+    VY(i) = G - 0.5_dp
     CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = G)
-    VZ(i) = G - 0.5D0
+    VZ(i) = G - 0.5_dp
     vx0 = vx0 + VX(i)
     vy0 = vy0 + VY(i)
     vz0 = vz0 + VZ(i)
@@ -293,11 +286,11 @@ SUBROUTINE uniform_random_velocities
   vx0 = vx0/natm
   vy0 = vy0/natm
   vz0 = vz0/natm
-  Vx0t = 0.D0
-  Vy0t = 0.D0
-  Vz0t = 0.D0
+  Vx0t = 0.0_dp
+  Vy0t = 0.0_dp
+  Vz0t = 0.0_dp
   f = SQRT ( 3 * DBLE ( natm ) * temp / v2 )
-  v2 = 0.D0
+  v2 = 0.0_dp
   DO i = 1, natm
     VX(i) = (VX(i)-vx0) * f
     VY(i) = (VY(i)-vy0) * f
@@ -331,52 +324,51 @@ END SUBROUTINE uniform_random_velocities
 
 SUBROUTINE maxwellboltzmann_velocities
 
+  USE constants,        ONLY :  dp 
   USE config,   ONLY :  natm , vx , vy , vz
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
-  USE io_file,  ONLY :  ionode , stdout , kunit_OUTFF
+  USE io_file,  ONLY :  ionode , stdout 
 
   implicit none
   INCLUDE "mpif.h"
 
   ! local
   integer :: ia
-  double precision :: RTEMP, SUMX, SUMY, SUMZ
-  double precision :: G
+  real(kind=dp) :: RTEMP, SUMX, SUMY, SUMZ
+  real(kind=dp) :: G
 
 #ifdef fun
   if ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)') 'Heat:Hot, as _____:Cold'
-    WRITE ( kunit_OUTFF ,'(a)') ''
-    WRITE ( kunit_OUTFF ,'(a)') 'a poem by Roald Hoffman'
-    WRITE ( kunit_OUTFF ,'(a)') 'from: Chemistry Imagined, Reflections on Science'
-    WRITE ( kunit_OUTFF ,'(a)') ''
-    WRITE ( kunit_OUTFF ,'(a)') 'Deep in,'
-    WRITE ( kunit_OUTFF ,'(a)') "they're there, they're"
-    WRITE ( kunit_OUTFF ,'(a)') "at it all the time, it's jai"
-    WRITE ( kunit_OUTFF ,'(a)') 'alai on the hot molecular fronton-'
-    WRITE ( kunit_OUTFF ,'(a)') 'a bounce off walls onto the packed aleatory'
-    WRITE ( kunit_OUTFF ,'(a)') 'dance floor where sideswipes are medium of exchange,'
-    WRITE ( kunit_OUTFF ,'(a)') 'momentum trades sealed in swift carom sequences,'
-    WRITE ( kunit_OUTFF ,'(a)') 'or just that quick kick in the rear, the haphaz-'
-    WRITE ( kunit_OUTFF ,'(a)') 'ard locomotion of the warm, warm world.'
-    WRITE ( kunit_OUTFF ,'(a)') 'But spring nights grow cold in Ithaca;'
-    WRITE ( kunit_OUTFF ,'(a)') 'the containing walls, glass or metal,'
-    WRITE ( kunit_OUTFF ,'(a)') 'are a jagged rough rut of tethered'
-    WRITE ( kunit_OUTFF ,'(a)') 'masses, still vibrant, but now'
-    WRITE ( kunit_OUTFF ,'(a)') 'retarding, in each collision,'
-    WRITE ( kunit_OUTFF ,'(a)') 'the cooling molecules.'
-    WRITE ( kunit_OUTFF ,'(a)') "There, they're there,"
-    WRITE ( kunit_OUTFF ,'(a)') 'still there,'
-    WRITE ( kunit_OUTFF ,'(a)') 'in deep,'
-    WRITE ( kunit_OUTFF ,'(a)') 'slow'
-    WRITE ( kunit_OUTFF ,'(a)') '.'
+    WRITE ( stdout ,'(a)') 'Heat:Hot, as _____:Cold'
+    WRITE ( stdout ,'(a)') ''
+    WRITE ( stdout ,'(a)') 'a poem by Roald Hoffman'
+    WRITE ( stdout ,'(a)') 'from: Chemistry Imagined, Reflections on Science'
+    WRITE ( stdout ,'(a)') ''
+    WRITE ( stdout ,'(a)') 'Deep in,'
+    WRITE ( stdout ,'(a)') "they're there, they're"
+    WRITE ( stdout ,'(a)') "at it all the time, it's jai"
+    WRITE ( stdout ,'(a)') 'alai on the hot molecular fronton-'
+    WRITE ( stdout ,'(a)') 'a bounce off walls onto the packed aleatory'
+    WRITE ( stdout ,'(a)') 'dance floor where sideswipes are medium of exchange,'
+    WRITE ( stdout ,'(a)') 'momentum trades sealed in swift carom sequences,'
+    WRITE ( stdout ,'(a)') 'or just that quick kick in the rear, the haphaz-'
+    WRITE ( stdout ,'(a)') 'ard locomotion of the warm, warm world.'
+    WRITE ( stdout ,'(a)') 'But spring nights grow cold in Ithaca;'
+    WRITE ( stdout ,'(a)') 'the containing walls, glass or metal,'
+    WRITE ( stdout ,'(a)') 'are a jagged rough rut of tethered'
+    WRITE ( stdout ,'(a)') 'masses, still vibrant, but now'
+    WRITE ( stdout ,'(a)') 'retarding, in each collision,'
+    WRITE ( stdout ,'(a)') 'the cooling molecules.'
+    WRITE ( stdout ,'(a)') "There, they're there,"
+    WRITE ( stdout ,'(a)') 'still there,'
+    WRITE ( stdout ,'(a)') 'in deep,'
+    WRITE ( stdout ,'(a)') 'slow'
+    WRITE ( stdout ,'(a)') '.'
   endif
 #endif
 
   if ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)')     'Velocities from Maxwell-Boltzmann distribution'
-    WRITE ( kunit_OUTFF ,'(a,a20)') 'normal distribution method = ', dgauss  
     WRITE ( stdout      ,'(a)')     'Velocities from Maxwell-Boltzmann distribution'
     WRITE ( stdout      ,'(a,a20)') 'normal distribution method = ', dgauss  
   endif      
@@ -385,32 +377,32 @@ SUBROUTINE maxwellboltzmann_velocities
 
   do ia = 1 , natm
      if ( dgauss .eq. 'boxmuller_basic' ) then
-       CALL boxmuller_basic(G,0.0D0,1.0D0)
+       CALL boxmuller_basic(G,0.0_dp,1.0_dp)
        vx ( ia ) = RTEMP * G
-       CALL boxmuller_basic(G,0.0D0,1.0D0)
+       CALL boxmuller_basic(G,0.0_dp,1.0_dp)
        vy ( ia ) = RTEMP * G
-       CALL boxmuller_basic(G,0.0D0,1.0D0)
+       CALL boxmuller_basic(G,0.0_dp,1.0_dp)
        vz ( ia ) = RTEMP * G
      elseif ( dgauss .eq. 'boxmuller_polar' ) then
-       CALL boxmuller_polar(G,0.0D0,1.0D0)
+       CALL boxmuller_polar(G,0.0_dp,1.0_dp)
        vx ( ia ) = RTEMP * G
-       CALL boxmuller_polar(G,0.0D0,1.0D0)
+       CALL boxmuller_polar(G,0.0_dp,1.0_dp)
        vy ( ia ) = RTEMP * G
-       CALL boxmuller_polar(G,0.0D0,1.0D0)
+       CALL boxmuller_polar(G,0.0_dp,1.0_dp)
        vz ( ia ) = RTEMP * G
      elseif ( dgauss .eq. 'knuth' ) then
-       CALL knuth(G,0.0D0,1.0D0)
+       CALL knuth(G,0.0_dp,1.0_dp)
        vx ( ia ) = RTEMP * G 
-       CALL knuth(G,0.0D0,1.0D0)
+       CALL knuth(G,0.0_dp,1.0_dp)
        vy ( ia ) = RTEMP * G
-       CALL knuth(G,0.0D0,1.0D0)
+       CALL knuth(G,0.0_dp,1.0_dp)
        vz ( ia ) = RTEMP * G
      endif
   enddo
 
-  SUMX = 0.0d0
-  SUMY = 0.0d0
-  SUMZ = 0.0d0
+  SUMX = 0.0_dp
+  SUMY = 0.0_dp
+  SUMZ = 0.0_dp
 
   do ia = 1 , natm
     SUMX = SUMX + vx ( ia )
@@ -440,22 +432,23 @@ END SUBROUTINE maxwellboltzmann_velocities
 
 SUBROUTINE calc_temp (T, ekin)
 
+  USE constants,        ONLY :  dp 
   USE config,   ONLY :  natm , vx , vy , vz 
 
   implicit none
 
   ! global
-  double precision, intent(out) :: ekin , T
+  real(kind=dp), intent(out) :: ekin , T
 
   ! local
   integer :: ia
 
-  ekin = 0.D0
+  ekin = 0.0_dp
   do ia = 1 , natm
     ekin =  ekin + vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2
   enddo
-  ekin = ekin * 0.5d0
-  T = (2.0D0/3.0D0) * ekin
+  ekin = ekin * 0.5_dp
+  T = (2.0_dp/3.0_dp) * ekin
   T = T / DBLE (natm) 
 
   return

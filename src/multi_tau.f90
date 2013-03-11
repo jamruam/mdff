@@ -31,16 +31,18 @@
 
 MODULE multi_tau
 
+  USE constants, ONLY : dp
   implicit none 
 
   integer ,PARAMETER :: S=12, p=8 , m=6
 
-  double precision, dimension (:,:,:,:) , allocatable :: DD 
-  double precision, dimension (:,:,:)   , allocatable :: AA 
-  double precision, dimension (:,:,:)   , allocatable :: CC 
-  integer*8       , dimension (:,:,:)   , allocatable :: MM
-  integer*8       , dimension (:,:,:)   , allocatable :: NN
+  real(kind=dp), dimension (:,:,:,:) , allocatable :: DD 
+  real(kind=dp), dimension (:,:,:)   , allocatable :: AA 
+  real(kind=dp), dimension (:,:,:)   , allocatable :: CC 
+  integer*8    , dimension (:,:,:)   , allocatable :: MM
+  integer*8    , dimension (:,:,:)   , allocatable :: NN
   integer :: lmax
+  integer :: nprop
 
 CONTAINS
 
@@ -66,9 +68,9 @@ SUBROUTINE alloc
   allocate( MM ( 3 , 0 : S , natm ) )
 
 
-  DD = 0.0d0
-  CC = 0.0d0
-  AA = 0.0d0
+  DD = 0.0_dp
+  CC = 0.0_dp
+  AA = 0.0_dp
 
   NN = 0
   MM = 0
@@ -111,17 +113,16 @@ SUBROUTINE multi_tau_main ( wx , wy , wz , ncall)
 
   USE config,   ONLY :  natm
   USE md,       ONLY :  dt 
-  USE prop,     ONLY :  nprop      
 
   implicit none
 
   ! global
-  double precision , dimension ( natm ) :: wx , wy , wz 
+  real(kind=dp) , dimension ( natm ) :: wx , wy , wz 
   integer                               :: ncall 
   ! local
-  double precision :: xtime, dtime
+  real(kind=dp) :: xtime, dtime
   integer :: j , lv , ia , lambda , l , ii  
-  double precision, dimension ( : , : , : , :) , allocatable :: Dtmp
+  real(kind=dp), dimension ( : , : , : , :) , allocatable :: Dtmp
 
   allocate( Dtmp ( 3 , 0 : S , 0 : p - 1 , natm ) )
 
@@ -138,7 +139,7 @@ SUBROUTINE multi_tau_main ( wx , wy , wz , ncall)
   !  test maximu time not longer than tdifmax:
   ! ===========================================
     xtime = dtime * ( m ** ( l ) )
-    if ( xtime .gt. 5.0d0 ) ii = 0 ! tmp
+    if ( xtime .gt. 5.0_dp ) ii = 0 ! tmp
   enddo
 !  print*,l,ncall
   if ( l.gt.lmax) lmax = l
@@ -180,17 +181,17 @@ SUBROUTINE multi_tau_main ( wx , wy , wz , ncall)
          MM ( 3 , lv , ia ) = MM ( 3 , lv , ia ) + 1 
          if ( MM ( 1 , lv , ia ) .eq. m ) then
            AA ( 1 , lv + 1 , ia ) = AA ( 1 , lv , ia ) / DBLE ( m )
-           AA ( 1 , lv , ia ) = 0.0d0   
+           AA ( 1 , lv , ia ) = 0.0_dp   
            MM ( 1 , lv , ia ) = 0   
          endif  
          if ( MM ( 2 , lv , ia ) .eq. m ) then
            AA ( 2 , lv + 1 , ia ) = AA ( 2 , lv , ia ) / DBLE ( m )
-           AA ( 2 , lv , ia ) = 0.0d0   
+           AA ( 2 , lv , ia ) = 0.0_dp   
            MM ( 2 , lv , ia ) = 0   
          endif  
          if ( MM ( 3 , lv , ia ) .eq. m ) then
            AA ( 3 , lv + 1 , ia ) = AA ( 3 , lv , ia ) / DBLE ( m )
-           AA ( 3 , lv , ia ) = 0.0d0   
+           AA ( 3 , lv , ia ) = 0.0_dp   
            MM ( 3 , lv , ia ) = 0   
          endif  
        enddo
@@ -212,14 +213,13 @@ SUBROUTINE multi_tau_write_output
 
   USE io_file,  ONLY :  ionode , stdout 
   USE md,       ONLY :  dt 
-  USE prop,     ONLY :  nprop      
   USE config,   ONLY :  natm
 
   implicit none
 
   ! local
   integer*8 :: lv , j ,ia
-  double precision :: dtime , tk ,fk
+  real(kind=dp) :: dtime , tk ,fk
 
   dtime = nprop * dt
  

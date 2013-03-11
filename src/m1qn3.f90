@@ -81,16 +81,17 @@
 !c
 !c-----------------------------------------------------------------------
 !c
-  USE io_file, ONLY : ionode
+  USE constants,                ONLY : dp
+  USE io_file,                  ONLY : ionode
 
       implicit none
 !c
 !c     arguments
 !c
-      character*3 normtype
+      character(len=3) normtype
       integer n,impres,io,imode(3),omode,niter,nsim,iz(5),ndz,indic,reverse,izs(*)
       real rzs(*)
-      double precision x(n),f,g(n),dxmin,df1,epsg,dz(ndz),dzs(*)
+      real(kind=dp) x(n),f,g(n),dxmin,df1,epsg,dz(ndz),dzs(*)
       external simul,prosca,ctonb,ctcab
 !c
 !c --- local variables
@@ -112,7 +113,7 @@
 !c
       logical inmemo,sscale
       integer ntravu,id,igg,idiag,iaux,ialpha,iybar,isbar,m,mmemo,reentry
-      double precision gnorm,ps
+      real(kind=dp) gnorm,ps
       save inmemo,sscale,ntravu,id,igg,idiag,iaux,ialpha,iybar,isbar,m,mmemo,reentry,gnorm,ps
 !c
 !c     data
@@ -121,7 +122,7 @@
 !c
 !c --- function
 !c
-      double precision ddot,dnrmi
+      real(kind=dp) ddot,dnrmi
 !c
 !c --- stop if reverse < 0 (m1qn3 should not be called with reverse < 0)
 !c
@@ -186,26 +187,26 @@
           if (ionode .and.impres.ge.1) write (io,'(/a)') " >>> m1qn3: nsim should be > 0"
           return
       endif
-      if (dxmin.le.0.d0) then
+      if (dxmin.le.0.0_dp) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: dxmin should be > 0.d0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: dxmin should be > 0.0_dp"
           return
       endif
-!c     if (epsg.le.0.d0 .or. epsg.gt.1.d0) then
-      if (epsg.le.0.d0) then
+!c     if (epsg.le.0.0_dp .or. epsg.gt.1.0_dp) then
+      if (epsg.le.0.0_dp) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg should be > 0.d0"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg should be > 0.0_dp"
           return
       endif
-      if (epsg.ge.1.d0) then
+      if (epsg.ge.1.0_dp) then
           omode=1
           niter=0
           nsim=0
-          epsg=1.d0
+          epsg=1.0_dp
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg is >= 1.d0, no need to make progress"
+          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg is >= 1.0_dp, no need to make progress"
           goto 1000
       endif
       if ((normtype.ne.'two') .and. (normtype.ne.'sup') .and. (normtype.ne.'dfn')) then
@@ -369,36 +370,37 @@
 !c
 !c----
 !c
+  USE constants,  ONLY : dp
   USE io_file, ONLY : ionode
       implicit none
 !c
 !c         arguments
 !c
       logical inmemo
-      character*3 normtype
+      character(len=3) normtype
       integer n,impres,io,imode(3),omode,niter,nsim,m,jmin,jmax,indic,reverse,reentry,izs(*)
       real rzs(*)
-      double precision x(n),f,g(n),dxmin,df1,epsg,d(n),gg(n),diag(n),aux(n),alpha(m),ybar(n,1),sbar(n,1),dzs(*)
+      real(kind=dp) x(n),f,g(n),dxmin,df1,epsg,d(n),gg(n),diag(n),aux(n),alpha(m),ybar(n,1),sbar(n,1),dzs(*)
       external simul,prosca,ctonb,ctcab
 !c
 !c         variables locales
 !c
       logical sscale,cold,warm,skip_update
       integer i,itmax,moderl,isim,jcour
-      double precision d1,t,tmin,tmax,gnorm,gnorms,eps1,ff,preco,precos,ys,den,dk,dk1,ps,ps2,hp0
+      real(kind=dp) d1,t,tmin,tmax,gnorm,gnorms,eps1,ff,preco,precos,ys,den,dk,dk1,ps,ps2,hp0
       save sscale,cold,warm,i,itmax,moderl,isim,jcour,d1,t,tmin,tmax,gnorm,gnorms,eps1,ff,preco,precos,ys,den,dk,dk1,ps,ps2,hp0
 !c
 !c         parametres
 !c
-      double precision rm1,rm2
+      real(kind=dp) rm1,rm2
       parameter (rm1=0.0001d+0,rm2=0.99d+0)
-      double precision pi
+      real(kind=dp) pi
       parameter (pi=3.1415927d+0)
-      double precision rmin
+      real(kind=dp) rmin
 !c
 !c         function
 !c
-      double precision ddot,dnrmi
+      real(kind=dp) ddot,dnrmi
 !c
 !c --- possible jumps
 !c     9998: call of the simulator in m1qn3a with indic = 1
@@ -682,11 +684,11 @@
 !c
           else
               call ctonb (n,ybar(1,jcour),aux,izs,rzs,dzs)
-              ps=0.d0
+              ps=0.0_dp
               do 420 i=1,n
                   ps=ps+diag(i)*aux(i)*aux(i)
   420         continue
-              d1=1.d0/ps
+              d1=1.0_dp/ps
               if (ionode .and.impres.ge.5) then
                   write (io,934) d1
   934             format(5x,"fitting the ellipsoid: factor = ",1pd10.3)
@@ -699,14 +701,14 @@
 !c                 (gg is used as an auxiliary vector)
 !c
               call ctonb (n,sbar(1,jcour),gg,izs,rzs,dzs)
-              ps=0.d0
+              ps=0.0_dp
               do 430 i=1,n
                   ps=ps+gg(i)*gg(i)/diag(i)
   430         continue
               den=ps
               do 431 i=1,n
-                  diag(i)=1.d0/(1.d0/diag(i)+aux(i)**2-(gg(i)/diag(i))**2/den)
-                  if (diag(i).le.0.d0) then
+                  diag(i)=1.0_dp/(1.0_dp/diag(i)+aux(i)**2-(gg(i)/diag(i))**2/den)
+                  if (diag(i).le.0.0_dp) then
                       if (ionode .and.impres.ge.5) write (io,935) i,diag(i),rmin
                       diag(i)=rmin
                   endif
@@ -714,14 +716,14 @@
   935         format (/" >>> m1qn3-WARNING: diagonal element ",i8," is negative (",d10.3,"), reset to ",d10.3)
 !c
               if (ionode .and.impres.ge.5) then
-                  ps=0.d0
+                  ps=0.0_dp
                   do 440 i=1,n
                       ps=ps+diag(i)
   440             continue
                   ps=ps/n
                   preco=ps
 !c
-                  ps2=0.d0
+                  ps2=0.0_dp
                   do 441 i=1,n
                       ps2=ps2+(diag(i)-ps)**2
   441             continue
@@ -773,7 +775,7 @@
 !c     --- calcul de la nouvelle direction de descente d = - H.g
 !c
       if (m.eq.0) then
-          preco=2.d0*(ff-f)/ps
+          preco=2.0_dp*(ff-f)/ps
           do 500 i=1,n
               d(i)=-g(i)*preco
   500     continue
@@ -806,7 +808,7 @@
           ps=dmin1(-ps,1.d+0)
           ps=dacos(ps)
           d1=ps
-          d1=d1*180.d0/pi
+          d1=d1*180.0_dp/pi
           write (io,906) sngl(d1)
       endif
 !c
@@ -850,6 +852,7 @@
 !c
 !c----
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c         arguments
@@ -857,13 +860,13 @@
       logical sscale
       integer n,nm,jmin,jmax,izs(*)
       real rzs(*)
-      double precision depl(n),precos,diag(n),alpha(nm),ybar(n,1),sbar(n,1),aux(n),dzs(*)
+      real(kind=dp) depl(n),precos,diag(n),alpha(nm),ybar(n,1),sbar(n,1),aux(n),dzs(*)
       external prosca,ctonb,ctcab
 !c
 !c         variables locales
 !c
       integer jfin,i,j,jp
-      double precision r,ps
+      real(kind=dp) r,ps
 !c
       jfin=jmax
       if (jfin.lt.jmin) jfin=jmax+nm
@@ -921,6 +924,7 @@
 !c
 !c----
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c         arguments
@@ -928,13 +932,13 @@
       logical sscale
       integer n,nm,jmin,jmax,izs(*)
       real rzs(*)
-      double precision depl(n),precos,diag(n),alpha(nm),ybar(n),sbar(n),aux(n),dzs(*)
+      real(kind=dp) depl(n),precos,diag(n),alpha(nm),ybar(n),sbar(n),aux(n),dzs(*)
       external prosca,ctonb,ctcab
 !c
 !c         variables locales
 !c
       integer jfin,i,j,jp
-      double precision r,ps
+      real(kind=dp) r,ps
 !c
       jfin=jmax
       if (jfin.lt.jmin) jfin=jmax+nm
@@ -1033,20 +1037,21 @@
 !c
 !c ----
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c --- arguments
 !c
       integer n,imp,io,logic,nap,napmax,indic,reverse,reentry,izs(*)
       real rzs(*)
-      double precision x(n),f,fpn,t,tmin,tmax,d(n),g(n),amd,amf,xn(n),dzs(*)
+      real(kind=dp) x(n),f,fpn,t,tmin,tmax,d(n),g(n),amd,amf,xn(n),dzs(*)
       external simul,prosca
 !c
 !c --- variables locales
 !c
       logical t_increased
       integer i,indica,indicd
-      double precision tesf,tesd,tg,fg,fpg,td,ta,fa,fpa,d2,fn,fp,ffn,fd,fpd,z,test,barmin,barmul,barmax,barr,gauche,droite,taa,ps
+      real(kind=dp) tesf,tesd,tg,fg,fpg,td,ta,fa,fpa,d2,fn,fp,ffn,fd,fpd,z,test,barmin,barmul,barmax,barr,gauche,droite,taa,ps
       save t_increased,i,indica,indicd,tesf,tesd,tg,fg,fpg,td,ta,fa,fpa,d2,fn,fp,ffn,fd,fpd,z,test,barmin,barmul,barmax,barr,gauche,droite,taa,ps
 !c
  1000 format (/4x," mlis3   ",4x,"fpn=",1pd10.3," d2=",d9.2,"  tmin=",d9.2," tmax=",d9.2)
@@ -1063,21 +1068,21 @@
 !c
       if (reentry.eq.2) goto 9999
 !c
-      if (n.gt.0 .and. fpn.lt.0.d0 .and. t.gt.0.d0 .and. tmax.gt.0.d0 .and. amf.gt.0.d0 .and. amd.gt.amf .and. amd.lt.1.d0) go to 5
+      if (n.gt.0 .and. fpn.lt.0.0_dp .and. t.gt.0.0_dp .and. tmax.gt.0.0_dp .and. amf.gt.0.0_dp .and. amd.gt.amf .and. amd.lt.1.0_dp) go to 5
       logic=6
       go to 999
     5 tesf=amf*fpn
       tesd=amd*fpn
-      barmin=0.01d0
-      barmul=5.d0
-      barmax=0.3d0
+      barmin=0.01_dp
+      barmul=5.0_dp
+      barmax=0.3_dp
       barr=barmin
-      td=0.d0
-      tg=0.d0
+      td=0.0_dp
+      tg=0.0_dp
       fn=f
       fg=fn
       fpg=fpn
-      ta=0.d0
+      ta=0.0_dp
       fa=fn
       fpa=fpn
       call prosca (n,d,d,ps,izs,rzs,dzs)
@@ -1091,8 +1096,8 @@
 !c     if (t.le.tmax) go to 20
 !c     if (imp.gt.0) write (io,1007)
 !c     tmin=tmax
-!c  20 if (fn+t*fpn.lt.fn+0.9d0*t*fpn) go to 30
-!c     t=2.d0*t
+!c  20 if (fn+t*fpn.lt.fn+0.9_dp*t*fpn) go to 30
+!c     t=2.0_dp*t
 !c     go to 20
 !c changed into
       if (t.lt.tmin) then
@@ -1104,9 +1109,9 @@
           endif
       endif
       t_increased = .false.
-      do while (fn+t*fpn.ge.fn+0.9d0*t*fpn)
+      do while (fn+t*fpn.ge.fn+0.9_dp*t*fpn)
           t_increased = .true.
-          t = 2.d0*t
+          t = 2.0_dp*t
       enddo
       if (t_increased .and. (imp.ge.4)) write (io,'(a,1pd10.3)') ' mlis3: initial step-size increased to ',t
 !c>
@@ -1168,7 +1173,7 @@
           indicd=indic
           logic=0
           if (imp.ge.4) write (io,1004) t,indic
-          t=tg+0.1d0*(td-tg)
+          t=tg+0.1_dp*(td-tg)
           go to 905
       endif
 !c
@@ -1212,13 +1217,13 @@
   350 tg=t
       fg=f
       fpg=fp
-      if (td.ne.0.d0) go to 500
+      if (td.ne.0.0_dp) go to 500
 !c
 !c              extrapolation
 !c
       taa=t
-      gauche=(1.d0+barmin)*t
-      droite=10.d0*t
+      gauche=(1.0_dp+barmin)*t
+      droite=10.0_dp*t
       call ecube (t,f,fp,ta,fa,fpa,gauche,droite)
       ta=taa
       if (t.lt.tmax) go to 900
@@ -1230,7 +1235,7 @@
 !c
   500 if (indica.le.0) then
           ta=t
-          t=0.9d0*tg+0.1d0*td
+          t=0.9_dp*tg+0.1_dp*td
           go to 900
       endif
       test=barr*(td-tg)
@@ -1256,7 +1261,7 @@
 !c
 !c --- faut-il continuer ?
 !c
-      if (td.eq.0.d0) go to 950
+      if (td.eq.0.0_dp) go to 950
       if (td-tg.lt.tmin) go to 920
 !c
 !c     --- limite de precision machine (arret de secours) ?
@@ -1278,7 +1283,7 @@
 !c     si tg=0, xn = xn_depart,
 !c     sinon on prend xn=x_gauche qui fait decroitre f
 !c
-      if (tg.eq.0.d0) go to 940
+      if (tg.eq.0.0_dp) go to 940
       fn=fg
       do 930 i=1,n
   930 xn(i)=xn(i)+tg*d(i)
@@ -1304,50 +1309,51 @@
 !c
       subroutine ecube (t,f,fp,ta,fa,fpa,tlower,tupper)
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c --- arguments
 !c
-      double precision sign,den,anum,t,f,fp,ta,fa,fpa,tlower,tupper
+      real(kind=dp) sign,den,anum,t,f,fp,ta,fa,fpa,tlower,tupper
 !c
 !c --- variables locales
 !c
-      double precision z1,b,discri
+      real(kind=dp) z1,b,discri
 !c
 !c           Using f and fp at t and ta, computes new t by cubic formula
 !c           safeguarded inside [tlower,tupper].
 !c
-      z1=fp+fpa-3.d0*(fa-f)/(ta-t)
+      z1=fp+fpa-3.0_dp*(fa-f)/(ta-t)
       b=z1+fp
 !c
 !c              first compute the discriminant (without overflow)
 !c
-      if (dabs(z1).le.1.d0) then
+      if (dabs(z1).le.1.0_dp) then
           discri=z1*z1-fp*fpa
         else
           discri=fp/z1
           discri=discri*fpa
           discri=z1-discri
-          if (z1.ge.0.d0 .and. discri.ge.0.d0) then
+          if (z1.ge.0.0_dp .and. discri.ge.0.0_dp) then
               discri=dsqrt(z1)*dsqrt(discri)
               go to 120
           endif
-          if (z1.le.0.d0 .and. discri.le.0.d0) then
+          if (z1.le.0.0_dp .and. discri.le.0.0_dp) then
               discri=dsqrt(-z1)*dsqrt(-discri)
               go to 120
           endif
-          discri=-1.d0
+          discri=-1.0_dp
       endif
-      if (discri.lt.0.d0) then
-          if (fp.lt.0.d0) t=tupper
-          if (fp.ge.0.d0) t=tlower
+      if (discri.lt.0.0_dp) then
+          if (fp.lt.0.0_dp) t=tupper
+          if (fp.ge.0.0_dp) t=tlower
           go to 900
       endif
 !c
 !c  discriminant nonnegative, compute solution (without overflow)
 !c
       discri=dsqrt(discri)
-  120 if (t-ta.lt.0.d0) discri=-discri
+  120 if (t-ta.lt.0.0_dp) discri=-discri
       sign=(t-ta)/dabs(t-ta)
       if (b*sign.gt.0.d+0) then
           t=t+fp*(ta-t)/(b+discri)
@@ -1369,6 +1375,7 @@
 !c
       subroutine mupdts (sscale,inmemo,n,m,nrz)
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c         arguments
@@ -1418,13 +1425,14 @@
 !c
 !c----
 !c
+  USE constants,  ONLY : dp
       implicit none
 !c
 !c         arguments
 !c
       logical store
       integer n,j
-      double precision ybar(n),sbar(n)
+      real(kind=dp) ybar(n),sbar(n)
 !c
       store=store
       ybar=ybar    
@@ -1438,10 +1446,11 @@
 !c
       subroutine ctonbe (n,u,v,izs,rzs,dzs)
 !c
+  USE constants,  ONLY : dp
       implicit none
       integer n,izs(*)
       real rzs(*)
-      double precision u(1),v(1),dzs(*)
+      real(kind=dp) u(1),v(1),dzs(*)
 !c
       integer i
 !c
@@ -1458,10 +1467,11 @@
 !c
       subroutine ctcabe (n,u,v,izs,rzs,dzs)
 !c
+  USE constants,  ONLY : dp
       implicit none
       integer n,izs(*)
       real rzs(*)
-      double precision u(1),v(1),dzs(*)
+      real(kind=dp) u(1),v(1),dzs(*)
 !c
       integer i
 !c
@@ -1478,14 +1488,15 @@
 !c
       subroutine euclid (n,x,y,ps,izs,rzs,dzs)
 !c
+  USE constants,  ONLY : dp
       implicit none
       integer n,izs(*)
       real rzs(*)
-      double precision x(n),y(n),ps,dzs(*)
+      real(kind=dp) x(n),y(n),ps,dzs(*)
 !c
       integer i
 !c
-      ps=0.d0
+      ps=0.0_dp
       do i=1,n
           ps=ps+x(i)*y(i)
       enddo
@@ -1499,10 +1510,11 @@
 !c
       subroutine simul_rc (indic,n,x,f,g,izs,rzs,dzs)
 !c
+  USE constants,  ONLY : dp
       implicit none
       integer indic,n,izs(*)
       real rzs(*)
-      double precision x(n),f,g(n),dzs(*)
+      real(kind=dp) x(n),f,g(n),dzs(*)
 !c
       indic=indic
       n=n
@@ -1517,10 +1529,11 @@
 !c
 !c--------0---------0---------0---------0---------0---------0---------0--
 !c
-      double precision function dnrmi (n,v)
+      real(kind=dp) function dnrmi (n,v)
 !c
+  USE constants,  ONLY : dp
       integer n
-      double precision v(n)
+      real(kind=dp) v(n)
 !c
 !c----
 !c
@@ -1531,11 +1544,11 @@
 !c --- local variables
 !c
       integer i
-      double precision norm
+      real(kind=dp) norm
 !c
 !c --- compute
 !c
-      norm = 0.d0
+      norm = 0.0_dp
       if (n.gt.0) then
         do i=1,n
            norm = max(norm,abs(v(i)))

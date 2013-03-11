@@ -25,6 +25,7 @@ INSTALL_DIR=../bin
 #   on mario / babar
 # =================
 FCFLAGS = -fpp -O3 -ip -xSSE4.2
+FCFLAGS = -fpp -O3 -ip -xAVX
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
 #FCFLAGS = -fpp -O0 -check all -warn all 
@@ -68,13 +69,13 @@ LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt
 
 
 # List of executables to be built within the package
-OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
+OBJ= constants.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
+     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o vacf.o runmd.o 
 
-#OBJ_= constants.o io_file.o control.o prop.o time.o functions.o \
+#OBJ_= constants.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
      tools.o integration.o opt.o vib.o msd.o multi_tau.o \
@@ -83,19 +84,22 @@ OBJ= constants.o io_file.o control.o prop.o time.o functions.o \
 #test: $(EXE_)
 #	cp $(EXE_) $(INSTALL_DIR)
 
-all: $(EXE) 
+#all: libff.a $(EXE)
+all: $(EXE)
 
 mdff.x: $(OBJ) mdff.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
 
-#mdff_.x: $(OBJ_) mdff.o
-#	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+%.o: %.f90
+	$(FC) $(FCFLAGS) -c $<
 
-fft_t.o:
+fft_t.o: fft_t.f90
 	$(FC) $(FCFLAGS) $(INC) -c fft_t.f90
 
-%.o: %.f90
-	$(FC) $(FCFLAGS) -c $< 
+#libff.a: timing.o
+#	-rm libff.a
+#	ar vq libff.a timing.o 
+
 
 .PHONY: clean veryclean
 

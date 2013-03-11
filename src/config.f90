@@ -30,59 +30,49 @@
 
 MODULE config
 
-  USE cell 
+  USE constants,                ONLY :  dp 
+  USE cell,                     ONLY :  celltype
 
   implicit none
 
-  integer, PARAMETER :: natmmax  = 16   ! tmp not controling all the arrays
-  integer, PARAMETER :: ntypemax = 16
-  integer, PARAMETER :: npolmax  = 16
+  integer, PARAMETER                           :: ntypemax = 16      ! maximum number of types
 
-  character*60, SAVE :: system                                        ! system name                                              
+  character(len=60), SAVE                      :: system             ! system name                                              
 
-  logical :: lfcc   
-  logical :: lsc   ! not tested
-  logical :: lbcc  ! not yet
+  integer                                      :: natm               ! number of atoms
+  integer                                      :: ntype              ! number of types
+  integer, dimension(:),           allocatable :: itype              ! type of atome i array 
+  integer, dimension(:),           allocatable :: ipolar             ! .eq. 1 if polar 
+  integer, dimension(:),           allocatable :: list, point        ! vnlist info
+  integer, dimension(0:ntypemax)               :: natmi              ! number of atoms (per type)
 
-  integer :: natm                                                     ! nb of atoms
-  integer :: ntype                                                    ! number of types
-  integer :: ncell                                                    ! number of cell (with lfcc)
-  integer, dimension(:), allocatable :: itype                         ! type of atome i array 
-  integer, dimension(:), allocatable :: ipolar                        ! .eq. 1 if polar 
-  integer, dimension(:), allocatable :: list, point                   ! vnlist info
-  integer, dimension(0:ntypemax)     :: natmi                         ! number of atoms (per type)
+  TYPE ( celltype )                            :: simu_cell          ! simulation cell
+  real(kind=dp)                                :: tau_nonb ( 3 , 3 ) ! stress tensor ( lennard-jones , morse ... )
+  real(kind=dp)                                :: tau_coul ( 3 , 3 ) ! stress tensor coulombic
+  real(kind=dp)                                :: rho                ! density  
 
-  TYPE ( celltype ) :: simu_cell
-  double precision :: tau_nonb ( 3 , 3 )                              ! stress tensor ( lennard-jones , morse ... )
-  double precision :: tau_coul ( 3 , 3 )                              ! stress tensor coulombic
-  double precision :: rho                                             ! density  
+  real(kind=dp), dimension(:)    , allocatable :: rx  , ry  , rz     ! positions
+  real(kind=dp), dimension(:)    , allocatable :: vx  , vy  , vz     ! velocities
+  real(kind=dp), dimension(:)    , allocatable :: fx  , fy  , fz     ! forces
+  real(kind=dp), dimension(:)    , allocatable :: fxs , fys , fzs    ! forces (previous step t-dt) beeman
+  real(kind=dp), dimension(:)    , allocatable :: rxs , rys , rzs    ! previous positions for leap-frog integrator
+  real(kind=dp), dimension(:)    , allocatable :: xs  , ys  , zs     ! last positions in verlet list
+  real(kind=dp), dimension(:)    , allocatable :: rix , riy , riz    ! positions in the center of mass reference 
 
-  double precision , dimension(:)    , allocatable :: rx  , ry  , rz  ! positions
-  double precision , dimension(:)    , allocatable :: vx  , vy  , vz  ! velocities
-  double precision , dimension(:)    , allocatable :: fx  , fy  , fz  ! forces
-  double precision , dimension(:)    , allocatable :: fxs , fys , fzs ! forces (previous step t-dt) beeman
-  double precision , dimension(:)    , allocatable :: rxs , rys , rzs ! previous positions for leap-frog integrator
-  double precision , dimension(:)    , allocatable :: xs  , ys  , zs  ! last positions in verlet list
-  double precision , dimension(:)    , allocatable :: rix , riy , riz ! positions in the center of mass reference 
+  real(kind=dp), dimension(:)    , allocatable :: qia                ! charge on ion 
+  real(kind=dp), dimension(:)    , allocatable :: quadia             ! quadrupolar moment on ion
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia              ! dipole on ion 
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia_ind          ! induced dipole on ion 
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          ! induced dipole on ion from Wannier centers
+  real(kind=dp), dimension(:,:,:), allocatable :: polia              ! polarisation on ion
 
-  double precision , dimension(:)    , allocatable :: qia             ! charge on ion 
-  double precision , dimension(:,:)  , allocatable :: dipia           ! dipole on ion 
-  double precision , dimension(:,:)  , allocatable :: dipia_ind       ! induced dipole on ion 
-  double precision , dimension(:,:)  , allocatable :: dipia_wfc       ! induced dipole on ion from Wannier centers
-  double precision , dimension(:,:,:), allocatable :: polia           ! polarisation on ion
+  real(kind=dp), dimension(:)    , allocatable :: phi_coul_tot       ! coulombic potential 
 
-  double precision , dimension(:), allocatable     :: phi_coul_tot    ! coulombic potential 
-
-  character*3, dimension(:), allocatable           :: atype           ! atom type A or B 
-  character*3, dimension(0:ntypemax)               :: atypei          ! type of atoms (per type)
-
-  character*60 :: struct                                              ! crystal structure for fcc
-  character*60 :: struct_allowed(2)                     
-  data struct_allowed / 'NaCl' , 'random' /
+  character(len=3), dimension(:) , allocatable :: atype              ! atom type A or B 
+  character(len=3), dimension(0:ntypemax)      :: atypei             ! type of atoms (per type)
 
 
 CONTAINS
-
 
 !*********************** SUBROUTINE config_init *******************************
 !
@@ -93,17 +83,16 @@ CONTAINS
 SUBROUTINE config_init 
 
   USE control,  ONLY :  calc
-  USE io_file,  ONLY :  ionode , stdin, stdout , kunit_OUTFF
+  USE io_file,  ONLY :  ionode , stdin, stdout 
 
   implicit none
 
+  if ( calc .ne. 'md' ) return 
   ! ===========================================================
   ! read initial configuration only for calc = md
   ! for opt, vib and efg configuations are read in other routines 
   ! ===========================================================
-  if ( calc .eq. 'md' ) then       
-    CALL read_pos
-  endif
+  CALL read_pos
 
 #ifdef debug
   CALL print_config_sample(0,0)
@@ -139,7 +128,7 @@ SUBROUTINE config_print_info(kunit)
     WRITE ( kunit ,'(a,i16)')        'ntype                              = ',ntype
     do it = 1 , ntype     
       WRITE ( kunit ,'(a,a,a,i16,f8.2,a1)') &
-                          'n',atypei(it),'                               = ',natmi(it),DBLE(natmi(it))/DBLE(natm) * 100.0d0,'%'
+                          'n',atypei(it),'                               = ',natmi(it),DBLE(natmi(it))/DBLE(natm) * 100.0_dp,'%'
     enddo
     WRITE ( kunit ,'(a)')            ''
     WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
@@ -191,7 +180,7 @@ SUBROUTINE write_CONTFF
 
   ! local
   integer :: ia , it
-  double precision, dimension (:) , allocatable :: xxx , yyy , zzz
+  real(kind=dp), dimension (:) , allocatable :: xxx , yyy , zzz
 
   allocate ( xxx ( natm ) , yyy ( natm ) , zzz ( natm ) )
 
@@ -267,6 +256,7 @@ SUBROUTINE config_alloc
   allocate( list ( natm * 1000 ) , point (  natm + 1 ) )
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
+  allocate( quadia ( natm ) )
   allocate( dipia ( natm , 3 ) )
   allocate( dipia_ind ( natm , 3 ) )
   allocate( dipia_wfc ( natm , 3 ) )
@@ -274,34 +264,35 @@ SUBROUTINE config_alloc
   allocate( ipolar ( natm ) )
   allocate( phi_coul_tot ( natm ) ) ! only if we calculated coulombic interactions
 
-  rx    = 0.0D0
-  ry    = 0.0D0
-  rz    = 0.0D0
-  vx    = 0.0D0
-  vy    = 0.0D0
-  vz    = 0.0D0
-  fx    = 0.0D0
-  fy    = 0.0D0
-  fz    = 0.0D0
-  fxs   = 0.0d0
-  fys   = 0.0d0
-  fzs   = 0.0d0
-  xs    = 0.0D0
-  ys    = 0.0D0
-  zs    = 0.0D0
-  rxs   = 0.0D0
-  rys   = 0.0D0
-  rzs   = 0.0D0
+  rx    = 0.0_dp
+  ry    = 0.0_dp
+  rz    = 0.0_dp
+  vx    = 0.0_dp
+  vy    = 0.0_dp
+  vz    = 0.0_dp
+  fx    = 0.0_dp
+  fy    = 0.0_dp
+  fz    = 0.0_dp
+  fxs   = 0.0_dp
+  fys   = 0.0_dp
+  fzs   = 0.0_dp
+  xs    = 0.0_dp
+  ys    = 0.0_dp
+  zs    = 0.0_dp
+  rxs   = 0.0_dp
+  rys   = 0.0_dp
+  rzs   = 0.0_dp
   atype = ''
   list      = 0
   point     = 0
-  qia       = 0.0d0
-  dipia     = 0.0d0
-  dipia_ind = 0.0d0
-  dipia_wfc = 0.0d0
-  polia     = 0.0d0
+  qia       = 0.0_dp
+  quadia    = 0.0_dp
+  dipia     = 0.0_dp
+  dipia_ind = 0.0_dp
+  dipia_wfc = 0.0_dp
+  polia     = 0.0_dp
   ipolar    = 0
-  phi_coul_tot = 0.0d0
+  phi_coul_tot = 0.0_dp
 
   return 
  
@@ -330,6 +321,7 @@ SUBROUTINE config_dealloc
   deallocate( list , point )
   deallocate( xs , ys , zs )
   deallocate( qia ) 
+  deallocate( quadia ) 
   deallocate( dipia ) 
   deallocate( dipia_ind ) 
   deallocate( dipia_wfc ) 
@@ -355,13 +347,13 @@ SUBROUTINE center_of_mass ( ax , ay , az , com )
   implicit none
 
   ! global
-  double precision , intent ( in  ) :: ax ( natm ) , ay ( natm ) , az ( natm )
-  double precision , intent ( out ) :: com ( 0 : ntypemax , 3 )
+  real(kind=dp) , intent ( in  ) :: ax ( natm ) , ay ( natm ) , az ( natm )
+  real(kind=dp) , intent ( out ) :: com ( 0 : ntypemax , 3 )
 
   ! local
   integer :: ia , it 
 
-  com = 0.0D0
+  com = 0.0_dp
 
   do ia = 1 , natm
     it = itype ( ia )    
@@ -397,7 +389,7 @@ SUBROUTINE linear_momentum
 
   ! local
   integer :: ia
-  double precision :: Px, Py, Pz, normP
+  real(kind=dp) :: Px, Py, Pz, normP
 
   do ia = 1 , natm
     Px = Px + vx ( ia )
@@ -424,11 +416,11 @@ SUBROUTINE angular_momentum ( Lx , Ly , Lz , normL )
 
   ! local
   integer :: ia 
-  double precision :: Lx, Ly, Lz, normL
+  real(kind=dp) :: Lx, Ly, Lz, normL
 
-  Lx = 0.0D0
-  Ly = 0.0D0
-  Lz = 0.0D0      
+  Lx = 0.0_dp
+  Ly = 0.0_dp
+  Lz = 0.0_dp      
   do ia = 1 , natm
    Lx = Lx + ry ( ia ) * vz ( ia ) - rz ( ia ) * vy ( ia ) 
    Ly = Ly + rz ( ia ) * vx ( ia ) - rx ( ia ) * vz ( ia ) 
@@ -455,7 +447,7 @@ END SUBROUTINE angular_momentum
 SUBROUTINE ions_reference_positions
 
   implicit none
-  double precision :: com ( 0:ntypemax, 3 )
+  real(kind=dp) :: com ( 0:ntypemax, 3 )
   integer  :: ia
 
   CALL center_of_mass ( rx , ry , rz , com )
@@ -487,11 +479,11 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
   implicit none
  
   ! global  
-  double precision, intent ( out ) :: dis(:)
-  double precision, intent ( in  ) :: ax (:) , ay(:) , az(:)
+  real(kind=dp), intent ( out ) :: dis(:)
+  real(kind=dp), intent ( in  ) :: ax (:) , ay(:) , az(:)
 
   ! local
-  double precision :: rdist(3), r2, com(0:ntypemax,3)
+  real(kind=dp) :: rdist(3), r2, com(0:ntypemax,3)
   INTEGER  :: it, ia, isa
 
   ! =========================================================
@@ -502,8 +494,8 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
  
   isa = 0
   do it = 1, ntype
-    dis(it) = 0.0d0
-    r2      = 0.0d0
+    dis(it) = 0.0_dp
+    r2      = 0.0_dp
     do ia = 1 , natmi(it)
       isa = isa + 1
       rdist ( 1 ) = rx (isa) - com ( 0 , 1 ) 

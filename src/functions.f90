@@ -22,24 +22,26 @@
 ! complementary error function
 ! W. Press et al. : Numerical Recipes, p. 214
 ! built-in erfc() is buggy e.g. on some Linux distributions
-  double precision FUNCTION errfc(x)
+  real(kind=dp) FUNCTION errfc(x)
+  USE constants, ONLY : dp
   implicit none
   ! local
-  double precision :: x , z , t    
+  real(kind=dp) :: x , z , t    
   z=ABS(x)
-  t=1d0/(1d0+0.5d0*z)
-  errfc=t*EXP(-z*z-1.26551223d0+t*(1.00002368d0+t*(.37409196d0+ &
-  t*(.09678418d0+t*(-.18628806d0+t*(.27886807d0+t*(-1.13520398d0+ &
-  t*(1.48851587d0+t*(-.82215223d0+t*.17087277d0)))))))))
-  if(x.lt.0d0) errfc=2d0-errfc
+  t=1_dp/(1_dp+0.5_dp*z)
+  errfc=t*EXP(-z*z-1.26551223_dp+t*(1.00002368_dp+t*(.37409196_dp+ &
+  t*(.09678418_dp+t*(-.18628806_dp+t*(.27886807_dp+t*(-1.13520398_dp+ &
+  t*(1.48851587_dp+t*(-.82215223_dp+t*.17087277_dp)))))))))
+  if(x.lt.0_dp) errfc=2_dp-errfc
   return
   END FUNCTION
 
 ! error function
-  double precision FUNCTION errf(x)
+  real(kind=dp) FUNCTION errf(x)
+  USE constants, ONLY : dp
   implicit none
   ! local
-  double precision :: x , errfc   
-  errf=1.0d0-errfc(x)
+  real(kind=dp) :: x , errfc   
+  errf=1.0_dp-errfc(x)
   END FUNCTION
 ! ===== fmV =====

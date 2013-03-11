@@ -62,30 +62,31 @@ END SUBROUTINE
 
 SUBROUTINE knuth ( G , mean , sigma )
 
+  USE constants, ONLY : dp
   implicit none
 
   ! global
-  double precision, intent (out) :: G
-  double precision, intent (in)  :: mean, sigma
+  real(kind=dp), intent (out) :: G
+  real(kind=dp), intent (in)  :: mean, sigma
 
   ! local
-  double precision :: A1, A3, A5, A7, A9
-  PARAMETER ( A1 = 3.949846138d0, A3 = 0.252408784d0 )
-  PARAMETER ( A5 = 0.076542912d0, A7 = 0.008355968d0 )
-  PARAMETER ( A9 = 0.029899776d0                   )
-  double precision :: x
-  double precision :: summ, r, r2
+  real(kind=dp) :: A1, A3, A5, A7, A9
+  PARAMETER ( A1 = 3.949846138_dp, A3 = 0.252408784_dp )
+  PARAMETER ( A5 = 0.076542912_dp, A7 = 0.008355968_dp )
+  PARAMETER ( A9 = 0.029899776_dp                   )
+  real(kind=dp) :: x
+  real(kind=dp) :: summ, r, r2
   integer :: i
   integer :: iseed
 
-  summ = 0.0d0
+  summ = 0.0_dp
   do i = 1, 12
      CALL RANDOM_SEED(SIZE = iseed)
      CALL RANDOM_NUMBER(HARVEST = x)
      summ = summ + x
   enddo
 
-  r  = ( summ - 6.0d0 ) / 4.0d0
+  r  = ( summ - 6.0_dp ) / 4.0_dp
   r2 = r * r
 
   G = ((((A9*R2+A7)*R2+A5)*R2+A3)*R2+A1)*R
@@ -103,33 +104,34 @@ END SUBROUTINE knuth
 
 SUBROUTINE boxmuller_polar (G, mean, sigma)
 
+  USE constants,        ONLY : dp 
   implicit none
 
   ! global
-  double precision, intent (out) :: G
-  double precision, intent (in)  :: mean, sigma
+  real(kind=dp), intent (out) :: G
+  real(kind=dp), intent (in)  :: mean, sigma
 
   ! local
-  double precision :: G1,U,V,S
+  real(kind=dp) :: G1,U,V,S
   integer :: iseed
   
   CALL RANDOM_SEED(SIZE = ISEED)
   CALL RANDOM_NUMBER(HARVEST = U)
   CALL RANDOM_SEED(SIZE = ISEED)
   CALL RANDOM_NUMBER(HARVEST = V)
-  U = (2.0d0*U)-1.0d0
-  V = (2.0d0*V)-1.0d0
+  U = (2.0_dp*U)-1.0_dp
+  V = (2.0_dp*V)-1.0_dp
   S = U*U+V*V
   do while ( S .eq. 0 .or. S .ge. 1) 
     CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = U)
     CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = V)
-    U = (2.0d0*U)-1.0d0
-    V = (2.0d0*V)-1.0d0
+    U = (2.0_dp*U)-1.0_dp
+    V = (2.0_dp*V)-1.0_dp
     S = U * U + V * V 
   enddo
-  G1 = -2.0d0 * LOG ( S )
+  G1 = -2.0_dp * LOG ( S )
   G = U * SQRT ( G1 / S ) 
   G = mean + G * sigma
 
@@ -144,16 +146,15 @@ END SUBROUTINE boxmuller_polar
 
 SUBROUTINE boxmuller_basic (G, mean, sigma)
   
-  USE constants,        ONLY : pi
-
+  USE constants,        ONLY : dp , pi
   implicit none
 
   ! global
-  double precision, intent (out) :: G
-  double precision, intent (in)  :: mean, sigma
+  real(kind=dp), intent (out) :: G
+  real(kind=dp), intent (in)  :: mean, sigma
 
   ! local
-  double precision :: C,U,V,R
+  real(kind=dp) :: C,U,V,R
   integer :: iseed
 
   CALL RANDOM_SEED(SIZE = iseed)
@@ -161,8 +162,8 @@ SUBROUTINE boxmuller_basic (G, mean, sigma)
   CALL RANDOM_SEED(SIZE = iseed)
   CALL RANDOM_NUMBER(HARVEST = V)
   
-  R = SQRT ( -2.0d0 * LOG ( U ) )
-  C = COS ( 2.0d0 * pi * V )
+  R = SQRT ( -2.0_dp * LOG ( U ) )
+  C = COS ( 2.0_dp * pi * V )
   G = R * C
   G = mean + G * sigma
 

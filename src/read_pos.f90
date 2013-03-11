@@ -29,13 +29,14 @@
 !******************************************************************************
 
 SUBROUTINE read_pos 
-
-  USE control,  ONLY : calc
-  USE config ,  ONLY : rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype &
-                     , natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , simu_cell , config_print_info
-  USE field,    ONLY : qch , dip , lpolar , field_init
-  USE io_file,  ONLY : ionode , stdout , kunit_POSFF, kunit_OUTFF
-  USE cell
+  
+  USE control,                  ONLY :  calc
+  USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
+                                        natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
+                                        simu_cell , config_print_info
+  USE field,                    ONLY :  qch , dip , lpolar , field_init
+  USE io_file,                  ONLY :  ionode , stdout , kunit_POSFF
+  USE cell,                     ONLY :  lattice, periodicbc
 
   implicit none
 
@@ -43,9 +44,6 @@ SUBROUTINE read_pos
   integer :: it , ia 
 
   IF ( ionode ) then
-    WRITE ( kunit_OUTFF ,'(a)')       '=============================================================' 
-    WRITE ( kunit_OUTFF ,'(a)')       ''
-    WRITE ( kunit_OUTFF ,'(a)')       'config from file POSFF'
     WRITE ( stdout ,'(a)')            '=============================================================' 
     WRITE ( stdout ,'(a)')            ''
     WRITE ( stdout ,'(a)')            'config from file POSFF'
@@ -59,7 +57,6 @@ SUBROUTINE read_pos
   READ ( kunit_POSFF ,* ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
   READ ( kunit_POSFF ,* ) ntype
   READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   READ( kunit_POSFF ,*) ( natmi ( it ) , it = 1 , ntype )
   
@@ -72,7 +69,6 @@ SUBROUTINE read_pos
   ! config info
   ! ===============================
   CALL config_print_info(stdout)
-  CALL config_print_info(kunit_OUTFF)
   ! ===============================
   ! init force_field 
   ! ===============================
@@ -88,7 +84,7 @@ SUBROUTINE read_pos
 
   CALL typeinfo_init
 
-  CALL distance_tab ( stdout )
+ ! CALL distance_tab ( stdout )
 
   CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
@@ -98,8 +94,8 @@ END SUBROUTINE read_pos
 
 SUBROUTINE typeinfo_init
 
-  USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , dipia , qia , ipolar , polia  
-  USE field ,   ONLY : qch , dip , lpolar , pol
+  USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , dipia , qia , quadia , ipolar , polia  
+  USE field ,   ONLY : qch , quad_efg , dip , lpolar , pol
   
   implicit none
 
@@ -119,7 +115,8 @@ SUBROUTINE typeinfo_init
     do ia = ccs + 1 , cc
       atype ( ia )     = atypei ( it )
       itype ( ia )     = it
-      qia   ( ia )     = qch (it)
+      qia   ( ia )     = qch ( it )
+      quadia( ia )     = quad_efg ( it )   
       dipia ( ia , 1 ) = dip ( it , 1 )
       dipia ( ia , 2 ) = dip ( it , 2 )
       dipia ( ia , 3 ) = dip ( it , 3 )

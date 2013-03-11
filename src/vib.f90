@@ -18,26 +18,32 @@
 
 ! ======= Hardware =======
 !#define debug
+#define debug_symmetry
 ! ======= Hardware =======
 
-!!!! WARNING !!!!! only cubic cells
+!TODO
+!!!! WARNING !!!!! only cubic cells <---- probably not true anymore ( march 2013)
 
 MODULE vib
 
+  USE constants,                ONLY : dp
+
   implicit none
 
-  integer :: ncvib        ! number of configurations in ISCFF to be analysed
-  integer :: ngconf       ! number of configurations that would be generated 
-  integer :: imod           
-  integer :: nkphon       ! number of kpoint between ks and kf used when calc = 'vib+band'
-                          ! or (nkphon+1) * (nkphon+1) * (nkphon+1) generated in IBZKPTFF when calc='vib+dos'
-
-  double precision :: ksx, ksy, ksz ! start kpoint
-  double precision :: kfx, kfy, kfz ! final kpoint    
-  double precision :: resdos        ! resolution in density of states     
-  double precision :: omegamax      ! maximum value in dos
-
-  logical :: lWRITE_vectff ! WRITE the vector field
+  integer          :: nconf          ! number of configurations in ISCFF to be analysed
+  integer          :: ngconf         ! number of configurations that would be generated 
+  integer          :: ncell          ! number of primitiv cell in each direction
+  integer          :: imod           ! id calc.eq.'vib+gmod' 
+  integer          :: PANdos         ! ( internal ) number of bins
+  integer          :: nkphon         ! number of kpoint between ks and kf used when calc = 'vib+band'
+                                     ! or (nkphon+1) * (nkphon+1) * (nkphon+1) generated in IBZKPTFF when calc='vib+dos'
+  character(len=3) :: path           ! path name
+  real(kind=dp)    :: ks(3)          ! start kpoint
+  real(kind=dp)    :: kf(3)          ! final kpoint    
+  real(kind=dp)    :: resdos         ! resolution in density of states     
+  real(kind=dp)    :: omegamax       ! maximum value in dos
+  logical          :: lwrite_vectff  ! write the vector field
+  real(kind=dp)    :: tempmod        ! temperature at which we populate the mode imod
 
 CONTAINS
 
@@ -49,22 +55,25 @@ CONTAINS
 
 SUBROUTINE vib_init
 
-  USE io_file,  ONLY :  stdin, stdout ,kunit_OUTFF, ionode
+  USE io_file,                  ONLY :  stdin , stdout , stderr , ionode
 
   implicit none
 
-  integer :: ioerr
-  character*132 :: filename
+  integer               :: ioerr
+  character(len=132)    :: filename
 
-  namelist /vibtag/ lWRITE_vectff , &
-                    ncvib         , & 
+  namelist /vibtag/ lwrite_vectff , &
+                    nconf         , & 
                     ngconf        , & 
+                    ncell         , & 
                     imod          , & 
+                    tempmod       , & 
                     nkphon        , &
                     resdos        , &
                     omegamax      , &
-                    ksx , ksy , ksz   , &
-                    kfx , kfy , kfz   
+                    path          , &
+                    ks            , &
+                    kf   
             
   ! ======================
   !  vibtag default values
@@ -77,20 +86,25 @@ SUBROUTINE vib_init
   OPEN ( stdin , file = filename)
   READ ( stdin , vibtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag section is absent'
-   STOP
- elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vibtag wrong tag'
-   STOP
- endif
-
+    if ( ionode ) WRITE ( stderr , '(a)') 'ERROR reading input_file : vibtag section is absent'
+    STOP
+  elseif ( ioerr .gt. 0 )  then
+    if ( ionode ) WRITE ( stderr , '(a,i4)') 'ERROR reading input_file : vibtag wrong tag',ioerr
+    STOP
+  endif
   CLOSE  ( stdin )
-  ! CALL vib_check_tag
+
+  ! ======================
+  !  check vib tags
+  ! ======================
+  CALL vib_check_tag
+  
+  PANdos = REAL ( omegamax / resdos , kind=dp ) + 1
+
   ! ======================
   !  vibtag print info
   ! ======================
   CALL vib_print_info(stdout)
-  CALL vib_print_info(kunit_OUTFF)
 
 
   return
@@ -110,12 +124,13 @@ SUBROUTINE vib_default_tag
   ! =================
   !  default values
   ! =================
-  lWRITE_vectff = .false.
-  ncvib        = 0
+  lwrite_vectff = .false.
+  nconf        = 0
   ngconf       = 0
+  ncell        = 0
   imod         = 4
-  resdos       = 1.0d0             
-  omegamax     = 100.0d0
+  resdos       = 1.0_dp             
+  omegamax     = 100.0_dp
 
   return
 
@@ -128,15 +143,20 @@ END SUBROUTINE vib_default_tag
 !
 !******************************************************************************
 
-!SUBROUTINE vib_check_tag
-!
-!  USE io_file,  ONLY :  stdout
-!
-!  implicit none
-!
-!  return
-!
-!END SUBROUTINE vib_check_tag
+SUBROUTINE vib_check_tag
+
+  USE io_file,                  ONLY :  stderr , ionode
+
+  implicit none
+
+  if ( ncell .eq. 0 ) then
+    if ( ionode ) WRITE ( stderr , * ) 'ERROR in vib module, ncell was not set'
+    STOP
+  endif
+
+  return
+
+END SUBROUTINE vib_check_tag
 
 !*********************** SUBROUTINE vib_print_info ***************************
 !
@@ -146,9 +166,9 @@ END SUBROUTINE vib_default_tag
 
 SUBROUTINE vib_print_info(kunit)
 
-  USE control,  ONLY :  lpbc , calc 
-  USE config,   ONLY :  natm , ntype, rho
-  USE io_file,  ONLY :  ionode
+  USE control,                  ONLY :  lpbc , calc 
+  USE config,                   ONLY :  natm , ntype, rho
+  USE io_file,                  ONLY :  ionode
 
   implicit none
 
@@ -172,15 +192,15 @@ SUBROUTINE vib_print_info(kunit)
                       WRITE ( kunit ,'(a)')       'program, and so is fvibhist.'
                       WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR and probably F. Affouard'
      endif
-     if (.not.lpbc)   WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic cell)'
-     if (lpbc)        WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+     if ( .not. lpbc )WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic cell)'
+     if ( lpbc )      WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
                       WRITE ( kunit ,'(a)')       ''
                       WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
-                      WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',ncvib
+                      WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',nconf
                       WRITE ( kunit ,'(a)')       ''
                       WRITE ( kunit ,'(a)')       'START HESSIAN CALCULATION            '
                       WRITE ( kunit ,'(a)')       'save eingenvalues                     : EIGFF'
-    if ( lWRITE_vectff )  & 
+    if ( lwrite_vectff )  & 
                       WRITE ( kunit ,'(a)')       'save eingenvectors                    : VECTFF'
                       WRITE ( kunit ,'(a)')       ''   
   endif
@@ -201,48 +221,42 @@ END SUBROUTINE vib_print_info
 
 SUBROUTINE vib_main 
 
-  USE config,           ONLY :  system , natm , natmi , rx , ry , rz , fx ,  & 
-                                fy , fz , atype , atypei , itype , simu_cell , & 
-                                rho , ntype, config_alloc , list , point, ncell
-  USE md,               ONLY :  temp
-  USE control,          ONLY :  calc , myrank , numprocs
-  USE io_file,          ONLY :  ionode , stdout , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
-                                kunit_DOSFF , kunit_MODFF, kunit_OUTFF, kunit_DOSKFF , kunit_IBZKPTFF
-  USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
-  USE cell
-  USE field
+  USE config,                   ONLY :  system , natm , natmi , rx , ry , rz ,  & 
+                                        atype , atypei , itype , simu_cell , & 
+                                        rho , ntype, config_alloc , list , point
+  USE control,                  ONLY :  calc , myrank , numprocs
+  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
+                                        kunit_DOSFF , kunit_MODFF, kunit_DOSKFF , kunit_IBZKPTFF
+  USE thermodynamic,            ONLY :  u_tot , pressure_tot , calc_thermo
+  USE cell,                     ONLY :  lattice
+  USE field,                    ONLY :  field_init , engforce_driver
+  USE time,                     ONLY :  vibtimetot
 
   implicit none
   INCLUDE "mpif.h"
 
   ! local
-  integer :: i , j , ik , ikd , ia , ja , im , ic , PANdos , ka , it , nk
-  double precision :: pressure0, pot0, ak
-  double precision, dimension(:), allocatable :: fx_sum, fy_sum, fz_sum
-  integer, dimension(:), allocatable :: dostab
-  integer, dimension(:), allocatable :: dostabtot
-  integer, dimension(:,:), allocatable :: dostabk
-  integer, dimension(:,:), allocatable :: dostabktot
-  double precision, dimension(:,:), allocatable :: hess
-  double precision, dimension(:), allocatable :: work, deig, ipiv !,deig_reorder(3 * n)
-  CHARACTER * 1 jobz, uplo
-  INTEGER * 4   info, lwork
-  integer :: iastart , iaend
-  double precision ,dimension (:,:), allocatable :: eigenk
+  integer                                     :: iastart , iaend
+  integer                                     :: i , j , ik , ierr , ikd , ia , ja , im , ic , ka , it , nk
+  integer, dimension(:), allocatable          :: dostab
+  integer, dimension(:), allocatable          :: dostabtot
+  integer, dimension(:,:), allocatable        :: dostabk
+  integer, dimension(:,:), allocatable        :: dostabktot
+  real(kind=dp), dimension(:,:), allocatable  :: hess
+  real(kind=dp), dimension(:), allocatable    :: work, deig, ipiv !,deig_reorder(3 * n)
+  real(kind=dp) ,dimension (:,:), allocatable :: eigenk
+  real(kind=dp)                               :: pressure0, pot0, ak
+  character(len=1)                            :: jobz, uplo
+  integer*4                                   :: info, lwork
+  real(kind=dp)                               :: ttt1 , ttt2 
+  real(kind=dp)                               :: ttt1p , ttt2p 
 
   ! trash 
-  double precision :: aaaa
-  integer :: iiii
-  character * 60 :: cccc
+  real(kind=dp)     :: aaaa
+  character(len=60) :: cccc
 
-  PANdos = DBLE (omegamax/resdos) + 1
+  ttt1 = MPI_WTIME( ierr )
 
-  allocate(dostabtot(0:PANdos + 1))
-  allocate(dostab(0:PANdos + 1))
-  allocate(dostabktot(0:PANdos + 1,0:3))
-  allocate(dostabk(0:PANdos + 1,0:3))
-  dostabktot = 0
-  dostabtot = 0
  
   OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF'  )
   OPEN ( UNIT = kunit_EIGFF , FILE = 'EIGFF'  )
@@ -265,12 +279,11 @@ SUBROUTINE vib_main
   READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
   READ ( kunit_ISCFF , * ) ntype
   READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( kunit_OUTFF ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
 
   CALL lattice ( simu_cell )
-  rho = DBLE ( natm ) / simu_cell%omega 
+  rho = REAL ( natm , kind=dp ) / simu_cell%omega 
   ! ===================================
   !  here we know natm, then alloc 
   !  and decomposition can be applied 
@@ -278,30 +291,50 @@ SUBROUTINE vib_main
   CALL config_alloc 
   CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL field_init
-  allocate(fx_sum(natm),fy_sum(natm),fz_sum(natm))
-  allocate(hess(3 * natm,3 * natm))
-  allocate(work(9 * natm))
-  allocate(deig(3 * natm),ipiv(3 * natm))
+  CALL typeinfo_init
 
-  CALL print_general_info( stdout )
-  CALL print_general_info( kunit_OUTFF )
+  ! ======================================================
+  ! allocate main quantities hessian, eigenvalues arrays
+  ! ======================================================
+  allocate( hess ( 3 * natm , 3 * natm )          )
+  allocate( work ( 9 * natm )                     )
+  allocate( deig ( 3 * natm ) , ipiv ( 3 * natm ) )
+  allocate( dostabtot ( 0 : PANdos + 1 )          )
+  allocate( dostab    ( 0 : PANdos + 1 )          )
+  allocate( dostabktot( 0 : PANdos + 1,0:3 )      )
+  allocate( dostabk   ( 0 : PANdos + 1,0:3 )      )
+  dostabktot = 0
+  dostabtot = 0
+
+  CALL print_general_info ( stdout )
+
   WRITE ( stdout ,'(a)')          ''
   WRITE ( stdout ,'(a,i5,a,i5)')  'hessian dimension', 3 * natm , 'x' , 3 * natm
 
   ! ===========================================
   !  LOOP OVER CONFIGURATIONS (AT EQUILIBRIUM)
   ! ===========================================
-  do ic = 1, ncvib
+
+  conf : do ic = 1, nconf
+    ttt1p = MPI_WTIME( ierr )
+
     WRITE ( stdout ,'(a,i5)') 'read config',ic
-    WRITE ( kunit_OUTFF ,'(a,i5)') 'read config',ic
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) iiii
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) cccc
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) aaaa , iiii
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) ( cccc , it = 1 , ntype )
-    if ( ic .ne. 1 ) READ ( kunit_ISCFF , * ) ( iiii , it = 1 , ntype )
-    
+    if ( ic .ne. 1 ) then
+      READ ( kunit_ISCFF , * ) natm
+      READ ( kunit_ISCFF , * ) system
+      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+      READ ( kunit_ISCFF , * ) ntype
+      READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
+      IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+      READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
+      CALL lattice ( simu_cell )
+      rho = REAL ( natm , kind=dp ) / simu_cell%omega
+    endif
+
     do ia = 1 , natm
-      READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
+      READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa , aaaa , aaaa , aaaa , aaaa , aaaa
     enddo
 
     CALL typeinfo_init
@@ -309,11 +342,11 @@ SUBROUTINE vib_main
     ! ===============================================
     ! do we need forces or energy at this point ??? 
     ! ===============================================
-    CALL engforce_driver ( iastart , iaend )
+    !CALL engforce_driver ( iastart , iaend )
 
-    CALL calc_thermo
-    pot0      = u_tot
-    pressure0 = pressure_tot 
+    !CALL calc_thermo
+    !pot0      = u_tot
+    !pressure0 = pressure_tot 
 
     ! ========================
     !  get the hessian matrix
@@ -329,17 +362,15 @@ SUBROUTINE vib_main
       !  diagonalisation of hess
       ! ===========================
       WRITE( stdout ,'(a)') 'start diagonalization'
-      WRITE( kunit_OUTFF ,'(a)') 'start diagonalization'
       lwork = 9 * natm
       jobz = 'V'
       uplo = 'U'
       CALL DSYEV( jobz , uplo , 3 * natm , hess ,3 * natm , deig , work , lwork , info )
-      if (info.ne.0)then
-        if ( ionode ) WRITE ( stdout ,'(a,i5)') 'ERROR: Improper termination. of DSYEV info = ',info
+      if ( info .ne. 0 ) then
+        if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in vib_main : improper termination. of DSYEV info = ',info
         STOP 
       else
-        if ( ionode ) WRITE ( stdout ,'(a)') 'hessian diagonalisation ok'
-        if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'hessian diagonalisation ok'
+        if ( ionode ) WRITE ( stderr ,'(a)')    'hessian diagonalisation ok'
       endif
 
       ! ===========================================
@@ -356,8 +387,8 @@ SUBROUTINE vib_main
         ak = (SQRT (deig(i)))/resdos
         ka = INT (ak) + 1
         if (ka.gt.PANdos + 1.or.ka.lt.0) then
-           WRITE ( stdout , * ) 'ERROR out of bound in dostab'
-           WRITE ( stdout , * ) i,ka,PANdos + 1,ak,deig(i)
+           WRITE ( stderr , * ) 'ERROR out of bound in dostab'
+           WRITE ( stderr , * ) i,ka,PANdos + 1,ak,deig(i)
            STOP
         endif
         dostab(ka) = dostab(ka) + 1
@@ -368,18 +399,17 @@ SUBROUTINE vib_main
 
       do i = 0 , PANdos + 1
         if ( ionode ) WRITE ( kunit_DOSFF ,'(3f16.8)') &
-        DBLE (i) * resdos,dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
+        REAL( i , kind=dp ) * resdos, dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
       enddo
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
       if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
       if ( ionode ) WRITE ( stdout ,'(a)') 'dos ok' 
-      if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') 'dos ok' 
 
 
       ! ====================
       !  WRITE vector field
       ! ====================
-      if ( lWRITE_vectff ) then
+      if ( lwrite_vectff ) then
         do im = 1,3 * natm
           do ja = 1, natm
             if ( ionode ) &
@@ -406,64 +436,81 @@ SUBROUTINE vib_main
     ! total dos for more than 3N k - vector
     ! ==============================================
     if ( calc .eq.'vib+dos'  ) then
-    
-      ! generate IBZKPTFF file 
+   
+      ! ============================================ 
+      !  generate k-point mesh in reciprocal lattice 
+      !  write kpoints on IBZKPTFF file 
+      ! ============================================ 
       CALL gene_IBZKPTFF 
-      ! read number of kpoints in IBZKPTFF
-      OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
+      ! ============================================
+      !  read number of kpoints in IBZKPTFF
+      ! ============================================
+      OPEN ( UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
       READ ( kunit_IBZKPTFF , * ) cccc
       READ ( kunit_IBZKPTFF , * ) nk
       READ ( kunit_IBZKPTFF , * ) cccc
-      CLOSE(kunit_IBZKPTFF)
+      CLOSE( kunit_IBZKPTFF     )
 
-      allocate(eigenk(nk,3))
+      ! ============================================
+      !  allocate eigenvalues 3 modes per kpoints
+      ! ============================================
+      allocate( eigenk ( nk , 3 ) )
 
-      ! diagonalisation of the 3*nk states
+       
+      ! ============================================
+      !   diagonalisation of the 3*nk states
+      ! ============================================
       CALL doskpt( hess , eigenk , nk )
-      ! ==============================================
+      ! ============================================
       !  DOS: density of states of the 3*nk modes
-      ! ==============================================
+      ! ============================================
       dostabk = 0
-      do ik = 1, nk
-
-        do ikd = 1, 3 ! three direction of k
+      k_loop : do ik = 1, nk
+        ! ==========================================
+        !    loop on k direction
+        ! ==========================================
+        do ikd = 1 , 3 
           ak = (eigenk(ik,ikd))/resdos
           ka = INT (ak) + 1
           if (ka.gt.PANdos + 1.or.ka.lt.0) then
-             WRITE ( stdout , * ) 'ERROR out of bound in dostabk'
-             WRITE ( stdout , * ) i,ka,PANdos + 1,ak,eigenk(ik,ikd)
+             WRITE ( stderr , * ) 'ERROR out of bound in dostabk'
+             WRITE ( stderr , * ) i,ka,PANdos + 1,ak,eigenk(ik,ikd)
              STOP
           endif
-          ! bin the dos for
-          ! index 0 : all modes
-          ! index ikd : separately
+          ! ========================================
+          !   bin the dos for
+          !   index 0 : all modes
+          !   index ikd : separately
+          ! ========================================
           dostabk(ka,0) = dostabk(ka,0) + 1
           dostabk(ka,ikd) = dostabk(ka,ikd) + 1
+          ! we store the total dos ( all config ) in dostabktot
           dostabktot(ka,0) = dostabktot(ka,0) + 1
           dostabktot(ka,ikd) = dostabktot(ka,ikd) + 1
         enddo
 
-      enddo !ik loop
+      enddo k_loop 
 
-      ! ======================
-      !  WRITE dos to DOSKFF
-      ! ======================
+      ! ===========================================
+      !    write density of states to DOSKFF file
+      ! ===========================================
       do i = 0,PANdos + 1
         if ( ionode ) WRITE ( kunit_DOSKFF ,'(9f16.8)') &
-        DBLE (i) * resdos, (dostabk(i,j) / ( 3.0 * nk * resdos ),j=0,3) , &
-        (dostabktot(i,j) / ( 3.0 * nk * resdos * ic),j=0,3)
+        REAL ( i, kind = dp ) * resdos , ( REAL ( dostabk   (i,j) , kind = dp ) / ( 3.0 * nk * resdos )        , j = 0 , 3 ) , &
+                                         ( REAL ( dostabktot(i,j) , kind = dp ) / ( 3.0 * nk * resdos * nconf ), j = 0 , 3 )
       enddo
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
       if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
-      if ( ionode ) WRITE ( kunit_OUTFF ,'(a)')  'dos (k) ok'
       if ( ionode ) WRITE ( stdout ,'(a)')       'dos (k) ok'
 
       deallocate(eigenk)  
         
     endif ! vib+dos
 
+    ttt2p = MPI_WTIME( ierr )
+    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',ic,' VIB  ', ttt2p - ttt1p  
 
-  enddo ! loop over configurations
+  enddo conf 
 
   CLOSE ( kunit_DOSKFF ) 
   CLOSE ( kunit_DOSFF ) 
@@ -476,19 +523,19 @@ SUBROUTINE vib_main
   ! ===================================
   if (calc.eq.'vib+gmod') then
     if ( ionode ) then
-      WRITE ( kunit_OUTFF ,'(a)')            ''
-      WRITE ( kunit_OUTFF ,'(a,i4,a,f8.3)')  'generate ', ngconf ,' configurations at temp  = ', temp
-      WRITE ( kunit_OUTFF ,'(a)')            'save configurations in file          : MODFF'
-      WRITE ( kunit_OUTFF ,'(a)')            ''
-      WRITE ( kunit_OUTFF ,'(a)')            'Method:'
-      WRITE ( kunit_OUTFF ,'(a)')            'gaussian distributions of normal coordinates'
-      WRITE ( kunit_OUTFF ,'(a)')            'equation 11 of J.Phys.Chem.B 2005, 109, 7245'
-      WRITE ( kunit_OUTFF ,'(a)')            ''
+      WRITE ( stdout ,'(a)')            ''
+      WRITE ( stdout ,'(a,i4,a,f8.3)')  'generate ', ngconf ,' configurations at temperature  = ', tempmod
+      WRITE ( stdout ,'(a)')            'save configurations in file          : MODFF'
+      WRITE ( stdout ,'(a)')            ''
+      WRITE ( stdout ,'(a)')            'Method:'
+      WRITE ( stdout ,'(a)')            'gaussian distributions of normal coordinates'
+      WRITE ( stdout ,'(a)')            'equation 11 of J.Phys.Chem.B 2005, 109, 7245'
+      WRITE ( stdout ,'(a)')            ''
     endif
 
     !generation of modes imod
     OPEN (unit = kunit_MODFF ,FILE = 'MODFF')
-    CALL generate_modes(deig,hess,2040)
+    CALL generate_modes(deig,hess,kunit_MODFF)
     CLOSE ( kunit_MODFF )
   endif 
   ! ====================================
@@ -496,9 +543,9 @@ SUBROUTINE vib_main
   ! ====================================
   if (calc.eq.'vib+fvib') then
     if ( ionode ) then
-      WRITE ( kunit_OUTFF ,'(a)')       ''    
-      WRITE ( kunit_OUTFF ,'(a)')       'read thermo (Fvibcalc)              : ISTHFF'
-      WRITE ( kunit_OUTFF ,'(a)')       'WARNING !!!! DEV. STATE !!!! WARNING !!! NEED TO BE TESTED!!!'
+      WRITE ( stdout ,'(a)')       ''    
+      WRITE ( stdout ,'(a)')       'read thermo (Fvibcalc)              : ISTHFF'
+      WRITE ( stdout ,'(a)')       'WARNING !!!! DEV. STATE !!!! WARNING !!! NEED TO BE TESTED!!!'
     endif
     CALL fvibcalc
     STOP
@@ -511,9 +558,13 @@ SUBROUTINE vib_main
   deallocate(deig)
   deallocate(work)
   deallocate(hess) 
-  deallocate(fx_sum,fy_sum,fz_sum)
+
+  ttt2 = MPI_WTIME( ierr )
+  vibtimetot = vibtimetot + ( ttt2 - ttt1 ) 
 
   return
+
+110   FORMAT(2X,A8,I4,A20,' :  cpu time',F9.2)
 
 END SUBROUTINE vib_main
 
@@ -524,24 +575,40 @@ END SUBROUTINE vib_main
 
 SUBROUTINE hessian ( hess )
 
-  USE config,   ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell
-  USE io_file,  ONLY :  ionode , stdout
-  USE field,    ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
+  USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell
+  USE io_file,          ONLY :  ionode , stdout , stderr
+  USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
+  USE cell,             ONLY :  kardir , dirkar
+  USE time,             ONLY :  hessiantimetot
 
   implicit none
+  INCLUDE "mpif.h"
   ! global
-  double precision :: hess(3 * natm,3 * natm)
+  real(kind=dp) :: hess(3 * natm,3 * natm)
 
   ! local
-  integer it , jt , p1, p2, ia, ja
-  integer :: nxij,nyij,nzij
-  double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
-  double precision :: sr2,sr,srp2,srp4,srq2,srq4,c1,c2        
-  double precision :: txx,txy,tyy,tyz,tzz,txz
-  double precision :: np2 (ntype , ntype ) 
-  double precision :: nq2 (ntype , ntype ) 
-  double precision :: np4 (ntype , ntype ) 
-  double precision :: nq4 (ntype , ntype ) 
+  integer       :: it , jt , p1, p2, ia, ja , ierr
+  integer       :: nxij , nyij , nzij
+  real(kind=dp) :: rxi , ryi, rzi 
+  real(kind=dp) :: rxij , ryij , rzij , rijsq
+  real(kind=dp) :: sxij, syij, szij
+  real(kind=dp) :: sr2 , sr , srp2 , srp4 , srq2 , srq4 , c1 , c2        
+  real(kind=dp) :: txx , txy , tyy , tyz , tzz , txz
+  real(kind=dp) :: np2 (ntype , ntype ) 
+  real(kind=dp) :: nq2 (ntype , ntype ) 
+  real(kind=dp) :: np4 (ntype , ntype ) 
+  real(kind=dp) :: nq4 (ntype , ntype ) 
+  real(kind=dp) :: ttt1 , ttt2 
+#ifdef debug_symmetry
+  real(kind=dp) , allocatable  :: tmpdebug( : , : )       
+  real(kind=dp) :: fnnb , snnb , tnnb
+  integer       :: si , sj , ita , jta 
+#endif
+
+#ifdef debug_symmetry
+  allocate ( tmpdebug ( 3 * ntype , 3 * ntype ) ) 
+#endif
+  ttt1 = MPI_WTIME(ierr) ! timing info
 
   do it = 1 , ntype
     do jt = 1 , ntype
@@ -556,29 +623,38 @@ SUBROUTINE hessian ( hess )
     enddo
   enddo
 
-  hess = 0.0D0
+  hess = 0.0_dp
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
 
-  do ia = 1 , natm - 1
+  do ia = 1 , natm 
+
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
+
     do ja = ia + 1 , natm
+
       rxij = rxi - rx ( ja )
       ryij = ryi - ry ( ja )
       rzij = rzi - rz ( ja )
-      nxij = NINT ( rxij * simu_cell%BNORM(1) )
-      nyij = NINT ( ryij * simu_cell%BNORM(2) )
-      nzij = NINT ( rzij * simu_cell%BNORM(3) )
-      rxij = rxij - simu_cell%ANORM(1) * nxij
-      ryij = ryij - simu_cell%ANORM(2) * nyij
-      rzij = rzij - simu_cell%ANORM(3) * nzij
+      sxij = rxij - nint ( rxij )
+      syij = ryij - nint ( ryij )
+      szij = rzij - nint ( rzij )
+      rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+      ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+      rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
       rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
       p1 = itype ( ia )
       p2 = itype ( ja )
 
-      if (rijsq .lt. rcutsq(p1,p2)) then
+      if ( rijsq .lt. rcutsq(p1,p2) ) then
+
         sr2 = sigsq(p1,p2)/rijsq
         sr = SQRT (sr2)
         srp2 = sr ** np2(p1,p2)
@@ -589,9 +665,9 @@ SUBROUTINE hessian ( hess )
         ! ===========
         !  Hessian 
         ! ===========
-        c1 = (fc(p1,p2)/sigsq(p1,p2)) * ((plj(p1,p2) + 2.0D0) * srp4 - (qlj(p1,p2) + 2.0D0) * srq4)
-        c2 = fc(p1,p2) * (srq2 - srp2)
-
+        c1 = ( fc ( p1 , p2 ) / sigsq ( p1 , p2 ) ) * &
+        ( ( plj ( p1 , p2 ) + 2.0_dp ) * srp4 - ( qlj ( p1 , p2 ) + 2.0_dp ) * srq4 )
+        c2 =  fc(p1,p2) * (srq2 - srp2)
 
         hess( ia , ja )                       = rxij * rxij * c1 + c2  ! x,x
         hess( ia , natm + ja )                = rxij * ryij * c1       ! x,y
@@ -630,7 +706,7 @@ SUBROUTINE hessian ( hess )
 ! "appelle abusivement self - force. il traduit simplement le fait que
 ! lorsqu'un atome est deplace, il ressent une force exercee par l'ensemble des autres atom du cristal.   
 ! La forme de ce terme se clarifie quand on s'aperercoit que, deplacer un atome dans une direction
-! donnee, est equivqlent a deplacer l'ensemble du cristal a l'exception de cet atome dans la dition opposee
+! donnee, est equivalent a deplacer l'ensemble du cristal a l'exception de cet atome dans la direction opposee
 !
 ! Notes de Cours de Physique des materiaux
 ! P. GHOSEZ, J - Y. RATY
@@ -639,16 +715,17 @@ SUBROUTINE hessian ( hess )
 !=================================================================================================================
 
   do ia = 1, natm
-    txx = 0.0D0
-    txy = 0.0D0
-    txz = 0.0D0
-    tyy = 0.0D0
-    tyz = 0.0D0
-    tzz = 0.0D0
+    txx = 0.0_dp
+    txy = 0.0_dp
+    txz = 0.0_dp
+    tyy = 0.0_dp
+    tyz = 0.0_dp
+    tzz = 0.0_dp
     do ja = 1, natm
-      if ((ia.eq.ja).and.(hess(ia,ja).ne.0.0D0))then
-        if ( ionode ) WRITE ( stdout , * )'Error! ',ia,ja,hess(ia,ja)
+      if ( ( ia .eq. ja ) .and. ( hess ( ia , ja ) .ne. 0.0_dp ) ) then
+        if ( ionode ) WRITE ( stderr , * )' ERROR : in hessian subroutine force constant is null', ia , ja , hess(ia,ja)
       endif
+      if ( ia .eq. ja ) cycle ! zero anyway 
       txx = txx + hess ( ia , ja )
       txy = txy + hess ( ia , natm + ja )
       txz = txz + hess ( ia , 2 * natm + ja )
@@ -665,20 +742,296 @@ SUBROUTINE hessian ( hess )
     hess ( natm + ia , 2 * natm + ia )     = - tyz
     hess ( 2 * natm + ia , 2 * natm + ia ) = - tzz
    
-    !symetry
+    !symmetry
     hess ( natm + ia , ia ) = hess ( ia , natm + ia )
     hess ( 2 * natm + ia , ia ) = hess ( ia , 2 * natm + ia )
     hess ( 2 * natm + ia , natm + ia) = hess ( natm + ia , 2 * natm + ia )
         
 
-    if ( hess ( ia , ia ) .eq. 0.0D0 .and. ionode )                       &
+    if ( hess ( ia , ia ) .eq. 0.0_dp .and. ionode )                       &
     WRITE ( stdout , * ) 'in forcehes zero at ', ia
-    if ( hess ( ia + natm , ia + natm ) .eq. 0.0D0 .and. ionode )         &
+    if ( hess ( ia + natm , ia + natm ) .eq. 0.0_dp .and. ionode )         &
     WRITE ( stdout , * ) 'in forcehes zero at ', natm + ia
-    if ( hess ( ia + 2 * natm , ia + 2 * natm ) .eq. 0.0D0 .and. ionode ) & 
+    if ( hess ( ia + 2 * natm , ia + 2 * natm ) .eq. 0.0_dp .and. ionode ) & 
     WRITE ( stdout , * ) 'in forcehes zero at ', 2 * natm + ia
   enddo
 
+
+#ifdef debug_symmetry
+ ! =========================================================================== 
+ !  this debug unit, check the symmetrical form of the force-constant matrix 
+ !  in case of a fcc structrure c.f Table 3.1 of "Thermal vibration in
+ !  Crystallography" by B.T.M. Willis and A.W. Pryor Cambridge Univ. Press 1975
+ ! =========================================================================== 
+
+  if ( ntype .eq. 1 ) then
+    write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+    write ( stdout , '(a)' ) ' monoatomic fcc'
+   ! the 3 first squared fcc distances
+   ! first nearest neighbour fcc
+   fnnb = simu_cell%ANORM(1)*SQRT(2.0_dp)/2.0_dp/ncell
+   fnnb = fnnb*fnnb
+   ! second nearest neighbour fcc
+   snnb = simu_cell%ANORM(1)/ncell
+   snnb = snnb*snnb
+   ! third nearest neighbour fcc
+   tnnb = SQRT(6.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
+   tnnb = tnnb*tnnb
+  endif
+  
+  if ( ntype .eq. 2 ) then
+    write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+    write ( stdout , '(a)' ) 'NaCl fcc'
+   ! the 3 first squared NaCl distances
+   ! first nearest neighbour NaCl 
+   fnnb = simu_cell%ANORM(1)/2.0_dp/ncell
+   fnnb = fnnb*fnnb
+   ! second nearest neighbour NaCl
+   snnb = SQRT(2.0_dp)*simu_cell%ANORM(1)/2.0_dp/ncell
+   snnb = snnb*snnb
+   ! third nearest neighbour NaCl
+   tnnb = SQRT(3.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
+   tnnb = tnnb*tnnb
+  endif
+  
+
+  do ia = 1 , natm
+
+    ita = itype ( ia ) 
+    si = 3 * ita - 3
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+
+    do ja = 1 , natm
+
+      jta  = itype ( ja ) 
+      sj   = 3 * jta - 3
+      rxij = rxi - rx ( ja )
+      ryij = ryi - ry ( ja )
+      rzij = rzi - rz ( ja )
+      sxij = rxij - nint ( rxij )
+      syij = ryij - nint ( ryij )
+      szij = rzij - nint ( rzij )
+      rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+      ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+      rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+      rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+
+      if ( rijsq .lt. rcutsq(ita,jta) ) then
+
+        tmpdebug = 0.0_dp
+        tmpdebug ( 1 + si , 1 + sj ) = hess ( ja            , ia            )
+        tmpdebug ( 2 + si , 2 + sj ) = hess ( ja + natm     , ia + natm     )
+        tmpdebug ( 3 + si , 3 + sj ) = hess ( ja + 2 * natm , ia + 2 * natm )
+        tmpdebug ( 1 + si , 2 + sj ) = hess ( ja            , ia + natm     )
+        tmpdebug ( 1 + si , 3 + sj ) = hess ( ja            , ia + 2 * natm )
+        tmpdebug ( 2 + si , 3 + sj ) = hess ( ja + natm     , ia + 2 * natm )
+        tmpdebug ( 2 + si , 1 + sj ) = hess ( ia + natm     , ja            )
+        tmpdebug ( 3 + si , 1 + sj ) = hess ( ia + 2 * natm , ja            )
+        tmpdebug ( 3 + si , 2 + sj ) = hess ( ia + 2 * natm , ja + natm     )
+
+        ! =============================================================================================================
+        !                                           check the monoatomic fcc
+        ! =============================================================================================================
+        if ( ntype .eq. 1 ) then
+          ! ============================
+          ! first nearest neighbour fcc
+          ! ============================
+          if ( abs ( rijsq-fnnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,2f12.5)' ) 'ia , ja are first neighbour',SQRT( rijsq ),SQRT(fnnb )
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            if ( rxij .eq. 0.0 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   a   g  |' 
+              write ( stdout , '(a)' ) '| 0   g   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( ryij .eq. 0.0 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| a   0   g  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| g   0   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( rzij .eq. 0.0 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| a   g   0  |' 
+              write ( stdout , '(a)' ) '| g   a   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            CALL print_tensor ( tmpdebug , 'HESSFCC ' )
+          ! ============================
+          ! second nearest neighbour fcc
+          ! ============================
+          else if ( abs ( rijsq-snnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,2f12.5)'  ) 'ia , ja are second neighbour',SQRT( rijsq ),SQRT(snnb)
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            if ( rxij .ne. 0.0 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| a   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( ryij .ne. 0.0 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   a   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( rzij .ne. 0.0 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            CALL print_tensor ( tmpdebug , 'HESSFCC ' )
+          ! ============================
+          ! third nearest neighbour fcc
+          ! ============================
+          else if ( abs ( rijsq-tnnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,2f12.5)' ) 'ia , ja are third neighbour',SQRT( rijsq ),SQRT(tnnb)
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            if ( abs ( ryij )  .eq. abs ( rzij ) ) then
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| a   b   b  |' 
+              write ( stdout , '(a)' ) '| b   g   d  |' 
+              write ( stdout , '(a)' ) '| b   d   g  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( abs ( rxij ) .eq. abs ( rzij ) ) then
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| g   b   d  |' 
+              write ( stdout , '(a)' ) '| b   a   b  |' 
+              write ( stdout , '(a)' ) '| d   b   g  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( abs ( rxij ) .eq. abs ( ryij ) ) then
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| g   d   b  |' 
+              write ( stdout , '(a)' ) '| d   g   b  |' 
+              write ( stdout , '(a)' ) '| b   b   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            CALL print_tensor ( tmpdebug , 'HESSFCC ' )
+          endif
+        endif
+
+        ! =============================================================================================================
+        !                    NaCl rock-salt structure ( i.e 2 atoms in the primitiv cell )
+        ! =============================================================================================================
+        if ( ntype .eq. 2 ) then
+          ! ============================
+          ! first nearest neighbour fcc
+          ! ============================
+          if ( abs ( rijsq-fnnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
+            write ( stdout , '(a,2f12.5)' ) 'ia , ja are first neighbour',SQRT( rijsq ),SQRT(fnnb )
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            if ( abs( rxij ) .gt. 1e-6 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| a   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( dabs( ryij ) .gt. 1e-6 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   a   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( dabs( rzij ) .gt. 1e-6 ) then 
+              write ( stdout , '(a)' ) ' ' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
+          ! ============================
+          ! second nearest neighbour fcc
+          ! ============================
+          else if ( abs ( rijsq-snnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
+            write ( stdout , '(a,2f12.5)'  ) 'ia , ja are second neighbour',SQRT( rijsq ),SQRT(snnb)
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            if ( abs( rxij ) .lt. 1e-6 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| b   0   0  |' 
+              write ( stdout , '(a)' ) '| 0   a   g  |' 
+              write ( stdout , '(a)' ) '| 0   g   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( abs( ryij ) .lt. 1e-6 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| a   0   g  |' 
+              write ( stdout , '(a)' ) '| 0   b   0  |' 
+              write ( stdout , '(a)' ) '| g   0   a  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            if ( abs( rzij ) .lt. 1e-6 ) then 
+              write ( stdout , '(a)' ) '' 
+              write ( stdout , '(a)' ) '| a   g   0  |' 
+              write ( stdout , '(a)' ) '| g   a   0  |' 
+              write ( stdout , '(a)' ) '| 0   0   b  |' 
+              write ( stdout , '(a)' ) '' 
+            endif
+            CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
+          ! ============================
+          ! third nearest neighbour fcc
+          ! ============================
+          else if ( abs ( rijsq-tnnb ) .lt. 0.1d0 ) then 
+            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
+            write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
+            write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
+            write ( stdout , '(a,2f12.5)' ) 'ia , ja are third neighbour',SQRT( rijsq ),SQRT(tnnb)
+            write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
+            write ( stdout , '(a)' ) ' ' 
+            write ( stdout , '(a)' ) '| a   b   b  |' 
+            write ( stdout , '(a)' ) '| b   a   b  |' 
+            write ( stdout , '(a)' ) '| b   b   a  |' 
+            write ( stdout , '(a)' ) '' 
+            CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
+          endif
+        endif
+      endif
+    enddo
+  enddo
+
+  deallocate ( tmpdebug )
+  stop
+#endif
+
+  ! ======================================
+  !         direct to kartesian 
+  ! ======================================
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
+  ttt2 = MPI_WTIME(ierr) ! timing info
+  hessiantimetot = hessiantimetot + ( ttt2 - ttt1 )
 
   return
 
@@ -702,17 +1055,17 @@ SUBROUTINE fvibcalc
   implicit none
 
 !lGocal
-  integer :: i, j
-  integer,parameter :: nbin = 100, ncmax = 100000
-  double precision :: ener(ncmax), eigval(3 * natm), fvib(ncmax), fvibhist(nbin,3)
-  character * 100  header
-  integer :: ncs , nskip ,ifv, ieg, ind
-  double precision :: emin, emax
-  double precision :: enerind, pres, de, dum, fvibav, pofet,atmp 
+  integer            :: i, j
+  integer,parameter  :: nbin = 100, ncmax = 100000
+  real(kind=dp)      :: ener(ncmax), eigval(3 * natm), fvib(ncmax), fvibhist(nbin,3)
+  character(len=100) ::   header
+  integer            :: ncs , nskip ,ifv, ieg, ind
+  real(kind=dp)      :: emin, emax
+  real(kind=dp)      :: enerind, pres, de, dum, fvibav, pofet,atmp 
 
   ! trash  
-  integer iiii
-  double precision :: xxxx 
+  integer            :: iiii
+  real(kind=dp)      :: xxxx 
 
 !# config                 eIS                grad                Pres  Iter  Neng
 !u_initial     Press_initial
@@ -720,27 +1073,27 @@ SUBROUTINE fvibcalc
 !       2     - 3.947162344773      0.000000000049      6.708240000000    21    74 - 2.328527224939   15.013373656527
 
   ncs = 1
-  emin = 999999.0d0
-  emax = - 999999.0d0
+  emin = 999999.0_dp
+  emax = - 999999.0_dp
   OPEN (unit = kunit_ISTHFF ,file = 'ISTHFF',status = 'old')
   READ ( kunit_ISTHFF , * ) header
   READ ( kunit_ISTHFF , * ) header
-  DO i = 1,ncvib
+  DO i = 1,nconf
     READ ( kunit_ISTHFF , * ) iiii, enerind, xxxx, pres, iiii, iiii, xxxx
     if ( enerind .gt. emax) emax = enerind
     if ( enerind .lt. emin) emin = enerind
   ENDDO
   CLOSE ( kunit_ISTHFF )
 
-  de = ABS (emax - emin)/ DBLE ( nbin )
+  de = ABS (emax - emin)/ REAL ( nbin , kind = dp )
 
 !  PRINT  * ,' *  - ISthermo file = '
 !  PRINT  * ,' *  - vib      file = ',F_IN2
 !  PRINT  * ,' - fvibn     file = ',F_IN3
-  print  * ,'Nconf = ',ncvib
-  print  * ,'emin  = ',emin
-  print  * ,'emax  = ',emax
-  print  * ,'de    = ',de
+  !print  * ,'nconf = ',nconf
+!  print  * ,'emin  = ',emin
+!  print  * ,'emax  = ',emax
+!  print  * ,'de    = ',de
 
   OPEN (unit = kunit_ISTHFF ,file = 'ISTHFF',status = 'old')
   READ ( kunit_ISTHFF , * ) header
@@ -752,7 +1105,7 @@ SUBROUTINE fvibcalc
 !  specify minimum energy and the bin size 
 ! =========================================
 
-  do i = 1, ncvib
+  do i = 1, nconf
     fvib(i) = 0.0
   enddo
 
@@ -762,10 +1115,10 @@ SUBROUTINE fvibcalc
     fvibhist(i,3) = 0.0
   enddo
 
-  dum = 10.0d0
+  dum = 10.0_dp
   ifv = 0
 
-  do i = 1, ncvib
+  do i = 1, nconf
     READ ( kunit_ISTHFF , * ) iiii, enerind, xxxx, pres, iiii, iiii, xxxx
     if ( mod ( i , ncs ) .eq. 0 )then
       ifv = ifv + 1
@@ -777,7 +1130,7 @@ SUBROUTINE fvibcalc
 
       nskip = 3
       do j = 4, 3 * natm 
-        if ( eigval ( j ) .lt. 0.0D0 ) then
+        if ( eigval ( j ) .lt. 0.0_dp ) then
           nskip = nskip + 1 
         else 
           fvib ( ifv ) = fvib ( ifv ) + log ( eigval ( j ) )
@@ -786,7 +1139,7 @@ SUBROUTINE fvibcalc
 
       if ( nskip .gt. 3 .and. ionode ) WRITE ( stdout , * ) ifv , nskip 
 
-      fvib ( ifv ) = fvib ( ifv ) * ( 3.0d0 * natm )/ ( ( 2.0d0 * natm ) * ( 3.0d0 * natm - nskip * 1.0d0 ) )
+      fvib ( ifv ) = fvib ( ifv ) * ( 3.0_dp * natm )/ ( ( 2.0_dp * natm ) * ( 3.0_dp * natm - nskip * 1.0_dp ) )
     endif 
   enddo
 
@@ -794,28 +1147,28 @@ SUBROUTINE fvibcalc
   CLOSE ( kunit_ISTHFF )
   
 
-  do i = 1, ncvib
+  do i = 1, nconf
     atmp = (ener(i) - emin)/de
     ind = INT (atmp)  
     ind = ind + 1
-    fvibhist(ind,2) = fvibhist(ind,2) + 1.0d0
+    fvibhist(ind,2) = fvibhist(ind,2) + 1.0_dp
     fvibhist(ind,3) = fvibhist(ind,3) + fvib(i)
   enddo 
 
   do i = 1, nbin 
-    if ( fvibhist ( i , 2 ) .ne. 0.0d0 ) then
+    if ( fvibhist ( i , 2 ) .ne. 0.0_dp ) then
       if ( ionode ) WRITE ( kunit_VIBFF ,'(3(2x,e14.6))') &
-      fvibhist(i,1),fvibhist(i,3)/fvibhist(i,2),fvibhist(i,2)/(de * ncvib)
+      fvibhist(i,1),fvibhist(i,3)/fvibhist(i,2),fvibhist(i,2)/(de * nconf)
     endif
   enddo
 
 
-  fvibav = 0.0d0
-  pofet = 0.0d0
+  fvibav = 0.0_dp
+  pofet = 0.0_dp
 
   do i = 1, nbin 
 
-    if ( fvibhist ( i , 2 ) .ne. 0.0d0 ) then
+    if ( fvibhist ( i , 2 ) .ne. 0.0_dp ) then
       fvibav = fvibav + fvibhist ( i , 3 )
       pofet  = pofet  + fvibhist ( i , 2 )
     endif 
@@ -835,28 +1188,27 @@ END SUBROUTINE fvibcalc
 
 SUBROUTINE generate_modes ( deig , hess , kunit )
 
-  USE config,   ONLY :  system , natm , rx , ry , rz , atype
-  USE md,       ONLY :  temp 
-  USE io_file,  ONLY :  ionode , stdout
-  USE field 
+  USE constants,                ONLY :  dzero
+  USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , atypei , natmi , simu_cell
+  USE io_file,                  ONLY :  ionode , stdout
 
   implicit none
 
   ! global
-  double precision :: hess(3 * natm,3 * natm)
-  double precision :: deig(3 * natm)
+  real(kind=dp) :: hess(3 * natm,3 * natm)
+  real(kind=dp) :: deig(3 * natm)
   integer :: kunit
   ! local
-  integer :: ia, ja, igconf
-  double precision, dimension(:), allocatable :: rrx , rry , rrz
-  double precision, dimension(:), allocatable :: qx , qxd , xsq
-  double precision :: dexpo, omeg, G1
+  integer :: ia , ja , igconf , it  , i , j
+  real(kind=dp), dimension(:), allocatable :: rrx , rry , rrz
+  real(kind=dp), dimension(:), allocatable :: qx , qxd , xsq
+  real(kind=dp) :: dexpo, omeg, G1
 
   allocate( rrx ( natm ) , rry ( natm ) , rrz ( natm ) )
   allocate( qx ( 3 * natm ) , qxd ( 3 * natm ) , xsq ( 3 * natm ) )  ! normal coordinates
 
   ! ===============================
-  !  inverse of eigenvtors matrix
+  !  inverse of eigenvectors matrix
   ! ===============================
   !CALL DGETRF( 3 * natm, 3 * natm, hess, 3 * natm, ipiv, info )
   !CALL DGETRI( 3 * natm, hess, 3 * natm, ipiv, work, lwork, info )
@@ -864,14 +1216,14 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   ! ===========================================
   !  transformations to get normal coordinates
   ! ===========================================
-!  qx = 0.0D0
+!  qx = 0.0_dp
 !  do i = 1,3 * natm
-    do ja = 1 , natm
-      qx ( imod ) = qx ( imod ) + &
-      hess ( ja , imod ) * rx ( ja ) + &
-      hess ( ja + natm , imod ) * ry ( ja ) + &
-      hess ( ja + 2 * natm , imod) * rz ( ja )
-    enddo
+!    do ja = 1 , natm
+!      qx ( imod ) = qx ( imod ) + &
+!      hess ( ja , imod ) * rx ( ja ) + &
+!      hess ( ja + natm , imod ) * ry ( ja ) + &
+!      hess ( ja + 2 * natm , imod) * rz ( ja )
+!    enddo
 !  enddo
 
   ! ===========================================
@@ -881,55 +1233,73 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   !  of mode i
   ! ===========================================
 
-!  do i = 1,3 * natm ! loop over modes
+  do imod = 4,3 * natm ! loop over modes
     omeg  = SQRT ( deig ( imod ) )
-    dexpo = EXP  ( - omeg / temp )
-    xsq ( imod ) = 1.0d0 + dexpo
-    xsq ( imod ) = xsq ( imod ) / ( 2.0d0 * omeg * ( 1.0d0 - dexpo ) )
-!  enddo
+    dexpo = EXP  ( - omeg / tempmod )
+    xsq ( imod ) = 1.0_dp + dexpo
+    xsq ( imod ) = xsq ( imod ) / ( 2.0_dp * omeg * ( 1.0_dp - dexpo ) )
+    WRITE ( 6000 , * ) imod, xsq ( imod )
+  enddo
 
+  mode : do imod = 4 , 3 * natm
   ! =============================================
-  !  generate ngconf configurations of mode imod
+  !  generate ngconf configurations for each imod
   ! =============================================
-  do igconf = 1 , ngconf
+  gconf : do igconf = 1 , ngconf
 
-    if ( ionode ) WRITE ( stdout ,'(a,i4,a,i4)') 'conf = ',igconf,' of mode',imod
+    if ( ionode ) WRITE ( stdout ,'(a,i6,a,i6)') 'conf = ',igconf,' of mode ',imod
 
         ! ========================================================================
         ! gaussian distribution: 
         !   mean value: equilibrium position rx,ry,rz - > qx, qy, qz 
         !   width x^2: equation (11) of   J. Phys. Chem. B 2005, 109, 7245 - 7250
         ! ========================================================================
-        CALL boxmuller_basic(G1, 0.0d0, xsq(imod)) 
+        CALL boxmuller_basic(G1, 0.0_dp, xsq(imod)) 
         qxd(imod) = G1
 
       ! ==========================
       ! inverse transformations 
-      ! to get usual coordinates
+      ! to get cartesian coordinates
       ! ==========================
-      rrx = 0.0d0
-      rry = 0.0d0
-      rrz = 0.0d0
+      rrx = 0.0_dp
+      rry = 0.0_dp
+      rrz = 0.0_dp
       do ia = 1 , natm
-          rrx(ia) = rrx(ia) + hess(ia,imod) * qxd(imod)
-          rry(ia) = rry(ia) + hess(ia + natm,imod) * qxd(imod)
+          rrx(ia) = rrx(ia) + hess(ia           ,imod) * qxd(imod)
+          rry(ia) = rry(ia) + hess(ia + natm    ,imod) * qxd(imod)
           rrz(ia) = rrz(ia) + hess(ia + 2 * natm,imod) * qxd(imod)
       enddo
 
+      ! ===========================================================
+      !            write configuration to file 
+      ! ===========================================================
       if ( ionode ) then
-        WRITE (kunit, * ) natm
-        WRITE (kunit, * ) system  
-        do ia  = 1 , natm
-          WRITE (kunit,'(a,3f16.10)') atype(ia),rx(ia) + rrx(ia),ry(ia) + rry(ia),rz(ia) + rrz(ia)
+        WRITE ( kunit , '(i6)' ) natm
+        WRITE ( kunit , '(a)' ) system
+        do i = 1 , 3
+          WRITE ( kunit , '(3f20.12)' ) (simu_cell%A(i,j),j=1,3)
+        enddo
+        WRITE ( kunit , '(i4)' ) ntype
+        WRITE ( kunit , * ) ( atypei ( it ) , it = 1 , ntype )
+        WRITE ( kunit , * ) ( natmi  ( it ) , it = 1 , ntype )
+ 
+        do ia = 1 , natm
+          WRITE ( kunit , 200 ) atype(ia), rx(ia) + rrx(ia),ry(ia) + rry(ia),rz(ia) + rrz(ia) , &
+                                           dzero , dzero ,dzero , &
+                                           dzero , dzero ,dzero 
         enddo
       endif
 
-  enddo 
+    enddo gconf
+
+  enddo mode
 
   deallocate(rrx,rry,rrz)
   deallocate(qx,qxd,xsq)
 
   return 
+
+ 200 FORMAT(A2,9E20.12)
 
 END SUBROUTINE generate_modes
 
@@ -943,31 +1313,65 @@ END SUBROUTINE generate_modes
 
 SUBROUTINE band ( hess )
 
-  USE config,       ONLY :  natm , rx , ry , rz , ncell , itype , simu_cell
-  USE control,      ONLY :  calc
-  USE constants,    ONLY :  tpi , pi
-  USE io_file,      ONLY :  stdout , kunit_DOSKFF
-  USE field,        ONLY :  rcutsq , sigsq , epsp , fc , uc 
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
+  USE control,          ONLY :  calc
+  USE constants,        ONLY :  tpi , pi
+  USE io_file,          ONLY :  ionode , stdout , stderr , kunit_DOSKFF
+  USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc 
+  USE kspace,           ONLY :  kpath , get_kpath
+  USE cell,             ONLY :  dirkar , kardir
+  USE time,             ONLY :  bandtimetot
 
   implicit none
+  INCLUDE "mpif.h"
 
   ! global  
-  double precision :: hess(3 * natm,3 * natm)
+  real(kind=dp)    :: hess(3 * natm,3 * natm)
   ! local
-  integer          :: nxij , nyij , nzij
-  double precision :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq
-  double precision :: kxt , kyt , kzt
-  integer          :: ik , ia , ja , p1 , p2
-  double precision :: akx , aknx
-  double precision :: aky , akny
-  double precision :: akz , aknz
-  double precision :: sphase
-  double precision :: kxi , kyi , kzi , krx , kry , krz
-  CHARACTER*1      :: jobz , uplo
-  INTEGER*4        :: info ,  lwork
-  double precision :: tmp ( 3 , 3 ) , hessij ( 3 , 3 )
-  double precision :: ww ( 3 ) , work ( 9 )
+  integer          :: ik , ia , ja , p1 , p2 , ierr
+  integer*4        :: info ,  lwork
+  real(kind=dp)    :: rxi , ryi , rzi 
+  real(kind=dp)    :: rxij , ryij , rzij , rijsq
+  real(kind=dp)    :: sxij, syij, szij
+  real(kind=dp)    :: sphase
+  real(kind=dp)    :: kx , ky , kz , kr
+  real(kind=dp), allocatable  :: tmphess ( : , : ) , hessij ( : , : )
+  real(kind=dp)    :: ww ( 3 ) , work ( 9 )
+  real(kind=dp)    :: ttt1 , ttt2 
+  TYPE (kpath)     :: kp
+  character(len=1) :: jobz , uplo
 
+  ttt1 = MPI_WTIME(ierr) ! timing info
+
+  ! =====================================================
+  ! WARNING : 
+  ! we assume ntype to be 
+  ! the number of atoms in the primitiv cell 
+  ! in case of several inequivalent position 
+  ! of the same type, one could define a further 
+  ! identical type .
+  ! example :
+  ! let say there is 3 atoms in the primitiv cell
+  ! 2 differents types
+  ! in POSFF :
+  ! --------------------------------------------------
+  ! 3
+  ! cell  
+  ! 3 
+  ! A A B 
+  ! 1 1 1
+  ! A 0.0 0.0 0.0    0.0 0.0 0.0   0.0 0.0 0.0
+  ! A 0.2 0.2 0.2    0.0 0.0 0.0   0.0 0.0 0.0
+  ! B 0.5 0.5 0.5    0.0 0.0 0.0   0.0 0.0 0.0
+  ! =====================================================
+  allocate ( tmphess( 3 * ntype , 3 * ntype ) )
+  allocate ( hessij ( 3 * ntype , 3 * ntype ) )
+
+  ! ========================================
+  !  generate kpath in structure kp
+  ! ========================================
+  allocate ( kp%kpt ( 3 , nkphon ) )
+  CALL get_kpath ( ks , kf , nkphon , path , kp )  
 
   OPEN (UNIT = kunit_DOSKFF ,FILE = 'DOSKFF')
 
@@ -975,101 +1379,104 @@ SUBROUTINE band ( hess )
   jobz = 'V'
   uplo = 'U'
 
-  akx  = ( tpi * ncell ) * simu_cell%BNORM(1) 
-  aky  = ( tpi * ncell ) * simu_cell%BNORM(2) 
-  akz  = ( tpi * ncell ) * simu_cell%BNORM(3) 
-  aknx = akx / DBLE ( nkphon )  
-  akny = aky / DBLE ( nkphon )  
-  aknz = akz / DBLE ( nkphon )  
-#ifdef debug
-  WRITE ( stdout , '(a,f)') 'debug: ak,akn,ncell,cell',ak,akn,ncell,(simu_cell%ANORM(i),i=1,3)
-#endif
-  kxt = kfx - ksx
-  kyt = kfy - ksy
-  kzt = kfz - ksz
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
-  WRITE ( stdout ,'(a)') ''
-  WRITE ( stdout ,'(a)') 'dispersion curves:'
-  WRITE ( stdout ,'(a)') '' 
-  WRITE ( stdout ,'(a,f5.2,a,f5.2,a,f5.2,a)') 'from point : [ ',ksx,' , ',ksy,' , ',ksz,' ]'
-  WRITE ( stdout ,'(a,f5.2,a,f5.2,a,f5.2,a)') 'to         : [ ',kfx,' , ',kfy,' , ',kfz,' ]' 
-  WRITE ( stdout ,'(a,f5.2,a,f5.2,a,f5.2,a)') 'direction  : [ ',kxt,' , ',kyt,' , ',kzt,' ]'
-  WRITE ( stdout ,'(a)') ''      
+  ! ==================================
+  !   loop on kpath index
+  ! ==================================
+  do ik = 1 , kp%nk
 
-  do ik = 0,nkphon - 1
-     kxi = (kxt * aknx * ik)  + ksx * akx
-     kyi = (kyt * akny * ik)  + ksy * aky 
-     kzi = (kzt * aknz * ik)  + ksz * akz
+    tmphess = 0.0_dp
+    hessij  = 0.0_dp
+    work    = 0.0_dp
+    ww      = 0.0_dp
 
-      tmp = 0.0d0
-      hessij = 0.D0
-      work = 0.0d0
-      ww = 0.0d0
+    ! direct to kartesian times 2 * pi 
+    kx = tpi * ( kp%kpt(1,ik) * simu_cell%B(1,1) +  kp%kpt(2,ik) * simu_cell%B(1,2) + kp%kpt(3,ik) * simu_cell%B(1,3) ) * ncell
+    ky = tpi * ( kp%kpt(1,ik) * simu_cell%B(2,1) +  kp%kpt(2,ik) * simu_cell%B(2,2) + kp%kpt(3,ik) * simu_cell%B(2,3) ) * ncell
+    kz = tpi * ( kp%kpt(1,ik) * simu_cell%B(3,1) +  kp%kpt(2,ik) * simu_cell%B(3,2) + kp%kpt(3,ik) * simu_cell%B(3,3) ) * ncell
 
     do ia = 1 , natm
+
       rxi = rx(ia)
       ryi = ry(ia)
       rzi = rz(ia)
+
       do ja = 1 , natm
-        rxij = rxi - rx(ja)
-        ryij = ryi - ry(ja)
-        rzij = rzi - rz(ja)
 
-        nxij = NINT ( rxij * simu_cell%BNORM(1) )
-        nyij = NINT ( ryij * simu_cell%BNORM(2) )
-        nzij = NINT ( rzij * simu_cell%BNORM(3) )
-
-        rxij = rxij - simu_cell%ANORM(1) * nxij
-        ryij = ryij - simu_cell%ANORM(2) * nyij
-        rzij = rzij - simu_cell%ANORM(3) * nzij
-
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-
         p1 = itype(ia)
         p2 = itype(ja)
 
         if (rijsq .lt. rcutsq(p1,p2)) then
-          krx = (kxi * rxij)
-          kry = (kyi * ryij)
-          krz = (kzi * rzij)
-          sphase = SIN ( 0.5d0 * (krx + kry + krz) )
+          kr =  kx * rxij + ky * ryij + kz * rzij
+          sphase = SIN ( 0.5_dp * kr )
           sphase = sphase * sphase
 
-          tmp ( 1 , 1 ) = tmp ( 1 , 1 ) + hess ( ja            , ia            ) * sphase 
-          tmp ( 2 , 2 ) = tmp ( 2 , 2 ) + hess ( ja + natm     , ia + natm     ) * sphase
-          tmp ( 3 , 3 ) = tmp ( 3 , 3 ) + hess ( ja + 2 * natm , ia + 2 * natm ) * sphase
-          tmp ( 1 , 2 ) = tmp ( 1 , 2 ) + hess ( ja            , ia + natm     ) * sphase
-          tmp ( 1 , 3 ) = tmp ( 1 , 3 ) + hess ( ja            , ia + 2 * natm ) * sphase
-          tmp ( 2 , 3 ) = tmp ( 2 , 3 ) + hess ( ja + natm     , ia + 2 * natm ) * sphase
+          tmphess ( 1 , 1 ) = tmphess ( 1 , 1 ) + hess ( ja            , ia            ) * sphase 
+          tmphess ( 2 , 2 ) = tmphess ( 2 , 2 ) + hess ( ja + natm     , ia + natm     ) * sphase
+          tmphess ( 3 , 3 ) = tmphess ( 3 , 3 ) + hess ( ja + 2 * natm , ia + 2 * natm ) * sphase
+          tmphess ( 1 , 2 ) = tmphess ( 1 , 2 ) + hess ( ja            , ia + natm     ) * sphase
+          tmphess ( 1 , 3 ) = tmphess ( 1 , 3 ) + hess ( ja            , ia + 2 * natm ) * sphase
+          tmphess ( 2 , 3 ) = tmphess ( 2 , 3 ) + hess ( ja + natm     , ia + 2 * natm ) * sphase
+
         endif
       enddo  ! j atom loop
     enddo ! i atom loop
 
-    hessij ( 1 , 1 ) = - tmp ( 1 , 1 ) * 2.0d0 / natm
-    hessij ( 2 , 2 ) = - tmp ( 2 , 2 ) * 2.0d0 / natm
-    hessij ( 3 , 3 ) = - tmp ( 3 , 3 ) * 2.0d0 / natm
+    hessij ( 1 , 1 ) = - tmphess ( 1 , 1 ) * 2.0_dp / natm
+    hessij ( 2 , 2 ) = - tmphess ( 2 , 2 ) * 2.0_dp / natm
+    hessij ( 3 , 3 ) = - tmphess ( 3 , 3 ) * 2.0_dp / natm
 
-    hessij ( 1 , 2 ) = - tmp ( 1 , 2 ) * 2.0d0 / natm
-    hessij ( 1 , 3 ) = - tmp ( 1 , 3 ) * 2.0d0 / natm
-    hessij ( 2 , 3 ) = - tmp ( 2 , 3 ) * 2.0d0 / natm
+    hessij ( 1 , 2 ) = - tmphess ( 1 , 2 ) * 2.0_dp / natm
+    hessij ( 1 , 3 ) = - tmphess ( 1 , 3 ) * 2.0_dp / natm
+    hessij ( 2 , 3 ) = - tmphess ( 2 , 3 ) * 2.0_dp / natm
  
     hessij ( 2 , 1 ) = hessij ( 1 , 2 )
     hessij ( 3 , 1 ) = hessij ( 1 , 3 )
     hessij ( 3 , 2 ) = hessij ( 2 , 3 )
 
-    CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
+    CALL DSYEV(jobz,uplo,3*ntype,hessij,3*ntype,ww,work,lwork,info)
+    if ( info .ne. 0 ) then
+      if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in band : improper termination. of DSYEV info = ',info
+      STOP
+    endif
+
 
     if ( MOD ( ik + 1 , 10 ) .eq. 0 ) &
-    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
-    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
+    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kp%kpt ( 1 , ik ) , kp%kpt ( 2 , ik ) , kp%kpt ( 3 , ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
+    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kp%kpt ( 1 , ik ) , kp%kpt ( 2 , ik ) , kp%kpt ( 3 , ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
   enddo
 
   CLOSE ( kunit_DOSKFF )
 
+  deallocate ( kp%kpt )
+  deallocate ( tmphess)
+  deallocate ( hessij )
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
+  ttt2 = MPI_WTIME ( ierr ) ! timing info
+  bandtimetot = bandtimetot + ( ttt2 - ttt1) 
+
   return  
 
 END SUBROUTINE band 
-
 
 !*********************** SUBROUTINE doskpt ************************************
 !
@@ -1079,37 +1486,66 @@ END SUBROUTINE band
 
 SUBROUTINE doskpt ( hess , eigenk , nk )
 
-  USE config,           ONLY :  natm , rx , ry , rz , ncell , itype , simu_cell
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
-  USE io_file,          ONLY :  stdout , kunit_IBZKPTFF , kunit_DKFF
+  USE io_file,          ONLY :  ionode , stdout , stderr , kunit_IBZKPTFF , kunit_DKFF
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc 
+  USE cell,             ONLY :  kardir , dirkar
+  USE time,             ONLY :  doskpttimetot
 
   implicit none
+  INCLUDE "mpif.h"
 
   ! global  
-  integer          , intent (in) :: nk
-  double precision , intent (in)  :: hess(3 * natm,3 * natm)
-  double precision , intent (out) :: eigenk(nk,3)
+  integer       , intent (in)  :: nk
+  real(kind=dp) , intent (in)  :: hess(3 * natm,3 * natm)
+  real(kind=dp) , intent (out) :: eigenk(nk,3)
 
   ! local
-  integer          :: nxij,nyij,nzij
-  double precision :: rxi, ryi, rzi, rxij, ryij, rzij, rijsq
-  integer          :: ck ,kl, wi
-  integer          :: ik, i, ia, ja, p1, p2
-  double precision :: akx, aknx
-  double precision :: aky, akny
-  double precision :: akz, aknz
-  double precision :: hessij(3,3), sphase
-  double precision :: kxi, kyi, kzi, krx, kry, krz
-  CHARACTER*1      :: jobz, uplo
-  INTEGER*4        :: info, lwork
-  double precision :: tmpxx,tmpxy,tmpyy,tmpyz,tmpzz,tmpxz
-  double precision :: ww(3), work(9)
+  integer          :: ck , kl , wi , ierr
+  integer          :: ik , i , ia , ja , p1 , p2
+  real(kind=dp)    :: rxi , ryi , rzi
+  real(kind=dp)    :: rxij , ryij , rzij , rijsq
+  real(kind=dp)    :: sxij , syij , szij
+  real(kind=dp)    :: sphase
+  real(kind=dp)    :: kxi , kyi , kzi , kr 
+  real(kind=dp)    :: kx , ky , kz
+  real(kind=dp)    :: ttt1 , ttt2 
+  real(kind=dp) , allocatable  :: tmphess( : , : ) , hessij ( : , : )
+  real(kind=dp)    :: ww(3), work(9)
+  character(len=1) :: jobz, uplo
+  integer*4        :: info, lwork
 
   ! trash
   integer          :: iiii
-  character*60     :: cccc
+  character(len=60):: cccc
+
+  ! =====================================================
+  ! WARNING : 
+  ! we assume ntype to be 
+  ! the number of atoms in the primitiv cell 
+  ! in case of several inequivalent position 
+  ! of the same type, one could define a further 
+  ! identical type .
+  ! example :
+  ! let say there is 3 atoms in the primitiv cell
+  ! 2 differents types
+  ! in POSFF :
+  ! --------------------------------------------------
+  ! 3
+  ! cell  
+  ! 3 
+  ! A A B 
+  ! 1 1 1
+  ! A 0.0 0.0 0.0    0.0 0.0 0.0   0.0 0.0 0.0
+  ! A 0.2 0.2 0.2    0.0 0.0 0.0   0.0 0.0 0.0
+  ! B 0.5 0.5 0.5    0.0 0.0 0.0   0.0 0.0 0.0
+  ! =====================================================
+  allocate ( tmphess ( 3 * ntype , 3 * ntype ) )
+  allocate ( hessij  ( 3 * ntype , 3 * ntype ) )
+
+  ttt1 = MPI_WTIME(ierr) ! timing info
 
   OPEN (UNIT = kunit_DKFF ,FILE = 'DKFF')
 
@@ -1117,14 +1553,10 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   jobz = 'V'
   uplo = 'U'
 
-  wi  = 1
-  akx  = ( tpi * ncell ) * simu_cell%BNORM(1) 
-  aky  = ( tpi * ncell ) * simu_cell%BNORM(2) 
-  akz  = ( tpi * ncell ) * simu_cell%BNORM(3) 
-  aknx = akx / DBLE ( nk )  
-  akny = aky / DBLE ( nk )  
-  aknz = akz / DBLE ( nk )  
-
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
   READ ( kunit_IBZKPTFF , * ) cccc
@@ -1132,7 +1564,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   READ ( kunit_IBZKPTFF , * ) cccc
 
   wi = 1
-  WRITE ( stdout ,'(a)') 'read nk=',nk,' kpoints in IBZKPTFF'
+  WRITE ( stdout ,'(a,i8,a)') 'read nk = ',nk,' kpoints in IBZKPTFF'
 
   kl = 1
   ck = 1
@@ -1140,73 +1572,75 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
 
     READ ( kunit_IBZKPTFF , * ) kxi , kyi , kzi , wi
 
-    kxi = (kxi * akx)
-    kyi = (kyi * aky)
-    kzi = (kzi * akz)
+    ! direct to kartesian times 2 * pi 
+    kx = tpi * ( kxi * simu_cell%B(1,1) +  kyi * simu_cell%B(1,2) + kzi * simu_cell%B(1,3) ) * ncell 
+    ky = tpi * ( kxi * simu_cell%B(2,1) +  kyi * simu_cell%B(2,2) + kzi * simu_cell%B(2,3) ) * ncell 
+    kz = tpi * ( kxi * simu_cell%B(3,1) +  kyi * simu_cell%B(3,2) + kzi * simu_cell%B(3,3) ) * ncell 
 
-    tmpxx  = 0.0d0
-    tmpyy  = 0.0d0
-    tmpzz  = 0.0d0
-    tmpxy  = 0.0d0
-    tmpxz  = 0.0d0
-    tmpyz  = 0.0d0
-    hessij = 0.D0
-    work   = 0.0d0
-    ww     = 0.0d0
+    tmphess = 0.0_dp
+    hessij  = 0.0_dp
+    work    = 0.0_dp
+    ww      = 0.0_dp
 
     do ia = 1 , natm
 
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
+
       do ja = 1 , natm
 
-        rxij = rxi - rx(ja)
-        ryij = ryi - ry(ja)
-        rzij = rzi - rz(ja)
-        nxij = NINT ( rxij * simu_cell%BNORM(1) )
-        nyij = NINT ( ryij * simu_cell%BNORM(2) )
-        nzij = NINT ( rzij * simu_cell%BNORM(3) )
-        rxij = rxij - simu_cell%ANORM(1)* nxij
-        ryij = ryij - simu_cell%ANORM(2) * nyij
-        rzij = rzij - simu_cell%ANORM(3) * nzij
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
 
         p1 = itype(ia)
         p2 = itype(ja)
 
-        if (rijsq .lt. rcutsq(p1,p2)) then
-          krx = (kxi * rxij)
-          kry = (kyi * ryij)
-          krz = (kzi * rzij)
-          sphase = SIN ( 0.5d0 * (krx + kry + krz) )
+        if ( rijsq .lt. rcutsq(p1,p2) ) then
+          kr =  kx * rxij + ky * ryij + kz * rzij
+          sphase = SIN ( 0.5_dp * kr )
           sphase = sphase * sphase
 
-          tmpxx = tmpxx + hess(ja,ia)                       * sphase
-          tmpyy = tmpyy + hess(ja + natm,ia + natm)         * sphase
-          tmpzz = tmpzz + hess(ja + 2 * natm,ia + 2 * natm) * sphase
-          tmpxy = tmpxy + hess(ja,ia + natm)                * sphase
-          tmpxz = tmpxz + hess(ja,ia + 2 * natm)            * sphase
-          tmpyz = tmpyz + hess(ja + natm,ia + 2 * natm)     * sphase
+          tmphess ( 1 , 1 ) = tmphess ( 1 , 1 ) + hess ( ja            , ia            ) * sphase 
+          tmphess ( 2 , 2 ) = tmphess ( 2 , 2 ) + hess ( ja + natm     , ia + natm     ) * sphase
+          tmphess ( 3 , 3 ) = tmphess ( 3 , 3 ) + hess ( ja + 2 * natm , ia + 2 * natm ) * sphase
+          tmphess ( 1 , 2 ) = tmphess ( 1 , 2 ) + hess ( ja            , ia + natm     ) * sphase
+          tmphess ( 1 , 3 ) = tmphess ( 1 , 3 ) + hess ( ja            , ia + 2 * natm ) * sphase
+          tmphess ( 2 , 3 ) = tmphess ( 2 , 3 ) + hess ( ja + natm     , ia + 2 * natm ) * sphase
+
         endif
       enddo  ! j atom loop
     enddo ! i atom loop
 
-    hessij(1,1) = - tmpxx * 2.0d0 / natm
-    hessij(2,2) = - tmpyy * 2.0d0 / natm
-    hessij(3,3) = - tmpzz * 2.0d0 / natm
+    hessij(1,1) = - tmphess ( 1 , 1 ) * 2.0_dp / natm
+    hessij(2,2) = - tmphess ( 2 , 2 ) * 2.0_dp / natm
+    hessij(3,3) = - tmphess ( 3 , 3 ) * 2.0_dp / natm
 
-    hessij(1,2) = - tmpxy * 2.0d0 / natm
-    hessij(1,3) = - tmpxz * 2.0d0 / natm
-    hessij(2,3) = - tmpyz * 2.0d0 / natm
+    hessij(1,2) = - tmphess ( 1 , 2 ) * 2.0_dp / natm
+    hessij(1,3) = - tmphess ( 1 , 3 ) * 2.0_dp / natm
+    hessij(2,3) = - tmphess ( 2 , 3 ) * 2.0_dp / natm
 
     hessij(2,1) = hessij(1,2)
     hessij(3,1) = hessij(1,3)
     hessij(3,2) = hessij(2,3)
 
-    CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
 
-    do i = 1,wi
+    ! diagonalisation of the 3x3 matrix
+    CALL DSYEV(jobz,uplo,3,hessij,3,ww,work,lwork,info)
+    if ( info .ne. 0 ) then
+      if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in doskpt : improper termination. of DSYEV info = ', info
+      STOP 
+    endif
+
+    do i = 1 , wi
       if ( MOD ( ik + 1 , nk / 20 ) .eq. 0 ) then
         WRITE ( stdout ,'(i7,3f12.4,3f18.6)')    ck, kxi, kyi, kzi, SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
         kl = kl * 1
@@ -1215,18 +1649,35 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
       ck = ck + 1
     enddo
 
-   eigenk(ik+1,1) = SQRT (ww(1))
-   eigenk(ik+1,2) = SQRT (ww(2))
-   eigenk(ik+1,3) = SQRT (ww(3))
+   eigenk( ik+1 , 1 ) = SQRT (ww(1))
+   eigenk( ik+1 , 2 ) = SQRT (ww(2))
+   eigenk( ik+1 , 3 ) = SQRT (ww(3))
+
   enddo !ik loop
 
   CLOSE ( kunit_IBZKPTFF )
   CLOSE ( kunit_DKFF )
 
+  deallocate ( tmphess )
+  deallocate ( hessij  )
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
+  ttt2 = MPI_WTIME(ierr) ! timing info
+  doskpttimetot = doskpttimetot + ( ttt2 - ttt1 )
+
   return  
 
 END SUBROUTINE doskpt 
 
+!*********************** SUBROUTINE gene_IBZKPTFF *****************************
+!
+! calculates the DOS for a given set of k-points
+!
+!******************************************************************************
 
 SUBROUTINE gene_IBZKPTFF
 
@@ -1238,7 +1689,7 @@ SUBROUTINE gene_IBZKPTFF
 
   integer :: ikx , iky , ikz
   integer :: nk , wi , nktot
-  double precision :: ak 
+  real(kind=dp) :: ak 
 
   wi = 1
   nk = nkphon
@@ -1254,7 +1705,7 @@ SUBROUTINE gene_IBZKPTFF
   endif
 
 
-  ak=(1.0d0)/(nk) 
+  ak=(1.0_dp)/(nk) 
 
 
   do ikx = 0 , nk

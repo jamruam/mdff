@@ -21,44 +21,47 @@
 
 MODULE thermodynamic
 
-  USE block
+  USE constants,                ONLY :  dp
+  USE block,                    ONLY :  accu
 
   implicit none
 
-  double precision :: e_tot          ! total energy  ( potential + kinetic )
-  double precision :: u_tot          ! total potential energy 
+  real(kind=dp) :: engunit        ! energy units
+
+  real(kind=dp) :: e_tot          ! total energy  ( potential + kinetic )
+  real(kind=dp) :: u_tot          ! total potential energy 
   
-  double precision :: e_kin          ! kinetic energy
-  double precision :: u_lj           ! potential energy from lennard_jones interaction
-  double precision :: u_morse        ! potential energy from morse interaction
-  double precision :: u_coul_tot
-!  double precision :: u_coul_qq      ! potential energy from coulombic interaction 
-!  double precision :: u_coul_dd      ! potential energy from coulombic interaction 
-!  double precision :: u_coul_qd      ! potential energy from coulombic interaction
-  double precision :: u_pol 
+  real(kind=dp) :: e_kin          ! kinetic energy
+  real(kind=dp) :: u_lj           ! potential energy from lennard_jones interaction
+  real(kind=dp) :: u_morse        ! potential energy from morse interaction
+  real(kind=dp) :: u_coul_tot
+!  real(kind=dp) :: u_coul_qq      ! potential energy from coulombic interaction 
+!  real(kind=dp) :: u_coul_dd      ! potential energy from coulombic interaction 
+!  real(kind=dp) :: u_coul_qd      ! potential energy from coulombic interaction
+  real(kind=dp) :: u_pol 
 
-  double precision :: e_kin_r        ! kinetic energy
-  double precision :: temp_r         ! temperature ( from kinetic energy )  
-  double precision :: u_lj_r         ! potential energy from lennard_jones interaction
-  double precision :: u_morse_r      ! potential energy from morse interaction
-  double precision :: u_coul_r       ! potential energy from coulombic interaction 
+  real(kind=dp) :: e_kin_r        ! kinetic energy
+  real(kind=dp) :: temp_r         ! temperature ( from kinetic energy )  
+  real(kind=dp) :: u_lj_r         ! potential energy from lennard_jones interaction
+  real(kind=dp) :: u_morse_r      ! potential energy from morse interaction
+  real(kind=dp) :: u_coul_r       ! potential energy from coulombic interaction 
 
 
-  double precision :: vir_tot        ! total virial
-  double precision :: vir_lj         ! virial of lj interaction
-  double precision :: vir_morse      ! virial of morse interaction
-  double precision :: vir_coul_tot   ! virial of coulombic interaction
-!  double precision :: vir_coul_qq    ! virial of coulombic interaction
-!  double precision :: vir_coul_dd    ! virial of coulombic interaction
-!  double precision :: vir_coul_qd    ! virial of coulombic interaction
+  real(kind=dp) :: vir_tot        ! total virial
+  real(kind=dp) :: vir_lj         ! virial of lj interaction
+  real(kind=dp) :: vir_morse      ! virial of morse interaction
+  real(kind=dp) :: vir_coul_tot   ! virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_qq    ! virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_dd    ! virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_qd    ! virial of coulombic interaction
 
-  double precision :: pvirial_tot    ! virial correction to the pressure
-  double precision :: pvirial_lj     ! virial correction to the pressure
-  double precision :: pvirial_coul   ! virial correction to the pressure
+  real(kind=dp) :: pvirial_tot    ! virial correction to the pressure
+  real(kind=dp) :: pvirial_lj     ! virial correction to the pressure
+  real(kind=dp) :: pvirial_coul   ! virial correction to the pressure
 
-  double precision :: pressure_tot   ! total pressure
-  double precision :: pressure_lj    ! pressure from lj interactions
-  double precision :: pressure_coul  ! pressure from coulombic interactions
+  real(kind=dp) :: pressure_tot   ! total pressure
+  real(kind=dp) :: pressure_lj    ! pressure from lj interactions
+  real(kind=dp) :: pressure_coul  ! pressure from coulombic interactions
 
   TYPE (accu) acc_e_tot          ! total energy  ( potential + kinetic ) 
   TYPE (accu) acc_u_tot          ! total potential energy 
@@ -85,24 +88,25 @@ CONTAINS
 !******************************************************************************
 SUBROUTINE calc_thermo
 
-  USE control,  ONLY :  lreduced 
-  USE config,   ONLY :  natm , rho , simu_cell 
+  USE control,                  ONLY :  lreduced 
+  USE config,                   ONLY :  natm , rho , simu_cell 
 
   implicit none
-  double precision :: omega
+  real(kind=dp) :: omega
 
   omega = simu_cell%omega
+ !!!! WARNING virials are wrong
 
   if (lreduced) then
-    u_lj_r   = u_lj                      / DBLE ( natm )
-    u_morse_r= u_morse                   / DBLE ( natm )
-    u_coul_r = u_coul_tot                / DBLE ( natm )
-    e_kin_r  = e_kin                     / DBLE ( natm )
+    u_lj_r   = u_lj         / REAL ( natm , kind = dp ) / engunit
+    u_morse_r= u_morse      / REAL ( natm , kind = dp ) / engunit
+    u_coul_r = u_coul_tot   / REAL ( natm , kind = dp ) / engunit
+    e_kin_r  = e_kin        / REAL ( natm , kind = dp ) / engunit
   else
-    u_lj_r   = u_lj
-    u_morse_r= u_morse
-    u_coul_r = u_coul_tot
-    e_kin_r  = e_kin
+    u_lj_r   = u_lj         / engunit
+    u_morse_r= u_morse      / engunit
+    u_coul_r = u_coul_tot   / engunit
+    e_kin_r  = e_kin        / engunit
   endif
   
   u_tot    = u_lj_r + u_coul_r + u_morse_r
@@ -110,8 +114,8 @@ SUBROUTINE calc_thermo
   vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
   if (lreduced) then
-    pvirial_lj    = vir_lj / omega / DBLE ( natm ) 
-    pvirial_coul  = ( vir_coul_tot ) / omega / DBLE ( natm ) 
+    pvirial_lj    = vir_lj / omega / REAL ( natm , kind = dp ) 
+    pvirial_coul  = ( vir_coul_tot ) / omega / REAL ( natm , kind = dp ) 
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + temp_r / omega
@@ -140,52 +144,52 @@ SUBROUTINE init_general_accumulator
 
   implicit none
 
-  acc_e_tot%accval           = 0.0d0 
-  acc_e_tot%accvalsq         = 0.0d0
+  acc_e_tot%accval           = 0.0_dp 
+  acc_e_tot%accvalsq         = 0.0_dp
   acc_e_tot%counter          = 0
 
-  acc_u_tot%accval           = 0.0d0
-  acc_u_tot%accvalsq         = 0.0d0
+  acc_u_tot%accval           = 0.0_dp
+  acc_u_tot%accvalsq         = 0.0_dp
   acc_u_tot%counter          = 0
 
-  acc_e_kin_r%accval         = 0.0d0
-  acc_e_kin_r%accvalsq       = 0.0d0
+  acc_e_kin_r%accval         = 0.0_dp
+  acc_e_kin_r%accvalsq       = 0.0_dp
   acc_e_kin_r%counter        = 0
 
-  acc_u_lj_r%accval          = 0.0d0
-  acc_u_lj_r%accvalsq        = 0.0d0
+  acc_u_lj_r%accval          = 0.0_dp
+  acc_u_lj_r%accvalsq        = 0.0_dp
   acc_u_lj_r%counter         = 0
  
-  acc_u_coul_r%accval        = 0.0d0
-  acc_u_coul_r%accvalsq      = 0.0d0
+  acc_u_coul_r%accval        = 0.0_dp
+  acc_u_coul_r%accvalsq      = 0.0_dp
   acc_u_coul_r%counter       = 0
 
-  acc_temp_r%accval          = 0.0d0
-  acc_temp_r%accvalsq        = 0.0d0
+  acc_temp_r%accval          = 0.0_dp
+  acc_temp_r%accvalsq        = 0.0_dp
   acc_temp_r%counter         = 0
 
-  acc_vir_tot%accval         = 0.0d0
-  acc_vir_tot%accvalsq       = 0.0d0
+  acc_vir_tot%accval         = 0.0_dp
+  acc_vir_tot%accvalsq       = 0.0_dp
   acc_vir_tot%counter        = 0
 
-  acc_vir_lj%accval          = 0.0d0
-  acc_vir_lj%accvalsq        = 0.0d0
+  acc_vir_lj%accval          = 0.0_dp
+  acc_vir_lj%accvalsq        = 0.0_dp
   acc_vir_lj%counter         = 0
 
-  acc_vir_coul%accval        = 0.0d0
-  acc_vir_coul%accvalsq      = 0.0d0
+  acc_vir_coul%accval        = 0.0_dp
+  acc_vir_coul%accvalsq      = 0.0_dp
   acc_vir_coul%counter       = 0
 
-  acc_pressure_tot%accval    = 0.0d0
-  acc_pressure_tot%accvalsq  = 0.0d0
+  acc_pressure_tot%accval    = 0.0_dp
+  acc_pressure_tot%accvalsq  = 0.0_dp
   acc_pressure_tot%counter   = 0
 
-  acc_pressure_lj%accval     = 0.0d0
-  acc_pressure_lj%accvalsq   = 0.0d0
+  acc_pressure_lj%accval     = 0.0_dp
+  acc_pressure_lj%accvalsq   = 0.0_dp
   acc_pressure_lj%counter    = 0
 
-  acc_pressure_coul%accval   = 0.0d0
-  acc_pressure_coul%accvalsq = 0.0d0
+  acc_pressure_coul%accval   = 0.0_dp
+  acc_pressure_coul%accvalsq = 0.0_dp
   acc_pressure_coul%counter  = 0
 
   return
@@ -269,10 +273,10 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
 
   ! global
   integer, intent(in) :: kunit , step
-  double precision, intent(in), optional :: dummy
+  real(kind=dp), intent(in), optional :: dummy
 
   ! local 
-  double precision :: omega
+  real(kind=dp) :: omega
   
   omega = simu_cell%omega
 
@@ -281,14 +285,14 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
   if ( ionode ) then
     if ( PRESENT ( dummy ) ) then
       WRITE ( kunit , 200 ) &
-      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
+      step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
       WRITE ( kunit , 201 ) &
-      step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
+      step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
     else
       WRITE ( kunit , 100 ) &
-      step , DBLE (step * dt) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
+      step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
       WRITE ( kunit , 101 ) &
-      step , DBLE (step * dt) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
+      step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
     endif
   endif
 
@@ -323,14 +327,14 @@ SUBROUTINE write_average_thermo ( kunit )
   integer, intent(in) :: kunit
 
   !local
-  double precision :: e_tot_av , e_kin_r_av , u_tot_av , u_lj_r_av
-  double precision :: u_coul_r_av , temp_r_av  , pressure_tot_av , pressure_lj_av  , pressure_coul_av               
+  real(kind=dp) :: e_tot_av , e_kin_r_av , u_tot_av , u_lj_r_av
+  real(kind=dp) :: u_coul_r_av , temp_r_av  , pressure_tot_av , pressure_lj_av  , pressure_coul_av               
 
-  double precision :: e_tot_avsq , e_kin_r_avsq , u_tot_avsq , u_lj_r_avsq
-  double precision :: u_coul_r_avsq , temp_r_avsq  , pressure_tot_avsq , pressure_lj_avsq  , pressure_coul_avsq
+  real(kind=dp) :: e_tot_avsq , e_kin_r_avsq , u_tot_avsq , u_lj_r_avsq
+  real(kind=dp) :: u_coul_r_avsq , temp_r_avsq  , pressure_tot_avsq , pressure_lj_avsq  , pressure_coul_avsq
 
-  double precision :: e_tot_sig , e_kin_r_sig , u_tot_sig , u_lj_r_sig
-  double precision :: u_coul_r_sig , temp_r_sig  , pressure_tot_sig , pressure_lj_sig  , pressure_coul_sig
+  real(kind=dp) :: e_tot_sig , e_kin_r_sig , u_tot_sig , u_lj_r_sig
+  real(kind=dp) :: u_coul_r_sig , temp_r_sig  , pressure_tot_sig , pressure_lj_sig  , pressure_coul_sig
  
   if ( acc_e_tot%counter         .eq. 0 ) return
   if ( acc_e_kin_r%counter       .eq. 0 ) return
@@ -345,28 +349,28 @@ SUBROUTINE write_average_thermo ( kunit )
   ! ========
   !  < A >
   ! ========
-  e_tot_av           = acc_e_tot%accval           / DBLE ( acc_e_tot%counter )
-  e_kin_r_av         = acc_e_kin_r%accval         / DBLE ( acc_e_kin_r%counter ) 
-  u_tot_av           = acc_u_tot%accval           / DBLE ( acc_u_tot%counter )
-  u_lj_r_av          = acc_u_lj_r%accval          / DBLE ( acc_u_lj_r%counter )
-  u_coul_r_av        = acc_u_coul_r%accval        / DBLE ( acc_u_coul_r%counter )
-  temp_r_av          = acc_temp_r%accval          / DBLE ( acc_temp_r%counter )
-  pressure_tot_av    = acc_pressure_tot%accval    / DBLE ( acc_pressure_tot%counter )
-  pressure_lj_av     = acc_pressure_lj%accval     / DBLE ( acc_pressure_lj%counter )
-  pressure_coul_av   = acc_pressure_coul%accval   / DBLE ( acc_pressure_coul%counter )
+  e_tot_av           = acc_e_tot%accval           / REAL ( acc_e_tot%counter , kind = dp )
+  e_kin_r_av         = acc_e_kin_r%accval         / REAL ( acc_e_kin_r%counter , kind = dp ) 
+  u_tot_av           = acc_u_tot%accval           / REAL ( acc_u_tot%counter , kind = dp )
+  u_lj_r_av          = acc_u_lj_r%accval          / REAL ( acc_u_lj_r%counter , kind = dp )
+  u_coul_r_av        = acc_u_coul_r%accval        / REAL ( acc_u_coul_r%counter , kind = dp )
+  temp_r_av          = acc_temp_r%accval          / REAL ( acc_temp_r%counter , kind = dp )
+  pressure_tot_av    = acc_pressure_tot%accval    / REAL ( acc_pressure_tot%counter , kind = dp )
+  pressure_lj_av     = acc_pressure_lj%accval     / REAL ( acc_pressure_lj%counter , kind = dp )
+  pressure_coul_av   = acc_pressure_coul%accval   / REAL ( acc_pressure_coul%counter , kind = dp )
 
   ! ========
   !  < A² >
   ! ========
-  e_tot_avsq         = acc_e_tot%accvalsq         / DBLE ( acc_e_tot%counter )
-  e_kin_r_avsq       = acc_e_kin_r%accvalsq       / DBLE ( acc_e_kin_r%counter ) 
-  u_tot_avsq         = acc_u_tot%accvalsq         / DBLE ( acc_u_tot%counter )
-  u_lj_r_avsq        = acc_u_lj_r%accvalsq        / DBLE ( acc_u_lj_r%counter )
-  u_coul_r_avsq      = acc_u_coul_r%accvalsq      / DBLE ( acc_u_coul_r%counter )
-  temp_r_avsq        = acc_temp_r%accvalsq        / DBLE ( acc_temp_r%counter )
-  pressure_tot_avsq  = acc_pressure_tot%accvalsq  / DBLE ( acc_pressure_tot%counter )
-  pressure_lj_avsq   = acc_pressure_lj%accvalsq   / DBLE ( acc_pressure_lj%counter )
-  pressure_coul_avsq = acc_pressure_coul%accvalsq / DBLE ( acc_pressure_coul%counter )
+  e_tot_avsq         = acc_e_tot%accvalsq         / REAL ( acc_e_tot%counter , kind = dp )
+  e_kin_r_avsq       = acc_e_kin_r%accvalsq       / REAL ( acc_e_kin_r%counter , kind = dp ) 
+  u_tot_avsq         = acc_u_tot%accvalsq         / REAL ( acc_u_tot%counter , kind = dp )
+  u_lj_r_avsq        = acc_u_lj_r%accvalsq        / REAL ( acc_u_lj_r%counter , kind = dp )
+  u_coul_r_avsq      = acc_u_coul_r%accvalsq      / REAL ( acc_u_coul_r%counter , kind = dp )
+  temp_r_avsq        = acc_temp_r%accvalsq        / REAL ( acc_temp_r%counter , kind = dp )
+  pressure_tot_avsq  = acc_pressure_tot%accvalsq  / REAL ( acc_pressure_tot%counter , kind = dp )
+  pressure_lj_avsq   = acc_pressure_lj%accvalsq   / REAL ( acc_pressure_lj%counter , kind = dp )
+  pressure_coul_avsq = acc_pressure_coul%accvalsq / REAL ( acc_pressure_coul%counter , kind = dp )
 
   ! =============================
   !  sqrt ( < A² > - < A > ²)

@@ -23,15 +23,18 @@
 ! module related to real space summation 
 MODULE rspace
 
+  USE constants,                ONLY :  dp
+
+  implicit none      
+
   ! ===================
   !  direct summation
   ! ===================
-
   TYPE rmesh
     integer                                        :: ncell   ! nb of cell in the direct calc. in each direction  
     integer                                        :: ncmax   ! (internal) number of cell in direct summation
-    double precision, dimension(:,:) , allocatable :: boxxyz  ! vectors in real space
-    double precision, dimension(:)   , allocatable :: rr      ! vectors module in real space
+    real(kind=dp), dimension(:,:)    , allocatable :: boxxyz  ! vectors in real space
+    real(kind=dp), dimension(:)      , allocatable :: rr      ! vectors module in real space
     integer         , dimension(:)   , allocatable :: lcell   ! lcell is 1 in the central box 
     character(len=15)                              :: meshlabel
   END TYPE rmesh
@@ -52,7 +55,7 @@ CONTAINS
 SUBROUTINE direct_sum_init ( rm )
 
   USE config,   ONLY : simu_cell 
-  USE io_file,  ONLY : ionode , stdout , kunit_OUTFF 
+  USE io_file,  ONLY : ionode , stdout 
 
   implicit none
  
@@ -63,7 +66,6 @@ SUBROUTINE direct_sum_init ( rm )
   integer :: nc , ncellx , ncelly , ncellz , ncelldirect
 
   if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
 
   ncelldirect = rm%ncell
 
@@ -96,7 +98,6 @@ SUBROUTINE direct_sum_init ( rm )
   ! ======================
   call reorder_rpt ( rm )
   if ( ionode ) WRITE ( stdout      ,'(a)') '(full) real space arrays sorted'
-  if ( ionode ) WRITE ( kunit_OUTFF ,'(a)') '(full) real space arrays sorted'
 
 
 
@@ -112,7 +113,7 @@ END SUBROUTINE direct_sum_init
 
 SUBROUTINE reorder_rpt ( rm )
 
-  USE io_file,  ONLY :  ionode , stdout , kunit_OUTFF
+  USE io_file,  ONLY :  ionode , stdout 
 
   implicit none
 
@@ -121,8 +122,8 @@ SUBROUTINE reorder_rpt ( rm )
 
   !local
   integer :: ir, lr
-  double precision, dimension (:), allocatable :: trpt
-  double precision, dimension (:), allocatable :: tmprx , tmpry , tmprz
+  real(kind=dp), dimension (:), allocatable :: trpt
+  real(kind=dp), dimension (:), allocatable :: tmprx , tmpry , tmprz
 
   integer, dimension (:), allocatable :: labelrpt, labelt , tmplc
 
