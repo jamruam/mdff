@@ -69,13 +69,12 @@ SUBROUTINE gr_init
   OPEN ( stdin , file = filename)
   READ ( stdin , grtag , iostat=ioerr )
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : grtag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
+   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : grtag wrong tag'
    STOP
   endif
-
   CLOSE ( stdin )
 
   ! ==========================================
@@ -119,7 +118,7 @@ SUBROUTINE gr_alloc
 END SUBROUTINE gr_alloc
 
 
-!*********************** SUBROUTINE gr_dealloc **********************************
+!*********************** SUBROUTINE gr_dealloc ********************************
 !
 !
 !******************************************************************************
@@ -139,7 +138,7 @@ SUBROUTINE gr_dealloc
 END SUBROUTINE gr_dealloc
 
 
-!*********************** SUBROUTINE gr_default_tag ***************************
+!*********************** SUBROUTINE gr_default_tag ****************************
 !
 ! set default values to gr tag
 !
@@ -161,7 +160,7 @@ SUBROUTINE gr_default_tag
 END SUBROUTINE gr_default_tag
 
 
-!*********************** SUBROUTINE gr_print_info ***************************
+!*********************** SUBROUTINE gr_print_info *****************************
 !
 !
 !******************************************************************************
@@ -196,6 +195,7 @@ END SUBROUTINE gr_print_info
 !
 !
 !******************************************************************************
+
 SUBROUTINE grcalc
 
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
@@ -203,7 +203,7 @@ SUBROUTINE grcalc
   USE control,                  ONLY :  myrank , numprocs
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
-  USE cell,                     ONLY :  lattice
+  USE cell,                     ONLY :  lattice , dirkar
   USE time,                     ONLY :  grtimetot_comm
 
   implicit none
@@ -218,6 +218,14 @@ SUBROUTINE grcalc
   character(len=15), dimension ( : )     , allocatable :: cint
   real(kind=dp)                                        :: rr , vol
   real(kind=dp)                                        :: ttt1 , ttt2      
+  ! =====================================================
+  !   type of positions coordinates 
+  ! =====================================================
+  logical :: allowed
+  character(len=60), SAVE :: cpos
+  character(len=60), SAVE :: cpos_allowed(4)
+  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
+
 
   ! trash 
   integer            :: iiii
@@ -238,6 +246,17 @@ SUBROUTINE grcalc
   READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+  READ( kunit_TRAJFF ,*) cpos
+  ! ======
+  !  cpos
+  ! ======
+  do i = 1 , size( cpos_allowed )
+   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    STOP
+  endif
 
   CALL lattice ( simu_cell ) 
   rho = DBLE ( natm )  / simu_cell%omega 
@@ -279,6 +298,7 @@ SUBROUTINE grcalc
       if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) iiii
       if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
       if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) cpos
       do ia = 1 , natm 
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
@@ -300,10 +320,21 @@ SUBROUTINE grcalc
       READ ( kunit_TRAJFF , * ) iiii
       READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
       READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
+      READ ( kunit_TRAJFF , * ) cpos
     endif
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
+    if ( cpos .eq. 'Direct' ) then
+      ! ======================================
+      !         direct to cartesian
+      ! ======================================
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+    else if ( cpos .eq. 'Cartesian' ) then
+      if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+    endif
+
     ngr=ngr+1 
     ! ==========================
     !  calc radial_distribution 
@@ -311,7 +342,6 @@ SUBROUTINE grcalc
     call gr_main ( iastart , iaend )
 
   enddo !nconf 
-
 
   ! ===========================================
   !        merge results  
@@ -490,7 +520,7 @@ END SUBROUTINE gr_main
 !
 !******************************************************************************
 
-!SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
+SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
 !  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
 !  USE config,                   ONLY :  rho
@@ -498,8 +528,8 @@ END SUBROUTINE gr_main
 
 !  implicit none
 !  ! global
-!  integer :: PANGR , pairs
-!  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
+  integer :: PANGR , pairs
+  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
 !
 !  ! local
 !  integer :: i , j , is , NN
@@ -537,27 +567,27 @@ END SUBROUTINE gr_main
 !  deallocate ( in , out )
 !
 !! other version
-! ! ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
+!  ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
 !!  allocate ( Uji ( PANGR , PANGR ) ) 
 !
-!!  do i = 1 , PANGR
+!  do i = 1 , PANGR
 !!    ri  = ( dble ( i )  + 0.5_dp )  * res
-!!    rip = ( dble ( i + 1 )  + 0.5_dp )  * res
+!    rip = ( dble ( i + 1 )  + 0.5_dp )  * res
 !!    do j = 1 , PANGR
-!!      qj = tpi * DBLE ( j ) + 0.5_dp / DBLE ( PANGR / 2 + 1 ) / resg
-!!      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
-!!      Uji ( j , i ) = Uji ( j , i ) / qj  
-!!    enddo
-!!  enddo
-!!  Uji = 2.0_dp * tpi * Uji
-!
-!!  do i= 1 , PANGR/2+1
-!!    q = tpi * ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR / 2 + 1) / resg
+!      qj = tpi * DBLE ( j ) + 0.5_dp / DBLE ( PANGR / 2 + 1 ) / resg
+!      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
+! !     Uji ( j , i ) = Uji ( j , i ) / qj  
+!    enddo
+! ! enddo
+!  Uji = 2.0_dp * tpi * Uji
+!!
+!  do i= 1 , PANGR/2+1
+!    q = tpi * ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR / 2 + 1) / resg
 !!    do j = 1 , PANGR
-!!      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0_dp )  
-!!    enddo
-!!    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
-!!  enddo
+!      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0_dp )  
+!    enddo
+!    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
+!  enddo
 !
 !
 !  deallocate ( Uji )
@@ -599,7 +629,7 @@ END SUBROUTINE gr_main
 !  SR = SR - r * COS ( qj * r ) / qj
 !end function 
 
-!END SUBROUTINE static_struc_fac
+END SUBROUTINE static_struc_fac
 
 
 END MODULE radial_distrib 

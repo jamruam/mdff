@@ -22,9 +22,7 @@
 !*********************** MODULE time ******************************************
 !
 !  this MODULE implements a small timer utility to time
-!  SUBROUTINE 
 !  (see START_TIMING)
-!  from VASP
 !
 !******************************************************************************
 MODULE time
@@ -33,8 +31,8 @@ MODULE time
 
   implicit none
   
-  real(kind=dp) :: timetot        ! engforce SUBROUTINE       
-  real(kind=dp) :: forcetimetot   ! engforce SUBROUTINE       
+  real(kind=dp) :: timetot        ! engforce        
+  real(kind=dp) :: forcetimetot   ! engforce        
   real(kind=dp) :: fcoultimetot1  ! engforce_coul direct space      
   real(kind=dp) :: fcoultimetot2  ! engforce_coul fourier space      
   real(kind=dp) :: fcoultimetot3  ! engforce_coul comm only 

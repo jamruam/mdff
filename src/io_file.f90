@@ -25,6 +25,7 @@
 ! definition of the units for output files
 !
 !******************************************************************************
+
 MODULE io_file
 
   ! rank for output (if true myrank.eq.0)
@@ -121,6 +122,7 @@ MODULE io_file
  
   ! EFG auto-correlation output file
   integer, PARAMETER :: kunit_EFGACFFF  = 230
+  integer, PARAMETER :: kunit_NMRACFFF  = 231
 
   ! static structure factor
   integer, PARAMETER :: kunit_STRFACFF  = 240
@@ -194,6 +196,12 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
 
 END SUBROUTINE io_open
 
+!*********************** SUBROUTINE io_close **********************************
+!
+! close file and check status
+!
+!******************************************************************************
+
 SUBROUTINE io_close ( kunit ) 
   
   implicit none
@@ -215,12 +223,13 @@ SUBROUTINE io_close ( kunit )
 
 END SUBROUTINE io_close
 
-!*********************** SUBROUTINE sweep_blanks ******************************
+!*********************** FUNCTION sweep_blanks ********************************
 !
-!  to remove leading and trailing spaces
+! to remove leading and trailing spaces
 !
 !******************************************************************************
-character(len=30) function sweep_blanks ( in_str )
+
+character(len=30) FUNCTION sweep_blanks ( in_str )
 
   implicit none
 
@@ -241,9 +250,7 @@ character(len=30) function sweep_blanks ( in_str )
     sweep_blanks = out_str
   enddo
         
-end function sweep_blanks
-
-
+END FUNCTION sweep_blanks
 
 END MODULE io_file
 ! ===== fmV =====

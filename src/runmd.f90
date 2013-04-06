@@ -38,24 +38,14 @@
 
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE md_run **********************************
+!*********************** SUBROUTINE md_run ************************************
 !
-! main SUBROUTINE for bmlj molecular dynamics and static calculation
-! properties EFG, GR ... are called here when calculated on the fly.
+! main routine for molecular dynamics and static calculation
 !
 ! input : 
 !          iastart , iaend : index for atom decomposition (parallel)           
 !          list , point    : verlet list variables 
 !          offset          : time offset
-!
-! properties : 
-!  
-!          EFG             : electric field gradient
-!          GR              : radial distribution function
-!          MSD             : mean square displacement
-!          VACF            : velocity auto-correlation function
-!
-! Note : previously called bmlj_run
 !
 !******************************************************************************
 
@@ -74,11 +64,6 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   USE thermodynamic,            ONLY :  e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver 
-!  USE efg
-!  USE radial_distrib
-!  USE msd
-!  USE vacf 
-!  USE multi_tau 
 
   implicit none
   INCLUDE "mpif.h"

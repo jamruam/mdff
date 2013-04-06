@@ -28,10 +28,6 @@
 ! *      vasp: some features of the best code ever ;)           *
 ! *      dea-dec2007-janv2011                                   *
 ! ===============================================================
-! MAIN SUBROUTINE :                            
-! set, read and check control parameters
-! timing information at the end
-! ===============================================================
 
 
 ! ======= Hardware =======
@@ -96,11 +92,12 @@ PROGRAM main_MDFF
   ! MD is too sensitive to the initial velocities
   ! for test purpose keep it commented
   ! uncomment it if you want uncorrelated runs  
+  ! ====================================================
   ! CALL init_random_seed 
   ! ====================================================
   ! gives rank index (myrank) 
   ! ====================================================
-  CALL MPI_COMM_RANK ( MPI_COMM_WORLD , myrank , ierr )  
+  CALL MPI_COMM_RANK ( MPI_COMM_WORLD , myrank   , ierr )  
   ! ====================================================
   ! gives total proc number  
   ! ====================================================

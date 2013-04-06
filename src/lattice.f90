@@ -38,11 +38,13 @@ MODULE cell
 
 CONTAINS
 
-!*********************** SUBROUTINE lattice **********************************
-! from vasp
+!*********************** SUBROUTINE lattice ***********************************
+!
+! adapted from vasp
+!
 !****************************************************************************** 
 
-SUBROUTINE lattice (Mylatt)
+SUBROUTINE lattice ( Mylatt )
 
   USE constants,                ONLY : radian
 
@@ -141,11 +143,13 @@ SUBROUTINE lattice (Mylatt)
 
 END SUBROUTINE lattice
 
-!**************** SUBROUTINE kardir ************************************
+!*********************** SUBROUTINE kardir ************************************
+!
 ! transform a set of vectors from cartesian coordinates to
 ! ) direct lattice      (BASIS must be equal to B reciprocal lattice)
 ! ) reciprocal lattice  (BASIS must be equal to A direct lattice)
-!***********************************************************************
+!
+!******************************************************************************
 
 SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
 
@@ -172,12 +176,14 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
 
 END SUBROUTINE
 
-!**************** SUBROUTINE dirkar ************************************
+!*********************** SUBROUTINE dirkar ************************************
+!
 ! transform a set of vectors from
 ! ) direct lattice      (BASIS must be equal to A direct lattice)
 ! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
 ! to cartesian coordinates
-!***********************************************************************
+!
+!******************************************************************************
 
 SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
 

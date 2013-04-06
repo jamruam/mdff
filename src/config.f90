@@ -36,6 +36,7 @@ MODULE config
   implicit none
 
   integer, PARAMETER                           :: ntypemax = 16      ! maximum number of types
+  integer, PARAMETER                           :: vnlmax   = 6000      ! maximum number of types
 
   character(len=60), SAVE                      :: system             ! system name                                              
 
@@ -174,7 +175,8 @@ END SUBROUTINE config_print_info
 
 SUBROUTINE write_CONTFF
 
-  USE io_file,  ONLY :  kunit_CONTFF, ionode
+  USE io_file,                  ONLY :  kunit_CONTFF, ionode
+  USE cell,                     ONLY :  kardir , periodicbc
 
   implicit none
 
@@ -188,7 +190,12 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  !CALL  periodicbc ( natm , xxx , yyy , zzz )
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
+
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -200,6 +207,7 @@ SUBROUTINE write_CONTFF
       WRITE ( kunit_CONTFF,'(i4)') ntype 
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
+      WRITE ( kunit_CONTFF,'(A)') 'Direct' 
       WRITE ( kunit_CONTFF,'(a,9e20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
                                                            vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
                                                            fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
@@ -253,7 +261,7 @@ SUBROUTINE config_alloc
   allocate( fxs ( natm ) , fys ( natm ) , fzs ( natm ) )
   allocate( rxs ( natm ) , rys ( natm ) , rzs ( natm ) )
   allocate( atype ( natm ) , itype ( natm ) )
-  allocate( list ( natm * 1000 ) , point (  natm + 1 ) )
+  allocate( list ( natm * vnlmax ) , point (  natm + 1 ) )
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
   allocate( quadia ( natm ) )

@@ -14,44 +14,61 @@ echo ""
 echo "First example: Two charges in a box=10"
 echo " " 
 cp TRAJFF.twocharges TRAJFF
-echo "&fieldtag"
-echo "      qch(1) =  1.0"
-echo "      qch(2) = -1.0"
-echo "&end"
+cat > control.F << eof
+&controltag
+        calc='efg'
+        lcoulomb  = .true.
+        longrange = 'direct'
+	cutlongrange = 1000.0D0
+&end
+&efgtag
+        lefgprintall=.true.
+        lvasp_units=.false.
+        ncefg=1
+&end
+&fieldtag
+	qch(1) =  1.0
+	qch(2) = -1.0
+        ncelldirect = 40
+&end
+&mdtag
+&end
+eof
 echo " "
 echo "================================================================================================================================="
 echo ""
 echo "Direct summation"
-echo "&eftag (main parameters): "
 echo "ncelldirect = 40"
-echo "cutefg = 1000.0d0"
-echo "&end"
 echo ""
-cat control_direct.F > control.F
-echo "&fieldtag" >> control.F
-echo "      qch(1) =  1.0" >> control.F
-echo "      qch(2) = -1.0" >> control.F
-echo "&end" >> control.F
 $EXE control.F > stdout_direct_twocharges
 cat EFGALL > EFGALL.direct_twocharges
 tail -n3 EFGALL 
 echo ""
 
-
 echo "================================================================================================================================="
 echo ""
 echo "Ewald summation"
-echo "&eftag (main parameters): "
-echo "ncellewald = 11"
-echo "alphaES = 0.8"
-echo "&end"
 echo ""
-
-cat control_ewald.F > control.F
-echo "&fieldtag" >> control.F
-echo "      qch(1) =  1.0" >> control.F
-echo "      qch(2) = -1.0" >> control.F
-echo "&end" >> control.F
+cat > control.F << eof
+&controltag
+        calc='efg'
+        lcoulomb  = .true.
+        longrange = 'ewald'
+&end
+&efgtag
+        lefgprintall=.true.
+        lvasp_units=.false.
+        ncefg=1
+&end
+&fieldtag
+	qch(1) =  1.0
+	qch(2) = -1.0
+	kES = 11 11 11,
+	alphaES = 0.8
+&end
+&mdtag
+&end
+eof
 $EXE control.F > stdout_ewald_twocharges
 cat EFGALL > EFGALL.ewald_twocharges
 tail -n3 EFGALL 
@@ -66,30 +83,33 @@ echo "DS             2.0003749            -1.0001874"
 echo ""
 echo ""
 echo "================================================================================================================================="
-echo "================================================================================================================================="
 echo ""
 echo "Second example: cluster (9 atoms)"
 echo ""
 cp TRAJFF.cluster TRAJFF
 echo ""
-echo "&fieldtag"
-echo "      qch(1) =  0.1  ! A particules"
-echo "      qch(2) = -0.8  ! B particules"
-echo "&end"
-echo " "
 echo "================================================================================================================================="
 echo ""
 echo "Direct summation"
-echo "&eftag (main parameters): "
-echo "ncelldirect = 40"
-echo "cutefg = 1000.0d0"
-echo "&end"
 echo ""
-cat control_direct.F > control.F
-echo "&fieldtag" >> control.F
-echo "      qch(1) =  0.1" >> control.F
-echo "      qch(2) = -0.8" >> control.F
-echo "&end" >> control.F
+cat > control.F << eof
+&controltag
+        calc='efg'
+        lcoulomb  = .true.
+        longrange = 'direct'
+&end
+&efgtag
+        lefgprintall=.true.
+        lvasp_units=.true.
+        ncefg=1
+&end
+&fieldtag
+	qch(1) =  0.1 -0.8,
+        ncelldirect = 40
+&end
+&mdtag
+&end
+eof
 $EXE control.F > stdout_direct_cluster
 cat NMRFF  > NMRFF.direct_cluster
 tail -n10 NMRFF 
@@ -99,24 +119,33 @@ echo ""
 echo "================================================================================================================================="
 echo ""
 echo "Ewald summation"
-echo "&eftag (main parameters): "
-echo "ncellewald = 11"
-echo "alphaES = 0.8"
-echo "&end"
 echo ""
-
-cat control_ewald.F > control.F
-echo "&fieldtag" >> control.F
-echo "      qch(1) =  0.1" >> control.F
-echo "      qch(2) = -0.8" >> control.F
-echo "&end" >> control.F
+cat > control.F << eof
+&controltag
+        calc='efg'
+        lcoulomb  = .true.
+        longrange =ewald 
+&end
+&efgtag
+        lefgprintall=.true.
+        lvasp_units=.true.
+        ncefg=1
+&end
+&fieldtag
+	qch =  0.1 -0.8, 
+	lautoES=.true.
+	epsw=1e-11    
+&end
+&mdtag
+&end
+eof
 $EXE control.F > stdout_ewald_cluster
 cat NMRFF  > NMRFF.ewald_cluster
 tail -n10 NMRFF 
 echo ""
 echo "================================================================================================================================="
 echo ""
-echo "GULP output (note : e²=14.3998 eV/A)"
+echo "GULP output "
 echo "EFG Tensor properties :"
 echo ""
 echo "  -------------------------------------------------------------------------------"
@@ -148,7 +177,7 @@ echo "         9       -0.8228   -3.4544    4.2772            10.3421        0.6
 echo "                   EWALD(mdff)                      |                    DIRECT (mdff)                  |                       GULP" > COMP
 echo "       vxx          vyy          vzz          eta   |      vxx          vyy          vzz          eta   |      vxx          vyy          vzz          eta" >> COMP
 echo "---------------------------------------------------------------------------------------------------------------------------------------------------------------">> COMP
-paste NMRFF.ewald_cluster NMRFF.direct_cluster gulp.out | tail -n9 | awk '{printf("%12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n",$3,$4,$5,$6,$9,$10,$11,$12,$14,$15,$16,$18)}' >> COMP
+paste NMRFF.ewald_cluster NMRFF.direct_cluster gulp.out | tail -n9 | awk '{printf("%12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n",$3,$4,$5,$7,$10,$11,$12,$14,$16,$17,$18,$20)}' >> COMP
 
 echo ""
-echo "look at COMP file for direct comparison"
+cat COMP

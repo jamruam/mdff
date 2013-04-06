@@ -86,6 +86,7 @@ CONTAINS
 ! calculation of the main thermodynamic quantities 
 !
 !******************************************************************************
+
 SUBROUTINE calc_thermo
 
   USE control,                  ONLY :  lreduced 
@@ -140,6 +141,7 @@ END SUBROUTINE calc_thermo
 !
 !
 !******************************************************************************
+
 SUBROUTINE init_general_accumulator
 
   implicit none
@@ -200,6 +202,7 @@ END SUBROUTINE init_general_accumulator
 !
 !
 !******************************************************************************
+
 SUBROUTINE general_accumulator
 
   implicit none
@@ -256,9 +259,8 @@ SUBROUTINE general_accumulator
 
 END SUBROUTINE general_accumulator
 
-!*********************** SUBROUTINE write_thermo **********************
+!*********************** SUBROUTINE write_thermo ******************************
 !
-! SUBROUTINE write_thermo
 ! write thermodynamic quantities to file OSZIFF or print to standard output 
 !
 !******************************************************************************
@@ -296,13 +298,13 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
     endif
   endif
 
- 100 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
+ 100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
                 E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8)
- 101 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
+ 101 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8)
- 200 FORMAT(I9,2X,E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
+ 200 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
                 E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8,'  dummy = ',E15.8)
- 201 FORMAT(I9,2X,E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
+ 201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  dummy = ',E15.8)
 
   return
@@ -311,7 +313,6 @@ END SUBROUTINE write_thermo
 
 !*********************** SUBROUTINE write_average_thermo **********************
 !
-! SUBROUTINE write_average_thermo
 ! write time average thermodynamic quantities to file OSZIFF or print to standard output 
 !
 !******************************************************************************

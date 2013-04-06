@@ -27,6 +27,13 @@
 !#define debug_quadratic
 ! ======= Hardware =======
 
+!*********************** MODULE field *****************************************
+!
+! field module : 
+! 
+!
+!******************************************************************************
+
 MODULE field 
 
   USE constants,                        ONLY :  dp 
@@ -107,6 +114,7 @@ MODULE field
   ! ewald sum
   real(kind=dp)    :: epsw                             ! accuracy of the ewald sum 
   real(kind=dp)    :: alphaES                          ! Ewald sum parameter 
+  real(kind=dp)    :: cutshortrange                    ! Ewald sum parameter cutoff shortrange 
   integer          :: kES(3)                           ! kmax of ewald sum in reciprocal space
   TYPE ( kmesh )   :: km_coul                          ! kpoint mesh ( see kspace.f90 )
   ! direct sum
@@ -217,9 +225,9 @@ SUBROUTINE field_check_tag
   if ( ctrunc .eq. 'linear'    ) trunc = 1
   if ( ctrunc .eq. 'quadratic' ) trunc = 2
 
-  ! =====
-  !  lKA
-  ! =====
+  ! =================================================
+  !  KOB-ANDERSEN MODEL --- PhysRevE 51-4626 (1995) 
+  ! =================================================
   if ( lKA .and. ntype .ne. 2 ) then
     if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR fieldtag lKA should be used with 2 differents types'
     STOP 
@@ -357,7 +365,7 @@ END SUBROUTINE field_init
 SUBROUTINE field_print_info ( kunit , quiet )
 
   USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell 
-  USE control,          ONLY :  calc , cutoff , lbmlj , lcoulomb , longrange , lreduced
+  USE control,          ONLY :  calc , cutshortrange , lbmlj , lmorse , lcoulomb , longrange , lreduced , cutlongrange
   USE io_file,          ONLY :  ionode 
   USE constants,        ONLY :  pi , pisq
 
@@ -377,48 +385,89 @@ SUBROUTINE field_print_info ( kunit , quiet )
 
   qtot   = 0.0_dp
   qtot2  = 0.0_dp
+  do it = 1 , ntype
+      qtot  = qtot  +   qch(it) * natmi ( it )
+      qtot2 = qtot2 + ( qch(it) * natmi ( it ) ) * ( qch(it) * natmi ( it ) )
+  enddo
+  linduced = .false.
+  do it = 1 , ntype
+    if ( lpolar(it) .eq. 1 )  linduced = .true.
+  enddo
 
   if ( ionode ) then
-    WRITE ( kunit ,'(a)')       '=============================================================' 
-    WRITE ( kunit ,'(a)')       ''
-    if ( .not. lcoulomb .and. calc .eq. 'efg' )  &
-    WRITE ( kunit ,'(a)')       'point charges: '
+    WRITE ( kunit ,'(a)')               '=============================================================' 
+    WRITE ( kunit ,'(a)')               ''
+    WRITE ( kunit ,'(a)')               'energy units in input/output ',units 
+    WRITE ( kunit ,'(a)')               'no masses are implemented                      '
+    WRITE ( kunit ,'(a)')               '' 
+    WRITE ( kunit ,'(a)')               '--------------------------------------------------------'
+    WRITE ( kunit ,'(a)')               'point charges: '
+    WRITE ( kunit ,'(a)')               '--------------------------------------------------------'
     do it = 1 , ntype 
-      WRITE ( kunit ,'(a,a,a,f10.5)') 'q   ',atypei(it),'      =',qch(it)
+      WRITE ( kunit ,'(a,a,a,f10.5)')   'q   ',atypei(it),'      =',qch(it)
       WRITE ( kunit ,'(a,a,a,f10.5,a)') 'quad',atypei(it),'      =',quad_efg(it),' mb'
-      qtot  = qtot  + qch(it) * natmi ( it ) 
-      qtot2 = qtot2 + ( qch(it) * natmi ( it ) ) * ( qch(it) * natmi ( it ) )
     enddo
-    WRITE ( kunit ,'(a,f10.5)')       'total charge of the system = ',  qtot
-    WRITE ( kunit ,'(a)')       ''
-    WRITE ( kunit ,'(a)')       'static dipoles: '
+    WRITE ( kunit ,'(a,e12.5)')         'total charge            = ',  qtot
+    WRITE ( kunit ,'(a,e12.5)')         'second moment of charge = ',  qtot2
+    WRITE ( kunit ,'(a)')               ''
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+    WRITE ( kunit ,'(a)')               'static dipoles: '
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
     do it = 1 , ntype
-      WRITE ( kunit ,'(a,a,a,3f10.5)') 'mu',atypei(it),'      = ',dip(it,1),dip(it,2),dip(it,3)
+      WRITE ( kunit ,'(a,a,a,3f10.5)')  'mu',atypei(it),'      = ',dip(it,1),dip(it,2),dip(it,3)
     enddo
-    WRITE ( kunit ,'(a)')       ''
+    WRITE ( kunit ,'(a)')               ''
+    if ( linduced ) then 
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             'polarizabilities on atoms'
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      do it = 1 , ntype
+        if ( lpolar( it ) .eq. 1 ) then
+          WRITE ( kunit ,'(a,a2,a,f12.4)')'polarizability on type ', atypei(it),' : ' 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 1 , j ) , j = 1 , 3 ) 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 2 , j ) , j = 1 , 3 ) 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 3 , j ) , j = 1 , 3 ) 
+          WRITE ( kunit ,'(a)')         ''
+        else
+          WRITE ( kunit ,'(a,a2)')      'no polarizability on type ', atypei(it)
+        endif
+        WRITE ( kunit ,'(a)')           '--------------------------------------------------------'
+        WRITE ( kunit ,'(a)')           ''
+      enddo
+    endif
+    ! =================================
+    !      LONG RANGE INTERACTIONS 
+    ! =================================
     if ( lcoulomb )    then 
-      WRITE ( kunit ,'(a)')       'force field information :                      '
-      WRITE ( kunit ,'(a)')       'discret charges:'
-      WRITE ( kunit ,'(a)')       ''
-      WRITE ( kunit ,'(a)')       '        qi qj   '
-      WRITE ( kunit ,'(a)')       ' Vij = -------  '
-      WRITE ( kunit ,'(a)')       '         rij    '          
-      WRITE ( kunit ,'(a)')       ''
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             'coulombic interaction : '
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             ''
+      WRITE ( kunit ,'(a)')             '        qi qj   '
+      WRITE ( kunit ,'(a)')             ' Vij = -------  '
+      WRITE ( kunit ,'(a)')             '         rij    '          
+      WRITE ( kunit ,'(a)')             ''
+      ! =================================
+      !         Direct Summation
+      ! =================================
       if ( longrange .eq. 'direct' )  then
-        WRITE ( kunit ,'(a)')       'direct summation'
-        WRITE ( kunit ,'(a)')       'cubic cutoff in real space'
-        WRITE ( kunit ,'(a,i10)')   '-ncelldirect ... ncelldirect     = ',ncelldirect
-        WRITE ( kunit ,'(a,i10)')   'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
+        WRITE ( kunit ,'(a)')           'direct summation'
+        WRITE ( kunit ,'(a)')           'cubic cutoff in real space'
+        WRITE ( kunit ,'(a,i10)')       '-ncelldirect ... ncelldirect     = ',ncelldirect
+        WRITE ( kunit ,'(a,i10)')       'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
+        WRITE ( kunit ,'(a,i10)')       'radial cutoff                    = ',cutlongrange
       endif     
+      ! =================================
+      !         Ewald Summation
+      ! =================================
       if ( longrange .eq. 'ewald' )  then
         if ( lautoES ) then
-          rcut =  0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1_dp
-          WRITE ( kunit ,'(a)')           'ewald summation parameters ( automatic see field.f90 tmp construction )'
-          WRITE ( kunit ,'(a,f10.5)')     'alpha                            = ',alphaES
-          WRITE ( kunit ,'(a,f10.5)')     'rcut                             = ',rcut
-          WRITE ( kunit ,'(a,3i10)')      'kmax                             = ',(kES(i),i=1,3)
+          WRITE ( kunit ,'(a)')         'ewald summation parameters ( automatic see field.f90 tmp construction )'
+          WRITE ( kunit ,'(a,f10.5)')   'alpha                            = ',alphaES
+          WRITE ( kunit ,'(a,f10.5)')   'cut-off (short range)            = ',cutshortrange
+          WRITE ( kunit ,'(a,3i10)')    'kmax                             = ',(kES(i),i=1,3)
           WRITE ( kunit ,'(a)')   '' 
-          WRITE ( kunit ,'(a,e12.5)')     'relative error (user defined)    : ',epsw
+          WRITE ( kunit ,'(a,e12.5)')   'relative error (user defined)    : ',epsw
         else
           alpha2 = alphaES * alphaES
           do i=1,3
@@ -428,101 +477,108 @@ SUBROUTINE field_print_info ( kunit , quiet )
             ereci2(i) = qtot2 * alphaES / pisq / ( SQRT ( DBLE(kES(i)) * DBLE(kES(i)) * DBLE(kES(i)) ) ) &
             * EXP ( - ( pi * DBLE(kES(i)) / alphaES / simu_cell%ANORM(i) ) ** 2 )
           enddo
-          rcut =  0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC) - 0.1_dp
-          rcut2  = rcut * rcut
-          ereal  = EXP ( - alpha2 * rcut2 ) / alpha2  / rcut2 * SQRT ( rcut / 2.0_dp / simu_cell%omega )
-          WRITE ( kunit ,'(a)')        'ewald summation parameters ( from input file )'
-          WRITE ( kunit ,'(a,f10.5)')  'alpha                            = ',alphaES
-          WRITE ( kunit ,'(a,3i10)')   'kmax                             = ',(kES(i),i=1,3)
+          rcut2  = cutshortrange * cutshortrange
+          ereal  = EXP ( - alpha2 * rcut2 ) / alpha2  / rcut2 * SQRT ( cutshortrange / 2.0_dp / simu_cell%omega )
+          WRITE ( kunit ,'(a)')         'ewald summation parameters ( from input file )'
+          WRITE ( kunit ,'(a,f10.5)')   'alpha                            = ',alphaES
+          WRITE ( kunit ,'(a,f10.5)')   'cut-off (short range)            = ',cutshortrange
+          WRITE ( kunit ,'(a,3i10)')    'kmax                             = ',(kES(i),i=1,3)
           WRITE ( kunit ,'(a)')   '' 
-          WRITE ( kunit ,'(a,e12.5)')  'relative error in real space       with alphaES from input : ',ereal
-          WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
-          WRITE ( kunit ,'(a,3e12.5)') 'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
-          WRITE ( kunit ,'(a)')   '' 
-          WRITE ( kunit ,'(a)')   '' 
+          WRITE ( kunit ,'(a,e12.5)')   'relative error in real space       with alphaES from input : ',ereal
+          WRITE ( kunit ,'(a,3e12.5)')  'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
+          WRITE ( kunit ,'(a,3e12.5)')  'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
+          WRITE ( kunit ,'(a)')         '' 
+          WRITE ( kunit ,'(a)')         '' 
         endif
       endif
     endif
-
-      if ( lbmlj )       then     
-        WRITE ( kunit ,'(a)')       '' 
-        WRITE ( kunit ,'(a)')       'energy units in input/output ',units 
-        WRITE ( kunit ,'(a)')       '' 
-        WRITE ( kunit ,'(a)')       'force field information :                      '
-        WRITE ( kunit ,'(a)')       'no masses are implemented                      '
-        WRITE ( kunit ,'(a)')       'LENNARD-JONES                  '
-        if ( ntype .eq. 2 )  &
-        WRITE ( kunit ,'(a)')       'BINARY MIXTURE LENNARD-JONES           '
-        WRITE ( kunit ,'(a)')       '' 
-        WRITE ( kunit ,'(a)')       '       eps    /    / sigma* \ q       / sigma*  \ p \'
-        WRITE ( kunit ,'(a)')       ' V = ------- |  p | ------- |    - q | -------- |   |'   
-        WRITE ( kunit ,'(a)')       '      q - p   \    \   r    /         \    r    /   /'
-        WRITE ( kunit ,'(a)')       ''
-        if ( ntype .eq. 2 .and. lKA )  &
-        WRITE ( kunit ,'(a)')       'KOB-ANDERSEN MODEL --- PhysRevE 51-4626 (1995) '
-        if ( .not. lKA ) &
-        WRITE ( kunit ,'(a)')       'user defined model                           '
-        WRITE ( kunit ,'(a,f10.5)') 'cutoff      = ',cutoff
-        WRITE ( kunit ,'(a,a)')     'truncation  = ',ctrunc
-        if (.not.lreduced) WRITE( kunit     ,'(a,2f20.9)') 'long range correction : ',utail
-        if (lreduced)      WRITE( kunit     ,'(a,2f20.9)') 'long range correction : ',utail/natm
-        WRITE( kunit     ,'(a)') ' '
-        WRITE ( kunit ,'(a)')       ''
-
-        do it1 = 1 , ntype
-          do it2 = it1 , ntype          
-            WRITE ( kunit ,'(a)')       '--------------------------------------------------------' 
-            WRITE ( kunit ,'(a,a,a,a)')       atypei(it1),'-',atypei(it2),' interactions:'    
-            WRITE ( kunit ,'(a)')       '--------------------------------------------------------' 
-            if ( it1 .eq. it2 ) then
-              WRITE ( kunit ,'(a,f10.5)') 'sigma                                = ',sigmalj ( it1 , it2 )
-              WRITE ( kunit ,'(a,f10.5)') 'eps                                  = ',epslj   ( it1 , it2 )
-              WRITE ( kunit ,'(a,f10.5)') 'q                                    = ',qlj     ( it1 , it2 )
-              WRITE ( kunit ,'(a,f10.5)') 'p                                    = ',plj     ( it1 , it2 )
-            else
-              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'sigma                                = ',sigmalj ( it1 , it2 ) , '( ',sigmalj ( it2 , it1 ), ' )' 
-              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'eps                                  = ',epslj   ( it1 , it2 ) , '( ',epslj   ( it2 , it1 ), ' )'
-              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'q                                    = ',qlj     ( it1 , it2 ) , '( ',qlj     ( it2 , it1 ), ' )'
-              WRITE ( kunit ,'(a,f10.5,a,f10.5,a)') 'p                                    = ',plj     ( it1 , it2 ) , '( ',plj     ( it2 , it1 ), ' )'
-            endif
-          enddo
+    ! =================================
+    !     SHORT RANGE INTERACTIONS 
+    ! =================================
+    !       LENNARD-JONES
+    ! =================================
+    if ( lbmlj )       then     
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             'lennard-jones           '
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             '' 
+      WRITE ( kunit ,'(a)')             '       eps    /    / sigma* \ q       / sigma*  \ p \'
+      WRITE ( kunit ,'(a)')             ' V = ------- |  p | ------- |    - q | -------- |   |'   
+      WRITE ( kunit ,'(a)')             '      q - p   \    \   r    /         \    r    /   /'
+      WRITE ( kunit ,'(a)')             ''
+      WRITE ( kunit ,'(a,f10.5)')       'cutoff      = ',cutshortrange
+      WRITE ( kunit ,'(a,a)')           'truncation  = ',ctrunc
+      if ( .not.lreduced ) &
+      WRITE ( kunit ,'(a,2f20.9)')      'long range correction : ',utail
+      WRITE ( kunit ,'(a)')             ''
+      WRITE ( kunit ,'(a)')             ''
+      do it1 = 1 , ntype
+        do it2 = it1 , ntype          
+          if ( trunc .eq. 1 ) then
+            WRITE ( kunit ,'(a,2f20.9)')'shift correction (linear)        : ',uc(it1,it2)
+          else if ( trunc .eq. 2 ) then 
+            WRITE ( kunit ,'(a,2f20.9)')'shift correction (quadratic)     : ',uc(it1,it2),uc2(it1,it2)
+          endif
+          WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
+          WRITE ( kunit ,'(a,a,a,a)')   atypei(it1),'-',atypei(it2),' interactions:'    
+          WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
+          if ( it1 .eq. it2 ) then
+            WRITE ( kunit ,100)         'sigma                                = ',sigmalj ( it1 , it2 )
+            WRITE ( kunit ,100)         'eps                                  = ',epslj   ( it1 , it2 )
+            WRITE ( kunit ,100)         'q                                    = ',qlj     ( it1 , it2 )
+            WRITE ( kunit ,100)         'p                                    = ',plj     ( it1 , it2 )
+          else
+            WRITE ( kunit ,110)         'sigma                                = ',sigmalj ( it1 , it2 ) , '( ',sigmalj ( it2 , it1 ), ' )' 
+            WRITE ( kunit ,110)         'eps                                  = ',epslj   ( it1 , it2 ) , '( ',epslj   ( it2 , it1 ), ' )'
+            WRITE ( kunit ,110)         'q                                    = ',qlj     ( it1 , it2 ) , '( ',qlj     ( it2 , it1 ), ' )'
+            WRITE ( kunit ,110)         'p                                    = ',plj     ( it1 , it2 ) , '( ',plj     ( it2 , it1 ), ' )'
+          endif
         enddo
-    endif
-
-    WRITE ( kunit ,'(a)') '' 
-
-    linduced = .false.
-    do it = 1 , ntype
-      if ( lpolar(it) .eq. 1 )  linduced = .true.
-    enddo
-    if ( linduced ) then 
-      WRITE ( kunit ,'(a)')          '--------------------------------------------------------'
-      WRITE ( kunit ,'(a)')   ' '
-      WRITE ( kunit ,'(a)')          'polarizabilities on atoms'
-      WRITE ( kunit ,'(a)')   ' '
-      WRITE ( kunit ,'(a)')          '--------------------------------------------------------'
-      do it = 1 , ntype
-        if ( lpolar(it) .eq. 1 ) then
-          WRITE ( kunit ,'(a,a2,a,f12.4)') 'polarizability on type ', atypei(it),' : ' 
-          WRITE ( kunit ,'(3f12.4)') (pol(it,1,j),j=1,3) 
-          WRITE ( kunit ,'(3f12.4)') (pol(it,2,j),j=1,3) 
-          WRITE ( kunit ,'(3f12.4)') (pol(it,3,j),j=1,3) 
-          WRITE ( kunit ,'(a)')   ' '
-        else
-          WRITE ( kunit ,'(a,a2)') 'no polarizability on type ', atypei(it)
-        endif
-        WRITE ( kunit ,'(a)')   ' '
       enddo
     endif
+    ! =================================
+    !      BUCKINGHAM - MORSE 
+    ! =================================
+    if ( lmorse )       then
+      WRITE ( kunit ,'(a)')             ''
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             'morse  potential'
+      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      WRITE ( kunit ,'(a)')             ''
+      do it1 = 1 , ntype
+        do it2 = it1 , ntype
+          WRITE ( kunit ,'(a)')         '--------------------------------------------------------'
+          WRITE ( kunit ,'(a,a,a,a)')   atypei(it1),'-',atypei(it2),' interactions:'
+          WRITE ( kunit ,'(a)')         '--------------------------------------------------------'
+          if ( it1 .eq. it2 ) then
+            WRITE ( kunit ,100)         'sigma                                = ',sigmamor ( it1 , it2 )
+            WRITE ( kunit ,100)         'eps                                  = ',epsmor   ( it1 , it2 )
+            WRITE ( kunit ,100)         'rho                                  = ',rhomor   ( it1 , it2 )
+          else
+            WRITE ( kunit ,110)         'sigma                                = ',sigmamor ( it1 , it2 ) , '( ',sigmamor ( it2 , it1 ), ' )'
+            WRITE ( kunit ,110)         'eps                                  = ',epsmor   ( it1 , it2 ) , '( ',epsmor   ( it2 , it1 ), ' )'
+            WRITE ( kunit ,110)         'rho                                  = ',rhomor   ( it1 , it2 ) , '( ',rhomor   ( it2 , it1 ), ' )'
+          endif
+        enddo
+      enddo
 
+    endif
+    WRITE ( kunit ,'(a)')               ''
+    WRITE ( kunit ,'(a)')               ''
+    WRITE ( kunit ,'(a)')               '=============================================================' 
+    WRITE ( kunit ,'(a)')               ''
   endif
 
-  return 
+  return
+100 FORMAT(a,f10.5) 
+110 FORMAT(a,f10.5,a,f10.5,a) 
 
 END SUBROUTINE field_print_info
 
 
 !*********************** SUBROUTINE gen_ewald_param ***************************
+!
+!
 !
 !******************************************************************************
 
@@ -530,7 +586,7 @@ SUBROUTINE ewald_param
    
   USE constants,                ONLY :  pi , pisq
   USE config,                   ONLY :  simu_cell 
-  USE control,                  ONLY :  cutoff 
+  USE control,                  ONLY :  cutshortrange
   USE io_file,                  ONLY :  stdout
 
   implicit none
@@ -545,23 +601,25 @@ SUBROUTINE ewald_param
   CALL estimate_alpha( aaa , epsw ,rcut )
   CALL accur_ES_frenkel_smit( epsw , aaa2 , rcut , nc )
   ! dl_poly like
-  if ( min (cutoff,rcut) .ne. cutoff ) &
-  WRITE ( stdout , '(a)') 'WARNING : cutoff will be changed accroding to simu_cell%W*'
-  cutoff = min (cutoff,rcut)
+  if ( min (cutshortrange,rcut) .ne. cutshortrange ) &
+  WRITE ( stdout , '(a)') 'WARNING : cutshortrange will be changed according to simu_cell%W*'
+  cutshortrange = min (cutshortrange,rcut)
   eps=min(abs(epsw),0.5_dp)
-  tol=sqrt(abs(log(eps*rcut)))
-  alpha=sqrt(abs(log(eps*rcut*tol)))/rcut
-  tol1=sqrt(-log(eps*rcut*(2.0_dp*tol*alpha)**2))
+  tol=sqrt(abs(log(eps*cutshortrange)))
+  alpha=sqrt(abs(log(eps*cutshortrange*tol)))/rcut
+  tol1=sqrt(-log(eps*cutshortrange*(2.0_dp*tol*alpha)**2))
   kmax_1=nint(0.25_dp+simu_cell%ANORM(1)*alpha*tol1/pi)
   kmax_2=nint(0.25_dp+simu_cell%ANORM(2)*alpha*tol1/pi)
   kmax_3=nint(0.25_dp+simu_cell%ANORM(3)*alpha*tol1/pi)
   if ( lautoES ) then
     ! dl_poly like
+    write ( * , * ) 'auto ES dl_poly like'  
     alphaES = alpha
     kES(1)=kmax_1
     kES(2)=kmax_2
     kES(3)=kmax_3
     ! frenkel_smit like
+    !write ( * , * ) 'auto ES frenkel_smit like'  
     !alphaES = aaa2
     !kES=nc
     ! qe like
@@ -572,6 +630,12 @@ SUBROUTINE ewald_param
   return
 
 END SUBROUTINE ewald_param
+
+!*********************** SUBROUTINE define_units ******************************
+!
+!
+!
+!******************************************************************************
 
 SUBROUTINE define_units
 
@@ -611,7 +675,7 @@ SUBROUTINE initialize_param_bmlj_morse
 
   USE constants,                ONLY :  pi
   USE config,                   ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
-  USE control,                  ONLY :  skindiff , cutoff , lreduced, calc
+  USE control,                  ONLY :  skindiff , cutshortrange , lreduced, calc
   USE io_file,                  ONLY :  ionode, stdout
 
   implicit none
@@ -689,7 +753,7 @@ SUBROUTINE initialize_param_bmlj_morse
   !
   ! 
   !          eps      /     /  sigma* \ q        /  sigma* \ p  \
-  !  c1 = ---------  |   p |  -------- |    - q |  -------- |   |      with rc = cutoff
+  !  c1 = ---------  |   p |  -------- |    - q |  -------- |   |      with rc = cutshortrange 
   !         q - p     \     \   rc    /          \   rc    /    / 
   ! 
   ! ==================================================================================================
@@ -724,7 +788,7 @@ SUBROUTINE initialize_param_bmlj_morse
     do jt = 1 , ntype
 
       ! intermediate terms 
-          rcut   ( it , jt ) = cutoff                                      ! rc
+          rcut   ( it , jt ) = cutshortrange                                      ! rc
           rcutsq ( it , jt ) = rcut ( it , jt ) * rcut   ( it , jt )       ! rc^2 
           rcut3  ( it , jt ) = rcut ( it , jt ) * rcutsq ( it , jt )       ! rc^3
           ppqq   ( it , jt ) = pp   ( it , jt ) * qq     ( it , jt )       ! p x q
@@ -790,7 +854,7 @@ END SUBROUTINE initialize_param_bmlj_morse
 !
 !******************************************************************************
 
-SUBROUTINE engforce_driver ( iastart , iaend )!, list , point )
+SUBROUTINE engforce_driver ( iastart , iaend )
 
   USE config,                   ONLY :  natm , dipia
   USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lshiftpot , longrange
@@ -1216,7 +1280,7 @@ END SUBROUTINE engforce_bmlj_nopbc
 !
 !******************************************************************************
 
-SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )!, list , point )
+SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
   USE control,                  ONLY :  lvnlist , myrank
@@ -1338,6 +1402,7 @@ END SUBROUTINE engforce_bmlj_pbc_noshift
 ! Coulomb summation and used the same parameters for both quantities 
 !
 !******************************************************************************
+
 SUBROUTINE initialize_coulomb
 
   USE config,   ONLY  : natm , natmi , ntype , qia , itype
@@ -1385,6 +1450,10 @@ SUBROUTINE initialize_coulomb
 
 END SUBROUTINE initialize_coulomb
 
+!*********************** SUBROUTINE finalize_coulomb **************************
+!
+!
+!******************************************************************************
 
 SUBROUTINE finalize_coulomb
 
@@ -1414,7 +1483,7 @@ SUBROUTINE finalize_coulomb
 
 END SUBROUTINE finalize_coulomb
 
-!*********************** SUBROUTINE induced_moment *****************************
+!*********************** SUBROUTINE induced_moment ****************************
 !
 ! this subroutine calculates the induced moment from the total Electric field and the
 ! polarizability tensor
@@ -1489,6 +1558,10 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
 END SUBROUTINE induced_moment
 
+!*********************** SUBROUTINE multipole_DS ******************************
+!
+!
+!******************************************************************************
 
 SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
@@ -1953,11 +2026,14 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 END SUBROUTINE multipole_DS
 
-
+!*********************** SUBROUTINE multipole_ES ******************************
+!
+!
+!******************************************************************************
 
 SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE control,                  ONLY :  lsurf , cutoff
+  USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
                                         rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell 
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
@@ -2156,7 +2232,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   alpha5 = alpha3  * alpha2
   selfa  = alphaES / piroot
   selfa2 = 2.0_dp * selfa * alpha2 / 3.0_dp
-  cutsq  = cutoff * cutoff
+  cutsq  = cutshortrange * cutshortrange
 
   ! ==============================================
   !        direct space part
@@ -2721,7 +2797,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 END SUBROUTINE multipole_ES
 
-!*********************** SUBROUTINE engforce_morse_pbc *************************
+!*********************** SUBROUTINE engforce_morse_pbc ************************
 !
 ! total potential energy forces for each atoms for a morse potential with 
 ! periodic boundaries conditions, with or without vnlist
@@ -2736,6 +2812,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
   USE io_file,                  ONLY :  stdout , ionode
+  USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
   INCLUDE 'mpif.h'
@@ -2752,14 +2829,14 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   real(kind=dp) :: rijsq , rij , erh , erh2 
   real(kind=dp) :: wij , fxij , fyij , fzij
   real(kind=dp) :: forcetime1 , forcetime2 
-  real(kind=dp) :: u , vir
+  real(kind=dp) :: u , vir , u2
   real(kind=dp) :: expon 
 
 #ifdef debug_morse
   if ( ionode ) then
   do ia=1, natm
-    WRITE ( stdout , '(a,a)' )  'debug : atype',atype(ia)
-    WRITE ( stdout , '(a,i4)' ) 'debug : itype',itype(ia)
+    WRITE ( stdout , '(a,a)' )  'debug : atype ',atype(ia)
+    WRITE ( stdout , '(a,i4)' ) 'debug : itype ',itype(ia)
   enddo
   endif
 #endif
@@ -2773,6 +2850,11 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   fz  = 0.0_dp
 
   if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
   do ia = iastart , iaend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -2800,24 +2882,26 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
         rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
-        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-        p1 = itype ( ja )
-        p2 = itype ( ia )
+        rijsq= rxij * rxij + ryij * ryij + rzij * rzij
+        p1   = itype ( ja )
+        p2   = itype ( ia )
         if ( rijsq .lt. rcutsq(p1,p2) ) then
            rij   = SQRT ( rijsq ) 
-           erh   = EXP ( - rij * rhomor (p1,p2) ) 
-           erh2  = erh * erh 
-           expon = erh * rs (p1,p2) - 1.0_dp
-           expon = expon * expon - 1.0_dp 
-           u     = u + epsmor(p1,p2) * expon 
-!          if ( trunc .eq. 1 ) theni
+           erh   = EXP ( - rij * rhomor(p1,p2) ) 
+           expon = erh * rs(p1,p2) - 1.0_dp
+           expon = expon * expon - 1.0_dp
+           u     = u  + epsmor(p1,p2) * expon 
+           expon = EXP( rhomor(p1,p2) * ( 1.0_dp - rij / sigmamor(p1,p2) )  ) 
+           u2    = u2 + ( expon * ( expon - 2.0_dp ) ) * epsmor(p1,p2)
+        !  if ( ia .eq. 1 )  print*,rij,erh,erh2,expon,u
+!          if ( trunc .eq. 1 ) then
 !            u =  u + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) - uc(p1,p2)
 !          endif
 !          if ( trunc .eq. 2 ) then
 !            u =  u + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) + uc1(p1,p2) * rijsq - uc2(p1,p2)
 !          endif
-          wij = fm(p1,p2) * ( erh - rs(p1,p2) * erh2 ) 
-          vir = vir + wij * rijsq
+          wij  = fm(p1,p2) * ( erh - rs(p1,p2) * erh2 ) 
+          vir  = vir + wij * rijsq
           fxij = wij * rxij
           fyij = wij * ryij
           fzij = wij * rzij
@@ -2839,6 +2923,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   forcetimetot = forcetimetot+(forcetime2-forcetime1)
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u2  )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( fx , natm )
@@ -2848,13 +2933,19 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   u_morse = u
   vir_morse = vir
 
-  WRITE ( stdout ,'(f24.12)') u_morse
+  WRITE ( stdout ,'(2f24.12)') u_morse , u2 
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
 
   return
 
 END SUBROUTINE engforce_morse_pbc
 
-!*********************** SUBROUTINE moment_from_pola *************************
+!*********************** SUBROUTINE moment_from_pola **************************
 !
 ! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
 ! The evaluation is done self-consistently starting from the the field due the
@@ -3004,7 +3095,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
 END SUBROUTINE moment_from_pola
 
-!*********************** SUBROUTINE moment_from_pola *************************
+!*********************** SUBROUTINE moment_from_WFc ***************************
 !
 ! This routines evaluates the dipole moment induced by Wannier centers (Wfc).
 ! the listing of Wfc are done as for the verlet list
@@ -3032,9 +3123,10 @@ END SUBROUTINE moment_from_pola
 
 SUBROUTINE moment_from_WFc ( mu )
 
+  USE constants,                ONLY :  bohr
   USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz
   USE cell,                     ONLY :  kardir , dirkar 
-  USE io_file,                  ONLY :  ionode , kunit_DIPWFC
+  USE io_file,                  ONLY :  ionode , kunit_DIPWFC , stdout 
 
   implicit none
 
@@ -3049,6 +3141,7 @@ SUBROUTINE moment_from_WFc ( mu )
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
   real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: Debye_unit , dmu
   logical          :: lwannier 
 
   ! =========================================================
@@ -3164,15 +3257,27 @@ SUBROUTINE moment_from_WFc ( mu )
     endif
   enddo
 
-  ! charges of Wfc
+  ! charges of WFC
   mu = -2.0_dp * mu 
 
   if ( ionode .and. lwrite_dip_wfc ) then 
     OPEN ( UNIT = kunit_DIPWFC , FILE='DIPWFC' )     
     do ia= 1 , natm
-      WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype(ia), mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
+      WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype( ia ) , mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
     enddo
     CLOSE ( kunit_DIPWFC ) 
+  endif
+
+  Debye_unit = 2.54174618782479816355_dp / bohr
+
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' ) 'Dipoles from WFCs'
+    WRITE ( stdout , '(a)' ) 'atom         |mu| [D]      |mu| [eA]'
+    do ia = 1 , natm 
+      dmu = mu ( ia , 1 ) * mu ( ia , 1 ) + mu ( ia , 2 ) * mu ( ia , 2 ) + mu ( ia , 3 ) *  mu ( ia , 3 )
+      dmu = SQRT ( dmu ) 
+      WRITE ( stdout , '(a,4x,2e16.8)' ) atype(ia), dmu * Debye_unit, dmu 
+    enddo 
   endif
   
 

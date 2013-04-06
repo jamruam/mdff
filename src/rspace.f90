@@ -98,6 +98,7 @@ SUBROUTINE direct_sum_init ( rm )
   ! ======================
   call reorder_rpt ( rm )
   if ( ionode ) WRITE ( stdout      ,'(a)') '(full) real space arrays sorted'
+  if ( ionode ) WRITE ( stdout      ,'(i9)') nc 
 
 
 

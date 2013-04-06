@@ -171,7 +171,7 @@ SUBROUTINE kpoint_sum_init( km )
 
 END SUBROUTINE kpoint_sum_init
 
-!*********************** SUBROUTINE kpoint_sum_init_half ***************************
+!*********************** SUBROUTINE kpoint_sum_init_half **********************
 !
 ! this subroutine initialized the k vectors for the ewald summation
 ! kpt(3,:) are the three components in 2pi/box units

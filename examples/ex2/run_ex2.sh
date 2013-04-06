@@ -12,17 +12,21 @@ echo "N (atoms)      mdff.x       CCD          diff"
 for (( cluster=3;cluster<150;cluster++)) 
 do
 
-	echo "$cluster" > tmp.file
-	echo "CLUSTER_LJ" >> tmp.file
-	echo "15.000   1" >> tmp.file
-	echo "A" >> tmp.file
-	echo $cluster >> tmp.file
-	awk '{print $1,$2,$3,"0.0000 0.0000 0.0000"}' clusters/$cluster >> tmp.file 
+	echo "$cluster"               > tmp.file
+	echo "CLUSTER_LJ"            >> tmp.file
+	echo "100.000   0.0 0.0 "    >> tmp.file
+	echo "0.0 100.000   0.0 "    >> tmp.file
+	echo "0.0 0.0 100.000  0.0 " >> tmp.file
+	echo "1"                     >> tmp.file
+	echo "A"                     >> tmp.file
+	echo $cluster                >> tmp.file
+	echo "Cartesian"             >> tmp.file
+	awk '{print "A",$1,$2,$3,"0.0000 0.0000 0.0000 0.0 0.0 0.0"}' clusters/$cluster >> tmp.file 
 	mv tmp.file POSFF
 
 
 	$EXE control.F > stdout
-	echo "$cluster `grep "Etot" OUTFF | awk '{print $14}'` `grep " $cluster " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4i %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
+	echo "$cluster `grep "Etot" OSZIFF | awk '{print $18}'` `grep " $cluster " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4i %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
 
 done
 
@@ -34,14 +38,18 @@ for cluster in 38 75 76 77 98 102  103  104
 do
 	echo "$cluster" > tmp.file
         echo "CLUSTER_LJ" >> tmp.file
-        echo "15.000   1" >> tmp.file
+	echo "100.000   0.0 0.0 " >> tmp.file
+	echo "0.0 100.000   0.0 " >> tmp.file
+	echo "0.0 0.0 100.000  0.0 " >> tmp.file
+	echo "1" >> tmp.file
         echo "A" >> tmp.file
         echo $cluster >> tmp.file
-        awk '{print $1,$2,$3,"0.0000 0.0000 0.0000"}' clusters/$((cluster))i >> tmp.file
+	echo "Cartesian"             >> tmp.file
+        awk '{print "A",$1,$2,$3,"0.0000 0.0000 0.0000 0.0 0.0 0.0"}' clusters/$((cluster))i >> tmp.file
         mv tmp.file POSFF
 
         $EXE control.F > stdout
-	echo " "$((cluster))i" `grep "Etot" OUTFF | awk '{print $14}'` `grep " $((cluster))i " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4s %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
+	echo " "$((cluster))i" `grep "Etot" OSZIFF | awk '{print $18}'` `grep " $((cluster))i " REFERENCE| awk '{print $2}'` " | awk '{printf(" %4s %16.5f %12.5f %12.5f\n",$1,$2,$3,$2-$3)}'
 done
 
 

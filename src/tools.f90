@@ -20,7 +20,7 @@
 !#define debug_vnl  ! verlet list debugging
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE estimate_alpha ***********************
+!*********************** SUBROUTINE estimate_alpha ****************************
 !
 ! This routine estiate the alpha parameter in the Ewald summation.
 ! This estimation is based on the cell size
@@ -60,7 +60,10 @@ SUBROUTINE estimate_alpha(alpha,epsw,rcut)
 
 END SUBROUTINE estimate_alpha
 
-!*********************** accur_frenkel_smit ************************************
+!*********************** SUBROUTINE accur_ES_frenkel_smit *********************
+!
+!
+!
 !******************************************************************************
 
 SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc ) 
@@ -104,9 +107,9 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
 
 END SUBROUTINE accur_ES_frenkel_smit
 
-!*********************** SUBROUTINE do_split ***********************************
+!*********************** SUBROUTINE do_split **********************************
 !
-! this SUBROUTINE split the number of atoms in for each np procs
+! this routine split the number of atoms in for each np procs
 ! iastart and iaend are the atom index for proc myrank
 ! WARNING : c'est moi qui l'ai fait ;)
 !
@@ -116,6 +119,7 @@ END SUBROUTINE accur_ES_frenkel_smit
 !          *  np          = number of procs  
 ! output :
 !          *  iastart , iaend = starting and ending atom index for proc mrank
+!
 !******************************************************************************
 
 SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
@@ -244,7 +248,7 @@ SUBROUTINE distance_tab
         rij = rij / resdis
         kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in SUBROUTINE distance_tab',kdis,PANdis,rij,ia,ja
+          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -305,8 +309,8 @@ END SUBROUTINE distance_tab
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell
-  USE control,                  ONLY :  skindiff , cutoff
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax
+  USE control,                  ONLY :  skindiff , cutshortrange 
   USE cell,                     ONLY :  kardir , dirkar
   USE io_file,                  ONLY :  ionode , stdout , stderr
 
@@ -327,7 +331,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   do jt = 1, ntype 
     do it = 1, ntype
-       rcut    ( it , jt ) = cutoff
+       rcut    ( it , jt ) = cutshortrange
        rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
@@ -362,8 +366,8 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
         if ( rijsq .le. rskinsq(p1,p2)) then
           icount = icount + 1
           k = k+1
-          if ( icount .lt. 1 .or. icount-1 .gt. 1000*natm ) then
-            if ( ionode ) WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in SUBROUTINE vnlist_pbc',icount-1,1000*natm
+          if ( icount .lt. 1 .or. icount-1 .gt. vnlmax*natm ) then
+            if ( ionode ) WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
             STOP
           endif
 
@@ -395,7 +399,7 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
   USE constants, ONLY : dp
   USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype
-  USE control,  ONLY :  skindiff , cutoff
+  USE control,  ONLY :  skindiff , cutshortrange 
 
   implicit none
 
@@ -410,7 +414,7 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
   do jt = 1, ntype
     do it = 1, ntype
-       rcut    ( it , jt ) = cutoff
+       rcut    ( it , jt ) = cutshortrange
        rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
@@ -560,7 +564,7 @@ SUBROUTINE print_tensor( tens , key )
 
 END SUBROUTINE print_tensor
 
-!*********************** SUBROUTINE print_tensor_6x6 ******************************
+!*********************** SUBROUTINE print_tensor_6x6 **************************
 !
 ! subroutine which print an (6,6) array in a tensor format 
 ! the trace is also given in output 
@@ -600,7 +604,7 @@ SUBROUTINE print_tensor_nxn ( tens , key , n )
 
 END SUBROUTINE print_tensor_nxn
 
-!*********************** SUBROUTINE merge_sort ********************************
+!*********************** SUBROUTINE merge_1 ***********************************
 !
 !  adapted from :
 !  http://rosettacode.org/wiki/Sorting_algorithms/Merge_sort#Fortran
@@ -650,6 +654,15 @@ SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
  
 END SUBROUTINE merge_1
  
+!*********************** SUBROUTINE merge_sort ********************************
+!
+!  adapted from :
+!  http://rosettacode.org/wiki/Sorting_algorithms/Merge_sort#Fortran
+! 
+!  I changed the routine to keep the initial labels during the sort process
+!
+!******************************************************************************
+
 RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
   
   USE constants, ONLY : dp
@@ -692,28 +705,29 @@ RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
 
   return
  
-end subroutine merge_sort
+END SUBROUTINE merge_sort
 
-!**************** SUBROUTINE EXPRO   ***********************************
+!*********************** SUBROUTINE expro *************************************
+!
 ! EXPRO
 ! caclulates the x-product of two vectors
-! from VASP
+! adapted from VASP ;) 
 !
-!***********************************************************************
+!******************************************************************************
 
-      SUBROUTINE EXPRO(H,U1,U2)
-      USE constants, ONLY : dp
-      IMPLICIT none 
-      real(kind=dp), dimension ( 3 ) :: H ,U1 ,U2
+SUBROUTINE expro (H,U1,U2)
 
-      H(1)=U1(2)*U2(3)-U1(3)*U2(2)
-      H(2)=U1(3)*U2(1)-U1(1)*U2(3)
-      H(3)=U1(1)*U2(2)-U1(2)*U2(1)
+  USE constants, ONLY : dp
+  IMPLICIT none 
+  real(kind=dp), dimension ( 3 ) :: H ,U1 ,U2
 
-      RETURN
-      END SUBROUTINE
+  H(1)=U1(2)*U2(3)-U1(3)*U2(2)
+  H(2)=U1(3)*U2(1)-U1(1)*U2(3)
+  H(3)=U1(1)*U2(2)-U1(2)*U2(1)
 
+  RETURN
 
+END SUBROUTINE
  
 !*********************** SUBROUTINE print_config_sample ***********************
 !
@@ -766,11 +780,11 @@ SUBROUTINE print_config_sample ( time , rank )
 END SUBROUTINE print_config_sample
 
  
-!*********************** SUBROUTINE  ********************************
+!*********************** SUBROUTINE print_general_info ************************
 !
 !******************************************************************************
 
-SUBROUTINE print_general_info(kunit)
+SUBROUTINE print_general_info (kunit)
 
   USE io_file,  ONLY :  ionode 
   USE config,   ONLY : natm , ntype , rho , simu_cell
@@ -790,7 +804,6 @@ SUBROUTINE print_general_info(kunit)
     WRITE ( kunit ,'(a,f10.3)')    'density         = ', rho
     WRITE ( kunit ,'(a,3f10.3)')   'cell parameters = ', (simu_cell%ANORM(i),i=1,3)
     WRITE ( kunit ,'(a,f10.3)')    'volume          = ', simu_cell%omega
-    WRITE ( kunit ,'(a)')          ''
   endif
 
   return
@@ -798,9 +811,9 @@ SUBROUTINE print_general_info(kunit)
 END SUBROUTINE print_general_info 
 
 
-!*********************** SUBROUTINE dumb_guy ********************************
+!*********************** SUBROUTINE dumb_guy **********************************
 !
-!  This subroutine permits to print out the dumb guy!
+!  This subroutine print out the dumb guy!
 !  Here is the guy ...
 !
 !******************************************************************************
@@ -814,7 +827,7 @@ SUBROUTINE dumb_guy(kunit)
   integer :: kunit
 
   if ( ionode ) then
-     WRITE ( kunit ,'(a)') '                            \\|//                    '
+     WRITE ( kunit ,'(a)') '                            \\|//                            '
      WRITE ( kunit ,'(a)') '                           -(o o)-                           '
      WRITE ( kunit ,'(a)') '========================oOO==(_)==OOo========================'
   endif
@@ -823,7 +836,13 @@ SUBROUTINE dumb_guy(kunit)
 
 END SUBROUTINE dumb_guy
 
-SUBROUTINE MPI_ALL_REDUCE_DOUBLE( vec_result , ndim )
+!*********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE *********************
+!
+!
+!
+!******************************************************************************
+
+SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
 
   USE constants, ONLY : dp
   implicit none
@@ -848,7 +867,13 @@ SUBROUTINE MPI_ALL_REDUCE_DOUBLE( vec_result , ndim )
 
 END SUBROUTINE MPI_ALL_REDUCE_DOUBLE
 
-SUBROUTINE MPI_ALL_REDUCE_INTEGER( vec_result , ndim )
+!*********************** SUBROUTINE MPI_ALL_REDUCE_INTEGER ********************
+!
+!
+!
+!******************************************************************************
+
+SUBROUTINE MPI_ALL_REDUCE_INTEGER ( vec_result , ndim )
 
   implicit none
   INCLUDE 'mpif.h'
@@ -871,6 +896,12 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER( vec_result , ndim )
   return
 
 END SUBROUTINE MPI_ALL_REDUCE_INTEGER
+
+!*********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR **************
+!
+!
+!
+!******************************************************************************
 
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
 

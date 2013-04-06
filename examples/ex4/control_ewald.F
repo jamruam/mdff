@@ -1,22 +1,15 @@
 &controltag
- calc='efg'
- lstatic   = .true.
- lbmlj     = .false.
- lcoulomb  = .true.
- longrange = 'ewald'
- lreduced = .false.
-&end
-&mdtag
-&end
-&configtag
-lgenconf=.false.
-&end
-&proptag 
+        calc='efg'
+        lstatic   = .true.
+        lbmlj     = .false.
+        lcoulomb  = .true.
+        longrange = 'ewald'
+        lreduced = .false.
 &end
 &efgtag
-lefgprintall=.true.
-ncefg=1
-cutefg=5.0d0
-ncellewald=11
-alphaES=0.8d0
+        lvasp_units=.true.
+        lefgprintall=.true.
+        ncefg=1
+&end
+&mdtag
 &end

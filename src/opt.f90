@@ -130,7 +130,7 @@ SUBROUTINE opt_default_tag
 END SUBROUTINE opt_default_tag
 
 
-!*********************** SUBROUTINE opt_check_tag ***************************
+!*********************** SUBROUTINE opt_check_tag *****************************
 !
 ! check opt tag values
 !
@@ -161,7 +161,7 @@ SUBROUTINE opt_check_tag
 
 END SUBROUTINE opt_check_tag
 
-!*********************** SUBROUTINE opt_print_info ***************************
+!*********************** SUBROUTINE opt_print_info ****************************
 !
 ! print optimisation information to standard output
 !
@@ -229,7 +229,7 @@ SUBROUTINE opt_print_info(kunit)
 END SUBROUTINE opt_print_info
 
 
-!*********************** SUBROUTINE opt_main  *********************************
+!*********************** SUBROUTINE opt_main **********************************
 !
 ! main subroutine for optimisation
 !
@@ -930,7 +930,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
 
 END SUBROUTINE eforce1d 
 
-!*********************** SUBROUTINE lbfgs_driver *******************************
+!*********************** SUBROUTINE lbfgs_driver ******************************
 !
 ! this subroutine is a driver for tje lbfgs subroutine (see file lbfgs.f90)
 !
@@ -1174,11 +1174,12 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
 END SUBROUTINE lbfgs_driver
 
 
-!*********************** SUBROUTINE  m1qn3_driver *****************************
+!*********************** SUBROUTINE m1qn3_driver ******************************
 !
 ! driver routine for the optimsation algorithm m1qn3 (see m1qn3.f90)
 !
 !******************************************************************************
+
 SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
 
   USE control,                  ONLY :  myrank , numprocs

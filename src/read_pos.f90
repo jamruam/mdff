@@ -22,9 +22,7 @@
 
 !*********************** SUBROUTINE read_pos **********************************
 !
-!  here we read configuration (pos,vel) from file or generate from a given
-!  structure lfcc, lsc or lbcc ... (face centered cubic, simple cubic or ...)
-!  organisation to confusing !!!!!
+!  here we read configuration (pos,vel,force) from file.
 !
 !******************************************************************************
 
@@ -36,12 +34,20 @@ SUBROUTINE read_pos
                                         simu_cell , config_print_info
   USE field,                    ONLY :  qch , dip , lpolar , field_init
   USE io_file,                  ONLY :  ionode , stdout , kunit_POSFF
-  USE cell,                     ONLY :  lattice, periodicbc
+  USE cell,                     ONLY :  lattice, periodicbc , dirkar
 
   implicit none
 
   ! local
-  integer :: it , ia 
+  integer :: it , ia , i
+  ! =====================================================
+  !   type of positions coordinates 
+  ! =====================================================
+  logical :: allowed
+  character(len=60), SAVE :: cpos
+  character(len=60), SAVE :: cpos_allowed(4)
+  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
+
 
   IF ( ionode ) then
     WRITE ( stdout ,'(a)')            '=============================================================' 
@@ -59,7 +65,18 @@ SUBROUTINE read_pos
   READ ( kunit_POSFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on POSFF : ', atypei ( 1:ntype )
   READ( kunit_POSFF ,*) ( natmi ( it ) , it = 1 , ntype )
-  
+  READ( kunit_POSFF ,*) cpos
+  ! ======
+  !  cpos
+  ! ======
+  do i = 1 , size( cpos_allowed )
+   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    STOP
+  endif
+ 
   CALL lattice ( simu_cell )
   rho = DBLE ( natm ) / simu_cell%omega
 
@@ -80,17 +97,34 @@ SUBROUTINE read_pos
   READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
                                              vx ( ia ) , vy ( ia ) , vz ( ia ) , &
                                              fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
+
+  if ( cpos .eq. 'Direct' ) then
+    ! ======================================
+    !         direct to cartesian
+    ! ======================================
+    CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+  else if ( cpos .eq. 'Cartesian' ) then
+    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+  endif 
+
+
   CLOSE ( kunit_POSFF )
 
   CALL typeinfo_init
 
- ! CALL distance_tab ( stdout )
+  CALL distance_tab ( stdout )
 
   CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   return
 
 END SUBROUTINE read_pos
+
+!*********************** SUBROUTINE typeinfo_init *****************************
+!
+!
+!******************************************************************************
 
 SUBROUTINE typeinfo_init
 

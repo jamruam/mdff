@@ -50,7 +50,7 @@ MODULE vacf
 CONTAINS
 
 
-!*********************** SUBROUTINE vacf_init **********************************
+!*********************** SUBROUTINE vacf_init *********************************
 !
 ! init vacf calc
 !
@@ -98,7 +98,7 @@ SUBROUTINE vacf_init
 END SUBROUTINE vacf_init
 
 
-!*********************** SUBROUTINE vacf_default_tag ***************************
+!*********************** SUBROUTINE vacf_default_tag **************************
 !
 ! set default values to vacf tag
 !
@@ -115,7 +115,7 @@ SUBROUTINE vacf_default_tag
  
 END SUBROUTINE vacf_default_tag
 
-!*********************** SUBROUTINE vacf_check_tag *****************************
+!*********************** SUBROUTINE vacf_check_tag ****************************
 !
 ! check vacf tag values
 !
@@ -130,7 +130,7 @@ SUBROUTINE vacf_check_tag
 END SUBROUTINE vacf_check_tag
 
 
-!*********************** SUBROUTINE vacf_print_info ****************************
+!*********************** SUBROUTINE vacf_print_info ***************************
 !
 ! print info to outputs (stdout)
 !
@@ -157,7 +157,7 @@ SUBROUTINE vacf_print_info(kunit)
  
 END SUBROUTINE vacf_print_info
 
-!*********************** SUBROUTINE vacf_alloc *********************************
+!*********************** SUBROUTINE vacf_alloc ********************************
 ! 
 ! allocate / deallocate principal arrays for vacf
 ! 
@@ -192,6 +192,12 @@ SUBROUTINE vacf_alloc
  
 END SUBROUTINE vacf_alloc
 
+!*********************** SUBROUTINE vacf_dealloc ******************************
+! 
+! allocate / deallocate principal arrays for vacf
+! 
+!******************************************************************************
+
 SUBROUTINE vacf_dealloc
 
   implicit none
@@ -207,17 +213,17 @@ SUBROUTINE vacf_dealloc
  
 END SUBROUTINE vacf_dealloc
 
-
 !*********************** SUBROUTINE vacf_main *********************************
+!
 ! adapted from Frenkel and Smit :
 !
-!        velocity autocorrelation function
+! velocity autocorrelation function
 !
 !******************************************************************************
 
 SUBROUTINE vacf_main 
 
-  USE control,          ONLY :  cutoff
+  USE control,          ONLY :  cutshortrange 
   USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , rho 
   USE md,               ONLY :  dt
   USE io_file,          ONLY :  kunit_VACFFF

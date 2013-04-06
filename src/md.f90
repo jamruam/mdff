@@ -213,7 +213,7 @@ SUBROUTINE md_check_tag
   !  check Qnosehoover
   ! ===================
   if ( integrator .eq. 'nvt-nhc2' .and. Qnosehoover .eq. 0.0_dp ) then
-     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" Qnoseehoover should be set',Qnosehoover
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" Qnosehoover should be set',Qnosehoover
     STOP
   endif
 
@@ -240,11 +240,11 @@ SUBROUTINE md_check_tag
 END SUBROUTINE md_check_tag
 
 
-!*********************** SUBROUTINE md_print_info *************************
+!*********************** SUBROUTINE md_print_info *****************************
 !
 ! print general information to standard output for md control tag
 !
-!**************************************************************************
+!******************************************************************************
 
 SUBROUTINE md_print_info(kunit)
 

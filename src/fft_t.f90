@@ -20,9 +20,12 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
-!======================================
+!*********************** SUBROUTINE fft_1D_complex ****************************
+!
 ! driver for fftw routines
-!======================================
+!
+!******************************************************************************
+
 SUBROUTINE fft_1D_complex(in,out,N)
 
   USE constants , ONLY : dp 
@@ -41,6 +44,12 @@ SUBROUTINE fft_1D_complex(in,out,N)
   return 
 
 END SUBROUTINE fft_1D_complex
+
+!*********************** SUBROUTINE fft_1D_complex ****************************
+!
+! driver for fftw routines
+!
+!******************************************************************************
 
 SUBROUTINE fft_1D_real(in,out,N)
   

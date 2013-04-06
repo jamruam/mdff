@@ -51,8 +51,8 @@ MODULE control
   logical,           SAVE :: lsurf            ! add surface contribution in electrostatic quantities  
   logical,           SAVE :: ltest            ! testing flag
 
-  real(kind=dp),     SAVE :: cutoff           ! small-range cutoff
-  real(kind=dp),     SAVE :: cutlongrange     ! longrange-range cutoff
+  real(kind=dp),     SAVE :: cutlongrange     ! longrange cutoff
+  real(kind=dp),     SAVE :: cutshortrange    ! shortrange cutoff
   real(kind=dp),     SAVE :: skindiff         ! verlet-list cutoff ( cutoff + skindiff )
 
 
@@ -104,6 +104,7 @@ SUBROUTINE control_init ( MDFF )
                          lcoulomb     , &
                          lsurf        , &
                          cutlongrange , &
+                         cutshortrange, &
                          lvnlist      , &
                          lstatic      , &
                          lpbc         , &
@@ -115,7 +116,6 @@ SUBROUTINE control_init ( MDFF )
                          calc         , &
                          dgauss       , &
                          longrange    , &
-                         cutoff       , &
                          skindiff     
                
   ! ======================
@@ -178,8 +178,8 @@ SUBROUTINE control_default_tag
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  cutoff        = 3.0_dp
   cutlongrange  = 400.0_dp
+  cutshortrange = 3.0_dp
   skindiff      = 0.15_dp
   nprop         = 1
 
@@ -187,7 +187,7 @@ SUBROUTINE control_default_tag
  
 END SUBROUTINE control_default_tag
 
-!*********************** SUBROUTINE control_check_tag ***********************
+!*********************** SUBROUTINE control_check_tag *************************
 !
 ! check control tag values
 !
