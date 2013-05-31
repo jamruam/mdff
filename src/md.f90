@@ -156,7 +156,7 @@ SUBROUTINE md_default_tag
   itraj_period  = 10000
   itraj_format  = 1
   spas          = 1000           
-  dt            = 0.001_dp
+  dt            = 0.0_dp
   temp          = 1.0_dp
   tauberendsen  = 0.0_dp
 
@@ -180,6 +180,11 @@ SUBROUTINE md_check_tag
   ! local
   logical :: allowed
   integer :: i
+
+  if (dt.eq.0.0_dp ) then
+    if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: timestep dt is zero'
+    STOP
+  endif
 
   ! =========================================
   !  scaling velocities berendsen, 
@@ -335,14 +340,31 @@ SUBROUTINE write_traj_xyz
   USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
   USE config,                   ONLY :  system , natm , natmi , ntype , &
                                         rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell
-  USE cell,                     ONLY :  periodicbc
+  USE cell,                     ONLY :  periodicbc , kardir , dirkar
 
   implicit none
 
   ! local
   integer :: ia , it , i , j
+  real(kind=dp), dimension (:) , allocatable :: xxx , yyy , zzz
 
-  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  allocate ( xxx ( natm ) , yyy ( natm ) , zzz ( natm ) )
+
+  xxx = rx
+  yyy = ry
+  zzz = rz
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
+
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
+
 
   if ( ionode ) then
     WRITE ( kunit_TRAJFF , '(i6)' ) natm
@@ -353,12 +375,11 @@ SUBROUTINE write_traj_xyz
     WRITE ( kunit_TRAJFF , '(i4)' ) ntype
     WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
     WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+    WRITE ( kunit_TRAJFF,'(A)') 'Cartesian' 
+    WRITE ( kunit_TRAJFF,'(a,9e20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
+                                                         vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
+                                                         fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
     
-    do ia = 1 , natm
-      WRITE ( kunit_TRAJFF , 200 ) atype(ia), rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                              vx ( ia ) , vy ( ia ) , vz ( ia ) , & 
-                                              fx ( ia ) , fy ( ia ) , fz ( ia )
-    enddo
   endif
 
  200 FORMAT(A2,9E20.12)

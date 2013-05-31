@@ -51,6 +51,7 @@ MODULE efg
   logical :: lvasp_units               
   integer :: ncefg                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
   integer :: ntcor                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
+  real(kind=dp) :: dt                   ! timestep for acf calculation should be the same has the one define in md
 
 #ifdef fix_grid
   real(kind=dp)   , dimension(:,:)  , allocatable :: rgrid
@@ -94,7 +95,6 @@ SUBROUTINE efg_init
 
   USE io_file,                  ONLY :  ionode , stdin , stdout , stderr 
   USE control,                  ONLY :  calc
-  USE md,                       ONLY :  dt
  
   implicit none
   
@@ -201,6 +201,11 @@ SUBROUTINE efg_check_tag
   if ( calc .eq. 'efg+acf' .and. ntype .gt. 2 ) then
     if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
     STOP 
+  endif
+  
+  if ( calc .eq. 'efg+acf' .and. dt .eq. 0.0d0 ) then
+    if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR efgtag : dt should be set for efg_acf calculation'
+    STOP
   endif
 
   if ( calc .eq. 'efg+acf' ) return
@@ -1703,13 +1708,13 @@ SUBROUTINE efg_acf
   USE config,                   ONLY :  system , natm , ntype , itype , atype , atypei, natmi , simu_cell , rho , config_alloc
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_EFGACFFF , kunit_NMRACFFF
   USE cell,                     ONLY :  lattice
-  USE md,                       ONLY :  dt
 
   implicit none
 
   integer, parameter                             :: lwork = 6
   integer                                        :: ifail
-  integer                                        :: ia , it , ui , t , tt0 , t0 , t0max
+  integer                                        :: ia , it , t , tt0 , t0 , t0max
+!  integer                                        :: ui commented in the code
   integer,       dimension (:,:)   , allocatable :: norm
   real(kind=dp), dimension (:,:)   , allocatable :: acfxx , acfyy , acfzz          ! autocorelation function ( EFG tensor )
   real(kind=dp), dimension (:,:)   , allocatable :: acfxy , acfxz , acfyz          ! autocorelation function ( EFG tensor )
@@ -1731,7 +1736,6 @@ SUBROUTINE efg_acf
 
   !trash
   integer            :: iiii
-  real(kind=dp)      :: aaaa      
   character(len=200) :: XXXX
 
   ! ===================

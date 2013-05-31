@@ -136,6 +136,12 @@ MODULE io_file
   ! dipole moments on atoms from Wannier centers
   integer, PARAMETER :: kunit_DIPWFC     = 270
 
+  ! neighbor info
+  integer, PARAMETER :: kunit_VOIS1FF     = 280
+
+  ! number of neighbors distribution
+  integer, PARAMETER :: kunit_DTNBFF      = 290
+
 CONTAINS
 
 !*********************** SUBROUTINE io_init ***********************************

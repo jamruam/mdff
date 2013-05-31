@@ -60,9 +60,9 @@ MODULE control
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc                
-  character(len=60), SAVE :: calc_allowed(10)    
+  character(len=60), SAVE :: calc_allowed(11)    
   data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'gr' /
+                      'vib+dos' , 'efg' , 'efg+acf', 'gr' , 'vois1' /
 
   ! =====================================================
   ! algorithm for long-range calculation
@@ -303,7 +303,7 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a)')       MDFF
      WRITE ( kunit ,'(a)')       'filipe.manuel.vasconcelos@gmail.com  '
      WRITE ( kunit ,'(a,i4,a)')  'Running on',numprocs,' nodes                  '
-     WRITE ( kunit ,'(a,a)')     'by user :',user_name
+     WRITE ( kunit ,'(a,a)')     'by user  : ',user_name
      if ( status == 0 ) then
 #ifdef GFORTRAN
      WRITE ( kunit ,'(a,a)')     'host     : ',trim(host)

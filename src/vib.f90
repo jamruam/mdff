@@ -245,7 +245,8 @@ SUBROUTINE vib_main
   real(kind=dp), dimension(:,:), allocatable  :: hess
   real(kind=dp), dimension(:), allocatable    :: work, deig, ipiv !,deig_reorder(3 * n)
   real(kind=dp) ,dimension (:,:), allocatable :: eigenk
-  real(kind=dp)                               :: pressure0, pot0, ak
+  real(kind=dp)                               :: ak
+!  real(kind=dp)                               :: pressure0, pot0 removed 28/05/13
   character(len=1)                            :: jobz, uplo
   integer*4                                   :: info, lwork
   real(kind=dp)                               :: ttt1 , ttt2 
@@ -631,7 +632,6 @@ SUBROUTINE hessian ( hess )
 
   ! local
   integer       :: it , jt , p1, p2, ia, ja , ierr
-  integer       :: nxij , nyij , nzij
   real(kind=dp) :: rxi , ryi, rzi 
   real(kind=dp) :: rxij , ryij , rzij , rijsq
   real(kind=dp) :: sxij, syij, szij
@@ -1242,7 +1242,7 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   real(kind=dp) :: deig(3 * natm)
   integer :: kunit
   ! local
-  integer :: ia , ja , igconf , it  , i , j
+  integer :: ia , igconf , it  , i , j
   real(kind=dp), dimension(:), allocatable :: rrx , rry , rrz
   real(kind=dp), dimension(:), allocatable :: qx , qxd , xsq
   real(kind=dp) :: dexpo, omeg, G1
@@ -1547,7 +1547,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
 
   ! local
   integer          :: ck , kl , wi , ierr , si , sj , im
-  integer          :: ik , i , j , ia , ja , p1 , p2
+  integer          :: ik , i , ia , ja , p1 , p2
   real(kind=dp)    :: rxi , ryi , rzi
   real(kind=dp)    :: rxij , ryij , rzij , rijsq
   real(kind=dp)    :: sxij , syij , szij
@@ -1614,7 +1614,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   kl = 1
   ck = 1
   ttt1l = MPI_WTIME(ierr) ! timing info
-  do ik = 0,nk - 1
+  do ik = 0 , nk - 1
 
     READ ( kunit_IBZKPTFF , * ) kxi , kyi , kzi , wi
 

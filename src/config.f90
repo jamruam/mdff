@@ -190,11 +190,6 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  ! ======================================
-  !         cartesian to direct 
-  ! ======================================
-  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
-
   CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
   
   if ( ionode ) then
@@ -207,7 +202,7 @@ SUBROUTINE write_CONTFF
       WRITE ( kunit_CONTFF,'(i4)') ntype 
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
-      WRITE ( kunit_CONTFF,'(A)') 'Direct' 
+      WRITE ( kunit_CONTFF,'(A)') 'Cartesian' 
       WRITE ( kunit_CONTFF,'(a,9e20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
                                                            vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
                                                            fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )

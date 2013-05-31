@@ -51,11 +51,13 @@ SUBROUTINE gr_init
   implicit none
 
   ! local
-  integer            :: ioerr , npangr , i
+  integer            :: ioerr 
+!28/05/13  integer            :: npangr, i
   character(len=132) :: filename
 
   namelist /grtag/   nconf , &
                      nskip , &
+                     cutgr , &
                      resg  
 
   if ( calc .ne. 'gr' ) return
@@ -80,15 +82,14 @@ SUBROUTINE gr_init
   ! ==========================================
   ! define a new resolution to be 2^N points
   ! ==========================================
-  cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01_dp
   PANGR=int(cutgr/resg)
-  i = 1
-  do while ( 2**i .lt. PANGR )
-     i = i + 1
-  enddo
-  npangr = i
-  PANGR = 2** npangr
-  resg = cutgr / DBLE ( PANGR  )
+!28/05/13 ! i = 1
+!28/05/13 ! do while ( 2**i .lt. PANGR )
+!28/05/13 !    i = i + 1
+!28/05/13 ! enddo
+!28/05/13 ! npangr = i
+!28/05/13 ! PANGR = 2** npangr
+!28/05/13 ! resg = cutgr / DBLE ( PANGR  )
 
   CALL gr_print_info(stdout)
 
@@ -146,6 +147,8 @@ END SUBROUTINE gr_dealloc
 
 SUBROUTINE gr_default_tag
 
+  USE config,           ONLY : simu_cell
+
   implicit none
 
   ! ===============
@@ -154,6 +157,7 @@ SUBROUTINE gr_default_tag
   resg = 0.1_dp
   nskip = 0
   nconf = 0
+  cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01_dp
 
   return
 
@@ -275,6 +279,9 @@ SUBROUTINE grcalc
 
   pairs =  ntype * ( ntype + 1 ) / 2
   allocate ( grr ( 0 : PANGR-1 , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
+  grr  = 0.0_dp
+  nr   = 0
+  cint = ''
 
 #ifdef debug2
   if ( ionode ) then 
@@ -381,13 +388,16 @@ SUBROUTINE grcalc
 
   nr ( 0 ) = 0 
 
-  do i = 0 , PANGR-1
-    rr = resg * ( DBLE (i) + 0.5_dp )
-    k  = i+1
-    k  = k*k*k
-    k  = k-(i*i*i)
-    vol = DBLE (k)*resg*resg*resg ! r^3
-    vol = (4.0_dp/3.0_dp)*pi*vol/simu_cell%omega !4/3pir^3
+  do i = 1 , PANGR
+    rr  = ( dble(i)-0.5d0)*resg
+    vol = 4.d0*pi*(resg*rr*rr+(resg**3)/12.d0)
+    vol = vol/simu_cell%omega 
+!    rr = resg * ( DBLE (i) + 0.5_dp )
+!    k  = i+1
+!    k  = k*k*k
+!    k  = k-(i*i*i)
+!    vol = DBLE (k)*resg*resg*resg ! r^3
+!    vol = (4.0_dp/3.0_dp)*pi*vol/simu_cell%omega !4/3pir^3
     ! all - all pairs 
     grr ( i , 0 ) = DBLE (gr(i,0,0))/(ngr*vol*natm*natm)
     ! type pairs
@@ -406,17 +416,17 @@ SUBROUTINE grcalc
         mp = mp + 1
       enddo
     enddo
-    if ( pairs .ne. 1 ) then
+    !if ( pairs .ne. 1 ) then
       if ( ionode ) then
         WRITE ( kunit_GRTFF ,'(<pairs+2>f15.10)') rr , ( grr ( i , mp ) , mp = 0 , pairs ) 
         WRITE ( kunit_NRTFF ,'(<pairs+2>f20.10)') rr , ( DBLE ( grr ( i , mp) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
       endif
-    else
-      if ( ionode ) then
-        WRITE (kunit_GRTFF,'(2f15.10)') rr , grr( i , 0 ) 
-        WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(i,0,0)
-      endif
-    endif
+    !else
+    !  if ( ionode ) then
+    !    WRITE (kunit_GRTFF,'(2f15.10)') rr , grr( i , 0 ) 
+    !    WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(i,0,0)
+    !  endif
+    !endif
   enddo
 
 
@@ -446,6 +456,7 @@ SUBROUTINE gr_main ( iastart , iaend )
   USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
   USE io_file,                  ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
+  USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
   INCLUDE 'mpif.h'
@@ -460,6 +471,7 @@ SUBROUTINE gr_main ( iastart , iaend )
   real(kind=dp) :: cut2 , rijsq , rr 
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
   real(kind=dp) :: ttt1 , ttt2      
 
   ttt1 = MPI_WTIME(ierr)
@@ -469,6 +481,12 @@ SUBROUTINE gr_main ( iastart , iaend )
   ! =======================
   cut2 = cutgr * cutgr 
 
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
+!  print*,iastart,iaend
   do ia = iastart , iaend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -476,32 +494,33 @@ SUBROUTINE gr_main ( iastart , iaend )
     ita = itype( ia )
     do ja = 1, natm
       if ( ja .ne. ia ) then  
-      jta = itype( ja )
-      rxij = rxi - rx ( ja )
-      ryij = ryi - ry ( ja )
-      rzij = rzi - rz ( ja )
-      nxij = NINT ( rxij * simu_cell%BNORM(1) )
-      nyij = NINT ( ryij * simu_cell%BNORM(2) )
-      nzij = NINT ( rzij * simu_cell%BNORM(3) )
-      rxij = rxij - simu_cell%ANORM(1) * nxij
-      ryij = ryij - simu_cell%ANORM(2) * nyij
-      rzij = rzij - simu_cell%ANORM(3) * nzij
-      rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-      if ( rijsq.lt.cut2 ) then
-        rr = SQRT ( rijsq )
-        igr = INT ( rr / resg )
-        if ( igr .lt. 0 .and. igr .gt. PANGR-1 ) then
-          WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
-          STOP
-        endif 
-        ! all pairs
-        gr ( igr , 0 , 0 )     = gr ( igr , 0 , 0 ) + 1 
-        gr ( igr , ita , jta ) = gr ( igr , ita , jta ) + 1
+        jta = itype( ja )
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+        if ( rijsq.lt.cut2 ) then
+          rr = SQRT ( rijsq )
+          igr = INT ( rr / resg ) + 1
+!          print*,igr
+          if ( igr .lt. 0 .and. igr .gt. PANGR-1 ) then
+            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
+            STOP
+          endif 
+          ! all pairs
+          gr ( igr , 0 , 0 )     = gr ( igr , 0 , 0 ) + 1 
+          gr ( igr , ita , jta ) = gr ( igr , ita , jta ) + 1
+        endif
       endif
-     endif
     enddo
   enddo
-
+  
 #ifdef debug2
   do igr=0, PANGR-1
     WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,1,1)
@@ -510,6 +529,11 @@ SUBROUTINE gr_main ( iastart , iaend )
 
   ttt2 = MPI_WTIME(ierr)
   grtimetot = grtimetot + ( ttt2 - ttt1 )
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
  
@@ -520,7 +544,7 @@ END SUBROUTINE gr_main
 !
 !******************************************************************************
 
-SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
+!SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
 !  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
 !  USE config,                   ONLY :  rho
@@ -528,8 +552,8 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
 !  implicit none
 !  ! global
-  integer :: PANGR , pairs
-  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
+!  integer :: PANGR , pairs
+!  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
 !
 !  ! local
 !  integer :: i , j , is , NN
@@ -629,7 +653,7 @@ SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 !  SR = SR - r * COS ( qj * r ) / qj
 !end function 
 
-END SUBROUTINE static_struc_fac
+!END SUBROUTINE static_struc_fac
 
 
 END MODULE radial_distrib 

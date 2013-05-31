@@ -25,7 +25,7 @@ INSTALL_DIR=../bin
 #   on mario / babar
 # =================
 FCFLAGS = -fpp -O3 -ip -xSSE4.2
-FCFLAGS = -fpp -O3 -ip -xAVX
+#FCFLAGS = -fpp -O3 -ip -xAVX
 #FCFLAGS = -fpp -O3 -pg
 #FCFLAGS = -fpp -O3 -ip -xW
 #FCFLAGS = -fpp -O0 -check all -warn all 
@@ -73,7 +73,7 @@ OBJ= constants.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o kspace.o rspace.o kinetic.o thermo.o field.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o vacf.o runmd.o 
+     radial_distrib.o efg.o vacf.o voisin.o runmd.o 
 
 #OBJ_= constants.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \

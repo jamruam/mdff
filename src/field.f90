@@ -25,6 +25,7 @@
 !#define debug_morse
 !#define debug_bmlj
 !#define debug_quadratic
+!#define debug_para
 ! ======= Hardware =======
 
 !*********************** MODULE field *****************************************
@@ -374,7 +375,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
   !local
   logical , optional :: quiet
   integer :: kunit, it , it1 , it2 , i , j
-  real(kind=dp) :: rcut , rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2
+  real(kind=dp) :: rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2
   logical :: linduced
 
   if ( ( present ( quiet ) .and. quiet ) .and. .not. lquiet ) then 
@@ -513,12 +514,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
       WRITE ( kunit ,'(a)')             ''
       WRITE ( kunit ,'(a)')             ''
       do it1 = 1 , ntype
-        do it2 = it1 , ntype          
-          if ( trunc .eq. 1 ) then
-            WRITE ( kunit ,'(a,2f20.9)')'shift correction (linear)        : ',uc(it1,it2)
-          else if ( trunc .eq. 2 ) then 
-            WRITE ( kunit ,'(a,2f20.9)')'shift correction (quadratic)     : ',uc(it1,it2),uc2(it1,it2)
-          endif
+        do it2 = it1 , ntype 
           WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
           WRITE ( kunit ,'(a,a,a,a)')   atypei(it1),'-',atypei(it2),' interactions:'    
           WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
@@ -532,6 +528,11 @@ SUBROUTINE field_print_info ( kunit , quiet )
             WRITE ( kunit ,110)         'eps                                  = ',epslj   ( it1 , it2 ) , '( ',epslj   ( it2 , it1 ), ' )'
             WRITE ( kunit ,110)         'q                                    = ',qlj     ( it1 , it2 ) , '( ',qlj     ( it2 , it1 ), ' )'
             WRITE ( kunit ,110)         'p                                    = ',plj     ( it1 , it2 ) , '( ',plj     ( it2 , it1 ), ' )'
+          endif
+          if ( trunc .eq. 1 ) then
+            WRITE ( kunit ,'(a,2f20.9)')'shift correction (linear)        : ',uc(it1,it2)
+          else if ( trunc .eq. 2 ) then
+            WRITE ( kunit ,'(a,2f20.9)')'shift correction (quadratic)     : ',uc(it1,it2),uc2(it1,it2)
           endif
         enddo
       enddo
@@ -1123,7 +1124,14 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ttt2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot + ( ttt2 - ttt1 )
 
+  
+#ifdef debug_para
+        write ( * , 800 ) myrank,' u para before mpi ',u/real ( natm ) 
+#endif
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   ) 
+#ifdef debug_para
+        write ( * , 800 ) myrank,' u para after mpi ',u/real ( natm ) 
+#endif
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir ) 
 
   CALL MPI_ALL_REDUCE_DOUBLE ( fx , natm ) 
@@ -1137,12 +1145,18 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   u_lj = u
   vir_lj = vir
 
+#ifdef debug_para
+        write (*,800) myrank, ' u = ', u / real ( natm )
+#endif
+
   ! ======================================
   !         direct to cartesian
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
+
+800 FORMAT ( i6,a,e60.40,e60.40)
 
 END SUBROUTINE engforce_bmlj_pbc
 
@@ -1181,6 +1195,7 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
   fx = 0.0_dp
   fy = 0.0_dp
   fz = 0.0_dp
+  tau_nonb = 0.0_dp
 
   do jt = 1 , ntype
     do it = 1 , ntype

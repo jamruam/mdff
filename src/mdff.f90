@@ -50,6 +50,7 @@ PROGRAM main_MDFF
   USE opt
   USE efg
   USE radial_distrib 
+  USE voisin
   USE msd
   USE vacf 
   USE block
@@ -280,12 +281,22 @@ PROGRAM main_MDFF
     if ( calc .eq. 'gr' ) then
       CALL grcalc 
     endif
+    ! ==============================================
+    ! IF VOIS1 : 
+    ! - first neighbour sphere analysis  
+    ! - ( in construction )
+    ! ==============================================
+    if ( calc.eq. 'vois1' ) then
+      CALL vois1_init
+      CALL vois1_driver
+    endif
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
     endif
+
  
     ! ==============================================
     ! deallocate prop quantities
@@ -316,7 +327,6 @@ PROGRAM main_MDFF
     if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
     if ( ionode ) WRITE ( stdout      , '(a)' ) '                           TEST                              '
     if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
-    if ( ionode ) WRITE ( stdout      , '(a)' ) ' ############################# '
     ! 
     !    WRITE HERE YOUR CODE TO BE TESTED 
     ! 

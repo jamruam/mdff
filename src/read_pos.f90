@@ -94,28 +94,31 @@ SUBROUTINE read_pos
   ! =========================================      
   ! read positions and velocities from disk 
   ! =========================================      
+  
   READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
                                              vx ( ia ) , vy ( ia ) , vz ( ia ) , &
                                              fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
 
+  !CALL print_config_sample(0,0)
   if ( cpos .eq. 'Direct' ) then
     ! ======================================
     !         direct to cartesian
     ! ======================================
     CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct    coordinates in POSFF'
   else if ( cpos .eq. 'Cartesian' ) then
     if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
   endif 
 
-
   CLOSE ( kunit_POSFF )
+
+!  CALL print_config_sample(0,0)
 
   CALL typeinfo_init
 
-  CALL distance_tab ( stdout )
+  CALL distance_tab 
 
-  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   return
 

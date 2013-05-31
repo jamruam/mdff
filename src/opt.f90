@@ -244,7 +244,7 @@ SUBROUTINE opt_main
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
-  USE cell,             ONLY :  lattice
+  USE cell,             ONLY :  lattice , dirkar
   USE field,            ONLY :  field_init , engforce_driver
   USE time,             ONLY :  opttimetot
 
@@ -252,11 +252,18 @@ SUBROUTINE opt_main
   INCLUDE 'mpif.h'
 
   ! local 
-  integer       :: ia , it , ic, neng, iter, nopt 
+  integer       :: i , ia , it , ic, neng, iter, nopt 
   integer       :: iastart , iaend , ierr
   real(kind=dp) :: phigrad, pressure0, pot0, Eis
   real(kind=dp) :: ttt1,ttt2
   real(kind=dp) :: ttt1p,ttt2p
+  ! =====================================================
+  !   type of positions coordinates 
+  ! =====================================================
+  logical :: allowed
+  character(len=60), SAVE :: cpos
+  character(len=60), SAVE :: cpos_allowed(4)
+  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
   ! trash 
   real(kind=dp) :: aaaa
 
@@ -282,6 +289,18 @@ SUBROUTINE opt_main
   READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
   IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+  READ( kunit_TRAJFF ,*) cpos
+  ! ======
+  !  cpos
+  ! ======
+  do i = 1 , size( cpos_allowed )
+   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', cpos_allowed
+    STOP
+  endif
+
 
   CALL lattice (simu_cell)
   rho = DBLE ( natm )  / simu_cell%omega 
@@ -312,6 +331,7 @@ SUBROUTINE opt_main
       if ( ic .ne. 1 ) READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
       IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
       if ( ic .ne. 1 ) READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+      if ( ic .ne. 1 ) READ( kunit_TRAJFF ,*) cpos
       do ia = 1 , natm 
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
@@ -333,7 +353,19 @@ SUBROUTINE opt_main
       READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
       READ ( kunit_TRAJFF , * ) ntype
       READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype ) 
-      READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
+      READ ( kunit_TRAJFF , *) ( natmi ( it ) , it = 1 , ntype )
+      READ ( kunit_TRAJFF , *) cpos
+      ! ======
+      !  cpos
+      ! ======
+      do i = 1 , size( cpos_allowed )
+        if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+      enddo
+      if ( .not. allowed ) then
+        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', cpos_allowed
+        STOP
+      endif
+
     endif
     
     do ia = 1 , natm
@@ -342,6 +374,18 @@ SUBROUTINE opt_main
 
     CALL lattice (simu_cell)
     rho = DBLE ( natm )  / simu_cell%omega
+
+    if ( cpos .eq. 'Direct' ) then
+      ! ======================================
+      !         direct to cartesian
+      ! ======================================
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+    else if ( cpos .eq. 'Cartesian' ) then
+      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+    endif
+
+
 
 
     CALL typeinfo_init  
@@ -420,6 +464,7 @@ SUBROUTINE opt_main
         WRITE ( kunit_ISCFF , * ) ntype 
         WRITE ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
         WRITE ( kunit_ISCFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+        WRITE ( kunit_ISCFF , * ) ' Cartesian'
         do ia = 1 , natm 
           WRITE ( kunit_ISCFF ,'(A2,9F20.12)') &
           atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , dzero,dzero,dzero, fx ( ia ) , fy ( ia ) , fz ( ia )

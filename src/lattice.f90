@@ -222,27 +222,27 @@ END SUBROUTINE dirkar
 !
 !******************************************************************************
 
-SUBROUTINE periodicbc ( natm , rx , ry , rz , latt )
+SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
 
   implicit none
 
   ! global
   integer :: natm
-  real(kind=dp) :: rx ( natm ) , ry ( natm ) , rz ( natm )
+  real(kind=dp) :: xxx ( natm ) , yyy ( natm ) , zzz ( natm )
   TYPE(celltype) latt
 
   ! local
   integer :: ia
 
-  CALL dirkar ( natm , rx , ry , rz , latt%B ) 
+  CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
 
   do ia = 1 , natm
-     rx ( ia ) = rx ( ia ) - NINT ( rx ( ia ) ) 
-     ry ( ia ) = ry ( ia ) - NINT ( ry ( ia ) ) 
-     rz ( ia ) = rz ( ia ) - NINT ( rz ( ia ) )  
+     xxx ( ia ) = xxx ( ia ) - NINT ( xxx ( ia ) ) 
+     yyy ( ia ) = yyy ( ia ) - NINT ( yyy ( ia ) ) 
+     zzz ( ia ) = zzz ( ia ) - NINT ( zzz ( ia ) )  
   enddo
 
-  CALL kardir ( natm , rx , ry , rz , latt%A ) 
+  CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 
 
   return
 

@@ -620,9 +620,9 @@ SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
     
   ! global
   integer, intent(in)              :: NA,NB,NC                  ! Normal usage: NA+NB = NC
-  real(kind=dp), intent(in out) :: A(NA)        ! B overlays C(NA+1:NC)
-  real(kind=dp), intent(in)     :: B(NB)
-  real(kind=dp), intent(in out) :: C(NC)
+  real(kind=dp), intent(in out)    :: A(NA)        ! B overlays C(NA+1:NC)
+  real(kind=dp), intent(in)        :: B(NB)
+  real(kind=dp), intent(in out)    :: C(NC)
   integer, intent(in out)          :: labelA(NA)       
   integer, intent(in)              :: labelB(NB)
   integer, intent(in out)          :: labelC(NC)
@@ -661,17 +661,37 @@ END SUBROUTINE merge_1
 ! 
 !  I changed the routine to keep the initial labels during the sort process
 !
+!  A : input array of size N
+!  labela : 1 --- N
+!
+!
+! !example merge_sort
+!  a(1)=6.0
+!  a(2)=2.0
+!  a(3)=-2.0
+!  a(4)=3.0
+!  a(5)=1.0
+
+!  do ia = 1 , 5
+!  labela(ia) = ia
+!  enddo
+!  write(*,*) 'befo',a
+!  call merge_sort ( a , 5 , t , labela , labelt )
+!  write(*,*) 'after1 ',a
+
+!
 !******************************************************************************
 
 RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
   
   USE constants, ONLY : dp
+
   implicit none 
 
   ! global
   integer, intent(in)                                :: N
-  real(kind=dp), dimension(N), intent(in out)     :: A
-  real(kind=dp), dimension((N+1)/2), intent (out) :: T
+  real(kind=dp), dimension(N), intent(in out)        :: A
+  real(kind=dp), dimension((N+1)/2), intent (out)    :: T
   integer, dimension(N), intent(in out)              :: labelA
   integer, dimension((N+1)/2), intent(out)           :: labelt
 
@@ -841,7 +861,6 @@ END SUBROUTINE dumb_guy
 !
 !
 !******************************************************************************
-
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
 
   USE constants, ONLY : dp

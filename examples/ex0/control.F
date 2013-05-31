@@ -5,7 +5,7 @@
 &controltag
 lbmlj   = .true.
 lstatic = .true.
-cutoff  = 3.0d0
+cutshortrange  = 3.0d0
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 
