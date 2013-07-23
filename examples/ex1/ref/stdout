@@ -1,0 +1,415 @@
+#Example 1: LJ fcc structure at low temperature
+The configuration is readed in POSFF
+                            \\|//                            
+                           -(o o)-                           
+========================oOO==(_)==OOo========================
+          ____    ____  ______   ________  ________  
+         |_   \  /   _||_   _ `.|_   __  ||_   __  | 
+           |   \/   |    | | `. \ | |_ \_|  | |_ \_| 
+           | |\  /| |    | |  | | |  _|     |  _|    
+          _| |_\/_| |_  _| |_.' /_| |_     _| |_     
+         |_____||_____||______.'|_____|   |_____|    
+=============================================================
+
+MOLECULAR DYNAMICS ...for fun                 
+mdff.0.3.1  (build Jul 23 2013 00:13:42) parallel                               
+filipe.manuel.vasconcelos@gmail.com  
+Running on  :    1 nodes                  
+by user     : filipe                        
+host        : Linux
+date        : 2013/07/23    19:56:14
+
+CONTROL MODULE ... WELCOME
+
+calc        =  md                                                          
+lbmlj       =  T
+lmorse      =  F
+lcoulomb    =  F
+lsurf       =  F
+lvnlist     =  T
+lstatic     =  F
+lpbc        =  T
+lminimg     =  T
+lreduced    =  T
+lshiftpot   =  T
+lrestart    =  F
+
+=============================================================
+
+MD MODULE ... WELCOME
+
+periodic boundary conditions in cubic cell     
+using minimum image convention                 
+verlet list used 
+units reduced by the number of atom
+dynamic calculation
+NVE ensemble --- velocity verlet integrator    
+with equilibration:             
+berendsen scaling ( is not canonical ...and so NVE)
+number of steps                      =       1000
+timestep                             =  0.10000E-02
+time range                           =  0.10000E+01
+temperature                          =    0.80000
+number of equilibration steps        =         10
+equilibration period                 =          1
+Berendsen thermo time scale          =  0.10000E-02
+tauberendsen = dt -> simple rescale
+print thermo  periodicity            =        100
+
+=============================================================
+
+reading configuration
+config from file POSFF
+found type information on POSFF : A  
+atomic positions in cartesian coordinates in POSFF
+
+=============================================================
+
+CONFIG MODULE ... WELCOME
+
+system                : UNKNOWN                                                     
+natm                  =              256
+ntype                 =                1
+nA                    =              256  100.00%
+
+-------------------------------------------------------------
+direct     basis : 
+-------------------------------------------------------------
+a_vector              =       6.3496      0.0000      0.0000
+b_vector              =       0.0000      6.3496      0.0000
+c_vector              =       0.0000      0.0000      6.3496
+cell param.           =       6.3496      6.3496      6.3496
+perpend. width        =       6.3496      6.3496      6.3496
+angles                =      90.0000     90.0000     90.0000
+volume                =     256.0000
+
+
+-------------------------------------------------------------
+reciprocal basis : 
+-------------------------------------------------------------
+a*_vector             =       0.1575      0.0000      0.0000
+b*_vector             =       0.0000      0.1575      0.0000
+c*_vector             =       0.0000      0.0000      0.1575
+
+cell param.           =       0.1575      0.1575      0.1575
+perpend. width        =       0.1575      0.1575      0.1575
+angles                =      90.0000     90.0000     90.0000
+volume                =       1.0000
+
+-------------------------------------------------------------
+
+density               =       1.0000
+
+ long range correction  -137.070874128976     
+=============================================================
+
+FIELD MODULE ... WELCOME
+
+energy units in input/output 
+internal                                                    
+no masses are implemented                      
+
+-------------------------------------------------------------
+point charges: 
+-------------------------------------------------------------
+qA                      =  0.000E+00
+quadA                   =  0.000E+00 mb
+total charge            =  0.000E+00
+second moment of charge =  0.000E+00
+
+-------------------------------------------------------------
+static dipoles: 
+-------------------------------------------------------------
+muA        =    0.00000   0.00000   0.00000
+
+-------------------------------------------------------------
+lennard-jones           
+-------------------------------------------------------------
+
+       eps    /    / sigma* \ q       / sigma*  \ p \
+ V = ------- |  p | ------- |    - q | -------- |   |
+      q - p   \    \   r    /         \    r    /   /
+
+cutoff      =    2.50000
+truncation  = linear                                                      
+
+
+-------------------------------------------------------------
+A  -A   interactions:
+-------------------------------------------------------------
+sigma                                =    1.00000
+eps                                  =    1.00000
+q                                    =   12.00000
+p                                    =    6.00000
+shift correction (linear)            :   -0.01632
+
+
+=============================================================
+
+paralelisation - atoms decomposition
+rank    0atoms       1 to     256
+=============================================================
+
+generate velocities
+Velocities from Maxwell-Boltzmann distribution
+normal distribution method = boxmuller_basic     
+Berendsen thermostat
+effective temperature      T        =     0.8507
+wanted temperature         T0       =     0.8000
+velocities rescaled by              =     0.9697
+
+center of mass vel. ALL    -0.867362E-17    0.503070E-16    0.359955E-16
+center of mass vel. A      -0.867362E-17    0.503070E-16    0.359955E-16
+
+=============================================================
+properties at t=0
+ test
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =         0
+  time                  =  0.00000000E+00
+  Ekin                  =  0.12000000E+01
+  Temp                  =  0.80000000E+00
+  Utot                  = -0.73210321E+01
+  U_lj                  = -0.73210321E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              = -0.10131151E-01
+  P_lj                  = -0.13256151E-01
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.61210321E+01
+
+stress tensor of initial configuration
+
+TAU_NONB
+ -0.33935748E+01  0.27105054E-17  0.13010426E-17
+  0.34694470E-17 -0.33935748E+01 -0.10842022E-18
+  0.21684043E-18 -0.48789098E-17 -0.33935748E+01
+iso =  -0.33935748E+01( -0.13256151E-01)
+
+
+starting main loop
+=============================================================
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       100
+  time                  =  0.10000000E+00
+  Ekin                  =  0.43681641E+00
+  Temp                  =  0.29121094E+00
+  Utot                  = -0.65318534E+01
+  U_lj                  = -0.65318534E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.47888030E-02
+  P_lj                  =  0.36512602E-02
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950370E+01
+
+  step :    100      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       200
+  time                  =  0.20000000E+00
+  Ekin                  =  0.57370223E+00
+  Temp                  =  0.38246815E+00
+  Utot                  = -0.66687337E+01
+  U_lj                  = -0.66687337E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.20718198E-02
+  P_lj                  =  0.57780361E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950315E+01
+
+  step :    200      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       300
+  time                  =  0.30000000E+00
+  Ekin                  =  0.63325338E+00
+  Temp                  =  0.42216892E+00
+  Utot                  = -0.67282886E+01
+  U_lj                  = -0.67282886E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.89567280E-03
+  P_lj                  = -0.75342455E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950352E+01
+
+  step :    300      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       400
+  time                  =  0.40000000E+00
+  Ekin                  =  0.62964924E+00
+  Temp                  =  0.41976616E+00
+  Utot                  = -0.67246836E+01
+  U_lj                  = -0.67246836E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.83496211E-03
+  P_lj                  = -0.80474944E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950343E+01
+
+  step :    400      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       500
+  time                  =  0.50000000E+00
+  Ekin                  =  0.65933328E+00
+  Temp                  =  0.43955552E+00
+  Utot                  = -0.67543695E+01
+  U_lj                  = -0.67543695E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.29242407E-03
+  P_lj                  = -0.14245897E-02
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950363E+01
+
+  step :    500      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       600
+  time                  =  0.60000000E+00
+  Ekin                  =  0.60085271E+00
+  Temp                  =  0.40056847E+00
+  Utot                  = -0.66958889E+01
+  U_lj                  = -0.66958889E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.14467499E-02
+  P_lj                  = -0.11797067E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950362E+01
+
+  step :    600      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       700
+  time                  =  0.70000000E+00
+  Ekin                  =  0.63659889E+00
+  Temp                  =  0.42439926E+00
+  Utot                  = -0.67316366E+01
+  U_lj                  = -0.67316366E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.77218882E-03
+  P_lj                  = -0.88562079E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950377E+01
+
+  step :    700      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       800
+  time                  =  0.80000000E+00
+  Ekin                  =  0.62448426E+00
+  Temp                  =  0.41632284E+00
+  Utot                  = -0.67195241E+01
+  U_lj                  = -0.67195241E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.83633370E-03
+  P_lj                  = -0.78992739E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950398E+01
+
+  step :    800      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =       900
+  time                  =  0.90000000E+00
+  Ekin                  =  0.68042980E+00
+  Temp                  =  0.45361987E+00
+  Utot                  = -0.67754747E+01
+  U_lj                  = -0.67754747E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.33724394E-04
+  P_lj                  = -0.17382282E-02
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950449E+01
+
+  step :    900      MD   : cpu time      0.12
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =      1000
+  time                  =  0.10000000E+01
+  Ekin                  =  0.61744134E+00
+  Temp                  =  0.41162756E+00
+  Utot                  = -0.67124823E+01
+  U_lj                  = -0.67124823E+01
+  U_coul                =  0.00000000E+00
+  U_morse               =  0.00000000E+00
+  Pressure              =  0.11967365E-02
+  P_lj                  = -0.41118364E-03
+  P_coul                =  0.00000000E+00
+  volume                =  0.25600000E+03
+  ---------------------------------------------
+  Etot                  = -0.60950410E+01
+
+  step :   1000      MD   : cpu time      0.12
+=============================================================
+end of the main loop
+
+
+stress tensor of final configuration
+
+TAU_NONB
+ -0.12004886E+00  0.41226529E-02 -0.12902008E+00
+  0.41226529E-02  0.16322342E-01  0.12099861E+00
+ -0.12902008E+00  0.12099861E+00 -0.21327689E+00
+iso =  -0.10566780E+00( -0.41276486E-03)
+
+verlet list update frequency        33   0.30303030E+02
+=============================================================
+
+TIME MODULE ... WELCOME
+
+-------------------------------------------------------------
+                           TOTAL :  cpu time     1.22
+                              MD :  cpu time     1.21
+
+-------------------------------------------------------------
+main subroutines:
+-------------------------------------------------------------
+MD:
+-------------------------------------------------------------
+             engforce_bmlj       :  cpu time     1.19
+             vnlistcheck         :  cpu time     0.03
+-------------------------------------------------------------
+=============================================================

@@ -5,7 +5,8 @@
 &controltag
         calc          = 'md'      ! md calculation
         lbmlj         = .true.
-        cutoff       = 2.5d0
+        cutshortrange = 2.5d0
+        lrestart = .true.
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 

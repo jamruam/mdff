@@ -1,14 +1,42 @@
 #!/bin/bash
-
-echo "=========================================================="
+# ==================================================================
+# date        : abril 2013
+# author      : fmv
+# description : convert POSFF file (mdff) to POSCAR (vasp)
+# ==================================================================
+separetor="=========================================================="
+echo $separetor
 date
+echo "author : filipe.manuel.vasconcelos@gmail.com"
+echo $separetor
 echo "Running fftocar ..."
 echo "This script generate POSCAR file from POSFF file"
+USAGE="Usage: -i [inputfile] -o [outputfile] "
 
-posff=$1
-poscar=$2
-
-
+if [ $# -eq 0 ]
+then
+    echo "$USAGE"
+    exit 1
+fi
+while getopts ":i:o:" opt
+do
+    case $opt in
+        i)
+            posff="$OPTARG"
+            ;;
+        o)
+            poscar="$OPTARG"
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            exit 1
+            ;;
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            exit 1
+            ;;
+    esac
+done
 #        2048
 #LJLARGE                                                     
 #     45.755230000000      0.000000000000      0.000000000000
@@ -30,4 +58,5 @@ awk '{
                    }' $posff >> $poscar
 
 echo "file $poscar generated"
-echo "=========================================================="
+echo $separator
+exit 0;

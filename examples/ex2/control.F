@@ -9,7 +9,7 @@
       lreduced       = .false.   ! reduced energy 
       lpbc           = .false.   ! no periodic boundaries conditions
       lvnlist        = .false.   ! no verlet list
-      cutoff         = 100.0d0   
+      cutshortrange  = 100.0d0   
       lbmlj          = .true.    ! lennard-jones
 &end
 
@@ -17,6 +17,7 @@
 ! molecular dynamics parameters 
 ! ======================================================================
 &mdtag
+        dt=0.001
 &end
 ! ======================================================================
 ! force-field parameters

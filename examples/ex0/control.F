@@ -3,9 +3,9 @@
 ! main parameters
 ! ======================================================================
 &controltag
-lbmlj   = .true.
-lstatic = .true.
-cutshortrange  = 3.0d0
+        lbmlj   = .true.
+        lstatic = .true.
+        cutshortrange  = 3.0d0
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 
