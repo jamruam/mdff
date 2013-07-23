@@ -17,141 +17,144 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
-
-!*********************** MODULE IO_FILE ***************************************
+! *********************** MODULE IO_FILE ***************************************
 !
-! definition of the units for output files
+!> \brief definition of the units for output files
 !
-!******************************************************************************
-
+! ******************************************************************************
 MODULE io_file
 
-  ! rank for output (if true myrank.eq.0)
+  implicit none
+
+  !> rank for output (if true myrank.eq.0)
   logical :: ionode        
 
-  ! standard output
+  !> standard output
   integer, PARAMETER :: stdout          = 6  
+  !> standard error output
   integer, PARAMETER :: stderr          = 0  
 
-  ! standard input file ( code argument control.F )
+  !> standard input file ( code argument control.F )
   integer, PARAMETER :: stdin           = 1001
 
-  ! tmp working file
+  !> tmp working file
   integer, PARAMETER :: kunit_tmp       =  8
 
-  ! thermodynamic info
+  !> thermodynamic info
   integer, PARAMETER :: kunit_OSZIFF    = 10
 
-  ! trajectory (positions, velocities , forces )
+  !> trajectory (positions, velocities , forces )
   integer, PARAMETER :: kunit_TRAJFF    = 20
 
-  ! input configuration
+  !> input configuration
   integer, PARAMETER :: kunit_POSFF     = 30
 
-  ! end configuration 
+  !> end configuration 
   integer, PARAMETER :: kunit_CONTFF    = 40
 
-  ! electric field gradient trajectory
+  !> electric field gradient trajectory
   integer, PARAMETER :: kunit_EFGFF     = 50  
   integer, PARAMETER :: kunit_EFGFFIT1  = 51  
   integer, PARAMETER :: kunit_EFGFFIT2  = 52  
 
-  ! all efg for each atoms (if lefgprintall)
+  !> all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_EFGALL    = 60 
   integer, PARAMETER :: kunit_EFGALLIT1 = 61
   integer, PARAMETER :: kunit_EFGALLIT2 = 62 
 
-  ! all efg for each atoms (if lefgprintall)
+  !> all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_NMRFF     = 65
   integer, PARAMETER :: kunit_NMRFFIT1  = 66
   integer, PARAMETER :: kunit_NMRFFIT2  = 67 
 
-  ! EFG eta distribution (average) 
+  !> EFG eta distribution (average) 
   integer, PARAMETER :: kunit_DTETAFF   = 70
   integer, PARAMETER :: kunit_DTETAFFIT = 71
 
-  ! EFG vzz distribution (average)
+  !> EFG vzz distribution (average)
   integer, PARAMETER :: kunit_DTVZZFF   = 80
   integer, PARAMETER :: kunit_DTVZZFFIT = 81
 
-  ! EFG tensor component distribution Ui  (average)
+  !> EFG tensor component distribution Ui  (average)
   integer, PARAMETER :: kunit_DTIBUFF   = 90
   integer, PARAMETER :: kunit_DTIBUFFIT = 91
 
-  ! GR radial distribution (average)
+  !> GR radial distribution (average)
   integer, PARAMETER :: kunit_GRTFF     = 100
 
-  ! OPT output configuration after optimisation
+  !> OPT output configuration after optimisation
   integer, PARAMETER :: kunit_ISCFF     = 110
 
-  ! OPT thermodynamics properties of optimized structure
+  !> OPT thermodynamics properties of optimized structure
   integer, PARAMETER :: kunit_ISTHFF    = 120 
 
-  ! VIB eigenvalues (frequencies) of the hessian matrix
+  !> VIB eigenvalues (frequencies) of the hessian matrix
   integer, PARAMETER :: kunit_EIGFF     = 130
 
-  ! VIB eigenvector (normal modes) of the hessian matrix 
+  !> VIB eigenvector (normal modes) of the hessian matrix 
   integer, PARAMETER :: kunit_VECTFF    = 140
 
-  ! VIB density of states 
+  !> VIB density of states 
   integer, PARAMETER :: kunit_DOSFF     = 150
 
-  ! VIB generated configuration of a given mode
+  !> VIB generated configuration of a given mode
   integer, PARAMETER :: kunit_MODFF     = 160
 
-  ! VIB kpoint mesh for the complete dos
+  !> VIB kpoint mesh for the complete dos
   integer, PARAMETER :: kunit_IBZKPTFF  = 170
 
-  ! VIB "complete" density of states
+  !> VIB "complete" density of states
   integer, PARAMETER :: kunit_DOSKFF    = 180
   integer, PARAMETER :: kunit_DKFF      = 181
 
-  ! VIB fvibcalc output
+  !> VIB fvibcalc output
   integer, PARAMETER :: kunit_VIBFF     = 190
 
-  ! MSD output file
+  !> MSD output file
   integer, PARAMETER :: kunit_MSDFF     = 200
 
-  ! stress tensor output file
+  !> stress tensor output file
   integer, PARAMETER :: kunit_STRESSFF  = 210
 
-  ! velocity auto-correlation output file
+  !> velocity auto-correlation output file
   integer, PARAMETER :: kunit_VACFFF    = 220
  
-  ! EFG auto-correlation output file
+  !> EFG auto-correlation output file
   integer, PARAMETER :: kunit_EFGACFFF  = 230
   integer, PARAMETER :: kunit_NMRACFFF  = 231
 
-  ! static structure factor
+  !> static structure factor
   integer, PARAMETER :: kunit_STRFACFF  = 240
 
-  ! static structure factor
+  !> static structure factor
   integer, PARAMETER :: kunit_EQUILFF   = 250
 
-  ! mean number of atoms in a shell of width at distance r
+  !> mean number of atoms in a shell of width at distance r
   integer, PARAMETER :: kunit_NRTFF     = 260
 
-  ! dipole moments on atoms from Wannier centers
+  !> dipole moments on atoms from Wannier centers
   integer, PARAMETER :: kunit_DIPWFC     = 270
 
-  ! neighbor info
+  !> neighbor info
   integer, PARAMETER :: kunit_VOIS1FF     = 280
 
-  ! number of neighbors distribution
+  !> number of neighbors distribution
   integer, PARAMETER :: kunit_DTNBFF      = 290
 
 CONTAINS
 
-!*********************** SUBROUTINE io_init ***********************************
+! *********************** SUBROUTINE io_init ***********************************
 !
-! initialize the ionode logical variable
+!> \brief
+!! initialize the ionode logical variable
 !
-! usage :
-!         if ( ionode ) WRITE ( unit , * )   
+!> \note
+!! usage : io_node WRITE ( unit , * )   (symbol.h)
 !
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE io_init
 
   implicit none
@@ -172,11 +175,12 @@ SUBROUTINE io_init
 
 END SUBROUTINE io_init
 
-!*********************** SUBROUTINE io_open ***********************************
+! *********************** SUBROUTINE io_open ***********************************
 !
-! open file and check status
+!> \brief
+!! open file and check status
 !
-!******************************************************************************
+! ******************************************************************************
 
 SUBROUTINE io_open ( kunit , cunit , iostatus )
 
@@ -194,7 +198,7 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
   OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
 
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
+    io_node WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
     STOP
   endif
 
@@ -202,11 +206,12 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
 
 END SUBROUTINE io_open
 
-!*********************** SUBROUTINE io_close **********************************
+! *********************** SUBROUTINE io_close **********************************
 !
-! close file and check status
+!> \brief
+!! close file and check status
 !
-!******************************************************************************
+! ******************************************************************************
 
 SUBROUTINE io_close ( kunit ) 
   
@@ -221,7 +226,7 @@ SUBROUTINE io_close ( kunit )
   CLOSE(UNIT=kunit,IOSTAT=ioerr)
 
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
+    io_node WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
     STOP
   endif
 
@@ -229,11 +234,12 @@ SUBROUTINE io_close ( kunit )
 
 END SUBROUTINE io_close
 
-!*********************** FUNCTION sweep_blanks ********************************
+! *********************** FUNCTION sweep_blanks ********************************
 !
-! to remove leading and trailing spaces
+!> \brief
+!! to remove leading and trailing spaces
 !
-!******************************************************************************
+! ******************************************************************************
 
 character(len=30) FUNCTION sweep_blanks ( in_str )
 

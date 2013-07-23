@@ -17,80 +17,85 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-
-!#define debug
+#include "symbol.h"
+!// general debug flag
+!#define debug 
 !#define debug_main
 !#define debug_es
 !#define debug_multipole
 !#define debug_efg_stat
 !#define fix_grid
-
+!#define debug_non_null_trace_ewald
 ! ======= Hardware =======
 
-!*********************** MODULE efg  **********************************
+! *********************** MODULE efg  **********************************
 !
-! two implementation of direct and Ewald sum are present for EFG calculation
-! the old one ( lefg_old ) does only point charge
-! the new one ( .not. lefg_old ) is based on the multipole expansion 
-! ( see multipole_DS and multipole_ES in field.f90
+!> \brief
+!! two implementation of direct and Ewald sum are present for EFG calculation
+!! the old one ( lefg_old ) does only point charge
+!! the new one ( .not. lefg_old ) is based on the multipole expansion 
+!! ( see multipole_DS and multipole_ES in field.f90
 ! 
-!**********************************************************************
+! **********************************************************************
 MODULE efg 
  
   USE constants,                ONLY :  dp 
   USE kspace,                   ONLY :  kmesh  
   USE rspace,                   ONLY :  rmesh
   USE config,                   ONLY :  ntypemax
+  USE debug,                    ONLY : intdebug
 
   implicit none
 
-  logical :: lefgprintall               ! print ( or not ) all the efg for each atoms and configs to file EFGALL
-  logical :: lefg_restart               ! if EFGALL files are ready
-  logical :: lefg_old                   ! use efg_DS and efg_ES ( old routines ) 
-  logical :: lefg_stat                  ! compute statitics distribution on EFG's 
+  logical :: lefgprintall               !< print ( or not ) all the efg for each atoms and configs to file EFGALL
+  logical :: lefg_restart               !< if EFGALL files are ready
+  logical :: lefg_old                   !< use efg_DS and efg_ES ( old routines ) 
+  logical :: lefg_stat                  !< compute statitics distribution on EFG's 
   logical :: lvasp_units               
-  integer :: ncefg                      ! number of configurations READ  for EFG calc (only when calc = 'efg')
-  integer :: ntcor                      ! maximum number of steps for the acf calculation (calc = 'efg+acf')
-  real(kind=dp) :: dt                   ! timestep for acf calculation should be the same has the one define in md
+  logical :: lefg_it_contrib            !< only on kind is contributing too efg (default false)
+  integer :: ncefg                      !< number of configurations READ  for EFG calc (only when calc = 'efg')
+  integer :: ntcor                      !< maximum number of steps for the acf calculation (calc = 'efg+acf')
+  integer :: it_efg                     !< type which is contributing to efg_ia
+  real(kind=dp) :: dt                   !< timestep for acf calculation should be the same has the one define in md
 
 #ifdef fix_grid
   real(kind=dp)   , dimension(:,:)  , allocatable :: rgrid
-#endif fix_grid
+#endif
 
-  real(kind=dp)   , dimension(:,:)  , allocatable :: mu   ! elecctric dipoles
+  real(kind=dp)   , dimension(:,:)  , allocatable :: mu   !< electric dipoles
 
   ! ===================
   !  efg tensors 
   ! ===================
-  real(kind=dp)   , dimension(:,:,:), allocatable :: efg_t         ! efg_tensor
-  real(kind=dp)   , dimension(:,:,:), allocatable :: efg_ia        ! efg_tensor
+  real(kind=dp)   , dimension(:,:,:), allocatable :: efg_t         !< efg_tensor
+  real(kind=dp)   , dimension(:,:,:), allocatable :: efg_ia        !< efg_tensor
 
   ! ===============
   !  distributions
   ! ===============
-  integer         , dimension(:,:)  , allocatable :: dibvzztot ! vzz distrib. dim. = (ntype , PAN)
-  integer         , dimension(:,:)  , allocatable :: dibetatot ! eta distrib. dim. = (ntype , PAN) 
-  integer         , dimension(:,:,:), allocatable :: dibUtot   ! U_i distrib. dim. = ( 1:6 , ntype , PAN ) 
+  integer         , dimension(:,:)  , allocatable :: dibvzztot !< vzz distrib. dim. = (ntype , PAN)
+  integer         , dimension(:,:)  , allocatable :: dibetatot !< eta distrib. dim. = (ntype , PAN) 
+  integer         , dimension(:,:,:), allocatable :: dibUtot   !< U_i distrib. dim. = ( 1:6 , ntype , PAN ) 
 
-  real(kind=dp)                                   :: reseta    ! resolution in eta distribution
-  real(kind=dp)                                   :: resu      ! resolution in Ui ditribution
-  real(kind=dp)                                   :: resvzz    ! resolution in vzz distribution
-  real(kind=dp)                                   :: vzzmin    ! minimum value for vzz (distrib. in [vzzmin, -vzzmin]
-  real(kind=dp)                                   :: umin      ! minimum value of umin
-  integer                                         :: PANeta    ! nb of bins in eta distrib. (related reseta)
-  integer                                         :: PANvzz    ! nb of bins in vzz distrib. (related resvzz)
-  integer                                         :: PANU      ! nb of bins in Ui  distrib. (related resu)
+  real(kind=dp)                                   :: reseta    !< resolution in eta distribution
+  real(kind=dp)                                   :: resu      !< resolution in Ui ditribution
+  real(kind=dp)                                   :: resvzz    !< resolution in vzz distribution
+  real(kind=dp)                                   :: vzzmin    !< minimum value for vzz (distrib. in [vzzmin, -vzzmin]
+  real(kind=dp)                                   :: umin      !< minimum value of umin
+  integer                                         :: PANeta    !< nb of bins in eta distrib. (related reseta)
+  integer                                         :: PANvzz    !< nb of bins in vzz distrib. (related resvzz)
+  integer                                         :: PANU      !< nb of bins in Ui  distrib. (related resu)
   real(kind=dp)                                   :: correct
-  logical,SAVE                                    :: lmesh_update = .false. ! true if the kmesh need to be updated
+  logical,SAVE                                    :: lmesh_update = .false. !< true if the kmesh need to be updated
 
 CONTAINS
 
-!*********************** SUBROUTINE efg_init **********************************
+! *********************** SUBROUTINE efg_init **********************************
 !
-! iniitialisation
+!> \brief
+!! initialisation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_init
 
   USE io_file,                  ONLY :  ionode , stdin , stdout , stderr 
@@ -105,6 +110,7 @@ SUBROUTINE efg_init
   namelist /efgtag/  lefgprintall     , & 
                      lefg_restart     , &
                      lefg_old         , &
+                     lefg_it_contrib  , &
                      lefg_stat        , &
                      ncefg            , & 
                      ntcor            , &
@@ -115,6 +121,7 @@ SUBROUTINE efg_init
                      correct          , &
                      lvasp_units      , &
                      dt               , & 
+                     it_efg           , &
                      umin           
 
   if ( calc .ne. 'efg' .and. calc .ne. 'efg+acf' ) return 
@@ -130,10 +137,10 @@ SUBROUTINE efg_init
   OPEN ( stdin , file = filename)
   READ ( stdin , efgtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent'
+    io_node WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent'
     STOP
   elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag wrong tag'
+    io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : efgtag wrong tag'
     STOP
   endif
 
@@ -152,12 +159,11 @@ SUBROUTINE efg_init
 
 END SUBROUTINE efg_init
 
-!*********************** SUBROUTINE efg_default_tag ***************************
+! *********************** SUBROUTINE efg_default_tag ***************************
 !
 ! set default values for efgtag
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_default_tag
 
   implicit none
@@ -184,12 +190,11 @@ SUBROUTINE efg_default_tag
 END SUBROUTINE efg_default_tag
 
 
-!*********************** SUBROUTINE efg_check_tag *****************************
+! *********************** SUBROUTINE efg_check_tag *****************************
 !
 ! check efg parameters ( check longrange and ncell ) 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_check_tag
 
   USE control,                  ONLY :  calc , longrange
@@ -199,12 +204,12 @@ SUBROUTINE efg_check_tag
   implicit none
 
   if ( calc .eq. 'efg+acf' .and. ntype .gt. 2 ) then
-    if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
+    io_node WRITE ( stderr , '(a)' ) 'ERROR the subroutine efg_acf is not implemented for ntype > 2'
     STOP 
   endif
   
   if ( calc .eq. 'efg+acf' .and. dt .eq. 0.0d0 ) then
-    if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR efgtag : dt should be set for efg_acf calculation'
+    io_node WRITE ( stderr , '(a)' ) 'ERROR efgtag : dt should be set for efg_acf calculation'
     STOP
   endif
 
@@ -214,7 +219,7 @@ SUBROUTINE efg_check_tag
   !  check vzzmin and Umin .ne. 0
   ! ==================================
   if ( vzzmin .eq. 0_dp .or. umin .eq. 0_dp ) then
-    if ( ionode ) WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin
+    io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin
     STOP
   endif             
   ! ==========================================
@@ -225,7 +230,7 @@ SUBROUTINE efg_check_tag
   PANU   = int ((2.0_dp*ABS (umin))/resu) 
  
   if ( ncefg .eq. 0 ) then
-    if ( ionode ) WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: ncefg is zero but calc=efg requested',ncefg
+    io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: ncefg is zero but calc=efg requested',ncefg
     STOP
   endif
 
@@ -233,18 +238,17 @@ SUBROUTINE efg_check_tag
 
 END SUBROUTINE efg_check_tag
 
-!*********************** SUBROUTINE efg_print_info ****************************
+! *********************** SUBROUTINE efg_print_info ****************************
 !
 ! print information to standard output about efg calculation 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_print_info(kunit)
 
   USE io_file,                  ONLY :  ionode 
   USE control,                  ONLY :  calc , longrange , cutlongrange
   USE config,                   ONLY :  ntype , atypei , natmi , simu_cell , atype
-  USE constants,                ONLY :  tpi
+  USE constants,                ONLY :  tpi ,dzero , done
   USE field,                    ONLY :  qch , alphaES , ncelldirect , kES
 
   implicit none
@@ -254,8 +258,8 @@ SUBROUTINE efg_print_info(kunit)
 
   if ( ionode ) then
     if ( calc .eq. 'efg' ) then
-      WRITE ( kunit ,'(a)')                     '=============================================================' 
-      WRITE ( kunit ,'(a)')                     ''
+      separator(kunit)
+      blankline(kunit) 
       WRITE ( kunit ,'(a)')                     'electric field gradient:'
       WRITE ( kunit ,'(a)')                     'point charges calculation'
       if ( calc .eq. 'efg')  then 
@@ -272,15 +276,15 @@ SUBROUTINE efg_print_info(kunit)
         WRITE ( kunit ,'(a)')                   'EFG for all atoms                : EFGALL '
       endif
       WRITE ( kunit ,'(a)')                     'distributions parameters:'
-      WRITE ( kunit ,'(a,f10.5)')               'eta between    0.00000 and    1.00000 with resolution ',reseta
-      WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)') &
-                                                'vzz between ',vzzmin,' and ',-vzzmin,' with resolution ',resvzz
-      WRITE ( kunit ,'(a,f10.5,a,f10.5,a,f10.5)') &
-                                                'Ui  between ',  umin,' and ',  -umin,' with resolution ',resu
+      WRITE ( kunit ,500)               'eta between ', dzero,' and ',   done,' with res. ',reseta
+      WRITE ( kunit ,500) &
+                                                'vzz between ',vzzmin,' and ',-vzzmin,' with res. ',resvzz
+      WRITE ( kunit ,500) &
+                                                'Ui  between ',  umin,' and ',  -umin,' with res. ',resu
     endif
     if ( calc .eq. 'efg+acf' ) then
-      WRITE ( kunit ,'(a)')                     '============================================================='
-      WRITE ( kunit ,'(a)')                     ''
+      separator(kunit) 
+      blankline(kunit) 
       WRITE ( kunit ,'(a)')                     'electric field gradient auto-correlation function:'                    
       WRITE ( kunit ,'(a)')                     'data from file EFGALL'
       WRITE ( kunit ,'(a,i10)')                 'numbers of config read ncefg           = ',ncefg 
@@ -291,15 +295,16 @@ SUBROUTINE efg_print_info(kunit)
 
   return
 
+500 FORMAT(a,e10.3,a,e10.3,a,e10.3) 
+
 END SUBROUTINE efg_print_info
 
-!*********************** SUBROUTINE efgcalc ***********************************
+! *********************** SUBROUTINE efgcalc ***********************************
 !
 ! this subroutine initialize the calculation of efg when calc = 'efg' 
 ! from file TRAJFF.  
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efgcalc 
 
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , kunit_EFGFF , &
@@ -311,7 +316,7 @@ SUBROUTINE efgcalc
   USE control,                  ONLY :  longrange , myrank , numprocs
   USE field,                    ONLY :  qch , dip , field_init , lpolar , lwfc , & 
                                         moment_from_pola , moment_from_wfc , rm_coul , &
-                                        km_coul , alphaES , multipole_DS , multipole_ES
+                                        km_coul , alphaES , multipole_DS , multipole_ES , field_print_info
   USE thermodynamic,            ONLY :  u_coul_tot , vir_coul_tot , u_pol
   USE cell,                     ONLY :  lattice , dirkar
 
@@ -320,7 +325,9 @@ SUBROUTINE efgcalc
   INCLUDE 'mpif.h'
 
   ! local
-  integer                                               :: iastart , iaend , i
+  integer                                               :: i
+  integer                                               :: iastart , iaend 
+  integer                                               :: ikstart , ikend
   integer                                               :: ia , iconf , it 
   integer                                               :: iiii , ierr
   character(len=60)                                     :: cccc 
@@ -381,9 +388,10 @@ SUBROUTINE efgcalc
     !  and decomposition can be applied 
     ! ================================== 
     CALL config_alloc 
-    CALL do_split ( natm , myrank , numprocs , iastart , iaend )
     ! read charge in fieldtag
     CALL field_init
+    CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
+    CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
     CALL efg_alloc
     CALL efg_mesh_alloc
     CALL typeinfo_init
@@ -463,7 +471,7 @@ SUBROUTINE efgcalc
       ! ======================================
       !     induced moment from polarisation 
       ! ======================================
-      CALL moment_from_pola ( iastart , iaend , dipia_ind )
+      CALL moment_from_pola ( iastart , iaend , ikstart , ikend , dipia_ind )
 
       ! ======================================
       !     induced moment from wannier center  
@@ -477,7 +485,7 @@ SUBROUTINE efgcalc
       mu = dipia + dipia_ind + dipia_wfc
 
 #ifdef debug_multipole
-      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
+      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ikstart , ikend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
       if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
 
       WRITE ( 10000, * ) '#electric field'
@@ -554,7 +562,7 @@ SUBROUTINE efgcalc
 
     if ( lmesh_update ) CALL efg_mesh_dealloc
     ttt2 = MPI_WTIME(ierr)
-    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',iconf,' EFG  ', ttt2 - ttt1  
+    io_node WRITE ( stdout , 110 ) 'config : ',iconf,' EFG  ', ttt2 - ttt1  
 
     enddo ! iconf loop
 
@@ -564,8 +572,8 @@ SUBROUTINE efgcalc
 
   CALL MPI_BARRIER( MPI_COMM_WORLD , ierr )
   
-  if ( ionode ) WRITE ( stdout , '(a)' ) ''
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'calculate statistical properties from EFGALL'
+  io_node blankline ( stdout ) 
+  io_node WRITE ( stdout , '(a)' ) 'calculate statistical properties from EFGALL'
 
   ! ========================================================
   !     calculate statistical properties from EFGALL
@@ -599,14 +607,13 @@ SUBROUTINE efgcalc
 
 END SUBROUTINE efgcalc
 
-!*********************** SUBROUTINE efg_DS ************************************
+! *********************** SUBROUTINE efg_DS ************************************
 !
 ! (only point charges )
 ! Direct summation to calculate electric-field-gradient.
 ! parallelisation atom decomposition
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_DS ( iastart , iaend , rm )
 
   USE control,                  ONLY :  myrank , numprocs , calc , cutlongrange
@@ -794,7 +801,7 @@ atom : do ia = iastart , iaend
 
 END SUBROUTINE efg_DS
 
-!*********************** SUBROUTINE efg_ES ************************************
+! *********************** SUBROUTINE efg_ES ************************************
 !
 ! Ewald sum (only point charge)
 ! the implementation follows J. Chem. Phys, 112, 14, p 6512 (2000)
@@ -803,8 +810,7 @@ END SUBROUTINE efg_DS
 !
 ! the reciproc part could be ( should be ) parallized
 !
-!******************************************************************************
- 
+! ******************************************************************************
 SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
 
   USE control,                  ONLY :  myrank , numprocs , calc
@@ -1059,19 +1065,18 @@ atom1: do ia = iastart , iaend
 
 END SUBROUTINE efg_ES
 
-!*********************** SUBROUTINE multipole_efg_DS **************************
+! *********************** SUBROUTINE multipole_efg_DS **************************
 !
 ! New version of the Direct summation to calculate electric-field-gradient.
 ! from point charges and dipoles
 ! parallelisation atom decomposition
 ! Based on the multipole_DS subroutine in field.f90
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
   USE config,                   ONLY :  natm , atype , natmi , ntype , qia , &
-                                        rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
+                                        rx , ry , rz , fx , fy , fz , tau_coul , simu_cell ,itype 
   USE control,                  ONLY :  cutlongrange , myrank
   USE io_file,                  ONLY :  stdout , ionode 
   USE field,                    ONLY :  qch
@@ -1152,6 +1157,7 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
                    
       do ja = 1 , natm
 
+        if ( lefg_it_contrib .and. itype(ja).ne.it_efg ) cycle  
         if ( ( .not.lcentralbox ) .or. ( lcentralbox .and. ja .ne. ia )  ) then
  
             rxj  = rx ( ja ) + rm%boxxyz( 1 , ncell )
@@ -1187,13 +1193,13 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
               Txxx = ( 5.0_dp * rxij * rxij * rxij -  3.0_dp * d2 * ( rxij ) ) * dm7 
               Tyyy = ( 5.0_dp * ryij * ryij * ryij -  3.0_dp * d2 * ( ryij ) ) * dm7 
               Tzzz = ( 5.0_dp * rzij * rzij * rzij -  3.0_dp * d2 * ( rzij ) ) * dm7 
-              Txxy = ( 5.0_dp * rxij * rxij * ryij -          d2 * ( ryij ) ) * dm7 
-              Txxz = ( 5.0_dp * rxij * rxij * rzij -          d2 * ( rzij ) ) * dm7 
-              Tyyx = ( 5.0_dp * ryij * ryij * rxij -          d2 * ( rxij ) ) * dm7 
-              Tyyz = ( 5.0_dp * ryij * ryij * rzij -          d2 * ( rzij ) ) * dm7 
-              Tzzx = ( 5.0_dp * rzij * rzij * rxij -          d2 * ( rxij ) ) * dm7 
-              Tzzy = ( 5.0_dp * rzij * rzij * ryij -          d2 * ( ryij ) ) * dm7 
-              Txyz = ( 5.0_dp * rxij * ryij * rzij                          ) * dm7 
+              Txxy = ( 5.0_dp * rxij * rxij * ryij -           d2 * ( ryij ) ) * dm7 
+              Txxz = ( 5.0_dp * rxij * rxij * rzij -           d2 * ( rzij ) ) * dm7 
+              Tyyx = ( 5.0_dp * ryij * ryij * rxij -           d2 * ( rxij ) ) * dm7 
+              Tyyz = ( 5.0_dp * ryij * ryij * rzij -           d2 * ( rzij ) ) * dm7 
+              Tzzx = ( 5.0_dp * rzij * rzij * rxij -           d2 * ( rxij ) ) * dm7 
+              Tzzy = ( 5.0_dp * rzij * rzij * ryij -           d2 * ( ryij ) ) * dm7 
+              Txyz = ( 5.0_dp * rxij * ryij * rzij                           ) * dm7 
 
               ! ===========================================================
               !                  charge-charge interaction
@@ -1257,21 +1263,20 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
 END SUBROUTINE multipole_efg_DS
 
-!*********************** SUBROUTINE multipole_efg_ES **************************
+! *********************** SUBROUTINE multipole_efg_ES **************************
 !
 ! New version of the Ewald summation to calculate electric-field-gradient.
 ! from point charges and dipoles
 ! parallelisation atom decomposition
 ! Based on the multipole_ES subroutine in field.f90
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
 
   USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
                                         rx , ry , rz , fx , fy , fz ,  &
-                                        qia , simu_cell 
+                                        qia , simu_cell , itype
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
   USE io_file,                  ONLY :  ionode , stdout 
   USE field,                    ONLY :  qch
@@ -1395,6 +1400,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
 
     do ja = 1, natm
 
+      if ( lefg_it_contrib .and. itype(ja).ne.it_efg ) cycle  
       if (ja .ne. ia ) then
 
         qj   = qia(ja)
@@ -1445,7 +1451,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
         Tyyz = ( -5.0_dp * ryij * ryij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 
         Tzzx = ( -5.0_dp * rzij * rzij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 
         Tzzy = ( -5.0_dp * rzij * rzij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 
-        Txyz = ( -5.0_dp * rxij * ryij * rzij * F3                               ) * dm7 
+        Txyz = ( -5.0_dp * rxij * ryij * rzij * F3                                ) * dm7 
         ! ===========================================================
         !                  charge-charge interaction
         ! ===========================================================
@@ -1508,6 +1514,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
     ! ===============================
     rhon   = (0.0_dp, 0.0_dp)
     do ja = 1, natm
+      if ( lefg_it_contrib .and. (itype(ja) .ne. it_efg) ) cycle
       k_dot_mu = ( mu ( ja , 1 ) * kx + mu ( ja , 2 ) * ky + mu ( ja , 3 ) * kz  ) 
       rhon = rhon + ( qia(ja) + imag * k_dot_mu ) * km%strf ( ik , ja ) 
     enddo
@@ -1558,6 +1565,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
 
   ! field gradient 
   do ia = 1 , natm
+   if ( lefg_it_contrib .and. (itype(ia) .ne. it_efg) ) cycle
    efg_self ( ia , 1 , 1 ) = selfa * qia ( ia ) 
    efg_self ( ia , 2 , 2 ) = selfa * qia ( ia ) 
    efg_self ( ia , 3 , 3 ) = selfa * qia ( ia ) 
@@ -1596,12 +1604,11 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
 
 END SUBROUTINE multipole_efg_ES
 
-!*********************** SUBROUTINE efg_write_output **************************
+! *********************** SUBROUTINE efg_write_output **************************
 !
 ! write distributions of EFG parameters and components to files
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
 
   USE io_file,                  ONLY :  ionode 
@@ -1677,16 +1684,16 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
                                             ( r_dibUtot(1,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
                                               r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
     enddo
-    WRITE ( kunit_eta , '(a)' ) ''
-    WRITE ( kunit_eta , '(a)' ) ''
-    WRITE ( kunit_vzz , '(a)' ) ''
-    WRITE ( kunit_vzz , '(a)' ) ''
-    WRITE ( kunit_u   , '(a)' ) ''
-    WRITE ( kunit_u   , '(a)' ) ''
+    blankline(kunit_eta) 
+    blankline(kunit_eta) 
+    blankline(kunit_vzz) 
+    blankline(kunit_vzz) 
+    blankline(kunit_u) 
+    blankline(kunit_u) 
  
+  natmi(0) = saveit0
   endif
 
-  natmi(0) = saveit0
   deallocate( r_dibUtot )
   deallocate( r_dibvzztot )
   deallocate( r_dibetatot )
@@ -1696,13 +1703,12 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
 
 END SUBROUTINE efg_write_output
 
-!*********************** SUBROUTINE efg_acf ***********************************
+! *********************** SUBROUTINE efg_acf ***********************************
 !
 ! calculate the auto-correlation function of the efg principal component 
 ! based on Allen-Tieldsley
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_acf
 
   USE config,                   ONLY :  system , natm , ntype , itype , atype , atypei, natmi , simu_cell , rho , config_alloc
@@ -1832,7 +1838,7 @@ SUBROUTINE efg_acf
     ! =================
     CALL DSYEV ( 'N' , 'U' , 3 , efgt , 3 , w , work , 3 * lwork , ifail )
     if ( ifail .ne. 0 ) then
-      if ( ionode ) WRITE ( stderr , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
+      io_node WRITE ( stderr , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
       STOP
     endif
 #ifdef debug
@@ -1855,7 +1861,7 @@ SUBROUTINE efg_acf
   enddo
   CLOSE(kunit_EFGALL)
  
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'EFGALL successfully readed'
+  io_node WRITE ( stdout , '(a)' ) 'EFGALL successfully readed'
 
   do t0 = 1 , ncefg 
     if ( MOD ( t0 , ncefg / 20 ) .eq. 0 ) then
@@ -1910,11 +1916,11 @@ SUBROUTINE efg_acf
   OPEN(UNIT=kunit_EFGACFFF,FILE='EFGACFFF')
   OPEN(UNIT=kunit_NMRACFFF,FILE='NMRACFFF')
 
-  if ( ionode ) WRITE ( kunit_EFGACFFF , '(a,<ntype+1>a120)' )    '#     ',( atypei ( it ) , it = 1 , ntype ) 
-  if ( ionode ) WRITE ( kunit_EFGACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' vxx ',' vyy ',' vzz ',' vxy ',' vxz ',' vyz ', it = 1 , ntype ) 
-  if ( ionode ) WRITE ( kunit_NMRACFFF , '(a,<ntype+1>a120)' )    '#     ',( atypei ( it ) , it = 1 , ntype ) 
-!  if ( ionode ) WRITE ( kunit_NMRACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' VXX ',' VYY ',' VZZ ',' ETA ',' U1 ',' U2 ', ' U3 ',' U4 ',' U5 ', it = 1 , ntype ) 
-  if ( ionode ) WRITE ( kunit_NMRACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' VXX ',' VYY ',' VZZ ',' ETA ', it = 1 , ntype ) 
+  io_node WRITE ( kunit_EFGACFFF , '(a,<ntype+1>a120)' )    '#     ',( atypei ( it ) , it = 1 , ntype ) 
+  io_node WRITE ( kunit_EFGACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' vxx ',' vyy ',' vzz ',' vxy ',' vxz ',' vyz ', it = 1 , ntype ) 
+  io_node WRITE ( kunit_NMRACFFF , '(a,<ntype+1>a120)' )    '#     ',( atypei ( it ) , it = 1 , ntype ) 
+!  io_node WRITE ( kunit_NMRACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' VXX ',' VYY ',' VZZ ',' ETA ',' U1 ',' U2 ', ' U3 ',' U4 ',' U5 ', it = 1 , ntype ) 
+  io_node WRITE ( kunit_NMRACFFF , '(a,<6*(ntype+1)>a20)' ) '#time ',(' VXX ',' VYY ',' VZZ ',' ETA ', it = 1 , ntype ) 
   do t = 0 , ntcor
     do it = 1 , ntype
       r_norm = 1.0_dp / REAL ( norm ( it , t ) , kind = dp )
@@ -1930,9 +1936,9 @@ SUBROUTINE efg_acf
       acfeta( it , t ) = acfeta( it , t ) * r_norm 
    !   acfU  ( it , : , t ) = acfU  ( it , : , t ) * r_norm 
     enddo
-    if ( ionode ) WRITE ( kunit_EFGACFFF , '(<6*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acfxx(it,t) , acfyy(it,t) , acfzz(it,t) , acfxy (it,t) ,  acfxz(it,t)  , acfyz(it,t)  , it = 1 , ntype ) 
-!    if ( ionode ) WRITE ( kunit_NMRACFFF , '(<9*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) ,( acfU(it,ui,t), ui = 1 , 5 ) , it = 1 , ntype ) 
-    if ( ionode ) WRITE ( kunit_NMRACFFF , '(<9*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) , it = 1 , ntype ) 
+    io_node WRITE ( kunit_EFGACFFF , '(<6*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acfxx(it,t) , acfyy(it,t) , acfzz(it,t) , acfxy (it,t) ,  acfxz(it,t)  , acfyz(it,t)  , it = 1 , ntype ) 
+!    io_node WRITE ( kunit_NMRACFFF , '(<9*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) ,( acfU(it,ui,t), ui = 1 , 5 ) , it = 1 , ntype ) 
+    io_node WRITE ( kunit_NMRACFFF , '(<9*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) , it = 1 , ntype ) 
   enddo
 
   CLOSE ( kunit_NMRACFFF )      
@@ -1959,7 +1965,7 @@ SUBROUTINE efg_acf
         
 END SUBROUTINE efg_acf
 
-!*********************** SUBROUTINE efg_stat **********************************
+! *********************** SUBROUTINE efg_stat **********************************
 !
 ! Statitics on EFG tensors ( principal components, U vector and other
 ! quantities )
@@ -1969,8 +1975,7 @@ END SUBROUTINE efg_acf
 ! 
 ! EFGFF is not really useful
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
   USE config,                   ONLY :  system , natm , natmi , ntype , itype , &
@@ -2083,9 +2088,9 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
                                               efgt(1,2) , efgt(1,3) , efgt(2,3)
       endif
 
-!#ifdef debug_efg_stat
-!  WRITE ( stdout , '(a,2i8,a,4f12.6)' ) 'debug : readinf tensor',ia, iiii , xxxx , efgt(1,1) , efgt(2,2) , efgt(3,3),efgt(1,1) + efgt(2,2) + efgt(3,3) 
-!#endif
+#ifdef debug_efg_stat
+  WRITE ( stdout , '(a,2i8,a,4f12.6)' ) 'debug : reading tensor',ia, iiii , xxxx , efgt(1,1) , efgt(2,2) , efgt(3,3),efgt(1,1) + efgt(2,2) + efgt(3,3) 
+#endif
       ! ===================================================================== 
       !  Czjzek components (see J. Phys.: Condens. Matter 10 (1998). p10719)
       ! =====================================================================
@@ -2095,12 +2100,15 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
       U ( ia , 4 ) = efgt ( 1 , 2 ) * sq3
       U ( ia , 5 ) = ( efgt ( 1 , 1 ) - efgt ( 2 , 2 ) ) * sq32
   
+!#ifdef debug_efg_stat
+! STOP
+!#endif
       ! =================
       !  diagonalisation
       ! =================
       CALL DSYEV ( 'N' , 'U' , 3 , efgt , 3 , w , work , 3 * lwork , ifail )
       if ( ifail .ne. 0 ) then
-        if ( ionode ) WRITE ( stderr , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
+        io_node WRITE ( stderr , * ) 'ERROR: DSYEV, STOP in efg MODULE (ewald)'
         STOP
       endif
 
@@ -2110,6 +2118,9 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
       CALL nmr_convention( w , nmr_conv ( : )  , ia )
       nmr( ia , : )  = nmr_conv ( : )
     
+!#ifdef debug_efg_stat
+! STOP
+!#endif
       ! ===================================================
       !  statistic for all sites index 0 in array of size ntype
       ! ===================================================
@@ -2202,7 +2213,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
     endif
 
    if ( .not. lefg_stat ) then
-     if ( ionode ) WRITE ( stdout , '(a)' ) "No statistic on EFG's"
+     io_node WRITE ( stdout , '(a)' ) "No statistic on EFG's"
      return
    endif
 
@@ -2222,8 +2233,8 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         !  test out of bound
         ! ====================== 
         if (ku.lt.0.or.ku.gt.PANU) then
-          if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dibU1'
-          if ( ionode ) WRITE ( stderr ,310) ia,ku,U(ia,ui),umin,ABS (umin)
+          io_node WRITE ( stderr , * ) 'ERROR: out of bound dibU1'
+          io_node WRITE ( stderr ,310) ia,ku,U(ia,ui),umin,ABS (umin)
           STOP
         endif
         ! all types
@@ -2259,14 +2270,14 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         WRITE ( stderr , '(a,a)' ) 'ERROR: out of bound distribvzz ',atype(ia)
         if ( ionode .and. itype(ia) .eq. 2 ) &
         WRITE ( stderr , '(a,a)' ) 'ERROR: out of bound distribvzz ',atype(ia)
-        if ( ionode ) WRITE ( stderr ,200) &
+        io_node WRITE ( stderr ,200) &
         ia , kvzz , nmr ( ia , 3 ) , vzzmini( itype ( ia ) ) , vzzmaxi ( itype ( ia ) ) , &
                     nmr ( ia , 4 ) , nmr ( ia , 1 ) , nmr ( ia , 2 ) , nmr ( ia , 3 )
         STOP
       endif
       if ( keta .lt. 0 .or. keta .gt. PANeta ) then
-        if ( ionode ) WRITE ( stderr , '(a)' ) 'ERROR: out of bound distribeta'
-        if ( ionode ) WRITE ( stderr ,210) ia, keta, nmr(ia,4), nmr(ia,4), &
+        io_node WRITE ( stderr , '(a)' ) 'ERROR: out of bound distribeta'
+        io_node WRITE ( stderr ,210) ia, keta, nmr(ia,4), nmr(ia,4), &
                                                      nmr(ia,1), nmr(ia,2), &
                                                      nmr(ia,3)
         STOP
@@ -2316,9 +2327,9 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 310 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F10.5,' max =  ',F10.5)
 
 #ifdef debug_efg_stat 
-      WRITE(stderr, '(a)' ) '---------------------------------------------------'
+      lseparator(sdterr) 
       WRITE(stderr, '(a)' ) 'check distribution counting (sum arrays)'
-      WRITE(stderr, '(a)' ) '---------------------------------------------------'
+      lseparator(sdterr) 
       do it = 0 , ntype 
         WRITE(stderr, '(a,2i9)' ) 'number of atoms for type (it=0 => ALL) : ',it,natmi(it)
       enddo
@@ -2329,7 +2340,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         WRITE(stderr, '(a,2i12)' ) 'eta  ' , SUM(dibetatot(it,:)),ncefg*natmi(it)
         WRITE(stderr, '(a,2i12)' ) 'U1   ' , SUM(dibUtot(1,it,:)),ncefg*natmi(it)
         WRITE(stderr, '(a,2i12)' ) 'Uk>1 ' , SUM(dibUtot(6,it,:)),ncefg*natmi(it)*4
-        WRITE(stderr, '(a)' ) '---------------------------------------------------'
+        lseparator(sdterr) 
       enddo
 #endif
 
@@ -2338,7 +2349,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
 
 END SUBROUTINE efg_stat
 
-!*********************** SUBROUTINE nmr_convention ****************************
+! *********************** SUBROUTINE nmr_convention ****************************
 !
 ! This routine determine the order of principal components from the  
 ! NMR convention: |Vzz| > |Vyy| > |Vxx|
@@ -2356,8 +2367,7 @@ END SUBROUTINE efg_stat
 !    nmr ( 3 ) = Vzz
 !    nmr ( 4 ) = eta
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE nmr_convention( EIG , nmr , ia )
 
   USE io_file,                  ONLY :  stdout , stderr , ionode
@@ -2375,7 +2385,7 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
   ! =======================================================
   diso=(EIG(1)+EIG(2)+EIG(3))/3.0_dp
   if ( ABS ( diso ) .ne. 0.0_dp .and. ABS ( diso ) .gt. 1e-3 ) then
-    if ( ionode ) WRITE ( stderr ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
+!    io_node WRITE ( stderr ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
      diso = 0.0_dp
   !  STOP
   endif
@@ -2433,27 +2443,27 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
   if ( nmr(3) .eq. 0.0 )  nmr(4) = 0.0_dp
   if ( ABS ( nmr(1) ) .lt. 1.0E-05 .and. ABS ( nmr(2) ) .lt. 1.0E-5 .and. ABS ( nmr(3) ) .lt. 1.0E-5 ) nmr(4) = 0.0_dp
   if (ABS (nmr(3)- diso ).lt.ABS (nmr(1) -diso)) then
-    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    io_node WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if (ABS (nmr(3) -diso ).lt.ABS (nmr(2) -diso )) then
-    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
+    io_node WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vzz| < |Vyy|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if (ABS (nmr(2) -diso ).lt.ABS (nmr(1)-diso)) then
-    if ( ionode ) WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
+    io_node WRITE ( stderr , '(a,i4,3e24.16)' ) 'ERROR: |Vyy| < |Vxx|',ia,nmr(1),nmr(2),nmr(3)
     STOP
   endif
   if ( nmr(4) .gt. 1.0_dp ) then
-    if ( ionode ) &
-    WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR1: eta > 1.0_dp ',ia,nmr(4),ABS(nmr(1)-diso),ABS(nmr(2)-diso),ABS(nmr(3)-diso)
-    WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR2: eta > 1.0_dp ',ia,nmr(4),nmr(1),nmr(2),nmr(3)
+    !if ( ionode ) &
+    !WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR1: eta > 1.0_dp ',ia,nmr(4),ABS(nmr(1)-diso),ABS(nmr(2)-diso),ABS(nmr(3)-diso)
+    !WRITE ( stderr ,'(a,i6,5f24.16)') 'ERROR2: eta > 1.0_dp ',ia,nmr(4),nmr(1),nmr(2),nmr(3)
     !STOP
   !  nmr(4) = 1.0_dp
   endif
   if ( nmr(4) .gt. 1.0_dp .or. nmr(4) .lt. 0.0_dp) then
-    if ( ionode ) &
-    WRITE ( stderr ,'(a,i6,4f24.16)') 'ERROR: eta < 0.0_dp',ia,nmr(4),nmr(1),nmr(2),nmr(3)
+    !if ( ionode ) &
+    !WRITE ( stderr ,'(a,i6,4f24.16)') 'ERROR: eta < 0.0_dp',ia,nmr(4),nmr(1),nmr(2),nmr(3)
   !  nmr(4) = 0.0_dp
     !STOP
   endif
@@ -2463,13 +2473,12 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
 END SUBROUTINE nmr_convention
 
 
-!*********************** SUBROUTINE efg_alloc *********************************
+! *********************** SUBROUTINE efg_alloc *********************************
 !
 ! allocate quantities related to efg calculation
 ! /deallocate 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_alloc 
 
   USE control,                  ONLY :  calc , longrange
@@ -2488,7 +2497,7 @@ SUBROUTINE efg_alloc
 
 #ifdef fix_grid
   allocate ( rgrid ( 3 , natm ) )
-#endif fix_grid
+#endif
   allocate( efg_t    ( natm , 3 , 3 ) )
   allocate( efg_ia    ( natm , 3 , 3 ) )
   allocate( mu ( natm , 3 ) ) 
@@ -2500,12 +2509,11 @@ SUBROUTINE efg_alloc
 
 END SUBROUTINE efg_alloc
 
-!*********************** SUBROUTINE efg_dealloc *******************************
+! *********************** SUBROUTINE efg_dealloc *******************************
 !
 ! deallocate quantities related to efg calculation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_dealloc
 
   USE control,                  ONLY :  calc , longrange
@@ -2519,7 +2527,7 @@ SUBROUTINE efg_dealloc
   deallocate( dibetatot )
 #ifdef fix_grid
   deallocate ( rgrid )
-#endif fix_grid
+#endif
   deallocate( efg_t )
   deallocate( efg_ia    )
   deallocate( mu ) 
@@ -2529,14 +2537,13 @@ SUBROUTINE efg_dealloc
 END SUBROUTINE efg_dealloc
 
 
-!*********************** SUBROUTINE efg_mesh_alloc ****************************
+! *********************** SUBROUTINE efg_mesh_alloc ****************************
 !
 ! allocate quantities related to the real space or reciprocal space mesh used to
 ! calculate efg's
 ! /deallocate 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_mesh_alloc
 
   USE control,                  ONLY :  calc , longrange
@@ -2585,12 +2592,13 @@ SUBROUTINE efg_mesh_alloc
 
 END SUBROUTINE efg_mesh_alloc
 
-!*********************** SUBROUTINE efg_mesh_dealloc **************************
+! *********************** SUBROUTINE efg_mesh_dealloc **************************
 !
-! 
+! allocate quantities related to the real space or reciprocal space mesh used to
+! calculate efg's
+! /deallocate 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE efg_mesh_dealloc
 
   USE control,                  ONLY :  calc , longrange

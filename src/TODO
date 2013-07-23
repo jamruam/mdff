@@ -26,7 +26,6 @@ TODO:
 * add default values for secondary tags
 * add some descriptions of gaussian distribution routine 
  -> (basically some refs to be able to find bugs)
-* make the force field easier to read in control.F
 * parallelization of reciprocal part (ewald sum) in efg at least
 * masses   
 * write some manual (with theory, ref teaching oriented)

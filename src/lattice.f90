@@ -19,31 +19,41 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
+!> \brief
+!! cell related module
 MODULE cell
   
   USE constants,                ONLY :  dp 
 
   implicit none      
 
+  !< 
   TYPE celltype
-    real(kind=dp) :: A(3,3),B(3,3)
-    real(kind=dp) :: ANORM(3),BNORM(3)
-    real(kind=dp) :: OMEGA                ! volume ( direct )
-    real(kind=dp) :: ROMEGA               ! volume ( reciprocal )
-    real(kind=dp) :: WA , WB , WC         ! perpendicular width (direct) 
-    real(kind=dp) :: ALPH , BET , GAMM    ! angles ( direct )
-    real(kind=dp) :: RWA , RWB , RWC      ! perpendicular width (reciprocal)
-    real(kind=dp) :: RALPH , RBET , RGAMM ! angles ( reciprocal )
+    real(kind=dp) :: A(3,3)               !< direct basis vector  
+    real(kind=dp) :: B(3,3)               !< reciprocal basis vectors  
+    real(kind=dp) :: ANORM(3)             !< norm of direct basis vectors
+    real(kind=dp) :: BNORM(3)             !< norm of reciprocal basis vectors
+    real(kind=dp) :: OMEGA                !< volume ( direct )
+    real(kind=dp) :: ROMEGA               !< volume ( reciprocal )
+    real(kind=dp) :: WA , WB , WC         !< perpendicular width (direct) 
+    real(kind=dp) :: ALPH , BET , GAMM    !< angles ( direct )
+    real(kind=dp) :: RWA , RWB , RWC      !< perpendicular width (reciprocal)
+    real(kind=dp) :: RALPH , RBET , RGAMM !< angles ( reciprocal )
   END TYPE
 
 CONTAINS
 
-!*********************** SUBROUTINE lattice ***********************************
-!
-! adapted from vasp
-!
-!****************************************************************************** 
-
+! *********************** SUBROUTINE lattice ***********************************
+!> \brief
+!! subroutine for calculating the reciprocal lattice from the direct 
+!! lattice in addition the norm of the lattice-vectors and the volume of 
+!! the basis-cell are calculated
+!! \note
+!! adapted from vasp
+!! \author 
+!! gK (VASP)
+!! \param[in,out] Mylatt
+! ****************************************************************************** 
 SUBROUTINE lattice ( Mylatt )
 
   USE constants,                ONLY : radian
@@ -143,20 +153,25 @@ SUBROUTINE lattice ( Mylatt )
 
 END SUBROUTINE lattice
 
-!*********************** SUBROUTINE kardir ************************************
-!
-! transform a set of vectors from cartesian coordinates to
-! ) direct lattice      (BASIS must be equal to B reciprocal lattice)
-! ) reciprocal lattice  (BASIS must be equal to A direct lattice)
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE kardir ************************************
+!> \brief
+!! transform a set of vectors from cartesian coordinates to
+!! ) direct lattice      (BASIS must be equal to B reciprocal lattice)
+!! ) reciprocal lattice  (BASIS must be equal to A direct lattice)
+!! \author 
+!! gK (VASP)
+!! \note 
+!! adapted from VASP
+!! \param[in] NMAX dimension of vectors VX , VY , VZ 
+!! \param[in,out] VX , VY , VZ vectors being transformed
+!! \param[in] BASIS basis vector ( direct or reciprocal lattice )
+! ******************************************************************************
 SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
 
   implicit none 
 
   ! global
-  integer :: NMAX
+  integer , intent(in) :: NMAX
   real(kind=dp) :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
 
   ! local 
@@ -176,15 +191,20 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
 
 END SUBROUTINE
 
-!*********************** SUBROUTINE dirkar ************************************
-!
-! transform a set of vectors from
-! ) direct lattice      (BASIS must be equal to A direct lattice)
-! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
-! to cartesian coordinates
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE dirkar ************************************
+!> \brief
+!! transform a set of vectors from
+!! ) direct lattice      (BASIS must be equal to A direct lattice)
+!! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
+!! to cartesian coordinates
+!! \author 
+!! gK (VASP)
+!! \note 
+!! adapted from VASP
+!! \param[in] NMAX dimension of vectors VX , VY , VZ 
+!! \param[in,out] VX , VY , VZ vectors being transformed
+!! \param[in] BASIS basis vector ( direct or reciprocal lattice )
+! ******************************************************************************
 SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
 
   implicit none
@@ -209,19 +229,16 @@ SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
 
 END SUBROUTINE dirkar 
 
-!*********************** SUBROUTINE periodicpbc *******************************
-!
-! replace atoms inside the MD cell 
-! note:
-! pbc are used in calculation of most properties but the positions are not
-! effectively reajust to prevent big jump when using verlet list. 
-! 
-! input :
-!          natm      : number of atoms
-!          ralpha : positions component alpha
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE periodicpbc *******************************
+!> \brief
+!! replace atoms inside the MD cell 
+!! \note
+!! pbc are used in calculation of most properties but the positions are not
+!! effectively reajust to prevent big jump when using verlet list. 
+!! \param[in] natm number of atoms
+!! \param[in] latt lattice type
+!! \param[in,out] xxx , yyy , zzz position vectors 
+! ******************************************************************************
 SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
 
   implicit none

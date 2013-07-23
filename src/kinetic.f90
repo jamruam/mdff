@@ -17,14 +17,14 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE init_velocities ***************************
-! 
-! This routine initialize the velocities. 
-!
-!******************************************************************************
+! *********************** SUBROUTINE init_velocities ***************************
+!> \brief 
+!!  This routine initialize the velocities. 
+! ******************************************************************************
 SUBROUTINE init_velocities
 
   USE constants,        ONLY :  dp 
@@ -42,8 +42,8 @@ SUBROUTINE init_velocities
 
   ! =======================================
   !  set key: 
-  !   key = 0 if all velocities are null
-  !   key = 1 if at least one is no null
+  !   key = 0 if all velocities  are null
+  !   key = 1 if at least one is not null
   ! =======================================
   key = 0
   do ia = 1 , natm
@@ -52,17 +52,14 @@ SUBROUTINE init_velocities
     if ( vz (ia) .ne. 0.0_dp ) key = 1
   enddo
 
-  
   ! ===============================================
   !  generate velocities from a given distribution
   ! ===============================================
-  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp .and. (nequil.ne.0)) then
+  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp .and. (nequil.ne.0) ) then
 
-    if ( ionode ) then
-      WRITE ( stdout      ,'(a)') '============================================================='
-      WRITE ( stdout      ,'(a)') ''
-      WRITE ( stdout      ,'(a)') 'generate velocities'
-    endif
+    separator(stdout)    
+    io_node blankline(stdout)    
+    io_node WRITE ( stdout ,'(a)') 'generate velocities'
 
     ! ================================
     !  Maxwell-Boltzmann distribution
@@ -89,9 +86,7 @@ SUBROUTINE init_velocities
     ! =======================
     CALL calc_temp(T, ekin)
 
-    if ( ionode ) then
-      WRITE ( stdout      ,'(a,f10.4)') 'input temperature                    = ',T
-    endif
+    if ( ionode )  WRITE ( stdout ,'(a,f10.4)') 'input temperature                    = ',T
 
   else 
 
@@ -102,30 +97,28 @@ SUBROUTINE init_velocities
     vy = 0.0_dp
     vz = 0.0_dp
 
-    if ( ionode ) then 
-      WRITE ( stdout      , '(a)' ) 'no initial kinetic energy' 
-    endif
+    io_node  WRITE ( stdout , '(a)' ) 'no initial kinetic energy' 
 
   endif
 
   CALL center_of_mass ( vx , vy , vz , com )
-    if ( ionode ) WRITE ( stdout ,'(a,4e16.6)') 'center of mass velocity ALL ',com( 0 , :)
+  io_node WRITE ( stdout ,'(a,4e16.6)') 'center of mass vel. ALL ',com( 0 , :)
   do it = 1 , ntype
-    if ( ionode ) WRITE ( stdout ,'(a,a,a,4e16.6)') 'center of mass velocity ', atypei( it ),' ',com( it , :)
+    io_node WRITE ( stdout ,'(a,a,a,4e16.6)') 'center of mass vel. ', atypei( it ),' ',com( it , :)
   enddo
+  io_node blankline(stdout)
 
   return
 
 END SUBROUTINE init_velocities
 
 
-!*********************** SUBROUTINE rescale_velocities ************************
-!
-! this subroutine rescale velocities with beredsen thermostat.
-! If tauberendsen = dt , this becomes a simple rescale procedure
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE rescale_velocities ************************
+!> \brief
+!! this subroutine rescale velocities with beredsen thermostat.
+!! If tauberendsen = dt , this becomes a simple rescale procedure
+!> \param[in] quite make the subroutine quite
+! ******************************************************************************
 SUBROUTINE rescale_velocities (quite)
 
   USE constants,                ONLY :  dp 
@@ -160,8 +153,8 @@ SUBROUTINE rescale_velocities (quite)
 #ifdef debug    
     CALL calc_temp(T,ekin)
     WRITE ( stdout ,'(a,f10.4)') 'debug : rescaled temperature       = ',T
-#endif    
-    WRITE ( stdout ,'(a)')       ''
+#endif   
+    blankline(stdout) 
     
   endif
 
@@ -170,13 +163,12 @@ SUBROUTINE rescale_velocities (quite)
 
 END SUBROUTINE rescale_velocities
 
-!*********************** SUBROUTINE andersen_velocities ***********************
-!
-! andersen thermostat 
-! based on algorithm 15 by Frenkel and Smit
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE andersen_velocities ***********************
+!!> \brief
+!! andersen thermostat 
+!> \note
+!! based on algorithm 15 by Frenkel and Smit
+! ******************************************************************************
 SUBROUTINE andersen_velocities
 
   USE constants,                ONLY :  dp 
@@ -228,13 +220,14 @@ SUBROUTINE andersen_velocities
 END SUBROUTINE andersen_velocities
 
 
-!*********************** SUBROUTINE uniform_random_velocities *****************
-!
-! only used for test
-! Frenkel and Smit
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE uniform_random_velocities *****************
+!> \brief
+!! uniform random velocities distribution 
+!> \author
+!! Frenkel and Smit
+!> \note
+!! only used for test
+! ******************************************************************************
 SUBROUTINE uniform_random_velocities
 
   USE constants,        ONLY :  dp 
@@ -305,8 +298,8 @@ SUBROUTINE uniform_random_velocities
   Vy0t = Vy0t/natm
   Vz0t = Vz0t/natm
   Temp = v2
-  if ( ionode ) WRITE ( stdout , 99001) v2
-  if ( ionode ) WRITE ( stdout , 99002) Vx0t, Vy0t, Vz0t
+  io_node WRITE ( stdout , 99001) v2
+  io_node WRITE ( stdout , 99002) Vx0t, Vy0t, Vz0t
 
   return
 
@@ -315,13 +308,19 @@ SUBROUTINE uniform_random_velocities
 
 END SUBROUTINE uniform_random_velocities
 
-!*********************** SUBROUTINE maxwellboltzmann_velocities ***************
+! *********************** SUBROUTINE maxwellboltzmann_velocities ***************
 !
-!  f (v) = sqrt( m / 2 pi kT) exp [-mv^2/2kT]
-!  F.24 Allen-Tildsley
+!> \brief
+!! maxwell-boltzmann velocities
+!! \f$ f(v) = \sqrt{ \frac{m}{2\pi kT}} \exp{-\frac{mv^2}{2kT}}\f$
 !
-!******************************************************************************
-
+!> \author
+!! Allen-Tildsley
+!
+!> \note
+!! adapted from F.24 
+!
+! ******************************************************************************
 SUBROUTINE maxwellboltzmann_velocities
 
   USE constants,        ONLY :  dp 
@@ -341,10 +340,10 @@ SUBROUTINE maxwellboltzmann_velocities
 #ifdef fun
   if ( ionode ) then
     WRITE ( stdout ,'(a)') 'Heat:Hot, as _____:Cold'
-    WRITE ( stdout ,'(a)') ''
+    blankline(stdout) 
     WRITE ( stdout ,'(a)') 'a poem by Roald Hoffman'
     WRITE ( stdout ,'(a)') 'from: Chemistry Imagined, Reflections on Science'
-    WRITE ( stdout ,'(a)') ''
+    blankline(stdout) 
     WRITE ( stdout ,'(a)') 'Deep in,'
     WRITE ( stdout ,'(a)') "they're there, they're"
     WRITE ( stdout ,'(a)') "at it all the time, it's jai"
@@ -365,6 +364,7 @@ SUBROUTINE maxwellboltzmann_velocities
     WRITE ( stdout ,'(a)') 'in deep,'
     WRITE ( stdout ,'(a)') 'slow'
     WRITE ( stdout ,'(a)') '.'
+    blankline(stdout) 
   endif
 #endif
 
@@ -424,12 +424,12 @@ SUBROUTINE maxwellboltzmann_velocities
 
 END SUBROUTINE maxwellboltzmann_velocities
 
-!*********************** SUBROUTINE calc_temp *********************************
-!
-! calculate temperature and kinetic enegy from velocities
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE calc_temp *********************************
+!> \brief
+!! calculate temperature and kinetic enegy from velocities
+!> \param[out] T temperature
+!> \param[out] ekin kinetic energy
+! ******************************************************************************
 SUBROUTINE calc_temp (T, ekin)
 
   USE constants,        ONLY :  dp 

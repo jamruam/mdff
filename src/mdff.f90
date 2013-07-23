@@ -16,22 +16,36 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ! ===== fmV =====
 
-! ===============================================================
-! *      PARALLEL MOLECULAR DYNAMICS ...for fun                 *
-! *      Version: 0.3.1 BMLJ  (q-p) LJ potential                *
-! *      filipe.manuel.vasconcelos@gmail.com                    *
-! *      Based on different codes or books by:                  *
-! *      F. Affouard University of Lille                        *
-! *      S. Sastry   JNCASR                                     *
-! *      D. Frenkel and B. Smit   (book)                        *
-! *      Allen-Tildesley (book)                                 *
-! *      vasp: some features of the best code ever ;)           *
-! *      dea-dec2007-janv2011                                   *
-! ===============================================================
+!> \mainpage
+!! ===============================================================\n
+!!                                                                \n
+!> \brief PARALLEL MOLECULAR DYNAMICS ...for fun                  \n
+!! Version: 0.3.1 BMLJ  (q-p) LJ potential                        \n
+!! This code perform molecular dynamics simulation with simple    \n
+!! non-bonding potentials ( Lennard-jones, Buckingham and Morse). \n
+!! It permits to calculate electric-field gradient (EFG) in a     \n
+!! point charge and dipole approximations using direct and Ewald  \n
+!! summation methods. More details in the manual svn/doc/mdff.tex \n
+!! (not complete yet) 
+!> \authors
+!! email : filipe.manuel.vasconcelos@gmail.com                    \n
+!! Based on different codes or books by:                          \n
+!! F. Affouard University of Lille                                \n
+!! S. Sastry   JNCASR                                             \n 
+!! D. Frenkel and B. Smit                                         \n  
+!! Allen-Tildesley                                                \n
+!! vasp: some features of the best code ever ;)                   \n
+!> \date
+!! - sep2005-jun2006                                        
+!! - dec2007                                                        
+!! - jan2011                                                
+!! - jan2013                                                      \n
+!!
+!! ===============================================================\n
 
 
 ! ======= Hardware =======
-!add some comments !!!!!!!!
+#include "symbol.h"
 !#define MULTRUN
 !#define block
 ! ======= Hardware =======
@@ -59,20 +73,22 @@ PROGRAM main_MDFF
   INCLUDE 'mpif.h'
 
   ! local
-  integer       :: argc
-  integer       :: ierr 
-  integer       :: iastart , iaend   ! atom decomposition
-  integer       :: offset            ! offset ( not used yet )
-  real(kind=dp) :: ttt2, ttt1        
+  integer       :: argc               ! input argument of the executable
+  integer       :: ierr               ! error variable
+  integer       :: iastart , iaend    ! atom decomposition
+  integer       :: ikstart , ikend    ! k-point decomposition
+  integer       :: offset             ! offset ( not used yet )
+  real(kind=dp) :: ttt2, ttt1         ! timing variable
 #ifdef MULTRUN
   integer :: irun          
   real(kind=dp) :: tempi
 #endif
-  character(len=60) :: vib_allowed(5)                     
-  data                 vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
+  character(len=60) :: vib_allowed(5) ! vib allowed flags                     
+  ! allowed vib = 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos'
+  data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
   
 
-  ! from vasp 5.3 ;)
+  ! date time version infog as from vasp 5.3 ;)
   CHARACTER (LEN=80),PARAMETER :: MDFF = &
         'mdff.0.3.1' // ' ' // &
         ' (build ' // __DATE__// ' ' //__TIME__// ') ' // &
@@ -155,7 +171,8 @@ PROGRAM main_MDFF
     ! for rank = myrank.  only for calc='md'. 
     ! for the other type of calc this is done when natm is known
     ! ===========================================================
-    if ( calc .eq. 'md' ) CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+    if ( calc .eq. 'md' ) CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
+    if ( lcoulomb ) CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
 
     ! =====================================
     ! verlet list generation
@@ -199,8 +216,8 @@ PROGRAM main_MDFF
     tempi = temp
     RUN: DO irun = 0 , 2
         temp = ( 0.1_dp * irun  ) + tempi
-        if (  ionode  ) WRITE ( stdout ,'(a)') ''
-        if (  ionode  ) WRITE ( stdout , '(a,f8.5)' ) 'T = ' , temp
+        io_node blankline(stdout)   
+        io_node WRITE ( stdout , '(a,f8.5)' ) 'T = ' , temp
 #endif
   
          ! =======================
@@ -210,7 +227,7 @@ PROGRAM main_MDFF
              offset = 1
              npas = 0
              integrator = 'nve-vv' 
-             CALL md_run ( iastart , iaend , offset )
+             CALL md_run ( iastart , iaend , offset , ikstart , ikend )
          ! =======================
          ! .... or dynamic   
          ! =======================
@@ -224,7 +241,7 @@ PROGRAM main_MDFF
              ! this offset will be used if the OUTSIDE LOOP is used
              ! ===============================================================
 !             offset = ( ( irun - 1 ) * npas ) + 1  
-             CALL md_run ( iastart , iaend , 1 ) 
+             CALL md_run ( iastart , iaend , 1 , ikstart , ikend ) 
 !                                            ^ 
 !                                           offset   
            endif
@@ -324,24 +341,19 @@ PROGRAM main_MDFF
   !  only for test purpose
   ! =======================
 
-    if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
-    if ( ionode ) WRITE ( stdout      , '(a)' ) '                           TEST                              '
-    if ( ionode ) WRITE ( stdout      , '(a)' ) '============================================================='
+    separator(stdout)    
+    io_node WRITE ( stdout , '(a)' ) '                           TEST                              '
+    separator(stdout)    
     ! 
     !    WRITE HERE YOUR CODE TO BE TESTED 
     ! 
   endif
 
 
-  if ( ionode ) then
-    WRITE ( stdout      , '(a)' ) '============================================================='
-    WRITE ( stdout      , '(a)' ) ''
-  endif
   ttt2 = MPI_WTIME(ierr)
   timetot = ttt2 - ttt1
   CALL print_time_info ( stdout ) 
   !CALL io_end
   CALL MPI_FINALIZE(ierr)
-
 END PROGRAM main_MDFF
 ! ===== fmV =====

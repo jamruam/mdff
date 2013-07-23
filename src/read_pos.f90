@@ -18,17 +18,22 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE read_pos **********************************
-!
-!  here we read configuration (pos,vel,force) from file.
-!
-!******************************************************************************
+! *********************** SUBROUTINE read_pos **********************************
 
+!> \brief
+!  this subroutine read configuration (pos,vel,force) from POSFF file
+!
+!> \todo
+!! find a way to have weither only pos or pos/vel or pos/vel/for in POSFF and
+!! other configurations file
+!
+! ******************************************************************************
 SUBROUTINE read_pos 
   
-  USE control,                  ONLY :  calc
+  USE control,                  ONLY :  calc , lrestart
   USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
                                         natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
                                         simu_cell , config_print_info
@@ -49,10 +54,11 @@ SUBROUTINE read_pos
   data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
 
 
+  separator(stdout) 
   IF ( ionode ) then
-    WRITE ( stdout ,'(a)')            '=============================================================' 
-    WRITE ( stdout ,'(a)')            ''
-    WRITE ( stdout ,'(a)')            'config from file POSFF'
+    blankline(stdout)    
+    WRITE ( stdout ,'(a)')   'reading configuration'
+    WRITE ( stdout ,'(a)')   'config from file POSFF'
   endif
 
   OPEN ( kunit_POSFF , file = 'POSFF' ) 
@@ -76,6 +82,12 @@ SUBROUTINE read_pos
     if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
     STOP
   endif
+  if ( cpos .eq. 'Direct' ) then
+    io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+  else if ( cpos .eq. 'Cartesian' ) then
+    io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+  endif
+
  
   CALL lattice ( simu_cell )
   rho = DBLE ( natm ) / simu_cell%omega
@@ -95,19 +107,23 @@ SUBROUTINE read_pos
   ! read positions and velocities from disk 
   ! =========================================      
   
-  READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                             vx ( ia ) , vy ( ia ) , vz ( ia ) , &
-                                             fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
+  if ( lrestart ) then  
+    READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                               vx ( ia ) , vy ( ia ) , vz ( ia ) , &
+                                               fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
+  else
+    READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , ia = 1 , natm )
+  
+  endif
 
   !CALL print_config_sample(0,0)
+
   if ( cpos .eq. 'Direct' ) then
     ! ======================================
     !         direct to cartesian
     ! ======================================
     CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct    coordinates in POSFF'
   else if ( cpos .eq. 'Cartesian' ) then
-    if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
   endif 
 
   CLOSE ( kunit_POSFF )
@@ -116,7 +132,7 @@ SUBROUTINE read_pos
 
   CALL typeinfo_init
 
-  CALL distance_tab 
+!  CALL distance_tab 
 
   !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
@@ -124,18 +140,22 @@ SUBROUTINE read_pos
 
 END SUBROUTINE read_pos
 
-!*********************** SUBROUTINE typeinfo_init *****************************
+! *********************** SUBROUTINE typeinfo_init *****************************
 !
+!> \brief
+!! this subroutine initialize main atomic quanitites defined from type
+!! definitions  
 !
-!******************************************************************************
-
+!> \note
+!! see config module for definitions of the main quantities
+!
+! ******************************************************************************
 SUBROUTINE typeinfo_init
 
   USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , dipia , qia , quadia , ipolar , polia  
   USE field ,   ONLY : qch , quad_efg , dip , lpolar , pol
   
   implicit none
-
 
   ! local  
   integer :: ccs , cc

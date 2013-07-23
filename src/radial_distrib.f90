@@ -17,31 +17,39 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
-!#define debug2
+#include "symbol.h"
+#define debug2
 ! ======= Hardware =======
 
+! *********************** SUBROUTINE grcalc_init *******************************
+!
+!> \brief
+!! Module related to radial function distribution calculation and/or static
+!! factor structure
+!
+! ******************************************************************************
 MODULE radial_distrib 
 
   USE constants,                ONLY :  dp
 
   implicit none
 
-  integer :: PANGR              ! (internal) number of bins in g(r) distribution
-  integer :: nskip
-  integer :: nconf
-  real(kind=dp) :: cutgr
- 
-  real(kind=dp) :: resg     ! resolution in g(r) distribution 
-
-  integer, dimension(:,:,:), allocatable :: gr 
+  integer :: PANGR            !< (internal) number of bins in g(r) distribution
+  integer :: nskip            !< number of configurations skipped 
+  integer :: nconf            !< number of configurations used in g(r) calculation
+  real(kind=dp) :: cutgr      !< radial cut-off 
+  real(kind=dp) :: resg       !< resolution in g(r) distribution 
+  !> g(r) function ( bin x ntype x ntype )
+  integer, dimension(:,:,:), allocatable :: gr  
 
 CONTAINS
 
-!*********************** SUBROUTINE grcalc_init *******************************
+! *********************** SUBROUTINE grcalc_init *******************************
 !
+!> \brief
+!! initialize radial distribution calculation parameters
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_init
 
   USE config,                   ONLY :  simu_cell
@@ -71,10 +79,10 @@ SUBROUTINE gr_init
   OPEN ( stdin , file = filename)
   READ ( stdin , grtag , iostat=ioerr )
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : grtag section is absent'
+   io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : grtag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : grtag wrong tag'
+   io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : grtag wrong tag'
    STOP
   endif
   CLOSE ( stdin )
@@ -82,7 +90,7 @@ SUBROUTINE gr_init
   ! ==========================================
   ! define a new resolution to be 2^N points
   ! ==========================================
-  PANGR=int(cutgr/resg)
+ PANGR=int(cutgr/resg)+1
 !28/05/13 ! i = 1
 !28/05/13 ! do while ( 2**i .lt. PANGR )
 !28/05/13 !    i = i + 1
@@ -97,11 +105,12 @@ SUBROUTINE gr_init
  
 END SUBROUTINE gr_init
 
-!*********************** SUBROUTINE gr_alloc **********************************
+! *********************** SUBROUTINE gr_alloc **********************************
 !
+!> \brief
+!! allocate g(r) function 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_alloc
 
   USE control,                  ONLY :  calc
@@ -111,7 +120,7 @@ SUBROUTINE gr_alloc
 
   if ( calc .ne. 'gr' ) return
 
-  allocate(gr(0:PANGR-1,0:ntype,0:ntype))
+  allocate(gr(0:PANGR,0:ntype,0:ntype))
   gr = 0      
 
   return 
@@ -119,11 +128,12 @@ SUBROUTINE gr_alloc
 END SUBROUTINE gr_alloc
 
 
-!*********************** SUBROUTINE gr_dealloc ********************************
+! *********************** SUBROUTINE gr_dealloc ********************************
 !
+!> \brief
+!! deallocate g(r) function 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_dealloc
 
   USE control,                  ONLY :  calc
@@ -139,12 +149,12 @@ SUBROUTINE gr_dealloc
 END SUBROUTINE gr_dealloc
 
 
-!*********************** SUBROUTINE gr_default_tag ****************************
+! *********************** SUBROUTINE gr_default_tag ****************************
 !
-! set default values to gr tag
+!> \brief
+!! set default values to gr tag
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_default_tag
 
   USE config,           ONLY : simu_cell
@@ -164,11 +174,12 @@ SUBROUTINE gr_default_tag
 END SUBROUTINE gr_default_tag
 
 
-!*********************** SUBROUTINE gr_print_info *****************************
+! *********************** SUBROUTINE gr_print_info *****************************
 !
+!> \brief
+!! print infog on g(r) calculation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_print_info(kunit)
 
   USe control,                  ONLY :  calc
@@ -185,21 +196,23 @@ SUBROUTINE gr_print_info(kunit)
                   WRITE ( kunit ,'(a)')                 'save radial_distribution in file     :   GRTFF' 
       if ( calc .eq. 'gr' )     then 
                   WRITE ( kunit ,'(a)')                 'read configuration from file         :   TRAJFF'
-                  WRITE ( kunit ,'(a)')                 ''
+                  blankline(kunit)
                   WRITE ( kunit ,'(a,i5)')              'number of config. in TRAJFF          = ',nconf        
                   WRITE ( kunit ,'(a,i5)')              'number of config. to be skipped      = ',nskip
-                  WRITE ( kunit ,'(a)')                 ''
+                  blankline(kunit)
       endif
    endif 
   return
 
 END SUBROUTINE gr_print_info
 
-!*********************** SUBROUTINE grcalc ************************************
+! *********************** SUBROUTINE grcalc ************************************
 !
+!> \brief
+!! main driver of radial distribution function calculation
+!! this subroutine read the trajectory, allocate, call the  
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE grcalc
 
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
@@ -214,7 +227,7 @@ SUBROUTINE grcalc
   INCLUDE 'mpif.h'
 
   ! local 
-  integer                                              :: ia , ic , it , ngr , i , k 
+  integer                                              :: ia , ic , it , ngr , i  
   integer                                              :: pairs , it1 , it2 , mp , ierr 
   integer                                              :: iastart , iaend 
   real(kind=dp),     dimension ( : , : ) , allocatable :: grr 
@@ -274,11 +287,11 @@ SUBROUTINE grcalc
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
   CALL gr_alloc
 
   pairs =  ntype * ( ntype + 1 ) / 2
-  allocate ( grr ( 0 : PANGR-1 , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
+  allocate ( grr ( 0 : PANGR , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
   grr  = 0.0_dp
   nr   = 0
   cint = ''
@@ -314,7 +327,7 @@ SUBROUTINE grcalc
 
   ngr = 0
   do ic = nskip + 1, nconf
-    if ( ionode ) WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nconf,' ] '
+    io_node WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nconf,' ] '
     ! ===================================
     !  read config from trajectory file
     ! ===================================
@@ -367,7 +380,7 @@ SUBROUTINE grcalc
 
 #ifdef debug2
   do i=0, PANGR
-    if ( ionode ) WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
+    io_node WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
   enddo
 #endif
 
@@ -444,12 +457,12 @@ SUBROUTINE grcalc
 
 END SUBROUTINE grcalc
 
-!*********************** SUBROUTINE gr_main ***********************************
+! *********************** SUBROUTINE gr_main ***********************************
 !
-! based on Frenkel and Smit
+!> \brief
+!! based on Frenkel and Smit
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gr_main ( iastart , iaend )
 
   USE control,                  ONLY :  myrank
@@ -467,7 +480,6 @@ SUBROUTINE gr_main ( iastart , iaend )
   ! local
   integer :: ia , ja , ierr , ita , jta 
   integer :: igr 
-  integer :: nxij , nyij , nzij
   real(kind=dp) :: cut2 , rijsq , rr 
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
@@ -539,11 +551,10 @@ SUBROUTINE gr_main ( iastart , iaend )
  
 END SUBROUTINE gr_main
 
-!*********************** SUBROUTINE static_struc_fac **************************
+! *********************** SUBROUTINE static_struc_fac **************************
 !
 !
-!******************************************************************************
-
+! ******************************************************************************
 !SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
 
 !  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
@@ -566,7 +577,7 @@ END SUBROUTINE gr_main
 !  real(kind=dp) :: res , shift
 !  real(kind=dp) :: x , k
 !
-!  if ( ionode ) WRITE ( stdout , '(a)' ) 'in static_struc_fac'
+!  io_node WRITE ( stdout , '(a)' ) 'in static_struc_fac'
 !
 !  allocate ( in ( PANGR ) , out ( PANGR /2 + 1 ) )
 !
@@ -585,7 +596,7 @@ END SUBROUTINE gr_main
 !  do i= 1 , PANGR/2+1
 !    q = ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR ) / resg
 !    Sk = 1.0_dp + rho * out( i + 1 )  
-!    if ( ionode ) WRITE ( 20000 , '(3e16.8)' )  q , Sk  
+!    io_node WRITE ( 20000 , '(3e16.8)' )  q , Sk  
 !  enddo
 !
 !  deallocate ( in , out )
@@ -610,7 +621,7 @@ END SUBROUTINE gr_main
 !!    do j = 1 , PANGR
 !      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0_dp )  
 !    enddo
-!    if ( ionode ) WRITE ( 30000 , '(3e16.8)' )  q , Sk
+!    io_node WRITE ( 30000 , '(3e16.8)' )  q , Sk
 !  enddo
 !
 !

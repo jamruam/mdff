@@ -15,14 +15,231 @@
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-!C adapted to be included in mdff by fmv october 2011
-!C     ----------------------------------------------------------------------
-!C     This file contains the LBFGS algorithm and supporting routines
+#include "symbol.h"
+
+! ************************************************************************************
+!> \file 
+!! This file contains the LBFGS algorithm and supporting routines
+! ************************************************************************************
+!C        LIMITED MEMORY BFGS METHOD FOR LARGE SCALE OPTIMIZATION
+!C                          JORGE NOCEDAL
+!C                        *** July 1990 ***
 !C
-!C     ****************
-!C     LBFGS SUBROUTINE
-!C     ****************
+!C 
+!> \brief
+!!     This subroutine solves the unconstrained minimization problem
+!! 
+!!                      min F(x),    x= (x1,x2,...,xN),
+!!
+!!      using the limited memory BFGS method. The routine is especially
+!!      effective on problems involving a large number of variables. In
+!!      a typical iteration of this method an approximation Hk to the
+!!      inverse of the Hessian is obtained by applying M BFGS updates to
+!!      a diagonal matrix Hk0, using information from the previous M steps.
+!!      The user specifies the number M, which determines the amount of
+!!      storage required by the routine. The user may also provide the
+!!      diagonal matrices Hk0 if not satisfied with the default choice.
+!!      The algorithm is described in "On the limited memory BFGS method
+!!      for large scale optimization", by D. Liu and J. Nocedal,
+!!      Mathematical Programming B 45 (1989) 503-528.
+!! 
+!!      The user is required to calculate the function value F and its
+!!      gradient G. In order to allow the user complete control over
+!!      these computations, reverse  communication is used. The routine
+!!      must be called repeatedly under the control of the parameter
+!!      IFLAG. 
+!!
+!!      The steplength is determined at each iteration by means of the
+!!      line search routine MCVSRCH, which is a slight modification of
+!!      the routine CSRCH written by More' and Thuente.
+!! 
+!C      The calling statement is 
+!C 
+!C          CALL LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
+!C 
+!C      where
+!C 
+!> \param[in]  
+!!     N       is an INTEGER variable that must be set by the user to the
+!!             number of variables. It is not altered by the routine.
+!!             Restriction: N>0.
+!C 
+!> \param[in]     
+!!     M       is an INTEGER variable that must be set by the user to
+!!             the number of corrections used in the BFGS update. It
+!!             is not altered by the routine. Values of M less than 3 are
+!!             not recommended; large values of M will result in excessive
+!!             computing time. 3<= M <=7 is recommended. Restriction: M>0.
+!C 
+!> \param[in]     
+!!     X       is a real(kind=dp) array of length N. On initial entry
+!!             it must be set by the user to the values of the initial
+!!             estimate of the solution vector. On exit with IFLAG=0, it
+!!             contains the values of the variables at the best point
+!!             found (usually a solution).
+!C 
+!> \param[in]     
+!!     F       is a real(kind=dp) variable. Before initial entry and on
+!!             a re-entry with IFLAG=1, it must be set by the user to
+!!             contain the value of the function F at the point X.
+!C 
+!> \param[in]     
+!!     G       is a real(kind=dp) array of length N. Before initial
+!!             entry and on a re-entry with IFLAG=1, it must be set by
+!!             the user to contain the components of the gradient G at
+!!             the point X.
+!C 
+!> \param[in]     
+!!     DIAGCO  is a LOGICAL variable that must be set to .TRUE. if the
+!!             user  wishes to provide the diagonal matrix Hk0 at each
+!!             iteration. Otherwise it should be set to .FALSE., in which
+!!             case  LBFGS will use a default value described below. If
+!!             DIAGCO is set to .TRUE. the routine will return at each
+!!             iteration of the algorithm with IFLAG=2, and the diagonal
+!!              matrix Hk0  must be provided in the array DIAG.
+!C 
+!C 
+!> \param[in]     
+!!     DIAG    is a real(kind=dp) array of length N. If DIAGCO=.TRUE.,
+!!             then on initial entry or on re-entry with IFLAG=2, DIAG
+!!             it must be set by the user to contain the values of the 
+!!             diagonal matrix Hk0.  Restriction: all elements of DIAG
+!!             must be positive.
+!C 
+!> \param[in]     
+!!     IPRINT  is an INTEGER array of length two which must be set by the
+!!             user.
+!C 
+!!             IPRINT(1) specifies the frequency of the output:
+!!                IPRINT(1) < 0 : no output is generated,
+!!                IPRINT(1) = 0 : output only at first and last iteration,
+!!                IPRINT(1) > 0 : output every IPRINT(1) iterations.
+!! 
+!!             IPRINT(2) specifies the type of output generated:
+!!                IPRINT(2) = 0 : iteration count, number of function 
+!!                                evaluations, function value, norm of the
+!!                                gradient, and steplength,
+!!                IPRINT(2) = 1 : same as IPRINT(2)=0, plus vector of
+!!                                variables and  gradient vector at the
+!!                                initial point,
+!!                IPRINT(2) = 2 : same as IPRINT(2)=1, plus vector of
+!!                                variables,
+!!                IPRINT(2) = 3 : same as IPRINT(2)=2, plus gradient vector.
+!! 
+!! 
+!> \param[in]     
+!!     EPS     is a positive real(kind=dp) variable that must be set by
+!!             the user, and determines the accuracy with which the solution
+!!             is to be found. The subroutine terminates when
 !C
+!!                         ||G|| < EPS max(1,||X||),
+!!
+!!             where ||.|| denotes the Euclidean norm.
+!C 
+!> \param[in]     
+!!     XTOL    is a  positive real(kind=dp) variable that must be set by
+!!             the user to an estimate of the machine precision (e.g.
+!!             10**(-16) on a SUN station 3/60). The line search routine will
+!!C            terminate if the relative width of the interval of uncertainty
+!!             is less than XTOL.
+!C 
+!> \param[in]     
+!!     W       is a real(kind=dp) array of length N(2M+1)+2M used as
+!!             workspace for LBFGS. This array must not be altered by the
+!!             user.
+!C 
+!> \param[in]     
+!!     IFLAG   is an INTEGER variable that must be set to 0 on initial entry
+!!             to the subroutine. A return with IFLAG<0 indicates an error,
+!!             and IFLAG=0 indicates that the routine has terminated without
+!!             detecting errors. On a return with IFLAG=1, the user must
+!!             evaluate the function F and gradient G. On a return with
+!!             IFLAG=2, the user must provide the diagonal matrix Hk0.
+!C 
+!!             The following negative values of IFLAG, detecting an error,
+!!             are possible:
+!C 
+!!              IFLAG=-1  The line search routine MCSRCH failed. The
+!!                        parameter INFO provides more detailed information
+!!                        (see also the documentation of MCSRCH):
+!C
+!!                       INFO = 0  IMPROPER INPUT PARAMETERS.
+!C
+!!                       INFO = 2  RELATIVE WIDTH OF THE INTERVAL OF
+!C                                 UNCERTAINTY IS AT MOST XTOL.
+!C
+!!                       INFO = 3  MORE THAN 20 FUNCTION EVALUATIONS WERE
+!C                                 REQUIRED AT THE PRESENT ITERATION.
+!C
+!!                       INFO = 4  THE STEP IS TOO SMALL.
+!C
+!!                       INFO = 5  THE STEP IS TOO LARGE.
+!C
+!!                       INFO = 6  ROUNDING ERRORS PREVENT FURTHER PROGRESS. 
+!C                                 THERE MAY NOT BE A STEP WHICH SATISFIES
+!C                                 THE SUFFICIENT DECREASE AND CURVATURE
+!C                                 CONDITIONS. TOLERANCES MAY BE TOO SMALL.
+!C
+!C 
+!!              IFLAG=-2  The i-th diagonal element of the diagonal inverse
+!C                        Hessian approximation, given in DIAG, is not
+!C                        positive.
+!C           
+!!              IFLAG=-3  Improper input parameters for LBFGS (N or M are
+!C                        not positive).
+!C    COMMON:
+!C 
+!C     The subroutine contains one common area, which the user may wish to
+!C    reference:
+!C
+!> \note      
+!!    GTOL is a real(kind=dp) variable with default value 0.9, which
+!!        controls the accuracy of the line search routine MCSRCH. If the
+!!        function and gradient evaluations are inexpensive with respect
+!!        to the cost of the iteration (which is sometimes the case when
+!!        solving very large problems) it may be advantageous to set GTOL
+!!        to a small value. A typical small value is 0.1.  Restriction:
+!!        GTOL should be greater than 1.D-04.
+!C 
+!> \note
+!!    STPMIN , STPMAX are non-negative real(kind=dp) variables which
+!!        specify lower and uper bounds for the step in the line search.
+!!        Their default values are 1.D-20 and 1.D+20, respectively. These
+!!        values need not be modified unless the exponents are too large
+!!        for the machine being used, or unless the problem is extremely
+!!        badly scaled (in which case the exponents should be increased).
+!C 
+!C
+!> \note
+!! ON THE DRIVER:
+!!
+!!    The program that calls LBFGS must contain the declaration:
+!!
+!!                       EXTERNAL LB2
+!!
+!!    LB2 is a BLOCK DATA that defines the default values of several
+!!    parameters described in the COMMON section. 
+!!
+!> \note
+!!  MACHINE DEPENDENCIES
+!!
+!!        The only variables that are machine-dependent are XTOL,
+!!        STPMIN and STPMAX.
+!C 
+!C
+!> \note
+!!  GENERAL INFORMATION
+!! 
+!!    Other routines called directly:  DAXPY, DDOT, LB1, MCSRCH
+!C 
+!> \note
+!!    Input/Output  :  FMV : stdout and ionode 
+!C 
+!> \author
+!! JORGE NOCEDAL ( July 1990 )
+!> \note
+!! adapted to be included in mdff by fmv october 2011
+! ************************************************************************************
       SUBROUTINE LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
 
       USE constants , ONLY : dp 
@@ -34,211 +251,7 @@
       real(kind=dp) X(N),G(N),DIAG(N),W(N*(2*M+1)+2*M)
       real(kind=dp) F,EPS,XTOL
       LOGICAL DIAGCO
-!C
-!C        LIMITED MEMORY BFGS METHOD FOR LARGE SCALE OPTIMIZATION
-!C                          JORGE NOCEDAL
-!C                        *** July 1990 ***
-!C
-!C 
-!C     This subroutine solves the unconstrained minimization problem
-!C 
-!C                      min F(x),    x= (x1,x2,...,xN),
-!C
-!C      using the limited memory BFGS method. The routine is especially
-!C      effective on problems involving a large number of variables. In
-!C      a typical iteration of this method an approximation Hk to the
-!C      inverse of the Hessian is obtained by applying M BFGS updates to
-!C      a diagonal matrix Hk0, using information from the previous M steps.
-!C      The user specifies the number M, which determines the amount of
-!C      storage required by the routine. The user may also provide the
-!C      diagonal matrices Hk0 if not satisfied with the default choice.
-!C      The algorithm is described in "On the limited memory BFGS method
-!C      for large scale optimization", by D. Liu and J. Nocedal,
-!C      Mathematical Programming B 45 (1989) 503-528.
-!C 
-!C      The user is required to calculate the function value F and its
-!C      gradient G. In order to allow the user complete control over
-!C      these computations, reverse  communication is used. The routine
-!C      must be called repeatedly under the control of the parameter
-!C      IFLAG. 
-!C
-!C      The steplength is determined at each iteration by means of the
-!C      line search routine MCVSRCH, which is a slight modification of
-!C      the routine CSRCH written by More' and Thuente.
-!C 
-!C      The calling statement is 
-!C 
-!C          CALL LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
-!C 
-!C      where
-!C 
-!C     N       is an INTEGER variable that must be set by the user to the
-!C             number of variables. It is not altered by the routine.
-!C             Restriction: N>0.
-!C 
-!C     M       is an INTEGER variable that must be set by the user to
-!C             the number of corrections used in the BFGS update. It
-!C             is not altered by the routine. Values of M less than 3 are
-!C             not recommended; large values of M will result in excessive
-!C             computing time. 3<= M <=7 is recommended. Restriction: M>0.
-!C 
-!C     X       is a real(kind=dp) array of length N. On initial entry
-!C             it must be set by the user to the values of the initial
-!C             estimate of the solution vector. On exit with IFLAG=0, it
-!C             contains the values of the variables at the best point
-!C             found (usually a solution).
-!C 
-!C     F       is a real(kind=dp) variable. Before initial entry and on
-!C             a re-entry with IFLAG=1, it must be set by the user to
-!C             contain the value of the function F at the point X.
-!C 
-!C     G       is a real(kind=dp) array of length N. Before initial
-!C             entry and on a re-entry with IFLAG=1, it must be set by
-!C             the user to contain the components of the gradient G at
-!C             the point X.
-!C 
-!C     DIAGCO  is a LOGICAL variable that must be set to .TRUE. if the
-!C             user  wishes to provide the diagonal matrix Hk0 at each
-!C             iteration. Otherwise it should be set to .FALSE., in which
-!C             case  LBFGS will use a default value described below. If
-!C             DIAGCO is set to .TRUE. the routine will return at each
-!C             iteration of the algorithm with IFLAG=2, and the diagonal
-!C              matrix Hk0  must be provided in the array DIAG.
-!C 
-!C 
-!C     DIAG    is a real(kind=dp) array of length N. If DIAGCO=.TRUE.,
-!C             then on initial entry or on re-entry with IFLAG=2, DIAG
-!C             it must be set by the user to contain the values of the 
-!C             diagonal matrix Hk0.  Restriction: all elements of DIAG
-!C             must be positive.
-!C 
-!C     IPRINT  is an INTEGER array of length two which must be set by the
-!C             user.
-!C 
-!C             IPRINT(1) specifies the frequency of the output:
-!C                IPRINT(1) < 0 : no output is generated,
-!C                IPRINT(1) = 0 : output only at first and last iteration,
-!C                IPRINT(1) > 0 : output every IPRINT(1) iterations.
-!C 
-!C             IPRINT(2) specifies the type of output generated:
-!C                IPRINT(2) = 0 : iteration count, number of function 
-!C                                evaluations, function value, norm of the
-!C                                gradient, and steplength,
-!C                IPRINT(2) = 1 : same as IPRINT(2)=0, plus vector of
-!C                                variables and  gradient vector at the
-!C                                initial point,
-!C                IPRINT(2) = 2 : same as IPRINT(2)=1, plus vector of
-!C                                variables,
-!C                IPRINT(2) = 3 : same as IPRINT(2)=2, plus gradient vector.
-!C 
-!C 
-!C     EPS     is a positive real(kind=dp) variable that must be set by
-!C             the user, and determines the accuracy with which the solution
-!C             is to be found. The subroutine terminates when
-!C
-!C                         ||G|| < EPS max(1,||X||),
-!C
-!C             where ||.|| denotes the Euclidean norm.
-!C 
-!C     XTOL    is a  positive real(kind=dp) variable that must be set by
-!C             the user to an estimate of the machine precision (e.g.
-!C             10**(-16) on a SUN station 3/60). The line search routine will
-!C             terminate if the relative width of the interval of uncertainty
-!C             is less than XTOL.
-!C 
-!C     W       is a real(kind=dp) array of length N(2M+1)+2M used as
-!C             workspace for LBFGS. This array must not be altered by the
-!C             user.
-!C 
-!C     IFLAG   is an INTEGER variable that must be set to 0 on initial entry
-!C             to the subroutine. A return with IFLAG<0 indicates an error,
-!C             and IFLAG=0 indicates that the routine has terminated without
-!C             detecting errors. On a return with IFLAG=1, the user must
-!C             evaluate the function F and gradient G. On a return with
-!C             IFLAG=2, the user must provide the diagonal matrix Hk0.
-!C 
-!C             The following negative values of IFLAG, detecting an error,
-!C             are possible:
-!C 
-!C              IFLAG=-1  The line search routine MCSRCH failed. The
-!C                        parameter INFO provides more detailed information
-!C                        (see also the documentation of MCSRCH):
-!C
-!C                       INFO = 0  IMPROPER INPUT PARAMETERS.
-!C
-!C                       INFO = 2  RELATIVE WIDTH OF THE INTERVAL OF
-!C                                 UNCERTAINTY IS AT MOST XTOL.
-!C
-!C                       INFO = 3  MORE THAN 20 FUNCTION EVALUATIONS WERE
-!C                                 REQUIRED AT THE PRESENT ITERATION.
-!C
-!C                       INFO = 4  THE STEP IS TOO SMALL.
-!C
-!C                       INFO = 5  THE STEP IS TOO LARGE.
-!C
-!C                       INFO = 6  ROUNDING ERRORS PREVENT FURTHER PROGRESS. 
-!C                                 THERE MAY NOT BE A STEP WHICH SATISFIES
-!C                                 THE SUFFICIENT DECREASE AND CURVATURE
-!C                                 CONDITIONS. TOLERANCES MAY BE TOO SMALL.
-!C
-!C 
-!C              IFLAG=-2  The i-th diagonal element of the diagonal inverse
-!C                        Hessian approximation, given in DIAG, is not
-!C                        positive.
-!C           
-!C              IFLAG=-3  Improper input parameters for LBFGS (N or M are
-!C                        not positive).
-!C 
-!C
-!C
-!C    ON THE DRIVER:
-!C
-!C    The program that calls LBFGS must contain the declaration:
-!C
-!C                       EXTERNAL LB2
-!C
-!C    LB2 is a BLOCK DATA that defines the default values of several
-!C    parameters described in the COMMON section. 
-!C
-!C 
-!C 
-!C    COMMON:
-!C 
-!C     The subroutine contains one common area, which the user may wish to
-!C    reference:
-!C 
-         COMMON /LB3/GTOL,STPMIN,STPMAX
-!C 
-!C    GTOL is a real(kind=dp) variable with default value 0.9, which
-!C        controls the accuracy of the line search routine MCSRCH. If the
-!C        function and gradient evaluations are inexpensive with respect
-!C        to the cost of the iteration (which is sometimes the case when
-!C        solving very large problems) it may be advantageous to set GTOL
-!C        to a small value. A typical small value is 0.1.  Restriction:
-!C        GTOL should be greater than 1.D-04.
-!C 
-!C    STPMIN and STPMAX are non-negative real(kind=dp) variables which
-!C        specify lower and uper bounds for the step in the line search.
-!C        Their default values are 1.D-20 and 1.D+20, respectively. These
-!C        values need not be modified unless the exponents are too large
-!C        for the machine being used, or unless the problem is extremely
-!C        badly scaled (in which case the exponents should be increased).
-!C 
-!C
-!C  MACHINE DEPENDENCIES
-!C
-!C        The only variables that are machine-dependent are XTOL,
-!C        STPMIN and STPMAX.
-!C 
-!C
-!C  GENERAL INFORMATION
-!C 
-!C    Other routines called directly:  DAXPY, DDOT, LB1, MCSRCH
-!C 
-!C    Input/Output  :  FMV : stdout and ionode 
-!C 
-!C 
-!C     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      COMMON /LB3/GTOL,STPMIN,STPMAX
 !C
       real(kind=dp) GTOL,ONE,ZERO,GNORM,DDOT,STP1,FTOL,STPMIN,STPMAX,STP,YS,YY,SQ,YR,BETA,XNORM
       INTEGER ITER,NFUN,POINT,ISPT,IYPT,MAXFEV,INFO,BOUND,NPT,CP,I,NFEV,INMC,IYCN,ISCN
@@ -255,7 +268,7 @@
   10  ITER= 0
       IF(N.LE.0.OR.M.LE.0) GO TO 196
       IF(GTOL.LE.1.D-04) THEN
-        if ( ionode ) WRITE ( stdout , 245 )
+        io_node WRITE ( stdout , 245 )
         GTOL=9.D-01
       ENDIF
       NFUN= 1

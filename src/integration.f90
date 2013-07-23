@@ -20,26 +20,28 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
-
-!WARNING
-!WARNING
 !================================================================================
 !
-! this subroutines are not clear at all. need more documentation and references.
-! example: leap-frog and verlet are not clearly distinguised
-! to be rigorous I should test all of them and compare to existing codes
+!> \file
+!! all routines related to dynamical integration of phase-space 
+!> \brief
+!! this subroutines are not clear at all. need more documentation and references.
+!! example: leap-frog and verlet are not clearly distinguised
+!! to be rigorous I should test all of them and compare to existing codes
 ! 
 !================================================================================
-!WARNING
 
 
-!*********************** SUBROUTINE prop_leap_frog ****************************
+! *********************** SUBROUTINE prop_leap_frog ****************************
 !
+!> \brief
 ! leap-frog algorithm  ( or verlet algorithm ) 
 !
-!******************************************************************************
-
-SUBROUTINE prop_leap_frog ( iastart , iaend )
+!> \todo
+!! leap-frog and verlet are not clearly distinguished !!
+!
+! ******************************************************************************
+SUBROUTINE prop_leap_frog ( iastart , iaend , ikstart , ikend )
 
   USE constants,                ONLY :  dp 
   USE control,                  ONLY :  lpbc
@@ -52,6 +54,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
 
   ! global
   integer, intent(inout)                    :: iastart , iaend
+  integer, intent(inout)                    :: ikstart , ikend
 
   ! local
   integer                                   :: ia 
@@ -70,7 +73,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
   ! ==========================
   ! force + potential f(t)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
   ! ================================================= 
   !  r(t+dt) = 2 r(t) - r (t-dt) + f(t) dt*dt
@@ -116,13 +119,16 @@ SUBROUTINE prop_leap_frog ( iastart , iaend )
 END SUBROUTINE prop_leap_frog
 
 
-!*********************** SUBROUTINE prop_velocity_verlet **********************
+! *********************** SUBROUTINE prop_velocity_verlet **********************
 !
-! propagation for velocity-verlet algotithm (found a paper)
+!> \brief
+!! propagation for velocity-verlet algotithm (found a paper)
 !
-!******************************************************************************
-
-SUBROUTINE prop_velocity_verlet ( iastart , iaend )
+!> \todo
+!! test it relatively to prop_leap_frog
+!
+! ******************************************************************************
+SUBROUTINE prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm, rx, ry, rz, vx, vy, vz, fx, fy, fz
@@ -134,7 +140,8 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   implicit none
 
   ! global
-  integer, intent(inout) :: iastart , iaend !, list(250 * natm) , point(natm + 1)
+  integer, intent(inout) :: iastart , iaend 
+  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -167,7 +174,7 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
   ! ==============================================
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
@@ -188,13 +195,16 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend )
 
 END SUBROUTINE prop_velocity_verlet
 
-!*********************** SUBROUTINE nose_hoover_chain2 ************************
+! *********************** SUBROUTINE nose_hoover_chain2 ************************
 !
-! Nose-Hoover chain (two) see Frenkel-Smit
+!> \brief
+!! Nose-Hoover two chains
 !
-!******************************************************************************
-
-SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
+!> \note
+!! adapted from Frenkel and Smit
+!
+! ******************************************************************************
+SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz 
@@ -205,6 +215,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
 
   ! global
   integer, intent(inout) :: iastart , iaend 
+  integer, intent(inout) :: ikstart , ikend 
   ! local
   real(kind=dp)          :: kin , tempi
  
@@ -212,7 +223,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
 
   CALL chain_nh_2 ( kin , vxi1 , vxi2 , xi1 , xi2 )
 
-  CALL prop_pos_vel_verlet ( kin , iastart , iaend )
+  CALL prop_pos_vel_verlet ( kin , iastart , iaend , ikstart , ikend )
 
   CALL chain_nh_2( kin, vxi1, vxi2, xi1, xi2 ) 
 
@@ -226,11 +237,15 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend )
 
 END SUBROUTINE nose_hoover_chain2
 
-!*********************** SUBROUTINE chain_nh_2 ********************************
+! *********************** SUBROUTINE chain_nh_2 ********************************
 !
-! adapted from Frenkel and Smit
+!> \brief
+!! intermediate routine used by nose_hoover_chain2
 !
-!******************************************************************************
+!> \note
+!! adapted from Frenkel and Smit
+!
+! ******************************************************************************
 SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
 
   USE constants,                ONLY :  dp 
@@ -285,13 +300,13 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
 END SUBROUTINE chain_nh_2
 
 
-!*********************** SUBROUTINE prop_pos_vel_verlet ***********************
+! *********************** SUBROUTINE prop_pos_vel_verlet ***********************
 !
-! propagates position and position in the velet algorithm
+!> \brief
+!! propagates position and position in the velet algorithm
 !
-!******************************************************************************
-
-SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
+! ******************************************************************************
+SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend , ikstart, ikend )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz 
@@ -304,6 +319,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   ! global
   real(kind=dp), intent (out) :: kin
   integer, intent(inout) :: iastart , iaend 
+  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -323,7 +339,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
   kin  = 0.0_dp
   do ia = 1 , natm
@@ -342,13 +358,16 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend )
 
 END SUBROUTINE prop_pos_vel_verlet
 
-!*********************** SUBROUTINE beeman ************************************
+! *********************** SUBROUTINE beeman ************************************
 !
-! D. Beeman "Some multistep methods for use in molecular dynamics calculations",
-! Journal of Computational Physics 20 pp. 130-139 (1976)
+!> \brief
+!! D. Beeman "Some multistep methods for use in molecular dynamics calculations",
 !
-!******************************************************************************
-SUBROUTINE beeman ( iastart , iaend )
+!> \note
+!! Journal of Computational Physics 20 pp. 130-139 (1976)
+!
+! ******************************************************************************
+SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz , fxs , fys , fzs 
@@ -361,6 +380,7 @@ SUBROUTINE beeman ( iastart , iaend )
 
   ! global
   integer, intent(inout) :: iastart , iaend 
+  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -399,7 +419,7 @@ SUBROUTINE beeman ( iastart , iaend )
   ! ===========================
   ! force + potential  f(t+dt)
   ! ===========================
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
   ! ==================================================================
   ! v (t+dt) = v (t) + ( 1/3 f(t+dt) + 5/6 f(t) - 1/6  f(t-dt) )  dt

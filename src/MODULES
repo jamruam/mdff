@@ -1,8 +1,0 @@
-module load fortran/intel
-module load openmpi/intel
-module load mkl
-module load lapack/intel
-
-#-lmkl_lapack -lmkl -lsvml -lguide -lpthread 
-#-lscalapack -lfblacs -lcblacs -lblacs -lmkl_lapack -lmkl -lguide -lpthread
-#

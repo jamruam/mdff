@@ -17,6 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
 MODULE vacf 
@@ -50,12 +51,11 @@ MODULE vacf
 CONTAINS
 
 
-!*********************** SUBROUTINE vacf_init *********************************
+! *********************** SUBROUTINE vacf_init *********************************
 !
 ! init vacf calc
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_init
 
   USE io_file,  ONLY :  stdin , stdout , ionode
@@ -80,10 +80,10 @@ SUBROUTINE vacf_init
   OPEN ( stdin , file = filename)
   READ ( stdin , vacftag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
+   io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : vacftag wrong tag'
+   io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : vacftag wrong tag'
    STOP
   endif
 
@@ -98,12 +98,11 @@ SUBROUTINE vacf_init
 END SUBROUTINE vacf_init
 
 
-!*********************** SUBROUTINE vacf_default_tag **************************
+! *********************** SUBROUTINE vacf_default_tag **************************
 !
 ! set default values to vacf tag
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_default_tag
 
   implicit none
@@ -115,12 +114,11 @@ SUBROUTINE vacf_default_tag
  
 END SUBROUTINE vacf_default_tag
 
-!*********************** SUBROUTINE vacf_check_tag ****************************
+! *********************** SUBROUTINE vacf_check_tag ****************************
 !
 ! check vacf tag values
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_check_tag
 
   implicit none
@@ -130,12 +128,11 @@ SUBROUTINE vacf_check_tag
 END SUBROUTINE vacf_check_tag
 
 
-!*********************** SUBROUTINE vacf_print_info ***************************
+! *********************** SUBROUTINE vacf_print_info ***************************
 !
 ! print info to outputs (stdout)
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_print_info(kunit)
 
   USE io_file,  ONLY :  ionode 
@@ -146,7 +143,7 @@ SUBROUTINE vacf_print_info(kunit)
   integer :: kunit
 
   if ( ionode ) then
-         WRITE ( kunit ,'(a)')           ''
+         blankline(kunit)
          WRITE ( kunit ,'(a)')           'velocity auto-correlation function   : '
          WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
          WRITE ( kunit ,'(a,i5)')        'it0                                  = ',it0
@@ -157,12 +154,11 @@ SUBROUTINE vacf_print_info(kunit)
  
 END SUBROUTINE vacf_print_info
 
-!*********************** SUBROUTINE vacf_alloc ********************************
+! *********************** SUBROUTINE vacf_alloc ********************************
 ! 
 ! allocate / deallocate principal arrays for vacf
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_alloc
 
   USE md,       ONLY :  dt
@@ -192,12 +188,11 @@ SUBROUTINE vacf_alloc
  
 END SUBROUTINE vacf_alloc
 
-!*********************** SUBROUTINE vacf_dealloc ******************************
+! *********************** SUBROUTINE vacf_dealloc ******************************
 ! 
 ! allocate / deallocate principal arrays for vacf
 ! 
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_dealloc
 
   implicit none
@@ -213,14 +208,13 @@ SUBROUTINE vacf_dealloc
  
 END SUBROUTINE vacf_dealloc
 
-!*********************** SUBROUTINE vacf_main *********************************
+! *********************** SUBROUTINE vacf_main *********************************
 !
 ! adapted from Frenkel and Smit :
 !
 ! velocity autocorrelation function
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_main 
 
   USE control,          ONLY :  cutshortrange 
@@ -277,12 +271,11 @@ SUBROUTINE vacf_main
 
 END SUBROUTINE vacf_main
 
-!*********************** SUBROUTINE vacf_write ********************************
+! *********************** SUBROUTINE vacf_write ********************************
 !
 ! write vacf and fourier transform = > dos
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vacf_write_output
 
   USE config,   ONLY :  natm 

@@ -17,8 +17,13 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
+! *********************** MODULE calc_thermo ***********************************
+!> \brief
+!! Module related to thermodynamic quantities
+! ******************************************************************************
 MODULE thermodynamic
 
   USE constants,                ONLY :  dp
@@ -26,67 +31,65 @@ MODULE thermodynamic
 
   implicit none
 
-  real(kind=dp) :: engunit        ! energy units
+  real(kind=dp) :: engunit        !< energy units
 
-  real(kind=dp) :: e_tot          ! total energy  ( potential + kinetic )
+  real(kind=dp) :: e_tot          !< total energy  ( potential + kinetic )
   real(kind=dp) :: u_tot          ! total potential energy 
   
-  real(kind=dp) :: e_kin          ! kinetic energy
-  real(kind=dp) :: u_lj           ! potential energy from lennard_jones interaction
-  real(kind=dp) :: u_morse        ! potential energy from morse interaction
+  real(kind=dp) :: e_kin          !< kinetic energy
+  real(kind=dp) :: u_lj           !< potential energy from lennard_jones interaction
+  real(kind=dp) :: u_morse        !< potential energy from morse interaction
   real(kind=dp) :: u_coul_tot
-!  real(kind=dp) :: u_coul_qq      ! potential energy from coulombic interaction 
-!  real(kind=dp) :: u_coul_dd      ! potential energy from coulombic interaction 
-!  real(kind=dp) :: u_coul_qd      ! potential energy from coulombic interaction
+!  real(kind=dp) :: u_coul_qq      !< potential energy from coulombic interaction 
+!  real(kind=dp) :: u_coul_dd      !< potential energy from coulombic interaction 
+!  real(kind=dp) :: u_coul_qd      !< potential energy from coulombic interaction
   real(kind=dp) :: u_pol 
 
-  real(kind=dp) :: e_kin_r        ! kinetic energy
-  real(kind=dp) :: temp_r         ! temperature ( from kinetic energy )  
-  real(kind=dp) :: u_lj_r         ! potential energy from lennard_jones interaction
-  real(kind=dp) :: u_morse_r      ! potential energy from morse interaction
-  real(kind=dp) :: u_coul_r       ! potential energy from coulombic interaction 
+  real(kind=dp) :: e_kin_r        !< kinetic energy
+  real(kind=dp) :: temp_r         !< temperature ( from kinetic energy )  
+  real(kind=dp) :: u_lj_r         !< potential energy from lennard_jones interaction
+  real(kind=dp) :: u_morse_r      !< potential energy from morse interaction
+  real(kind=dp) :: u_coul_r       !< potential energy from coulombic interaction 
 
 
-  real(kind=dp) :: vir_tot        ! total virial
-  real(kind=dp) :: vir_lj         ! virial of lj interaction
-  real(kind=dp) :: vir_morse      ! virial of morse interaction
-  real(kind=dp) :: vir_coul_tot   ! virial of coulombic interaction
-!  real(kind=dp) :: vir_coul_qq    ! virial of coulombic interaction
-!  real(kind=dp) :: vir_coul_dd    ! virial of coulombic interaction
-!  real(kind=dp) :: vir_coul_qd    ! virial of coulombic interaction
+  real(kind=dp) :: vir_tot        !< total virial
+  real(kind=dp) :: vir_lj         !< virial of lj interaction
+  real(kind=dp) :: vir_morse      !< virial of morse interaction
+  real(kind=dp) :: vir_coul_tot   !< virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_qq    !< virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_dd    !< virial of coulombic interaction
+!  real(kind=dp) :: vir_coul_qd    !< virial of coulombic interaction
 
-  real(kind=dp) :: pvirial_tot    ! virial correction to the pressure
-  real(kind=dp) :: pvirial_lj     ! virial correction to the pressure
-  real(kind=dp) :: pvirial_coul   ! virial correction to the pressure
+  real(kind=dp) :: pvirial_tot    !< virial correction to the pressure
+  real(kind=dp) :: pvirial_lj     !< virial correction to the pressure
+  real(kind=dp) :: pvirial_coul   !< virial correction to the pressure
 
-  real(kind=dp) :: pressure_tot   ! total pressure
-  real(kind=dp) :: pressure_lj    ! pressure from lj interactions
-  real(kind=dp) :: pressure_coul  ! pressure from coulombic interactions
+  real(kind=dp) :: pressure_tot   !< total pressure
+  real(kind=dp) :: pressure_lj    !< pressure from lj interactions
+  real(kind=dp) :: pressure_coul  !< pressure from coulombic interactions
 
-  TYPE (accu) acc_e_tot          ! total energy  ( potential + kinetic ) 
-  TYPE (accu) acc_u_tot          ! total potential energy 
+  TYPE (accu) acc_e_tot          !< total energy  ( potential + kinetic ) 
+  TYPE (accu) acc_u_tot          !< total potential energy 
   
-  TYPE (accu) acc_e_kin_r        ! kinetic energy
-  TYPE (accu) acc_u_lj_r         ! potential energy from lennard_jones interaction
-  TYPE (accu) acc_u_coul_r       ! potential energy from coulombic interaction 
-  TYPE (accu) acc_temp_r             ! temperature ( from kinetic energy )  
+  TYPE (accu) acc_e_kin_r        !< kinetic energy
+  TYPE (accu) acc_u_lj_r         !< potential energy from lennard_jones interaction
+  TYPE (accu) acc_u_coul_r       !< potential energy from coulombic interaction 
+  TYPE (accu) acc_temp_r         !< temperature ( from kinetic energy )  
 
-  TYPE (accu) acc_vir_tot        ! total virial
-  TYPE (accu) acc_vir_lj         ! virial of lj interaction
-  TYPE (accu) acc_vir_coul       ! virial of coulombic interaction
+  TYPE (accu) acc_vir_tot        !< total virial
+  TYPE (accu) acc_vir_lj         !< virial of lj interaction
+  TYPE (accu) acc_vir_coul       !< virial of coulombic interaction
 
-  TYPE (accu) acc_pressure_tot   ! total pressure
-  TYPE (accu) acc_pressure_lj    ! pressure from lj interactions
-  TYPE (accu) acc_pressure_coul  ! pressure from coulombic interactions
+  TYPE (accu) acc_pressure_tot   !< total pressure
+  TYPE (accu) acc_pressure_lj    !< pressure from lj interactions
+  TYPE (accu) acc_pressure_coul  !< pressure from coulombic interactions
 
 CONTAINS
 
-!*********************** SUBROUTINE calc_thermo *******************************
-!
-! calculation of the main thermodynamic quantities 
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE calc_thermo *******************************
+!> \brief
+!! calculation of the main thermodynamic quantities 
+! ******************************************************************************
 SUBROUTINE calc_thermo
 
   USE control,                  ONLY :  lreduced 
@@ -137,11 +140,10 @@ SUBROUTINE calc_thermo
 END SUBROUTINE calc_thermo
 
 
-!*********************** SUBROUTINE init_general_accumulator ******************
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE init_general_accumulator ******************
+!> \brief
+!! initializationj of accumulators
+! ******************************************************************************
 SUBROUTINE init_general_accumulator
 
   implicit none
@@ -198,11 +200,12 @@ SUBROUTINE init_general_accumulator
 
 END SUBROUTINE init_general_accumulator
 
-!*********************** SUBROUTINE general_accumulator ***********************
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE general_accumulator ***********************
+!> \brief
+!! add values to accumulators
+!> \note
+!! not really used 
+! ******************************************************************************
 SUBROUTINE general_accumulator
 
   implicit none
@@ -259,13 +262,11 @@ SUBROUTINE general_accumulator
 
 END SUBROUTINE general_accumulator
 
-!*********************** SUBROUTINE write_thermo ******************************
-!
-! write thermodynamic quantities to file OSZIFF or print to standard output 
-!
-!******************************************************************************
-
-SUBROUTINE write_thermo ( step , kunit , dummy )
+! *********************** SUBROUTINE write_thermo ******************************
+!> \brief
+!! write thermodynamic quantities to file OSZIFF or print to standard output 
+! ******************************************************************************
+SUBROUTINE write_thermo ( step , kunit , key , dummy )
 
   USE config,   ONLY :  simu_cell 
   USE md,       ONLY :  dt
@@ -274,8 +275,9 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
   implicit none
 
   ! global
-  integer, intent(in) :: kunit , step
-  real(kind=dp), intent(in), optional :: dummy
+  integer          , intent(in)           :: kunit , step
+  character(len=3) , intent (in)          :: key 
+  real(kind=dp)    , intent(in), optional :: dummy
 
   ! local 
   real(kind=dp) :: omega
@@ -284,18 +286,25 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
 
   call calc_thermo
 
-  if ( ionode ) then
-    if ( PRESENT ( dummy ) ) then
-      WRITE ( kunit , 200 ) &
-      step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
-      WRITE ( kunit , 201 ) &
-      step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
-    else
-      WRITE ( kunit , 100 ) &
-      step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
-      WRITE ( kunit , 101 ) &
-      step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
+  if ( key .eq. 'osz' ) then
+    if ( ionode ) then
+      if ( PRESENT ( dummy ) ) then
+        WRITE ( kunit , 200 ) &
+        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
+        WRITE ( kunit , 201 ) &
+        step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
+      else
+        WRITE ( kunit , 100 ) &
+        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
+        WRITE ( kunit , 101 ) &
+        step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
+      endif
     endif
+  endif
+  if ( key .eq. 'std' ) then
+    io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
+                                 e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
+                                 pressure_tot , pressure_lj , pressure_coul , omega , e_tot
   endif
 
  100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
@@ -307,15 +316,34 @@ SUBROUTINE write_thermo ( step , kunit , dummy )
  201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  dummy = ',E15.8)
 
+ 300 FORMAT(/ &
+              '  Thermodynamic information '/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  step                  = ',I9/ &
+     &        '  time                  = ',E15.8/ &
+     &        '  Ekin                  = ',E15.8/ &
+     &        '  Temp                  = ',E15.8/ &
+     &        '  Utot                  = ',E15.8/ &
+     &        '  U_lj                  = ',E15.8/ &
+     &        '  U_coul                = ',E15.8/ &
+     &        '  U_morse               = ',E15.8/ &
+     &        '  Pressure              = ',E15.8/ &
+     &        '  P_lj                  = ',E15.8/ &
+     &        '  P_coul                = ',E15.8/ &
+     &        '  volume                = ',E15.8/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  Etot                  = ',E15.8)
+
+
+
   return
 
 END SUBROUTINE write_thermo
 
-!*********************** SUBROUTINE write_average_thermo **********************
-!
-! write time average thermodynamic quantities to file OSZIFF or print to standard output 
-!
-!******************************************************************************
+! *********************** SUBROUTINE write_average_thermo **********************
+!> \brief
+!! write time average thermodynamic quantities to file OSZIFF or print to standard output 
+! ******************************************************************************
 
 SUBROUTINE write_average_thermo ( kunit )
 

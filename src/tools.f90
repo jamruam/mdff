@@ -17,17 +17,24 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug_vnl  ! verlet list debugging
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE estimate_alpha ****************************
+! *********************** SUBROUTINE estimate_alpha ****************************
 !
-! This routine estiate the alpha parameter in the Ewald summation.
-! This estimation is based on the cell size
+!> \brief
+!! This subroutine estimate the alpha parameter in the Ewald summation.
+!! This estimation is based on the cell size
+!
+!> \param[in]  epsw relative error target
+!> \param[in]  rcut radial cut-off in the real space summation 
+!> \param[out] alpha alpha parameter in the Ewald summation  
+!
+!> \note
 ! The parameter should be anyway optimised for each problem
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE estimate_alpha(alpha,epsw,rcut)
   
   USE constants,                ONLY :  dp
@@ -36,7 +43,8 @@ SUBROUTINE estimate_alpha(alpha,epsw,rcut)
   implicit none
 
   ! global
-  real(kind=dp) :: alpha , epsw , rcut
+  real(kind=dp) , intent (in)  :: epsw , rcut
+  real(kind=dp) , intent (out) :: alpha
   ! local 
   real(kind=dp) :: alpha2 , rcut2 , rcut3 , e
 
@@ -60,12 +68,22 @@ SUBROUTINE estimate_alpha(alpha,epsw,rcut)
 
 END SUBROUTINE estimate_alpha
 
-!*********************** SUBROUTINE accur_ES_frenkel_smit *********************
+! *********************** SUBROUTINE accur_ES_frenkel_smit *********************
 !
+!> \brief
+!! This subroutine estimate the alpha parameter and the number of cell 
+!! in reciprocal space to perform the Ewald summation.
+!! This estimation is adapted from frenkel and smit consideration 
 !
+!> \param[in]  epsw relative error target
+!> \param[in]  rc radial cut-off in the real space summation 
+!> \param[out] alpha alpha parameter in the Ewald summation  
+!> \param[out] nc number of cells in reciprocal space 3D  
 !
-!******************************************************************************
-
+!> \note
+! The parameter should be anyway optimised for each problem
+!
+! ******************************************************************************
 SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc ) 
 
   USE constants,                ONLY :  dp , pi
@@ -75,10 +93,10 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
   implicit none
 
   ! global
-  real(kind=dp) :: epsw
-  real(kind=dp) :: alpha
-  real(kind=dp) :: rc
-  integer :: nc ( 3 )
+  real(kind=dp) , intent (in)  :: epsw
+  real(kind=dp) , intent (in)  :: rc
+  integer       , intent (out) :: nc ( 3 )
+  real(kind=dp) , intent (out) :: alpha
   
   ! local
   real(kind=dp) :: s , ss , ra
@@ -107,35 +125,39 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
 
 END SUBROUTINE accur_ES_frenkel_smit
 
-!*********************** SUBROUTINE do_split **********************************
+! *********************** SUBROUTINE do_split **********************************
 !
-! this routine split the number of atoms in for each np procs
-! iastart and iaend are the atom index for proc myrank
-! WARNING : c'est moi qui l'ai fait ;)
+!> \brief
+!! this routine split the number of atoms into np procs
+!! iastart and iaend are the atom index for myrank task
 !
-! input : 
-!          *  n           = number of atoms
-!          *  mrank       = local index proc
-!          *  np          = number of procs  
-! output :
-!          *  iastart , iaend = starting and ending atom index for proc mrank
+!> \param[in]  n     number of atoms
+!> \param[in]  mrank current task index
+!> \param[in]  np    number of mpi tasks
+!> \param[out] iastart , iaend atom decomposition index for parallelization
 !
-!******************************************************************************
-
-SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
+!> \author
+!! FMV
+!
+! ******************************************************************************
+SUBROUTINE do_split ( n , mrank , np , iastart , iaend , decomposition )
 
   USE io_file,                  ONLY :  ionode , stdout
 
   implicit none
 
   ! global
-  integer :: np , mrank
-  integer :: iastart , iaend , n
+  integer :: n       !< number of atoms to be splitted
+  integer :: np      !< number of mpi tasks
+  integer :: mrank   !< local index proc
+  integer :: iastart !< starting index ( for atoms )
+  integer :: iaend   !< ending index   ( for atoms )
+  character(len=5) :: decomposition
 
   ! local 
-  integer :: imin,imax
-  integer :: istartV(0:np-1),iendV(0:np-1)
-  integer :: splitnumberV(0:np-1),isteps,x,y,me
+  integer :: imin,imax                          
+  integer :: istartV(0:np-1),iendV(0:np-1)      
+  integer :: splitnumberV(0:np-1),isteps,x,y,me 
 
   imin = 1
   imax = n      
@@ -165,9 +187,9 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
   iaend = iendV(mrank)
 
   if ( ionode ) then
-    WRITE ( stdout ,'(a)')      'paralelisation - atom decomposition'
+    WRITE ( stdout ,'(a,a5,a)')      'paralelisation - ',decomposition,' decomposition'
     do me = 0,np-1
-      WRITE ( stdout ,'(a5,i4,a5,i8,a3,i8)')      'rank = ',me,'atom',istartV(me),'to',iendV(me)
+      WRITE ( stdout ,'(a5,i4,a5,i8,a3,i8)')      'rank = ',me,decomposition,istartV(me),'to',iendV(me)
     enddo     
   endif
 
@@ -176,15 +198,19 @@ SUBROUTINE do_split ( n , mrank , np , iastart , iaend )
 END SUBROUTINE do_split
 
 
-!*********************** SUBROUTINE distance_tab ******************************
+! *********************** SUBROUTINE distance_tab ******************************
 !
-! this subroutine calculates distance between atoms and check if the smallest distance 
-! is not too small ( i.e < sigmaAA*0.001_dp) 
+!> \brief
+!! this subroutine calculates distance between atoms and 
+!! check if the smallest distance is not too small ( i.e < sigmaAA*0.001_dp) 
 !
-! 01/03/13 : do not check distance to wannier centers
+!> \author
+!!  FMV
 !
-!******************************************************************************
-
+!> \history
+!! 01/03/13 : do not check distance to wannier centers
+!
+! ******************************************************************************
 SUBROUTINE distance_tab 
 
   USE constants,                ONLY :  dp
@@ -248,7 +274,7 @@ SUBROUTINE distance_tab
         rij = rij / resdis
         kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          if ( ionode ) WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
+          io_node WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -263,7 +289,7 @@ SUBROUTINE distance_tab
     if  ( any(lwfc .eq. -1) )  then
     WRITE ( stderr ,'(a)')       'WARNING : we do not check distance to wannier centers'
     endif
-    WRITE ( stderr ,'(a)')       ''
+    blankline(stderr)
   endif
   
   deallocate(dist)
@@ -279,33 +305,35 @@ SUBROUTINE distance_tab
 END SUBROUTINE distance_tab
 
 
-!*********************** SUBROUTINE vnlist_pbc ********************************
+! *********************** SUBROUTINE vnlist_pbc ********************************
 !
-! verlet list subroutine :
-! Periodic boundaries condition version ( minimum image convention ) 
-! Parallelized and tested
+!> \brief
+!! verlet list subroutine :
+!! Periodic boundaries condition version ( minimum image convention ) 
+!! Parallelized and tested
 ! 
-! input :
-!          iastart , iaend : index of atom decomposition ( parallel )
+!> \decription
+!! 
+!! output:
+!!  
+!!          point    : array of size natm+1 
+!!                     gives the starting and finishing index of array list for a given atom i
+!!                     jbegin = point(i)  jend = point(i+1) - 1
+!!          list     : index list of neighboring atoms
+!!
+!! how to use it :
+!!                   do ia = 1, natm
+!!                     jbegin = point(i)
+!!                     jend = point(i+1) - 1
+!!                     do jvnl = jbegin , jend
+!!                       ja = list ( jvnl ) 
+!!                       then ia en ja are neighboors   
+!!                     enddo
+!!                   enddo
 !
-! output:
-!  
-!          point           : array of size natm+1 
-!                            gives the starting and finishing index of array list for a given atom i
-!                            jbegin = point(i)  jend = point(i+1) - 1
-!          list            : index list of neighboring atoms
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
 !
-! how to use it :
-!                          do ia = 1, natm
-!                            jbegin = point(i)
-!                            jend = point(i+1) - 1
-!                            do jvnl = jbegin , jend
-!                              ja = list ( jvnl ) 
-!                              then ia en ja are neighboors   
-!                            enddo
-!                          enddo
-!
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   USE constants,                ONLY :  dp
@@ -367,7 +395,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
           icount = icount + 1
           k = k+1
           if ( icount .lt. 1 .or. icount-1 .gt. vnlmax*natm ) then
-            if ( ionode ) WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
+            io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
             STOP
           endif
 
@@ -388,13 +416,15 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
 
 END SUBROUTINE vnlist_pbc
 
-!*********************** SUBROUTINE vnlist_nopbc ******************************
+! *********************** SUBROUTINE vnlist_nopbc ******************************
 !
-! no periodic boundaries condition version
-! same as vnlist_pbc but no periodic boundaries
+!> \brief
+!! no periodic boundaries condition version of verlet list
+!! same as vnlist_pbc but no periodic boundaries
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+! ******************************************************************************
 SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
   USE constants, ONLY : dp
@@ -450,12 +480,14 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
 
 END SUBROUTINE vnlist_nopbc
 
-!*********************** SUBROUTINE vnlistcheck *******************************
+! *********************** SUBROUTINE vnlistcheck *******************************
 !
-! check wether verlet list should be updated
+!> \brief
+!! check wether verlet list should be updated
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+! ******************************************************************************
 SUBROUTINE vnlistcheck ( iastart , iaend ) 
 
   USE constants,                ONLY :  dp
@@ -528,13 +560,16 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
 
 END SUBROUTINE vnlistcheck
 
-!*********************** SUBROUTINE print_tensor ******************************
+! *********************** SUBROUTINE print_tensor ******************************
 !
-! subroutine which print an (3,3) array in a tensor format 
-! the trace is also given in output 
+!> \brief
+!! subroutine which print an (3,3) array in a tensor format 
+!! the trace is also given in output 
 !
-!******************************************************************************
-
+!> \param[in] tens tensor being printed
+!> \param[in] key tensr label
+!
+! ******************************************************************************
 SUBROUTINE print_tensor( tens , key )
 
   USE constants, ONLY : dp
@@ -551,26 +586,25 @@ SUBROUTINE print_tensor( tens , key )
   integer :: i
 
   if ( ionode ) then
-    WRITE ( stdout ,'(a)') ''
+    blankline(stdout)
     WRITE ( stdout ,'(a)') key
     do i = 1 , 3
       WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
     WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0_dp , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0_dp / dble(natm),')'
-    WRITE ( stdout , '(a)' ) ''
+    blankline(stdout)
   endif
 
   return
 
 END SUBROUTINE print_tensor
 
-!*********************** SUBROUTINE print_tensor_6x6 **************************
+! *********************** SUBROUTINE print_tensor_6x6 **************************
 !
-! subroutine which print an (6,6) array in a tensor format 
+! subroutine which print an (n,n) array in a tensor format 
 ! the trace is also given in output 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE print_tensor_nxn ( tens , key , n )
 
   USE constants,                ONLY :  dp
@@ -590,42 +624,41 @@ SUBROUTINE print_tensor_nxn ( tens , key , n )
   
 
   if ( ionode ) then
-    WRITE ( stdout ,'(a)') ''
+    blankline(stdout)
     WRITE ( stdout ,'(a)') key
     do i = 1 , n
       WRITE ( stdout ,'(<n>e16.8)') ( tens(i,j) , j=1,n)
       trace = trace + tens ( i , i ) 
     enddo
     WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',( trace )/3.0_dp , '(', ( trace ) / 3.0_dp / dble(natm),')'
-    WRITE ( stdout , '(a)' ) ''
+    blankline(stdout)
   endif
 
   return
 
 END SUBROUTINE print_tensor_nxn
 
-!*********************** SUBROUTINE merge_1 ***********************************
+! *********************** SUBROUTINE merge_1 ***********************************
 !
 !  adapted from :
 !  http://rosettacode.org/wiki/Sorting_algorithms/Merge_sort#Fortran
 ! 
 !  I changed the routine to keep the initial labels during the sort process
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
   
   USE constants, ONLY : dp
   implicit none
     
   ! global
-  integer, intent(in)              :: NA,NB,NC                  ! Normal usage: NA+NB = NC
-  real(kind=dp), intent(in out)    :: A(NA)        ! B overlays C(NA+1:NC)
-  real(kind=dp), intent(in)        :: B(NB)
-  real(kind=dp), intent(in out)    :: C(NC)
-  integer, intent(in out)          :: labelA(NA)       
-  integer, intent(in)              :: labelB(NB)
-  integer, intent(in out)          :: labelC(NC)
+  integer       , intent(in)       :: NA,NB,NC     ! Normal usage: NA+NB = NC
+  real(kind=dp) , intent(inout)    :: A(NA)        ! B overlays C(NA+1:NC)
+  real(kind=dp) , intent(in)       :: B(NB)
+  real(kind=dp) , intent(inout)    :: C(NC)
+  integer       , intent(inout)    :: labelA(NA)       
+  integer       , intent(in)       :: labelB(NB)
+  integer       , intent(inout)    :: labelC(NC)
 
   ! local
   integer :: i,j,k
@@ -654,7 +687,7 @@ SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
  
 END SUBROUTINE merge_1
  
-!*********************** SUBROUTINE merge_sort ********************************
+! *********************** SUBROUTINE merge_sort ********************************
 !
 !  adapted from :
 !  http://rosettacode.org/wiki/Sorting_algorithms/Merge_sort#Fortran
@@ -663,7 +696,6 @@ END SUBROUTINE merge_1
 !
 !  A : input array of size N
 !  labela : 1 --- N
-!
 !
 ! !example merge_sort
 !  a(1)=6.0
@@ -680,8 +712,7 @@ END SUBROUTINE merge_1
 !  write(*,*) 'after1 ',a
 
 !
-!******************************************************************************
-
+! ******************************************************************************
 RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
   
   USE constants, ONLY : dp
@@ -727,14 +758,13 @@ RECURSIVE SUBROUTINE merge_sort(A,N,T,labela,labelt)
  
 END SUBROUTINE merge_sort
 
-!*********************** SUBROUTINE expro *************************************
+! *********************** SUBROUTINE expro *************************************
 !
 ! EXPRO
 ! caclulates the x-product of two vectors
 ! adapted from VASP ;) 
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE expro (H,U1,U2)
 
   USE constants, ONLY : dp
@@ -749,7 +779,7 @@ SUBROUTINE expro (H,U1,U2)
 
 END SUBROUTINE
  
-!*********************** SUBROUTINE print_config_sample ***********************
+! *********************** SUBROUTINE print_config_sample ***********************
 !
 ! print a sample of the configurations (pos , vel , force ) 
 ! essentially for debug purpose
@@ -757,8 +787,7 @@ END SUBROUTINE
 ! input : 
 !          time ,rank :  just to have some information in output
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE print_config_sample ( time , rank )
 
   USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
@@ -774,7 +803,7 @@ SUBROUTINE print_config_sample ( time , rank )
   integer :: ia , rank
 
   if ( myrank.eq.rank ) then
-       WRITE ( stdout ,'(a)') '==================================================================================================================================='
+       bigseparator_noionode(stdout) 
        WRITE ( stdout ,'(a)') 'debug :  SAMPLE OF THE CONFIGIURATION '
        WRITE ( stdout ,'(a5,i10)') 'time = ',time
        WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
@@ -791,8 +820,8 @@ SUBROUTINE print_config_sample ( time , rank )
        WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
        ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
         rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm )
-       WRITE ( stdout ,'(a)') ' '
-       WRITE ( stdout ,'(a)') '==================================================================================================================================='
+       blankline(stdout) 
+       bigseparator_noionode(stdout) 
   endif
 
   return
@@ -800,10 +829,9 @@ SUBROUTINE print_config_sample ( time , rank )
 END SUBROUTINE print_config_sample
 
  
-!*********************** SUBROUTINE print_general_info ************************
+! *********************** SUBROUTINE print_general_info ************************
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE print_general_info (kunit)
 
   USE io_file,  ONLY :  ionode 
@@ -817,7 +845,7 @@ SUBROUTINE print_general_info (kunit)
   integer :: i 
 
   if ( ionode ) then
-    WRITE ( kunit ,'(a)')          ''
+    blankline(kunit)
     WRITE ( kunit ,'(a)')          'Remind some parameters of the system:'
     WRITE ( kunit ,'(a,i5)')       'natm            = ', natm
     WRITE ( kunit ,'(a,i5)')       'ntype           = ', ntype
@@ -831,12 +859,12 @@ SUBROUTINE print_general_info (kunit)
 END SUBROUTINE print_general_info 
 
 
-!*********************** SUBROUTINE dumb_guy **********************************
+! *********************** SUBROUTINE dumb_guy **********************************
 !
-!  This subroutine print out the dumb guy!
-!  Here is the guy ...
+!> \brief
+!!  This subroutine print out the dumb guy!
 !
-!******************************************************************************
+! ******************************************************************************
 
 SUBROUTINE dumb_guy(kunit)
 
@@ -846,6 +874,7 @@ SUBROUTINE dumb_guy(kunit)
 
   integer :: kunit
 
+!  Here is the guy ...
   if ( ionode ) then
      WRITE ( kunit ,'(a)') '                            \\|//                            '
      WRITE ( kunit ,'(a)') '                           -(o o)-                           '
@@ -856,11 +885,11 @@ SUBROUTINE dumb_guy(kunit)
 
 END SUBROUTINE dumb_guy
 
-!*********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE *********************
+! *********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE *********************
 !
 !
 !
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
 
   USE constants, ONLY : dp
@@ -886,12 +915,11 @@ SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
 
 END SUBROUTINE MPI_ALL_REDUCE_DOUBLE
 
-!*********************** SUBROUTINE MPI_ALL_REDUCE_INTEGER ********************
+! *********************** SUBROUTINE MPI_ALL_REDUCE_INTEGER ********************
 !
 !
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE MPI_ALL_REDUCE_INTEGER ( vec_result , ndim )
 
   implicit none
@@ -916,12 +944,11 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER ( vec_result , ndim )
 
 END SUBROUTINE MPI_ALL_REDUCE_INTEGER
 
-!*********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR **************
+! *********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR **************
 !
 !
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
 
   USE constants, ONLY : dp

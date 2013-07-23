@@ -17,10 +17,16 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 ! ======= Hardware =======
 
-
+! *********************** MODULE msd *******************************************
+!
+!> \brief
+!! module related mean square diplacement calculation
+!
+! ******************************************************************************
 MODULE msd
 
   USE constants,  ONLY : dp
@@ -43,12 +49,12 @@ MODULE msd
 
 CONTAINS
 
-!*********************** SUBROUTINE msd_init **********************************
+! *********************** SUBROUTINE msd_init **********************************
 !
-! mean square diplacement initialisation
+!> \brief
+!! mean square diplacement initialisation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_init
 
   USE io_file,  ONLY :  stdin, stdout, ionode
@@ -75,10 +81,10 @@ SUBROUTINE msd_init
   OPEN ( stdin , file = filename)
   READ ( stdin , msdtag, iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag section is absent'
+   io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : msdtag wrong tag'
+   io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : msdtag wrong tag'
    STOP
   endif
 
@@ -93,12 +99,12 @@ SUBROUTINE msd_init
 END SUBROUTINE msd_init
 
 
-!*********************** SUBROUTINE msd_default_tag ***************************
+! *********************** SUBROUTINE msd_default_tag ***************************
 !
-! set default values to msd tags
+!> \brief
+!! set default values to msd tags
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_default_tag
 
   implicit none
@@ -113,12 +119,12 @@ END SUBROUTINE msd_default_tag
 
 
 
-!*********************** SUBROUTINE msd_check_tag *****************************
+! *********************** SUBROUTINE msd_check_tag *****************************
 !
-! check msd tag values
+!> \brief
+!! check msd tag values
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_check_tag
 
   implicit none
@@ -128,12 +134,12 @@ SUBROUTINE msd_check_tag
 END SUBROUTINE msd_check_tag
 
 
-!*********************** SUBROUTINE msd_print_info ****************************
+! *********************** SUBROUTINE msd_print_info ****************************
 !
-! print msd information to standard output
+!> \brief
+!! print msd information to standard output
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_print_info(kunit)
 
   USE io_file,  ONLY :  ionode 
@@ -144,12 +150,12 @@ SUBROUTINE msd_print_info(kunit)
   integer :: kunit
 
   if ( ionode  ) then
-                               WRITE ( kunit ,'(a)')           ''
-                               WRITE ( kunit ,'(a)')           'mean square displacement:'
-                               WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
-                               WRITE ( kunit ,'(a,i10)')       'nblock                               = ',nblock
-                               WRITE ( kunit ,'(a,i10)')       'ibmax                                = ',ibmax
-                               WRITE ( kunit ,'(a)')           'output file                          : MSDFF'
+    blankline(kunit)
+    WRITE ( kunit ,'(a)')           'mean square displacement:'
+    WRITE ( kunit ,'(a,f10.4)')     'tdifmax                              = ',tdifmax
+    WRITE ( kunit ,'(a,i10)')       'nblock                               = ',nblock
+    WRITE ( kunit ,'(a,i10)')       'ibmax                                = ',ibmax
+    WRITE ( kunit ,'(a)')           'output file                          : MSDFF'
   endif
 
   return 
@@ -157,12 +163,12 @@ SUBROUTINE msd_print_info(kunit)
 END SUBROUTINE msd_print_info
 
 
-!*********************** SUBROUTINE msd_alloc *********************************
+! *********************** SUBROUTINE msd_alloc *********************************
 !
-! allocate and initialize variables
+!> \brief
+!! allocate and initialize variables
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_alloc
 
   USE md,         ONLY :  dt
@@ -198,12 +204,12 @@ SUBROUTINE msd_alloc
 END SUBROUTINE msd_alloc
 
 
-!*********************** SUBROUTINE msd_dealloc *******************************
+! *********************** SUBROUTINE msd_dealloc *******************************
 !
-! deallocate variables
+!> \brief
+!! deallocate variables
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_dealloc
 
 
@@ -219,13 +225,15 @@ SUBROUTINE msd_dealloc
  
 END SUBROUTINE msd_dealloc
 
-!*********************** SUBROUTINE msd_main **********************************
+! *********************** SUBROUTINE msd_main **********************************
 !
-! Determine the mean square displacement using Algorithm 9
-! Adapted from Frenkel and Smit
+!> \brief
+!! Determine the mean square displacement using Algorithm 9
 !
-!******************************************************************************
-
+!> \note
+!! Adapted from Frenkel and Smit
+!
+! ******************************************************************************
 SUBROUTINE msd_main ( nmsd )
  
   USE config,     ONLY :  natm , vx , vy , vz
@@ -344,12 +352,12 @@ SUBROUTINE msd_main ( nmsd )
 END SUBROUTINE msd_main
 
 
-!*********************** SUBROUTINE msd_write_output **************************
+! *********************** SUBROUTINE msd_write_output **************************
 !
-! write results to file MSDFF
+!> \brief
+!! write results to file MSDFF
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE msd_write_output ( quite ) 
 
   USE io_file,    ONLY :  ionode , kunit_MSDFF , stdout

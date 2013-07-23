@@ -17,6 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 !#define debug_units
 !#define debug_multipole_ES
@@ -28,13 +29,10 @@
 !#define debug_para
 ! ======= Hardware =======
 
-!*********************** MODULE field *****************************************
-!
-! field module : 
-! 
-!
-!******************************************************************************
-
+! *********************** MODULE field *****************************************
+!> \brief
+!! Module related to force-field calculation
+! ******************************************************************************
 MODULE field 
 
   USE constants,                        ONLY :  dp 
@@ -44,18 +42,19 @@ MODULE field
 
   implicit none
 
-  real(kind=dp)     :: utail               ! long-range correction of short-range interaction 
-  character(len=60) :: units 
+  real(kind=dp)     :: utail               !< long-range correction of short-range interaction 
+  character(len=60) :: units               !< energy units currently used 
   character(len=60) :: units_allowed(5)
   data                 units_allowed / 'eV' , 'K' , 'kcal' , 'kJ' , 'internal' /  ! see define_units 
-  character(len=60) :: ctrunc
-  character(len=60) :: ctrunc_allowed(3)                                          ! truncation of bmlj 
-  data                 ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /       ! see initialize_param_bmlj
-  integer           :: trunc                                                      ! integer definition of truncation 
+  character(len=60) :: ctrunc                                                     !< truncation of bmlj
+  character(len=60) :: ctrunc_allowed(3)                                          !< truncation of bmlj 
+  data                 ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /       !< see initialize_param_bmlj
+  integer           :: trunc                                                      !< integer definition of truncation 
 
-  logical, SAVE     :: lKA               ! Kob-Andersen model for BMLJ                        
-  logical, SAVE     :: lautoES           ! auto-determination of Ewald parameter from epsw ( accuracy)
-  logical, SAVE     :: lwrite_dip_wfc    ! write dipoles from wannier centers to file
+  logical, SAVE     :: lKA               !< use Kob-Andersen model for BMLJ                        
+  logical, SAVE     :: lautoES           !< auto-determination of Ewald parameter from epsw ( accuracy)
+  logical, SAVE     :: lwrite_dip_wfc    !< write dipoles from wannier centers to file
+  logical, SAVE     :: lquiet            !< unknown
 
 
   ! ============================================================  
@@ -65,13 +64,12 @@ MODULE field
   !              eps    /    / sigma*\ q         / sigma*\ p  \
   !     V  =   ------- |  p | ------- |   -  q  | ------- |    |      sigma* = 2^(1/6)*sigma
   !             q - p   \    \   r   /           \   r   /    /
-
+  !
   ! main parameters
   real(kind=dp) :: qlj     ( ntypemax , ntypemax )
   real(kind=dp) :: plj     ( ntypemax , ntypemax )
   real(kind=dp) :: epslj   ( ntypemax , ntypemax )
   real(kind=dp) :: sigmalj ( ntypemax , ntypemax )
-  ! others ( see init_bmlj )
   real(kind=dp) :: rcutsq  ( ntypemax , ntypemax )  
   real(kind=dp) :: sigsq   ( ntypemax , ntypemax ) 
   real(kind=dp) :: epsp    ( ntypemax , ntypemax )
@@ -92,7 +90,6 @@ MODULE field
   real(kind=dp) :: rhomor  ( ntypemax , ntypemax )
   real(kind=dp) :: epsmor  ( ntypemax , ntypemax )
   real(kind=dp) :: sigmamor( ntypemax , ntypemax )
-  ! morse
   real(kind=dp) :: rs      ( ntypemax , ntypemax )
   real(kind=dp) :: fm      ( ntypemax , ntypemax )
 
@@ -102,39 +99,37 @@ MODULE field
   ! ============================================================  
 
   ! type dependent properties
-  real(kind=dp)    :: mass     ( ntypemax )            ! masses ( not yet )
-  real(kind=dp)    :: qch      ( ntypemax )            ! charges 
-  real(kind=dp)    :: quad_efg ( ntypemax )            ! quadrupolar moment
-  real(kind=dp)    :: dip      ( ntypemax , 3 )        ! dipoles 
-  real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    ! polarizability if lpolar( it ) .ne. 0  
-  integer          :: lpolar   ( ntypemax )            ! induced moment from pola 
-  integer          :: lwfc     ( ntypemax )            ! moment from wannier centers 
-  real(kind=dp)    :: conv_tol_ind                     ! convergence tolerance of the scf induced dipole calculation
-  real(kind=dp)    :: rcut_wfc                         ! radius cut-off for WFs searching
+  real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet )
+  real(kind=dp)    :: qch      ( ntypemax )            !< charges 
+  real(kind=dp)    :: quad_efg ( ntypemax )            !< quadrupolar moment
+  real(kind=dp)    :: dip      ( ntypemax , 3 )        !< dipoles 
+  real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    !< polarizability if lpolar( it ) .ne. 0  
+  integer          :: lpolar   ( ntypemax )            !< induced moment from pola 
+  integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
+  real(kind=dp)    :: conv_tol_ind                     !< convergence tolerance of the scf induced dipole calculation
+  real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
   
-  ! ewald sum
-  real(kind=dp)    :: epsw                             ! accuracy of the ewald sum 
-  real(kind=dp)    :: alphaES                          ! Ewald sum parameter 
-  real(kind=dp)    :: cutshortrange                    ! Ewald sum parameter cutoff shortrange 
-  integer          :: kES(3)                           ! kmax of ewald sum in reciprocal space
-  TYPE ( kmesh )   :: km_coul                          ! kpoint mesh ( see kspace.f90 )
+  ! ewald sum related 
+  real(kind=dp)    :: epsw                             !< accuracy of the ewald sum 
+  real(kind=dp)    :: alphaES                          !< Ewald sum parameter 
+  real(kind=dp)    :: cutshortrange                    !< Ewald sum parameter cutoff shortrange 
+  integer          :: kES(3)                           !< kmax of ewald sum in reciprocal space
+  TYPE ( kmesh )   :: km_coul                          !< kpoint mesh ( see kspace.f90 )
   ! direct sum
-  integer          :: ncelldirect                      ! number of cells  in the direct summation
-  TYPE ( rmesh )   :: rm_coul                          ! real space mesh ( see rspace.f90 )
+  integer          :: ncelldirect                      !< number of cells  in the direct summation
+  TYPE ( rmesh )   :: rm_coul                          !< real space mesh ( see rspace.f90 )
 
-  real(kind=dp), dimension ( : , : )     , allocatable :: ef_t
-  real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t
+  
+  real(kind=dp), dimension ( : , : )     , allocatable :: ef_t  !< electric field vector
+  real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t !< electric field gradient tensor
 
-  logical, SAVE    :: lquiet
 
 CONTAINS
 
-!*********************** SUBROUTINE field_default_tag *************************
-!
-! set default values to field tags
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE field_default_tag *************************
+!> \brief
+!! set default values to field tags
+! ******************************************************************************
 SUBROUTINE field_default_tag
 
   implicit none
@@ -180,12 +175,10 @@ SUBROUTINE field_default_tag
 END SUBROUTINE field_default_tag
 
 
-!*********************** SUBROUTINE field_check_tag ***************************
-!
-! check field tag values
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE field_check_tag ***************************
+!> \brief
+!! check field tag values
+! ******************************************************************************
 SUBROUTINE field_check_tag
 
   USE config,                   ONLY :  ntype
@@ -230,7 +223,7 @@ SUBROUTINE field_check_tag
   !  KOB-ANDERSEN MODEL --- PhysRevE 51-4626 (1995) 
   ! =================================================
   if ( lKA .and. ntype .ne. 2 ) then
-    if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR fieldtag lKA should be used with 2 differents types'
+    io_node WRITE ( stdout , '(a)' ) 'ERROR fieldtag lKA should be used with 2 differents types'
     STOP 
   endif
   if ( lKA ) then
@@ -248,12 +241,10 @@ SUBROUTINE field_check_tag
 
 END SUBROUTINE field_check_tag
 
-!*********************** SUBROUTINE field_init ********************************
-!
-! force field initialisation
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE field_init ********************************
+!> \brief
+!! force field initialisation
+! ******************************************************************************
 SUBROUTINE field_init
 
   USE control,                  ONLY :  calc , lbmlj , lcoulomb , lmorse , longrange
@@ -293,7 +284,6 @@ SUBROUTINE field_init
                          rcut_wfc      , &            
                          lpolar           
                  
-  if ( ionode ) WRITE ( stdout, '(a)')   'force field initialization'
 
   ! ================================
   ! defaults values for field tags 
@@ -307,10 +297,10 @@ SUBROUTINE field_init
   OPEN ( stdin , file = filename)
     READ ( stdin , fieldtag, iostat=ioerr)
     if ( ioerr .lt. 0 )  then
-      if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag section is absent'
+      io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag section is absent'
       STOP
     elseif ( ioerr .gt. 0 )  then
-      if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag wrong tag'
+      io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : fieldtag wrong tag'
       STOP
     endif
   CLOSE ( stdin )
@@ -340,12 +330,10 @@ SUBROUTINE field_init
   ! ================================
   if ( lbmlj .or. lmorse )    then
     CALL initialize_param_bmlj_morse
-    if ( ionode ) WRITE ( stdout ,'(a)' ) 'bmlj quantities initialized' 
   endif
 
   if ( lcoulomb ) then
     CALL initialize_coulomb
-    if ( ionode ) WRITE ( stdout ,'(a)') 'coulombic quantities initialized' 
   endif
 
   ! ================================
@@ -357,12 +345,10 @@ SUBROUTINE field_init
 
 END SUBROUTINE field_init
 
-!*********************** SUBROUTINE field_print_info **************************
-!
-! print force field informationto standard output
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE field_print_info **************************
+!> \brief
+!! print force field information to standard output
+! ******************************************************************************
 SUBROUTINE field_print_info ( kunit , quiet )
 
   USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell 
@@ -396,58 +382,60 @@ SUBROUTINE field_print_info ( kunit , quiet )
   enddo
 
   if ( ionode ) then
-    WRITE ( kunit ,'(a)')               '=============================================================' 
-    WRITE ( kunit ,'(a)')               ''
+    separator(kunit)    
+    blankline(kunit)
+    WRITE ( kunit ,'(a)')               'FIELD MODULE ... WELCOME'
+    blankline(kunit)
     WRITE ( kunit ,'(a)')               'energy units in input/output ',units 
     WRITE ( kunit ,'(a)')               'no masses are implemented                      '
-    WRITE ( kunit ,'(a)')               '' 
-    WRITE ( kunit ,'(a)')               '--------------------------------------------------------'
+    blankline(kunit)
+    lseparator(kunit) 
     WRITE ( kunit ,'(a)')               'point charges: '
-    WRITE ( kunit ,'(a)')               '--------------------------------------------------------'
+    lseparator(kunit) 
     do it = 1 , ntype 
-      WRITE ( kunit ,'(a,a,a,f10.5)')   'q   ',atypei(it),'      =',qch(it)
-      WRITE ( kunit ,'(a,a,a,f10.5,a)') 'quad',atypei(it),'      =',quad_efg(it),' mb'
+      WRITE ( kunit ,'(a,a,a,e10.3)')   'q'   ,atypei(it),'                    = ',qch(it)
+      WRITE ( kunit ,'(a,a,a,e10.3,a)') 'quad',atypei(it),'                 = ',quad_efg(it),' mb'
     enddo
-    WRITE ( kunit ,'(a,e12.5)')         'total charge            = ',  qtot
-    WRITE ( kunit ,'(a,e12.5)')         'second moment of charge = ',  qtot2
-    WRITE ( kunit ,'(a)')               ''
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+    WRITE ( kunit ,'(a,e10.3)')         'total charge            = ',  qtot
+    WRITE ( kunit ,'(a,e10.3)')         'second moment of charge = ',  qtot2
+    blankline(kunit)
+    lseparator(kunit) 
     WRITE ( kunit ,'(a)')               'static dipoles: '
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+    lseparator(kunit) 
     do it = 1 , ntype
       WRITE ( kunit ,'(a,a,a,3f10.5)')  'mu',atypei(it),'      = ',dip(it,1),dip(it,2),dip(it,3)
     enddo
-    WRITE ( kunit ,'(a)')               ''
+    blankline(kunit)
     if ( linduced ) then 
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      lseparator(kunit) 
       WRITE ( kunit ,'(a)')             'polarizabilities on atoms'
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      lseparator(kunit) 
       do it = 1 , ntype
         if ( lpolar( it ) .eq. 1 ) then
           WRITE ( kunit ,'(a,a2,a,f12.4)')'polarizability on type ', atypei(it),' : ' 
           WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 1 , j ) , j = 1 , 3 ) 
           WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 2 , j ) , j = 1 , 3 ) 
           WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 3 , j ) , j = 1 , 3 ) 
-          WRITE ( kunit ,'(a)')         ''
+          blankline(kunit)
         else
           WRITE ( kunit ,'(a,a2)')      'no polarizability on type ', atypei(it)
         endif
-        WRITE ( kunit ,'(a)')           '--------------------------------------------------------'
-        WRITE ( kunit ,'(a)')           ''
+        lseparator(kunit) 
+        blankline(kunit)
       enddo
     endif
     ! =================================
     !      LONG RANGE INTERACTIONS 
     ! =================================
     if ( lcoulomb )    then 
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      lseparator(kunit) 
       WRITE ( kunit ,'(a)')             'coulombic interaction : '
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
-      WRITE ( kunit ,'(a)')             ''
+      lseparator(kunit) 
+      blankline(kunit)
       WRITE ( kunit ,'(a)')             '        qi qj   '
       WRITE ( kunit ,'(a)')             ' Vij = -------  '
       WRITE ( kunit ,'(a)')             '         rij    '          
-      WRITE ( kunit ,'(a)')             ''
+      blankline(kunit)
       ! =================================
       !         Direct Summation
       ! =================================
@@ -456,7 +444,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
         WRITE ( kunit ,'(a)')           'cubic cutoff in real space'
         WRITE ( kunit ,'(a,i10)')       '-ncelldirect ... ncelldirect     = ',ncelldirect
         WRITE ( kunit ,'(a,i10)')       'total number of cells            = ',( 2 * ncelldirect + 1 ) ** 3
-        WRITE ( kunit ,'(a,i10)')       'radial cutoff                    = ',cutlongrange
+        WRITE ( kunit ,'(a,f10.5)')     'radial cutoff                    = ',cutlongrange
       endif     
       ! =================================
       !         Ewald Summation
@@ -467,7 +455,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
           WRITE ( kunit ,'(a,f10.5)')   'alpha                            = ',alphaES
           WRITE ( kunit ,'(a,f10.5)')   'cut-off (short range)            = ',cutshortrange
           WRITE ( kunit ,'(a,3i10)')    'kmax                             = ',(kES(i),i=1,3)
-          WRITE ( kunit ,'(a)')   '' 
+          blankline(kunit)
           WRITE ( kunit ,'(a,e12.5)')   'relative error (user defined)    : ',epsw
         else
           alpha2 = alphaES * alphaES
@@ -484,12 +472,12 @@ SUBROUTINE field_print_info ( kunit , quiet )
           WRITE ( kunit ,'(a,f10.5)')   'alpha                            = ',alphaES
           WRITE ( kunit ,'(a,f10.5)')   'cut-off (short range)            = ',cutshortrange
           WRITE ( kunit ,'(a,3i10)')    'kmax                             = ',(kES(i),i=1,3)
-          WRITE ( kunit ,'(a)')   '' 
+          blankline(kunit)
           WRITE ( kunit ,'(a,e12.5)')   'relative error in real space       with alphaES from input : ',ereal
           WRITE ( kunit ,'(a,3e12.5)')  'relative error in reciprocal space with alphaES from input : ',(ereci(i),i=1,3)
           WRITE ( kunit ,'(a,3e12.5)')  'relative error in reciprocal space with alphaES from input : ',(ereci2(i),i=1,3)
-          WRITE ( kunit ,'(a)')         '' 
-          WRITE ( kunit ,'(a)')         '' 
+          blankline(kunit)
+          blankline(kunit)
         endif
       endif
     endif
@@ -499,25 +487,25 @@ SUBROUTINE field_print_info ( kunit , quiet )
     !       LENNARD-JONES
     ! =================================
     if ( lbmlj )       then     
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      lseparator(kunit) 
       WRITE ( kunit ,'(a)')             'lennard-jones           '
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
-      WRITE ( kunit ,'(a)')             '' 
+      lseparator(kunit) 
+      blankline(kunit)
       WRITE ( kunit ,'(a)')             '       eps    /    / sigma* \ q       / sigma*  \ p \'
       WRITE ( kunit ,'(a)')             ' V = ------- |  p | ------- |    - q | -------- |   |'   
       WRITE ( kunit ,'(a)')             '      q - p   \    \   r    /         \    r    /   /'
-      WRITE ( kunit ,'(a)')             ''
+      blankline(kunit)
       WRITE ( kunit ,'(a,f10.5)')       'cutoff      = ',cutshortrange
       WRITE ( kunit ,'(a,a)')           'truncation  = ',ctrunc
       if ( .not.lreduced ) &
       WRITE ( kunit ,'(a,2f20.9)')      'long range correction : ',utail
-      WRITE ( kunit ,'(a)')             ''
-      WRITE ( kunit ,'(a)')             ''
+      blankline(kunit)
+      blankline(kunit)
       do it1 = 1 , ntype
         do it2 = it1 , ntype 
-          WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
+          lseparator(kunit) 
           WRITE ( kunit ,'(a,a,a,a)')   atypei(it1),'-',atypei(it2),' interactions:'    
-          WRITE ( kunit ,'(a)')         '--------------------------------------------------------' 
+          lseparator(kunit) 
           if ( it1 .eq. it2 ) then
             WRITE ( kunit ,100)         'sigma                                = ',sigmalj ( it1 , it2 )
             WRITE ( kunit ,100)         'eps                                  = ',epslj   ( it1 , it2 )
@@ -530,9 +518,9 @@ SUBROUTINE field_print_info ( kunit , quiet )
             WRITE ( kunit ,110)         'p                                    = ',plj     ( it1 , it2 ) , '( ',plj     ( it2 , it1 ), ' )'
           endif
           if ( trunc .eq. 1 ) then
-            WRITE ( kunit ,'(a,2f20.9)')'shift correction (linear)        : ',uc(it1,it2)
+            WRITE ( kunit ,'(a,f10.5)')'shift correction (linear)            : ',uc(it1,it2)
           else if ( trunc .eq. 2 ) then
-            WRITE ( kunit ,'(a,2f20.9)')'shift correction (quadratic)     : ',uc(it1,it2),uc2(it1,it2)
+            WRITE ( kunit ,'(a,2f10.5)')'shift correction (quadratic)         : ',uc(it1,it2),uc2(it1,it2)
           endif
         enddo
       enddo
@@ -541,16 +529,16 @@ SUBROUTINE field_print_info ( kunit , quiet )
     !      BUCKINGHAM - MORSE 
     ! =================================
     if ( lmorse )       then
-      WRITE ( kunit ,'(a)')             ''
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
+      blankline(kunit)
+      lseparator(kunit) 
       WRITE ( kunit ,'(a)')             'morse  potential'
-      WRITE ( kunit ,'(a)')             '--------------------------------------------------------'
-      WRITE ( kunit ,'(a)')             ''
+      lseparator(kunit) 
+      blankline(kunit)
       do it1 = 1 , ntype
         do it2 = it1 , ntype
-          WRITE ( kunit ,'(a)')         '--------------------------------------------------------'
+          lseparator(kunit) 
           WRITE ( kunit ,'(a,a,a,a)')   atypei(it1),'-',atypei(it2),' interactions:'
-          WRITE ( kunit ,'(a)')         '--------------------------------------------------------'
+          lseparator(kunit) 
           if ( it1 .eq. it2 ) then
             WRITE ( kunit ,100)         'sigma                                = ',sigmamor ( it1 , it2 )
             WRITE ( kunit ,100)         'eps                                  = ',epsmor   ( it1 , it2 )
@@ -564,10 +552,10 @@ SUBROUTINE field_print_info ( kunit , quiet )
       enddo
 
     endif
-    WRITE ( kunit ,'(a)')               ''
-    WRITE ( kunit ,'(a)')               ''
-    WRITE ( kunit ,'(a)')               '=============================================================' 
-    WRITE ( kunit ,'(a)')               ''
+    blankline(kunit)
+    blankline(kunit)
+    separator(kunit)    
+    blankline(kunit)
   endif
 
   return
@@ -577,12 +565,12 @@ SUBROUTINE field_print_info ( kunit , quiet )
 END SUBROUTINE field_print_info
 
 
-!*********************** SUBROUTINE gen_ewald_param ***************************
-!
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE gen_ewald_param ***************************
+!> \brief
+!! automatic determination of ewald parameter from epsw 
+!> \note
+!! there is several methods ( we follow dl_poly )
+! ******************************************************************************
 SUBROUTINE ewald_param
    
   USE constants,                ONLY :  pi , pisq
@@ -632,12 +620,12 @@ SUBROUTINE ewald_param
 
 END SUBROUTINE ewald_param
 
-!*********************** SUBROUTINE define_units ******************************
-!
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE define_units ******************************
+!> \brief
+!! define conversion factor from wanted units
+!> \warning
+!! the units are not completely consistent in MDFF
+! ******************************************************************************
 SUBROUTINE define_units
 
   USE constants,                ONLY :  dp , boltz
@@ -659,22 +647,20 @@ SUBROUTINE define_units
    epsmor = epsmor * engunit
 
 #ifdef debug_units
-   if ( ionode ) WRITE ( stderr , * ) 'engunit',engunit
+   io_node WRITE ( stderr , * ) 'engunit',engunit
 #endif
 
   return
 
 END SUBROUTINE
 
-!*********************** SUBROUTINE initialize_param_bmlj_morse ***************
-!
-! iniitialisation of BMLJ parameters
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE initialize_param_bmlj_morse ***************
+!> \brief
+!! initialisation of principal parameters for lennard-jones and morse potentials
+! ******************************************************************************
 SUBROUTINE initialize_param_bmlj_morse 
 
-  USE constants,                ONLY :  pi
+  USE constants,                ONLY :  tpi
   USE config,                   ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
   USE control,                  ONLY :  skindiff , cutshortrange , lreduced, calc
   USE io_file,                  ONLY :  ionode, stdout
@@ -826,9 +812,11 @@ SUBROUTINE initialize_param_bmlj_morse
            ! tail energy
            ut ( it , jt ) = epsp ( it , jt ) * ( pp ( it , jt ) * srq ( it , jt ) / qq3 ( it , jt ) - &
                                                  qq ( it , jt ) * srp ( it , jt ) / pp3 ( it , jt )  )       
-           ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * 2.0_dp * pi 
+           ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * tpi 
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
            utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
+
+           io_node write(stdout,*) 'long range correction',utail
 
 #ifdef debug
   WRITE ( stdout , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
@@ -848,23 +836,29 @@ SUBROUTINE initialize_param_bmlj_morse
 END SUBROUTINE initialize_param_bmlj_morse
 
 
-!*********************** SUBROUTINE engforce_driver ***************************
+! *********************** SUBROUTINE engforce_driver ***************************
 !
-! this subroutine is used as an interfaced to the different potential + forces
-! subroutines
+!> \brief
+!! this subroutine is main driver to select the different potential and forces
+!! subroutines
 !
-!******************************************************************************
-
-SUBROUTINE engforce_driver ( iastart , iaend )
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+!> \todo
+!! make it more clean
+!
+! ******************************************************************************
+SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
 
   USE config,                   ONLY :  natm , dipia
   USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lshiftpot , longrange
-  USE io_file,                  ONLY :  stdout 
+  USE io_file,                  ONLY :  ionode , stdout 
 
   implicit none
 
   ! global
   integer, intent(inout)  :: iastart , iaend 
+  integer, intent(inout)  :: ikstart , ikend 
   ! local 
   logical :: lj_and_coul
   real(kind=dp) :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
@@ -884,6 +878,7 @@ SUBROUTINE engforce_driver ( iastart , iaend )
     CALL engforce_morse_pbc         ( iastart , iaend )
   endif
 
+  !  io_node WRITE ( stdout ,'(a)') 'debug ' 
   ! ==============================
   !  LJ + COULOMBIC INTERACTIONS 
   ! ==============================
@@ -905,8 +900,8 @@ SUBROUTINE engforce_driver ( iastart , iaend )
       print*,'before coul'
       CALL print_config_sample(0,0)
 #endif
-      if ( longrange .eq. 'ewald'  ) CALL multipole_ES              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
-      if ( longrange .eq. 'direct' ) CALL multipole_DS              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( iastart , iaend , ikstart , ikend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
 #ifdef debug  
       print*,'before after coul'
       CALL print_config_sample(0,0)
@@ -961,7 +956,7 @@ SUBROUTINE engforce_driver ( iastart , iaend )
     !   PBC
     ! =======
     if ( lpbc ) then
-      if ( longrange .eq. 'ewald'  ) CALL multipole_ES              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'ewald'  ) CALL multipole_ES              ( iastart , iaend , ikstart , ikend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
       if ( longrange .eq. 'direct' ) CALL multipole_DS              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
       ! =======
       !  NO PBC
@@ -977,13 +972,21 @@ SUBROUTINE engforce_driver ( iastart , iaend )
 
 END SUBROUTINE engforce_driver
 
-!*********************** SUBROUTINE engforce_bmlj_pbc *************************
+! *********************** SUBROUTINE engforce_bmlj_pbc *************************
 !
-! total potential energy forces for each atoms for a bmlj potential with 
-! periodic boundaries conditions, with or without vnlist (lvnlist=.TRUE.OR.FALSE.)
+!> \brief
+!! total potential energy forces for each atoms for a bmlj potential with 
+!! periodic boundaries conditions, with or without vnlist.
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+!> \author
+!! F.Affouard / FMV
+!
+!> \note
+!! adapted from F. Affouard code. Parallelized in december 2008
+!
+! ******************************************************************************
 SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell 
@@ -1013,9 +1016,10 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   real(kind=dp) :: u , vir 
 
 #ifdef debug_bmlj
-  ia = natm 
+  do ia=1,natm
   WRITE ( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
   WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
+  enddo
 #endif
 
   ttt1 = MPI_WTIME(ierr) ! timing info
@@ -1155,18 +1159,21 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
-
+#ifdef debug_para
 800 FORMAT ( i6,a,e60.40,e60.40)
+#endif
 
 END SUBROUTINE engforce_bmlj_pbc
 
-!*********************** SUBROUTINE engforce_bmlj_nopbc ***********************
+! *********************** SUBROUTINE engforce_bmlj_nopbc ***********************
 !
-! total potential energy forces for each atoms for a bmlj potential with 
-! *NO* periodic boundaries conditions, with or without vnlist (lvnlist=.TRUE.OR.FALSE.)
+!> \brief
+!! total potential energy forces for each atoms for a bmlj potential with 
+!! *NO* periodic boundaries conditions, with or without vnlist (lvnlist=.TRUE.OR.FALSE.)
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+! ******************************************************************************
 SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell 
@@ -1284,17 +1291,20 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
 
 END SUBROUTINE engforce_bmlj_nopbc
 
-!*********************** SUBROUTINE engforce_bmlj_pbc_noshift *****************
+! *********************** SUBROUTINE engforce_bmlj_pbc_noshift *****************
 !
-!FOR TEST PURPOSE
+!> \brief
+!! same as engforce_bmlj_pbc but with no shift in the potential 
 !
-! same as engforce_bmlj_pbc but with no shift in the potential 
-! if ok this should be merged !!
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
 !
-!FOR TEST PURPOSE
+!> \note
+!! if ok it should be merged !
 !
-!******************************************************************************
-
+!> \todo
+!! test it !
+!
+! ******************************************************************************
 SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
@@ -1407,17 +1417,15 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
 
 END SUBROUTINE engforce_bmlj_pbc_noshift
 
-!*********************** SUBROUTINE initialize_coulomb ************************
-!
-! this subroutine initialize the common quantities for charged particules.
-! together with the k-space for the Ewald summation
-! It is used by EFG and Coulombic subroutines 
-!
-! Problem : cannot be used together (i.e EFG + Coulomb ) or then converged the 
-! Coulomb summation and used the same parameters for both quantities 
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE initialize_coulomb ************************
+!> \brief
+!! this subroutine initialize the common quantities for charged particules.
+!! real space and reciprocal space summation
+!> \note
+!! It is used by EFG and Coulombic subroutines 
+!> \warning
+!! EFG routines and + Coulombic forces routines has be used together 
+! ******************************************************************************
 SUBROUTINE initialize_coulomb
 
   USE config,   ONLY  : natm , natmi , ntype , qia , itype
@@ -1465,11 +1473,10 @@ SUBROUTINE initialize_coulomb
 
 END SUBROUTINE initialize_coulomb
 
-!*********************** SUBROUTINE finalize_coulomb **************************
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE finalize_coulomb **************************
+!> \brief
+!! deallocate main quanties used during coulombic calculation
+! ******************************************************************************
 SUBROUTINE finalize_coulomb
 
   USE control,  ONLY :  longrange , lcoulomb , calc
@@ -1498,20 +1505,18 @@ SUBROUTINE finalize_coulomb
 
 END SUBROUTINE finalize_coulomb
 
-!*********************** SUBROUTINE induced_moment ****************************
-!
-! this subroutine calculates the induced moment from the total Electric field and the
-! polarizability tensor
-! Basically used in the SCF loop to get induced_moment
-! 
-! Formula : 
-!                          
-!  mu_i,alpha =  POL_i,alpha,beta * E_i,beta   
-!
-! polia is the polarizability tensor
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE induced_moment ****************************
+!> \brief
+!! this subroutine calculates the induced moment from the total Electric field and the
+!! polarizability tensor
+!! Basically used in the SCF loop to get induced_moment
+!! \f$ \mu_{i,\alpha} =  p_{i,\alpha,\beta} * E_{i,\beta} \f$
+!> \param[in]  Efield electric field vector define at ion position 
+!> \param[out] mu_ind induced electric dipole define at ion position 
+!> \param[in]  u_pol potential energy of polarizability
+!> \note
+!! polia is the polarizability tensor
+! ******************************************************************************
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   USE config, ONLY : natm , itype , atypei, ntype , polia
@@ -1573,11 +1578,26 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
 END SUBROUTINE induced_moment
 
-!*********************** SUBROUTINE multipole_DS ******************************
+! *********************** SUBROUTINE multipole_DS ******************************
 !
+!> \brief 
+!! This subroutine calculates electric field, electric field gradient, 
+!! potential energy, virial, electric potential and forces at ions in
+!! multipole expansion by Direct summation
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!> \param[in]  mu electric dipole at ions
+!> \param[out] ef electric field
+!> \param[out] efg electric field gradient
+!> \param[out] u_coul coulombic potential energy 
+!> \param[out] virial_coul coulombic virial 
+!> \param[out] phi_coul electric potential at ions 
+!
+!> \note
+!! it is not efficient for large systems
+!! some quantities are not even converges at all
+!
+! ******************************************************************************
 SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
   USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
@@ -1991,28 +2011,29 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 #ifdef debug2 
   if ( ionode ) then
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' )     'Electric field at atoms : '
+    blankline(stdout)
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
       ia,atype(ia),' Efield  = ', ef ( ia , 1)  , ef ( ia , 2 ) , ef ( ia , 3 )
     enddo
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
 
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' ) 'forces at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
       ia,atype(ia),' f       = ', fx ( ia )  , fy ( ia ) , fz ( ia )
     enddo
-    WRITE ( stdout , '(a)' ) ' '
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
+    blankline(stdout)
     WRITE ( stdout , '(a)' ) ' potential : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,3(a,f18.10))' ) &
       ia,atype(ia),' phi_tot = ', phi_coul ( ia )  , ' phi_qq = ', phi_coul_qq (ia) , ' phi_dd = ', phi_coul_dd (ia)
     enddo
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' ) 'Energy and virial : '
     WRITE ( stdout , '(5(a,f18.10))' ) &
     ' u_coul_tot   = ', u_coul  ,' u_coul_qq   = ',u_coul_qq      ,' u_coul_qd   = ', u_coul_qd     ,' u_coul_dd   = ',u_coul_dd   ,' u_pol = ', u_pol
@@ -2041,12 +2062,24 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 END SUBROUTINE multipole_DS
 
-!*********************** SUBROUTINE multipole_ES ******************************
+! *********************** SUBROUTINE multipole_ES ******************************
+!> \brief
+!! This subroutine calculates electric field, electric field gradient, 
+!! potential energy, virial, electric potential and forces at ions in
+!! a multipole expansion by Ewald summation
 !
+!> \param[in]  iastart , iaend atom decomposition for parallelization
+!> \param[in]  mu electric dipole at ions
+!> \param[out] ef electric field
+!> \param[out] efg electric field gradient
+!> \param[out] u_coul coulombic potential energy 
+!> \param[out] virial_coul coulombic virial 
+!> \param[out] phi_coul electric potential at ions 
 !
-!******************************************************************************
-
-SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
+!> \todo
+!! make it more condensed 
+! ******************************************************************************
+SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
   USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
@@ -2055,7 +2088,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   USE io_file,                  ONLY :  ionode , stdout 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
   USE cell,                     ONLY :  kardir , dirkar 
-  USE time,                     ONLY :  strftimetot , fcoultimetot1 , fcoultimetot2 , fcoultimetot3
+  USE time,                     ONLY :  strftimetot , fcoultimetot1 , fcoultimetot2 , fcoultimetot3 , fcoultimetot2_2
   USE kspace,                   ONLY :  struc_fact
 
   implicit none
@@ -2064,6 +2097,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ! global 
   integer, intent(in) :: iastart , iaend
+  integer, intent(in) :: ikstart , ikend
   real(kind=dp)    :: ef     ( natm , 3 )
   real(kind=dp)    :: efg    ( natm , 3 , 3 )
   real(kind=dp)    :: mu     ( natm , 3 )
@@ -2115,7 +2149,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   real(kind=dp), external :: errfc
   real(kind=dp) :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 ) 
   real(kind=dp) :: tpi_V , tpi_3V , fpi_V , fpi_3V 
-  real(kind=dp) :: ttt1 , ttt2  , ttt3 , ttt4 , ttt5
+  real(kind=dp) :: ttt1 , ttt2  , ttt3 , ttt4 , ttt5 , ttt6 , ttt7 , ttt_2
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -2319,13 +2353,13 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
         Txxx = ( - 5.0_dp * rxij * rxij * rxij * F3 +  3.0_dp * d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
         Tyyy = ( - 5.0_dp * ryij * ryij * ryij * F3 +  3.0_dp * d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
         Tzzz = ( - 5.0_dp * rzij * rzij * rzij * F3 +  3.0_dp * d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Txxy = ( - 5.0_dp * rxij * rxij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
-        Txxz = ( - 5.0_dp * rxij * rxij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Tyyx = ( - 5.0_dp * ryij * ryij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
-        Tyyz = ( - 5.0_dp * ryij * ryij * rzij * F3 +          d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Tzzx = ( - 5.0_dp * rzij * rzij * rxij * F3 +          d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
-        Tzzy = ( - 5.0_dp * rzij * rzij * ryij * F3 +          d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
-        Txyz = ( - 5.0_dp * rxij * ryij * rzij * F3                               ) * dm7 * 3.0_dp
+        Txxy = ( - 5.0_dp * rxij * rxij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+        Txxz = ( - 5.0_dp * rxij * rxij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+        Tyyx = ( - 5.0_dp * ryij * ryij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+        Tyyz = ( - 5.0_dp * ryij * ryij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+        Tzzx = ( - 5.0_dp * rzij * rzij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+        Tzzy = ( - 5.0_dp * rzij * rzij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+        Txyz = ( - 5.0_dp * rxij * ryij * rzij * F3                                ) * dm7 * 3.0_dp
 
         ! ===========================================================
         !                  charge-charge interaction
@@ -2497,7 +2531,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   ttt3 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt3 - ttt2 )
-
+  ttt_2 = 0.0_dp
   ! ======================================
   !         direct to cartesian
   ! ======================================
@@ -2506,7 +2540,10 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! ==============================================
   !            reciprocal space part
   ! ==============================================
-  kpoint : do ik = 1 , km_coul%nkcut
+!  kpoint : do ik = 1 , km_coul%nkcut
+  kpoint : do ik = ikstart, ikend 
+  
+    ttt6 = MPI_WTIME(ierr)
     ! =================
     !   k-space  
     ! =================
@@ -2540,7 +2577,6 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     vir_rec = vir_rec + Ak * str * ( 3.0_dp - kcoe * kk ) / 3.0_dp
 
     do ia = 1 , natm
-
       rxi = rx(ia)
       ryi = ry(ia)
       rzi = rz(ia)
@@ -2550,13 +2586,9 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       muiz = mu ( ia , 3 ) 
       kri = ( kx * rxi + ky * ryi + kz * rzi )
       k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  )
-
       carg        = EXP  ( imag * kri )
-
       recarg      = DBLE ( CONJG ( rhon ) * carg )
-
       recargi1    = DBLE ( CONJG ( rhon ) * carg * imag )
-
       phi_rec ( ia ) = phi_rec ( ia ) + Ak * recarg 
 
       fxij = Ak * kx * recargi1 
@@ -2578,37 +2610,51 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       efg_rec ( ia , 1 , 2 ) = efg_rec ( ia , 1 , 2 ) +  Ak * kx * ky * recarg 
       efg_rec ( ia , 1 , 3 ) = efg_rec ( ia , 1 , 3 ) +  Ak * kx * kz * recarg 
       efg_rec ( ia , 2 , 3 ) = efg_rec ( ia , 2 , 3 ) +  Ak * ky * kz * recarg 
- 
-      ! stress tensor
+
+     ! stress tensor
       tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str * ak
-      tau_rec(1,2) = tau_rec(1,2) -           kcoe * kx * ky   * str * ak
-      tau_rec(1,3) = tau_rec(1,3) -           kcoe * kx * kz   * str * ak
-      tau_rec(2,1) = tau_rec(2,1) -           kcoe * ky * kx   * str * ak 
+      tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str * ak
+      tau_rec(1,3) = tau_rec(1,3) -            kcoe * kx * kz   * str * ak
+      tau_rec(2,1) = tau_rec(2,1) -            kcoe * ky * kx   * str * ak 
       tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str * ak
-      tau_rec(2,3) = tau_rec(2,3) -           kcoe * ky * kz   * str * ak
-      tau_rec(3,1) = tau_rec(3,1) -           kcoe * kz * kx   * str * ak
-      tau_rec(3,2) = tau_rec(3,2) -           kcoe * kz * ky   * str * ak
+      tau_rec(2,3) = tau_rec(2,3) -            kcoe * ky * kz   * str * ak
+      tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str * ak
+      tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str * ak
       tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str * ak
 
     enddo
 
+    ttt7 = MPI_WTIME(ierr)
+    ttt_2 = ttt_2 + ( ttt7 - ttt6 )
   enddo kpoint
+!  print*,ttt_2
+  ttt_2 = ttt_2 / km_coul%nkcut
+  fcoultimetot2_2 = fcoultimetot2_2 + ttt_2
 
   ttt4 = MPI_WTIME(ierr)
   fcoultimetot2 = fcoultimetot2 + ( ttt4 - ttt3 )
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_dir )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir_rec )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fz_dir , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( phi_dir , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( phi_rec , natm )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 1 )  , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 2 )  , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 3 )  , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec ( : , 1 )  , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec ( : , 2 )  , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec ( : , 3 )  , natm )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 1 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 2 ) , natm )
@@ -2616,10 +2662,19 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 2 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 1 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 3 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 3 ) , natm )
 
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 1 , : ) , 3 )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 2 , : ) , 3 )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 1 , : ) , 3 )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 2 , : ) , 3 )
+  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 3 , : ) , 3 )
 
   ! ======================================================
   ! remark on the unit :
@@ -2707,7 +2762,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
     fz       = fz + ( fz_rec + fz_dir + fz_surf )
   else
 #ifdef debug 
-    if ( ionode ) WRITE ( stdout , '(a)' ) 'Surface contribution is not added to the different quantities ( see multipole_ES inf field.f90 ) '
+    io_node WRITE ( stdout , '(a)' ) 'Surface contribution is not added to the different quantities ( see multipole_ES inf field.f90 ) '
 #endif
     u_coul   = ( u_dir   + u_rec   + u_self  + u_pol  )
     vir_coul = ( vir_dir + vir_rec + vir_self         )
@@ -2727,7 +2782,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 #ifdef debug2 
   if ( ionode ) then
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' )     'Electric field at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
@@ -2750,15 +2805,15 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) , ef_self ( ia , 3 )
     enddo
 
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
+    blankline(stdout)
 
-    WRITE ( stdout , '(a)' ) ' '
     WRITE ( stdout , '(a)' ) 'forces at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
       ia,atype(ia),' f       = ', fx ( ia )  , fy ( ia ) , fz ( ia )
     enddo
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' ) 'potential at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,f18.10)' )  ia,atype(ia),' phi         = ', phi_coul ( ia )  
@@ -2776,8 +2831,8 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
       WRITE ( stdout , '(i5,a3,a,f18.10)' )  ia,atype(ia),' phi_self    = ', phi_self ( ia )  
     enddo
 
-    WRITE ( stdout , '(a)' ) ' '
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
+    blankline(stdout)
     WRITE ( stdout , '(a)' ) 'Energy and virial : '
     WRITE ( stdout , '(5(a,f16.8))' ) ,'vir_dir    = ', vir_dir    ,' vir_rec    = ', vir_rec    ,' vir_surf    = ',vir_surf   ,' vir_self    = '   ,vir_self   ,'                           vir_coul    = ',vir_coul
     WRITE ( stdout , '(5(a,f16.8))' ) ,'phi_dir(1) = ', phi_dir(1) ,' phi_rec(1) = ', phi_rec(1) ,' phi_surf(1) = ',phi_surf(1),' phi_self(1) = '   ,phi_self(1),'                           phi_coul(1) = ',phi_coul (1)
@@ -2812,14 +2867,19 @@ SUBROUTINE multipole_ES ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
 END SUBROUTINE multipole_ES
 
-!*********************** SUBROUTINE engforce_morse_pbc ************************
+! *********************** SUBROUTINE engforce_morse_pbc ************************
 !
-! total potential energy forces for each atoms for a morse potential with 
-! periodic boundaries conditions, with or without vnlist
-! (lvnlist=.TRUE.OR.FALSE.)
+!> \brief
+!! total potential energy forces for each atoms for a morse potential with 
+!! periodic boundaries conditions, with or without vnlist
+!! (lvnlist=.TRUE.OR.FALSE.)
 !
-!******************************************************************************
-
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!
+!> \warning
+!! not fully tested
+!
+! ******************************************************************************
 SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell
@@ -2955,21 +3015,26 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
-
   return
 
 END SUBROUTINE engforce_morse_pbc
 
-!*********************** SUBROUTINE moment_from_pola **************************
+! *********************** SUBROUTINE moment_from_pola **************************
 !
-! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
-! The evaluation is done self-consistently starting from the the field due the
-! point charges only.
-! The stopping criteria is governed by conv_tol_ind
+!> \brief
+!! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
+!! The evaluation is done self-consistently starting from the the field due the
+!! point charges only.
 !
-!******************************************************************************
-
-SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind ) 
+!> \param[in]  iastart , iaend atom decomposition index for parallelization
+!> \param[in]  ikstart , ikend kpoint decomposition index for parallelization
+!> \param[out] mu_ind induced electric dipole from polarizabilities
+!
+!> \note
+!! The stopping criteria is governed by conv_tol_ind
+!
+! ******************************************************************************
+SUBROUTINE moment_from_pola ( iastart , iaend , ikstart, ikend , mu_ind ) 
 
   USE io_file, ONLY : ionode , stdout 
   USE config,  ONLY : natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax
@@ -2979,8 +3044,9 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
   implicit none
 
   ! global
-  integer :: iastart , iaend 
-  real(kind=dp) :: mu_ind ( natm , 3 ) 
+  integer       , intent (in)  :: iastart , iaend 
+  integer       , intent (in)  :: ikstart , ikend 
+  real(kind=dp) , intent (out) :: mu_ind ( natm , 3 ) 
 
   ! local
   integer :: ia , iscf , it 
@@ -3011,7 +3077,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
   !  coulombic energy , forces (field) and virial
   ! =============================================
   if ( longrange .eq. 'direct' ) CALL  multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
-  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( iastart, iaend , ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
+  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( iastart, iaend , ikstart , ikend , ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
 
   Efield_stat = Efield_stat + ef_tmp
 
@@ -3027,11 +3093,11 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
   ! =============================================
   Efield = Efield_stat
 
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'calculate induced dipole SCF'
+  io_node WRITE ( stdout , '(a)' ) 'calculate induced dipole SCF'
 
   if ( ionode ) then
     WRITE ( stdout , '(a)' ) 'We start from the static electric field (charge + static dipole)'
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
   endif
   diff_efield = 1000.0_dp
   Efield_old  = Efield(1,1)
@@ -3069,7 +3135,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
     ! ==========================================================
     if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
-    if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
+    if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ikstart , ikend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
     fx = 0.0_dp ; fy = 0.0_dp ; fz = 0.0_dp
 
     Efield = Efield_stat + Efield_ind
@@ -3080,7 +3146,7 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
     diff_efield = ABS ( Efield(1,1) - Efield_old )
     Efield_old = Efield(1,1)
 
-    if ( ionode ) WRITE ( stdout ,'(a,i4,a,3f18.10,2(a,f18.10))') &
+    io_node WRITE ( stdout ,'(a,i4,a,3f18.10,2(a,f18.10))') &
     'scf = ',iscf,' Efield atom 1= ',Efield(1,1),Efield(1,2),Efield(1,3),' conv = ',diff_efield,' u_pol = ',u_pol
 
   enddo ! end of SCF loop
@@ -3093,16 +3159,16 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
 
   if ( ionode ) then
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a,i6,a)') 'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
     WRITE ( stdout , '(a,e10.3)') 'Electric field is converged within ',conv_tol_ind
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
     WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
       ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
     enddo
-    WRITE ( stdout , '(a)' ) ' '
+    blankline(stdout)
   endif
 
 
@@ -3110,32 +3176,38 @@ SUBROUTINE moment_from_pola ( iastart , iaend , mu_ind )
 
 END SUBROUTINE moment_from_pola
 
-!*********************** SUBROUTINE moment_from_WFc ***************************
+! *********************** SUBROUTINE moment_from_WFc ***************************
 !
-! This routines evaluates the dipole moment induced by Wannier centers (Wfc).
-! the listing of Wfc are done as for the verlet list
-!  
-!          wfc_point         : array of size natm+1 
-!                            gives the starting and finishing index of array
-!                            list for a given atom i
-!                            jbegin = point(i)  jend = point(i+1) - 1
-!          wfc_list          : index list of neighboring atoms
+!> \brief
+!!  This routines evaluates the dipole moment induced by Wannier centers (Wfc).
+!!  the listing of Wfc is done as for the verlet list
 !
-! how to use it :
-!                          do ia = 1, natm
-!                            jbegin = wfc_point(i)
-!                            jend = wfc_point(i+1) - 1
-!                            do jvnl = jbegin , jend
-!                              ja = wfc_list ( jvnl ) 
-!                              then ia en ja are neighboors   
-!                            enddo
-!                          enddo
+!> \description  
+!!           wfc_point         : array of size natm+1 
+!!                               gives the starting and finishing index of array
+!!                               list for a given atom i
+!!                               jbegin = point(i)  jend = point(i+1) - 1
+!!           wfc_list          : index list of neighboring atoms
+!!
+!!  how to use it :
+!!                          do ia = 1, natm
+!!                            jbegin = wfc_point(i)
+!!                            jend = wfc_point(i+1) - 1
+!!                            do jvnl = jbegin , jend
+!!                              ja = wfc_list ( jvnl ) 
+!!                              then ia en ja are neighboors   
+!!                            enddo
+!!                          enddo
+!!
+!> \param[out] mu electric dipole 
 !
-! output :
-!            mu ( natm , 3 ) dipole 3 component vector
+!> \author
+!! FMV
 !
-!******************************************************************************
-
+!> \date 
+!! January 2013
+!
+! ******************************************************************************
 SUBROUTINE moment_from_WFc ( mu )
 
   USE constants,                ONLY :  bohr
@@ -3151,7 +3223,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! local
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
   integer, dimension ( : ) , allocatable :: cwfc 
-  integer, dimension ( : ) , allocatable :: wfc_list, wfc_point                   ! wfc neighbour list info
+  integer, dimension ( : ) , allocatable :: wfc_list, wfc_point         ! wfc neighbour list info
   real(kind=dp) :: rijsq, cutsq
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
@@ -3294,7 +3366,6 @@ SUBROUTINE moment_from_WFc ( mu )
       WRITE ( stdout , '(a,4x,2e16.8)' ) atype(ia), dmu * Debye_unit, dmu 
     enddo 
   endif
-  
 
   deallocate ( wfc_list , wfc_point )
   deallocate ( cwfc ) 
@@ -3307,8 +3378,6 @@ SUBROUTINE moment_from_WFc ( mu )
   return
 
 END SUBROUTINE moment_from_WFc
-
-
 
 END MODULE field 
 ! ===== fmV =====

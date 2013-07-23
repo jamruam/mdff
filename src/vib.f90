@@ -17,42 +17,49 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 !#define debug_symmetry
 ! ======= Hardware =======
 
-!TODO
-!!!! WARNING !!!!! only cubic cells <---- probably not true anymore ( march 2013)
-
+! *********************** MODULE vib *******************************************
+!
+!> \brief
+!! phonons, band , dos related module
+!
+!> \todo
+!! check if any shape of cell would work on this module
+!
+! ******************************************************************************
 MODULE vib
 
   USE constants,                ONLY : dp
 
   implicit none
 
-  integer          :: nconf          ! number of configurations in ISCFF to be analysed
-  integer          :: ngconf         ! number of configurations that would be generated 
-  integer          :: ncell          ! number of primitiv cell in each direction
-  integer          :: imod           ! id calc.eq.'vib+gmod' 
-  integer          :: PANdos         ! ( internal ) number of bins
-  integer          :: nkphon         ! number of kpoint between ks and kf used when calc = 'vib+band'
-                                     ! or (nkphon+1) * (nkphon+1) * (nkphon+1) generated in IBZKPTFF when calc='vib+dos'
-  character(len=3) :: path           ! path name
-  real(kind=dp)    :: ks(3)          ! start kpoint
-  real(kind=dp)    :: kf(3)          ! final kpoint    
-  real(kind=dp)    :: resdos         ! resolution in density of states     
-  real(kind=dp)    :: omegamax       ! maximum value in dos
-  logical          :: lwrite_vectff  ! write the vector field
-  real(kind=dp)    :: tempmod        ! temperature at which we populate the mode imod
+  integer          :: nconf          !< number of configurations in ISCFF to be analysed
+  integer          :: ngconf         !< number of configurations that would be generated 
+  integer          :: ncell          !< number of primitiv cell in each direction
+  integer          :: imod           !< id calc.eq.'vib+gmod' 
+  integer          :: PANdos         !< ( internal ) number of bins
+  integer          :: nkphon         !< number of kpoint between ks and kf used when calc = 'vib+band'
+                                     !< or (nkphon+1) * (nkphon+1) * (nkphon+1) generated in IBZKPTFF when calc='vib+dos'
+  character(len=3) :: path           !< path name
+  real(kind=dp)    :: ks(3)          !< start kpoint
+  real(kind=dp)    :: kf(3)          !< final kpoint    
+  real(kind=dp)    :: resdos         !< resolution in density of states     
+  real(kind=dp)    :: omegamax       !< maximum value in dos
+  logical          :: lwrite_vectff  !< write the vector field
+  real(kind=dp)    :: tempmod        !< temperature at which we populate the mode imod
 
 CONTAINS
 
-!*********************** SUBROUTINE vib_init **********************************
+! *********************** SUBROUTINE vib_init **********************************
 !
-! initialize vib calculation
+!> \brief
+!! initialize vib calculation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vib_init
 
   USE io_file,                  ONLY :  stdin , stdout , stderr , ionode
@@ -86,10 +93,10 @@ SUBROUTINE vib_init
   OPEN ( stdin , file = filename)
   READ ( stdin , vibtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stderr , '(a)') 'ERROR reading input_file : vibtag section is absent'
+    io_node WRITE ( stderr , '(a)') 'ERROR reading input_file : vibtag section is absent'
     STOP
   elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stderr , '(a,i4)') 'ERROR reading input_file : vibtag wrong tag',ioerr
+    io_node WRITE ( stderr , '(a,i8)') 'ERROR reading input_file : vibtag wrong tag',ioerr
     STOP
   endif
   CLOSE  ( stdin )
@@ -111,12 +118,12 @@ SUBROUTINE vib_init
   
 END SUBROUTINE vib_init
 
-!*********************** SUBROUTINE vib_default_tag ***************************
+! *********************** SUBROUTINE vib_default_tag ***************************
 !
-! set default values to vib tag
+!> \brief
+!! set default values to vib tag
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vib_default_tag
 
   implicit none
@@ -137,12 +144,12 @@ SUBROUTINE vib_default_tag
 END SUBROUTINE vib_default_tag
 
 
-!*********************** SUBROUTINE vib_check_tag *****************************
+! *********************** SUBROUTINE vib_check_tag *****************************
 !
-! check vib tag values
+!> \brief
+!! check vib tag values
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vib_check_tag
 
   USE io_file,                  ONLY :  stderr , ionode
@@ -150,7 +157,7 @@ SUBROUTINE vib_check_tag
   implicit none
 
   if ( ncell .eq. 0 ) then
-    if ( ionode ) WRITE ( stderr , * ) 'ERROR in vib module, ncell was not set'
+    io_node WRITE ( stderr , * ) 'ERROR in vib module, ncell was not set'
     STOP
   endif
 
@@ -158,12 +165,12 @@ SUBROUTINE vib_check_tag
 
 END SUBROUTINE vib_check_tag
 
-!*********************** SUBROUTINE vib_print_info ****************************
+! *********************** SUBROUTINE vib_print_info ****************************
 !
-! print information about vib calculation
+!> \brief
+!! print information about vib calculation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vib_print_info(kunit)
 
   USE control,                  ONLY :  lpbc , calc 
@@ -176,11 +183,11 @@ SUBROUTINE vib_print_info(kunit)
   integer :: kunit
 
   if ( ionode ) then
-                      WRITE ( kunit ,'(a)')       ''
+                      blankline(kunit)
                       WRITE ( kunit ,'(a)')       'NORMAL MODE ANALYSIS             '
                       WRITE ( kunit ,'(a)')       'Hessian calc. and generation of config.' 
                       WRITE ( kunit ,'(a)')       'for a given mode'
-                      WRITE ( kunit ,'(a)')       ''
+                      blankline(kunit)
      if (calc.eq.'vib + fvib')  then  
                       WRITE ( kunit ,'(a)')       'Fvibcalc:'
                       WRITE ( kunit ,'(a)')       'This program reads in the vibrational frequencies '
@@ -194,15 +201,15 @@ SUBROUTINE vib_print_info(kunit)
      endif
      if ( .not. lpbc )WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic cell)'
      if ( lpbc )      WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
-                      WRITE ( kunit ,'(a)')       ''
+                      blankline(kunit)
                       WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
                       WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',nconf
-                      WRITE ( kunit ,'(a)')       ''
+                      blankline(kunit)
                       WRITE ( kunit ,'(a)')       'START HESSIAN CALCULATION            '
                       WRITE ( kunit ,'(a)')       'save eingenvalues                     : EIGFF'
     if ( lwrite_vectff )  & 
                       WRITE ( kunit ,'(a)')       'save eingenvectors                    : VECTFF'
-                      WRITE ( kunit ,'(a)')       ''   
+                      blankline(kunit)
   endif
 
 
@@ -211,14 +218,13 @@ SUBROUTINE vib_print_info(kunit)
 
 END SUBROUTINE vib_print_info
 
-!*********************** SUBROUTINE vib_main **********************************
+! *********************** SUBROUTINE vib_main **********************************
 !
-! main program of the vib calculation:
+!> \brief
+!! main program of the vib calculation.
+!! this subroutine reads configuration from ISCFF (usually optimized structures)
 !
-! this subroutine reads configuration from ISCFF (usually optimazed structures)
-!
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE vib_main 
 
   USE config,                   ONLY :  system , natm , natmi , rx , ry , rz ,  & 
@@ -274,7 +280,7 @@ SUBROUTINE vib_main
   OPEN ( UNIT = kunit_DOSKFF, FILE = 'DOSKFF'  )
 
   if (calc.ne.'vib+band'.and.calc.ne.'vib+dos') then 
-  if ( ionode ) WRITE ( kunit_VECTFF ,'(a)') & 
+  io_node WRITE ( kunit_VECTFF ,'(a)') & 
   '       #rx               ry             dx              dy              rx              rz              dx             dz              ry              rz              dy             dz           eigenvalue'   
   endif
 
@@ -310,7 +316,7 @@ SUBROUTINE vib_main
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+  CALL do_split ( natm , myrank , numprocs , iastart , iaend ,'atoms')
   CALL field_init
   CALL typeinfo_init
 
@@ -329,7 +335,7 @@ SUBROUTINE vib_main
 
   CALL print_general_info ( stdout )
 
-  WRITE ( stdout ,'(a)')          ''
+  io_node blankline(stdout)
   WRITE ( stdout ,'(a,i9,a,i9)')  'hessian dimension ', 3 * natm , ' x ' , 3 * natm
 
   ! ===========================================
@@ -373,9 +379,9 @@ SUBROUTINE vib_main
       !         direct to cartesian
       ! ======================================
       CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
     else if ( cpos .eq. 'Cartesian' ) then
-      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
     endif
 
 
@@ -410,17 +416,17 @@ SUBROUTINE vib_main
       uplo = 'U'
       CALL DSYEV( jobz , uplo , 3 * natm , hess ,3 * natm , deig , work , lwork , info )
       if ( info .ne. 0 ) then
-        if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in vib_main : improper termination. of DSYEV info = ',info
+        io_node WRITE ( stderr ,'(a,i5)') 'ERROR in vib_main : improper termination. of DSYEV info = ',info
         STOP 
       else
-        if ( ionode ) WRITE ( stderr ,'(a)')    'hessian diagonalisation ok'
+        io_node WRITE ( stderr ,'(a)')    'hessian diagonalisation ok'
       endif
 
       ! ===========================================
       !  WRITE frequencies^2 (hessian eigenvalues) 
       ! ===========================================
       do im = 1,3 * natm
-        if ( ionode ) WRITE ( kunit_EIGFF ,'(f24.10)') deig(im)
+        io_node WRITE ( kunit_EIGFF ,'(f24.10)') deig(im)
       enddo
       ! =========================================
       !  DOS: density of states  of the 3N modes
@@ -441,12 +447,12 @@ SUBROUTINE vib_main
       dostabtot(0) = dostabtot(0) + 3
 
       do i = 0 , PANdos + 1
-        if ( ionode ) WRITE ( kunit_DOSFF ,'(3f16.8)') &
+        io_node WRITE ( kunit_DOSFF ,'(3f16.8)') &
         REAL( i , kind=dp ) * resdos, dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
       enddo
-      if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
-      if ( ionode ) WRITE ( kunit_DOSFF ,'(a)') ''  
-      if ( ionode ) WRITE ( stdout ,'(a)') 'dos ok' 
+      io_node blankline(kunit_DOSFF )
+      io_node blankline(kunit_DOSFF )
+      io_node WRITE ( stdout ,'(a)') 'dos ok' 
 
 
       ! ====================
@@ -461,8 +467,8 @@ SUBROUTINE vib_main
                                                 rx(ja),rz(ja),hess(ja,im),hess(ja + 2 * natm,im), &
                                                 deig(im)
           enddo
-          if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '
-          if ( ionode ) WRITE  ( kunit_VECTFF , * ) ' '
+          io_node blankline(kunit_VECTFF)
+          io_node blankline(kunit_VECTFF)
         enddo
       endif
 
@@ -539,20 +545,20 @@ SUBROUTINE vib_main
       !    write density of states to DOSKFF file
       ! ===========================================
       do i = 0,PANdos + 1
-        if ( ionode ) WRITE ( kunit_DOSKFF ,'(<6*ntype+3>f16.8)') &
+        io_node WRITE ( kunit_DOSKFF ,'(<6*ntype+3>f16.8)') &
         REAL ( i, kind = dp ) * resdos , ( REAL ( dostabk   (i,j) , kind = dp ) / ( 3.0 * nk * resdos )        , j = 0 , 3*ntype ) , &
                                          ( REAL ( dostabktot(i,j) , kind = dp ) / ( 3.0 * nk * resdos * nconf ), j = 0 , 3*ntype )
       enddo
-      if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
-      if ( ionode ) WRITE ( kunit_DOSKFF ,'(a)') ''
-      if ( ionode ) WRITE ( stdout ,'(a)')       'dos (k) ok'
+      io_node blankline(kunit_DOSKFF )
+      io_node blankline(kunit_DOSKFF )
+      io_node WRITE ( stdout ,'(a)')       'dos (k) ok'
 
       deallocate(eigenk)  
         
     endif ! vib+dos
 
     ttt2p = MPI_WTIME( ierr )
-    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',ic,' VIB  ', ttt2p - ttt1p  
+    io_node WRITE ( stdout , 110 ) 'config : ',ic,' VIB  ', ttt2p - ttt1p  
 
   enddo conf 
 
@@ -567,14 +573,15 @@ SUBROUTINE vib_main
   ! ===================================
   if (calc.eq.'vib+gmod') then
     if ( ionode ) then
-      WRITE ( stdout ,'(a)')            ''
+      blankline(stdout)
+      blankline(stdout)
       WRITE ( stdout ,'(a,i4,a,f8.3)')  'generate ', ngconf ,' configurations at temperature  = ', tempmod
       WRITE ( stdout ,'(a)')            'save configurations in file          : MODFF'
-      WRITE ( stdout ,'(a)')            ''
+      blankline(stdout)
       WRITE ( stdout ,'(a)')            'Method:'
       WRITE ( stdout ,'(a)')            'gaussian distributions of normal coordinates'
       WRITE ( stdout ,'(a)')            'equation 11 of J.Phys.Chem.B 2005, 109, 7245'
-      WRITE ( stdout ,'(a)')            ''
+      blankline(stdout)
     endif
 
     !generation of modes imod
@@ -587,7 +594,7 @@ SUBROUTINE vib_main
   ! ====================================
   if (calc.eq.'vib+fvib') then
     if ( ionode ) then
-      WRITE ( stdout ,'(a)')       ''    
+      blankline(stdout)
       WRITE ( stdout ,'(a)')       'read thermo (Fvibcalc)              : ISTHFF'
       WRITE ( stdout ,'(a)')       'WARNING !!!! DEV. STATE !!!! WARNING !!! NEED TO BE TESTED!!!'
     endif
@@ -612,11 +619,10 @@ SUBROUTINE vib_main
 
 END SUBROUTINE vib_main
 
-!*********************** SUBROUTINE hessian ***********************************
+! *********************** SUBROUTINE hessian ***********************************
 !
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE hessian ( hess )
 
   USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell
@@ -766,7 +772,7 @@ SUBROUTINE hessian ( hess )
     tzz = 0.0_dp
     do ja = 1, natm
       if ( ( ia .eq. ja ) .and. ( hess ( ia , ja ) .ne. 0.0_dp ) ) then
-        if ( ionode ) WRITE ( stderr , * )' ERROR : in hessian subroutine force constant is null', ia , ja , hess(ia,ja)
+        io_node WRITE ( stderr , * )' ERROR : in hessian subroutine force constant is null', ia , ja , hess(ia,ja)
       endif
       if ( ia .eq. ja ) cycle ! zero anyway 
       txx = txx + hess ( ia , ja )
@@ -808,33 +814,33 @@ SUBROUTINE hessian ( hess )
  ! =========================================================================== 
 
   if ( ntype .eq. 1 ) then
-    write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+    lseparator(stdout) 
     write ( stdout , '(a)' ) ' monoatomic fcc'
-   ! the 3 first squared fcc distances
-   ! first nearest neighbour fcc
-   fnnb = simu_cell%ANORM(1)*SQRT(2.0_dp)/2.0_dp/ncell
-   fnnb = fnnb*fnnb
-   ! second nearest neighbour fcc
-   snnb = simu_cell%ANORM(1)/ncell
-   snnb = snnb*snnb
-   ! third nearest neighbour fcc
-   tnnb = SQRT(6.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
-   tnnb = tnnb*tnnb
+    ! the 3 first squared fcc distances
+    ! first nearest neighbour fcc
+    fnnb = simu_cell%ANORM(1)*SQRT(2.0_dp)/2.0_dp/ncell
+    fnnb = fnnb*fnnb
+    ! second nearest neighbour fcc
+    snnb = simu_cell%ANORM(1)/ncell
+    snnb = snnb*snnb
+    ! third nearest neighbour fcc
+    tnnb = SQRT(6.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
+    tnnb = tnnb*tnnb
   endif
   
   if ( ntype .eq. 2 ) then
-    write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+    lseparator(stdout) 
     write ( stdout , '(a)' ) 'NaCl fcc'
-   ! the 3 first squared NaCl distances
-   ! first nearest neighbour NaCl 
-   fnnb = simu_cell%ANORM(1)/2.0_dp/ncell
-   fnnb = fnnb*fnnb
-   ! second nearest neighbour NaCl
-   snnb = SQRT(2.0_dp)*simu_cell%ANORM(1)/2.0_dp/ncell
-   snnb = snnb*snnb
-   ! third nearest neighbour NaCl
-   tnnb = SQRT(3.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
-   tnnb = tnnb*tnnb
+    ! the 3 first squared NaCl distances
+    ! first nearest neighbour NaCl 
+    fnnb = simu_cell%ANORM(1)/2.0_dp/ncell
+    fnnb = fnnb*fnnb
+    ! second nearest neighbour NaCl
+    snnb = SQRT(2.0_dp)*simu_cell%ANORM(1)/2.0_dp/ncell
+    snnb = snnb*snnb
+    ! third nearest neighbour NaCl
+    tnnb = SQRT(3.0_dp)*simu_cell%ANORM(1)/ncell/2.0_dp
+    tnnb = tnnb*tnnb
   endif
   
 
@@ -882,93 +888,93 @@ SUBROUTINE hessian ( hess )
           ! first nearest neighbour fcc
           ! ============================
           if ( abs ( rijsq-fnnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,2f12.5)' ) 'ia , ja are first neighbour',SQRT( rijsq ),SQRT(fnnb )
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
             if ( rxij .eq. 0.0 ) then 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   a   g  |' 
               write ( stdout , '(a)' ) '| 0   g   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( ryij .eq. 0.0 ) then 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   0   g  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| g   0   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( rzij .eq. 0.0 ) then 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   g   0  |' 
               write ( stdout , '(a)' ) '| g   a   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             CALL print_tensor ( tmpdebug , 'HESSFCC ' )
           ! ============================
           ! second nearest neighbour fcc
           ! ============================
           else if ( abs ( rijsq-snnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,2f12.5)'  ) 'ia , ja are second neighbour',SQRT( rijsq ),SQRT(snnb)
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
             if ( rxij .ne. 0.0 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   0   0  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( ryij .ne. 0.0 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   a   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( rzij .ne. 0.0 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| 0   0   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             CALL print_tensor ( tmpdebug , 'HESSFCC ' )
           ! ============================
           ! third nearest neighbour fcc
           ! ============================
           else if ( abs ( rijsq-tnnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,2f12.5)' ) 'ia , ja are third neighbour',SQRT( rijsq ),SQRT(tnnb)
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
             if ( abs ( ryij )  .eq. abs ( rzij ) ) then
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   b   b  |' 
               write ( stdout , '(a)' ) '| b   g   d  |' 
               write ( stdout , '(a)' ) '| b   d   g  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( abs ( rxij ) .eq. abs ( rzij ) ) then
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| g   b   d  |' 
               write ( stdout , '(a)' ) '| b   a   b  |' 
               write ( stdout , '(a)' ) '| d   b   g  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( abs ( rxij ) .eq. abs ( ryij ) ) then
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| g   d   b  |' 
               write ( stdout , '(a)' ) '| d   g   b  |' 
               write ( stdout , '(a)' ) '| b   b   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             CALL print_tensor ( tmpdebug , 'HESSFCC ' )
           endif
@@ -982,81 +988,82 @@ SUBROUTINE hessian ( hess )
           ! first nearest neighbour fcc
           ! ============================
           if ( abs ( rijsq-fnnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
             write ( stdout , '(a,2f12.5)' ) 'ia , ja are first neighbour',SQRT( rijsq ),SQRT(fnnb )
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
             if ( abs( rxij ) .gt. 1e-6 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   0   0  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( dabs( ryij ) .gt. 1e-6 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   a   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( dabs( rzij ) .gt. 1e-6 ) then 
-              write ( stdout , '(a)' ) ' ' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| 0   0   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
           ! ============================
           ! second nearest neighbour fcc
           ! ============================
           else if ( abs ( rijsq-snnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
             write ( stdout , '(a,2f12.5)'  ) 'ia , ja are second neighbour',SQRT( rijsq ),SQRT(snnb)
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
             if ( abs( rxij ) .lt. 1e-6 ) then 
-              write ( stdout , '(a)' ) '' 
+              blankline(stdout)
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| b   0   0  |' 
               write ( stdout , '(a)' ) '| 0   a   g  |' 
               write ( stdout , '(a)' ) '| 0   g   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( abs( ryij ) .lt. 1e-6 ) then 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   0   g  |' 
               write ( stdout , '(a)' ) '| 0   b   0  |' 
               write ( stdout , '(a)' ) '| g   0   a  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             if ( abs( rzij ) .lt. 1e-6 ) then 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
               write ( stdout , '(a)' ) '| a   g   0  |' 
               write ( stdout , '(a)' ) '| g   a   0  |' 
               write ( stdout , '(a)' ) '| 0   0   b  |' 
-              write ( stdout , '(a)' ) '' 
+              io_node blankline(stdout)
             endif
             CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
           ! ============================
           ! third nearest neighbour fcc
           ! ============================
           else if ( abs ( rijsq-tnnb ) .lt. 0.1d0 ) then 
-            write ( stdout , '(a)' ) '-------------------------------------------------------------------------------'
+            lseparator(stdout) 
             write ( stdout , '(a,i6,a,i6)' ) 'ia  = ', ia ,' ja  = ',ja
             write ( stdout , '(a,i6,a,i6)' ) 'ita = ', ita,' jta = ',jta
             write ( stdout , '(a,i6,a,i6)' ) 'si  = ', si ,' sj  = ',sj
             write ( stdout , '(a,2f12.5)' ) 'ia , ja are third neighbour',SQRT( rijsq ),SQRT(tnnb)
             write ( stdout , '(a)' ) 'by symmetry the force constant matrix is :'
-            write ( stdout , '(a)' ) ' ' 
+            io_node blankline(stdout)
             write ( stdout , '(a)' ) '| a   b   b  |' 
             write ( stdout , '(a)' ) '| b   a   b  |' 
             write ( stdout , '(a)' ) '| b   b   a  |' 
-            write ( stdout , '(a)' ) '' 
+            io_node blankline(stdout)
             CALL print_tensor_nxn ( tmpdebug , 'HESSFCC ' , 3*ntype)
           endif
         endif
@@ -1080,16 +1087,16 @@ SUBROUTINE hessian ( hess )
 
 END SUBROUTINE hessian
 
-!*********************** SUBROUTINE fvibcalc **********************************
+! *********************** SUBROUTINE fvibcalc **********************************
 !
-! This program reads in the vibrational frequencies and calculates 
-! the frequency dependent part of the vibrational free energy fvib. 
-! It also histograms the fvib according to the energy of the minima.
-! ener are energies that are READ  in, eigval are eigen values, fvib 
-! is calculated in the program, and so is fvibhist.
+!> \brief
+!! This program reads in the vibrational frequencies and calculates 
+!! the frequency dependent part of the vibrational free energy fvib. 
+!! It also histograms the fvib according to the energy of the minima.
+!! ener are energies that are READ  in, eigval are eigen values, fvib 
+!! is calculated in the program, and so is fvibhist.
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE fvibcalc
 
   USE config,   ONLY :  natm
@@ -1200,7 +1207,7 @@ SUBROUTINE fvibcalc
 
   do i = 1, nbin 
     if ( fvibhist ( i , 2 ) .ne. 0.0_dp ) then
-      if ( ionode ) WRITE ( kunit_VIBFF ,'(3(2x,e14.6))') &
+      io_node WRITE ( kunit_VIBFF ,'(3(2x,e14.6))') &
       fvibhist(i,1),fvibhist(i,3)/fvibhist(i,2),fvibhist(i,2)/(de * nconf)
     endif
   enddo
@@ -1217,18 +1224,18 @@ SUBROUTINE fvibcalc
     endif 
   enddo
 
-  if ( ionode ) WRITE ( stdout , * ) fvibav/pofet, pofet
+  io_node WRITE ( stdout , * ) fvibav/pofet, pofet
 
   return
 
 END SUBROUTINE fvibcalc
 
-!*********************** SUBROUTINE generate_modes ****************************
+! *********************** SUBROUTINE generate_modes ****************************
 !
-! generate configuration from a given mode
+!> \brief
+!! generate configuration from a given mode
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE generate_modes ( deig , hess , kunit )
 
   USE constants,                ONLY :  dzero
@@ -1290,7 +1297,7 @@ SUBROUTINE generate_modes ( deig , hess , kunit )
   ! =============================================
   gconf : do igconf = 1 , ngconf
 
-    if ( ionode ) WRITE ( stdout ,'(a,i6,a,i6)') 'conf = ',igconf,' of mode ',imod
+    io_node WRITE ( stdout ,'(a,i6,a,i6)') 'conf = ',igconf,' of mode ',imod
 
         ! ========================================================================
         ! gaussian distribution: 
@@ -1348,12 +1355,12 @@ END SUBROUTINE generate_modes
 
 
 
-!*********************** SUBROUTINE band **************************************
+! *********************** SUBROUTINE band **************************************
 !
-! calculates dispersion curve (band) in a given direction
+!> \brief
+!! calculates dispersion curve (band) in a given direction
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE band ( hess )
 
   USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
@@ -1493,7 +1500,7 @@ SUBROUTINE band ( hess )
 
     CALL DSYEV(jobz,uplo,3*ntype,hessij,3*ntype,ww,work,lwork,info)
     if ( info .ne. 0 ) then
-      if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in band : improper termination. of DSYEV info = ',info
+      io_node WRITE ( stderr ,'(a,i5)') 'ERROR in band : improper termination. of DSYEV info = ',info
       STOP
     endif
 
@@ -1521,12 +1528,12 @@ SUBROUTINE band ( hess )
 
 END SUBROUTINE band 
 
-!*********************** SUBROUTINE doskpt ************************************
+! *********************** SUBROUTINE doskpt ************************************
 !
-! calculates the DOS for a given set of k-points
+!> \brief
+!! calculates the DOS for a given set of k-points
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE doskpt ( hess , eigenk , nk )
 
   USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
@@ -1673,7 +1680,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
     
     if ( MOD ( ik + 1 , nk / 20 ) .eq. 0 ) then
       ttt2l = MPI_WTIME(ierr) ! timing info
-      if ( ionode ) WRITE ( stdout , 110 ) ' kpoints : ',ck,' DOSKPT  ', ttt2l - ttt1l
+      io_node WRITE ( stdout , 110 ) ' kpoints : ',ck,' DOSKPT  ', ttt2l - ttt1l
       ttt1l = MPI_WTIME(ierr) ! timing info
     endif
     hessij = - tmphess * 2.0_dp / natm
@@ -1696,7 +1703,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
     ! diagonalisation of the 3x3 matrix
     CALL DSYEV(jobz,uplo,3*ntype,hessij,3*ntype,ww,work,lwork,info)
     if ( info .ne. 0 ) then
-      if ( ionode ) WRITE ( stderr ,'(a,i5)') 'ERROR in doskpt : improper termination. of DSYEV info = ', info
+      io_node WRITE ( stderr ,'(a,i5)') 'ERROR in doskpt : improper termination. of DSYEV info = ', info
       STOP 
     endif
 
@@ -1747,12 +1754,12 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
 
 END SUBROUTINE doskpt 
 
-!*********************** SUBROUTINE gene_IBZKPTFF *****************************
+! *********************** SUBROUTINE gene_IBZKPTFF *****************************
 !
-! calculates the DOS for a given set of k-points
+!> \brief
+!! calculates the DOS for a given set of k-points
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE gene_IBZKPTFF
 
   USE constants,  ONLY : pi
@@ -1785,7 +1792,7 @@ SUBROUTINE gene_IBZKPTFF
   do ikx = 0 , nk
     do iky = 0 , nk        
       do ikz = 0 , nk
-        if ( ionode ) WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ikx * ak , iky * ak , ikz * ak, wi
+        io_node WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ikx * ak , iky * ak , ikz * ak, wi
       enddo
     enddo
   enddo

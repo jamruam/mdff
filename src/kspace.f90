@@ -17,11 +17,16 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 ! ======= Hardware =======
 
-
-
+! *********************** MODULE rspace ****************************************
+!> @brief
+!> module related to reciprocal space summation 
+!> @author
+!> FMV
+! ******************************************************************************
 MODULE kspace 
 
   USE constants , ONLY : dp 
@@ -29,31 +34,31 @@ MODULE kspace
   implicit none
 
   TYPE :: kmesh
-    integer                                        :: nk        ! total number of kpoints
-    integer                                        :: nkcut     ! (internal) number of k-points in each direction 
-    integer                                        :: kmax(3)   ! nb of kpts in each recip. direction in ewald sum.
-    real(kind=dp)   , dimension(:,:) , allocatable :: kpt       ! kpoints mesh : dimension ( 3 , nk )
-    real(kind=dp)   , dimension(:)   , allocatable :: kptk      ! k module
-    complex(kind=dp), dimension(:,:) , allocatable :: strf      ! facteur de structure
-    character(len=15)                              :: meshlabel ! giving a name to kmesh
+    integer                                        :: nk        !< total number of kpoints
+    integer                                        :: nkcut     !< (internal) number of k-points in each direction 
+    integer                                        :: kmax(3)   !< nb of kpts in each recip. direction in ewald sum.
+    real(kind=dp)   , dimension(:,:) , allocatable :: kpt       !< kpoints mesh : dimension ( 3 , nk )
+    real(kind=dp)   , dimension(:)   , allocatable :: kptk      !< k module
+    complex(kind=dp), dimension(:,:) , allocatable :: strf      !< facteur de structure
+    character(len=15)                              :: meshlabel !< giving a name to kmesh
   END TYPE
 
   TYPE :: kpath
-    integer                                        :: nk        ! number of kpoints in the path
-    real(kind=dp), dimension(:,:) , allocatable    :: kpt       ! kpoint path : dimension ( 3 , nk )
-    real(kind=dp)                                  :: kdir(3)   ! path vector  
-    character(len=3)                               :: pathlabel ! giving a name to kpath
+    integer                                        :: nk        !< number of kpoints in the path
+    real(kind=dp), dimension(:,:) , allocatable    :: kpt       !< kpoint path : dimension ( 3 , nk )
+    real(kind=dp)                                  :: kdir(3)   !< path vector  
+    character(len=3)                               :: pathlabel !< giving a name to kpath
   END TYPE
 
 
 CONTAINS
 
-!*********************** SUBROUTINE get_path **********************************
-!
-! this subroutine initialized kpoint path for band structure calculation
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE get_path **********************************
+!> \brief
+!! this subroutine initialized kpoint path for band structure calculation
+!> \author
+!! FMV
+! ******************************************************************************
 SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
 
   USE config,           ONLY :  simu_cell
@@ -104,19 +109,22 @@ SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
     kp%kpt(3,ik) = kp%kpt(3,1) + r_ik * kp%kdir ( 3 ) * step
   enddo
 
-  if ( ionode ) WRITE ( stdout , '(a,a,a)' ) 'path ',kp%pathlabel,' generated'
+  io_node WRITE ( stdout , '(a,a,a)' ) 'path ',kp%pathlabel,' generated'
 
   return
 
 END SUBROUTINE get_kpath
 
-!*********************** SUBROUTINE kpoint_sum_init ***************************
-!
-! this subroutine initialized the k vectors for the ewald summation
-! kpt(3,:) are the three components in 2pi/box units
-! kptk is the square module
-!
-!******************************************************************************
+! *********************** SUBROUTINE kpoint_sum_init ***************************
+!> \brief
+!! this subroutine initialized the k vectors for the ewald summation
+!> \param[in,out] km kpoint mesh being initialized
+!> \note
+!! kpt(3,:) are the three components in 2pi/box units
+!! kptk is the square module
+!> \author
+!! FMV
+! ******************************************************************************
 
 SUBROUTINE kpoint_sum_init( km ) 
 
@@ -127,13 +135,13 @@ SUBROUTINE kpoint_sum_init( km )
   implicit none
   
   ! global
-  TYPE ( kmesh ) :: km
+  TYPE ( kmesh ), intent(inout) :: km
 
   ! local
   integer :: nx , ny , nz , nk 
   real(kind=dp) :: kx, ky, kz, kk
 
-  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
+  io_node WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
 
   nk = 0
   do nx =  - km%kmax(1) , km%kmax(1)
@@ -155,7 +163,7 @@ SUBROUTINE kpoint_sum_init( km )
   enddo
  
   if ( nk .ne. km%nkcut ) then
-    if ( ionode ) WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut , km%meshlabel
+    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut , km%meshlabel
     STOP
   endif
 
@@ -165,39 +173,42 @@ SUBROUTINE kpoint_sum_init( km )
   !  organized kpt arrays 
   ! ======================
   call reorder_kpt ( km ) 
-  if ( ionode ) WRITE ( stdout      ,'(a)') '(full) kpt arrays sorted'
+  io_node WRITE ( stdout      ,'(a)') '(full) kpt arrays sorted'
 
   return
 
 END SUBROUTINE kpoint_sum_init
 
-!*********************** SUBROUTINE kpoint_sum_init_half **********************
-!
-! this subroutine initialized the k vectors for the ewald summation
+! *********************** SUBROUTINE kpoint_sum_init_half **********************
+!> \brief
+!! this subroutine initialized the k vectors for the ewald summation
 ! kpt(3,:) are the three components in 2pi/box units
 ! kptk is the square module
-!
-! this subroutine generate only half of the brillouin zone 
-!
-!******************************************************************************
-
+!> \param[in,out] km kpoint mesh being initialized
+!> \note
+!! kpt(3,:) are the three components in 2pi/box units
+!! kptk is the square module
+!> \author
+!! FMV
+!> \note
+!! this subroutine generate only half of the brillouin zone 
+! ******************************************************************************
 SUBROUTINE kpoint_sum_init_half ( km )
 
   USE config,           ONLY :  simu_cell 
   USE io_file,          ONLY :  ionode , stdout
-  USE constants,        ONLY :  pi , tpi
+  USE constants,        ONLY :  tpi
 
   implicit none
   
   ! global
-  TYPE ( kmesh ) :: km
-  
+  TYPE ( kmesh ), intent(inout) :: km
   
   ! local
   integer :: nx , ny , nz , nk 
   real(kind=dp) :: kx, ky, kz, kk
 
-  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
+  io_node WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
   
   nk = 0
   do nx =  0 , km%kmax(1) 
@@ -219,7 +230,7 @@ SUBROUTINE kpoint_sum_init_half ( km )
   enddo
 
   if ( nk .ne. km%nkcut ) then
-    if ( ionode ) WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init_half ', nk , km%nkcut , km%meshlabel
+    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init_half ', nk , km%nkcut , km%meshlabel
     STOP
   endif
 
@@ -227,18 +238,19 @@ SUBROUTINE kpoint_sum_init_half ( km )
   !  organized kpt arrays 
   ! ======================
   call reorder_kpt ( km )
-  if ( ionode ) WRITE ( stdout      ,'(a)')     '(half) kpt arrays sorted'
+  io_node WRITE ( stdout      ,'(a)')     '(half) kpt arrays sorted'
 
   return
 
 END SUBROUTINE kpoint_sum_init_half
 
-!*********************** SUBROUTINE reorder_kpt *******************************
-!
-! this subroutine reorder kpt arrays (increasing k^2)
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE reorder_kpt *******************************
+!> \brief
+!! this subroutine reorder kpt arrays (increasing k^2)
+!> \param[in,out] km kpoint mesh being initialized
+!> \author
+!! FMV
+! ******************************************************************************
 SUBROUTINE reorder_kpt ( km )
 
   USE io_file,  ONLY :  ionode , stdout 
@@ -246,13 +258,12 @@ SUBROUTINE reorder_kpt ( km )
   implicit none
 
   !global
-  TYPE(kmesh) :: km
+  TYPE ( kmesh ), intent(inout) :: km
 
   !local
   integer :: ik, lk
   real(kind=dp), dimension (:), allocatable :: tkpt
   real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz
- 
   integer, dimension (:), allocatable :: labelkpt, labelt
 
   allocate ( tkpt ((km%nkcut+1)/2) , labelkpt(km%nkcut), labelt((km%nkcut+1)/2) )
@@ -296,13 +307,14 @@ SUBROUTINE reorder_kpt ( km )
 
 END SUBROUTINE reorder_kpt
 
-!*********************** SUBROUTINE struct_fact *******************************
-!
-! calculate the structure factors for each type of atoms in the unit cell
-! Basically used to calculate k-space charge density. 
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE struct_fact *******************************
+!!> \brief
+!! calculate the structure factors for each type of atoms in the unit cell
+!! Basically used to calculate k-space charge density. 
+!> \param[in,out] km kpoint mesh being initialized
+!> \author
+!! FMV
+! ******************************************************************************
 SUBROUTINE struc_fact ( km ) 
   
   USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
@@ -312,7 +324,7 @@ SUBROUTINE struc_fact ( km )
   implicit none
 
   ! global
-  TYPE ( kmesh ) :: km
+  TYPE ( kmesh ), intent(inout) :: km
 
   ! local
   !integer :: it
@@ -326,6 +338,7 @@ SUBROUTINE struc_fact ( km )
         rxi = rx ( ia ) 
         ryi = ry ( ia ) 
         rzi = rz ( ia ) 
+ 
 !        if ( itype (ia) .eq. it ) then
            do ik = 1, km%nkcut 
               arg = ( km%kpt ( 1 , ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 

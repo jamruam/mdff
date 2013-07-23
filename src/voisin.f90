@@ -1,12 +1,32 @@
-
+! MDFF parallel Molecular Dynamics ... For Fun
+! Copyright (C) 2011  F. Vasconcelos
+!
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+!
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+! USA.
+! ===== fmV =====
+#include "symbol.h"
 ! ======= Hardware =======
 !#define debug_vois1_fixed
-!#define debug_vois1_sann
+#define debug_vois1_sann
 !#define debug_vois1_voronoi
 !#define sort_voronoi
 !#define further_info_voronoi    
 ! ======= Hardware =======
 
+! ******************************************************************************
+! voisin module : voisin ( vois1 )  means neighbour in french
 ! in construction 
 !
 ! main reference :
@@ -19,9 +39,7 @@
 ! - voronoi constrution 
 ! - SANN ( derived and presented in [1]
 
-!******************************************************************************
-! voisin module : voisin ( vois1 )  means neighbour in french
-!******************************************************************************
+! ******************************************************************************
 MODULE voisin
 
   USE constants,                        ONLY :  dp
@@ -48,12 +66,11 @@ MODULE voisin
   data                 vois1algo_allowed  / 'fixed' , 'sann' , 'sannsq' , 'voronoi' /
 
 
-
 CONTAINS
 
 
-!*********************** SUBROUTINE vois1_init ********************************
-!******************************************************************************
+! *********************** SUBROUTINE vois1_init ********************************
+! ******************************************************************************
 SUBROUTINE vois1_init
 
   USE io_file,                  ONLY :  ionode , stdin , stdout , stderr
@@ -83,10 +100,10 @@ SUBROUTINE vois1_init
   OPEN ( stdin , file = filename)
   READ ( stdin , vois1tag , iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : vois1tag section is absent'
+    io_node WRITE ( stderr, '(a)') 'ERROR reading input_file : vois1tag section is absent'
     STOP
   elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stderr, '(a)') 'ERROR reading input_file : vois1tag wrong tag'
+    io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : vois1tag wrong tag'
     STOP
   endif
 
@@ -102,8 +119,8 @@ SUBROUTINE vois1_init
 
 END SUBROUTINE vois1_init
 
-!*********************** SUBROUTINE vois1_default_tag *************************
-!******************************************************************************
+! *********************** SUBROUTINE vois1_default_tag *************************
+! ******************************************************************************
 SUBROUTINE vois1_default_tag
 
   implicit none
@@ -118,8 +135,8 @@ SUBROUTINE vois1_default_tag
 
 END SUBROUTINE vois1_default_tag
 
-!*********************** SUBROUTINE vois1_check_tag ***************************
-!******************************************************************************
+! *********************** SUBROUTINE vois1_check_tag ***************************
+! ******************************************************************************
 SUBROUTINE vois1_check_tag
 
   USE io_file,                  ONLY :  ionode , stdout 
@@ -135,7 +152,7 @@ SUBROUTINE vois1_check_tag
     if ( TRIM( vois1algo ) == vois1algo_allowed(i) ) allowed = .TRUE.
   enddo
   if ( .not. allowed ) then
-    if ( ionode ) WRITE ( stdout ,'(a,a)') 'ERROR vois1tag: vois1algo should be ',vois1algo_allowed
+    io_node WRITE ( stdout ,'(a,a)') 'ERROR vois1tag: vois1algo should be ',vois1algo_allowed
     STOP
   endif
 
@@ -144,8 +161,8 @@ SUBROUTINE vois1_check_tag
 
 END SUBROUTINE vois1_check_tag
 
-!*********************** SUBROUTINE vois1_print_info **************************
-!******************************************************************************
+! *********************** SUBROUTINE vois1_print_info **************************
+! ******************************************************************************
 SUBROUTINE vois1_print_info(kunit)
 
   USE config,                   ONLY :  ntype , atypei
@@ -159,8 +176,8 @@ SUBROUTINE vois1_print_info(kunit)
   integer :: it 
 
   if ( ionode ) then
-      WRITE ( kunit ,'(a)')       '============================================================='
-      WRITE ( kunit ,'(a)')       ''
+      separator(kunit)
+      blankline(kunit)
       WRITE ( kunit ,'(a)')       'neighbour analysis'
       WRITE ( kunit ,'(a)')       'read config from file : TRAJFF'
       WRITE ( kunit ,'(a,i10)')   'numbers of config read nconf = ',nconf
@@ -184,11 +201,11 @@ SUBROUTINE vois1_print_info(kunit)
 
 END SUBROUTINE vois1_print_info
 
-!*********************** SUBROUTINE vois1_driver ******************************
-!******************************************************************************
+! *********************** SUBROUTINE vois1_driver ******************************
+! ******************************************************************************
 SUBROUTINE vois1_driver
 
-  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_DTNBFF
+  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_DTNBFF , kunit_VOIS1FF
   USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi , rho , simu_cell , config_alloc , &
@@ -202,10 +219,10 @@ SUBROUTINE vois1_driver
   ! local 
   integer                                               :: iastart , iaend , i , inb
   integer                                               :: ia , iconf , it 
-  integer                                               :: iiii , ierr
+  integer                                               :: iiii 
   character(len=60)                                     :: cccc 
   real(kind=dp)                                         :: aaaa 
-  real(kind=dp)                                         :: ttt1p, ttt2p 
+  dectime
   logical :: allowed
   character(len=60), SAVE :: cpos
   character(len=60), SAVE :: cpos_allowed(4)
@@ -213,6 +230,7 @@ SUBROUTINE vois1_driver
 
 
   OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
+  OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
 
   READ ( kunit_TRAJFF , * ) natm
   READ ( kunit_TRAJFF , * ) system
@@ -242,7 +260,7 @@ SUBROUTINE vois1_driver
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
+  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms')
   CALL vois1_alloc
   CALL typeinfo_init
   ! =============
@@ -256,7 +274,7 @@ SUBROUTINE vois1_driver
   ! LOOP OVER CONFIGURATIONS 
   ! ============================================
   do iconf = 1, nconf
-    ttt1p = MPI_WTIME(ierr)
+    statime
 
     if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  natm
     if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  system
@@ -317,8 +335,8 @@ SUBROUTINE vois1_driver
       CALL sann 
     endif
 
-    ttt2p = MPI_WTIME(ierr)
-    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',iconf,' VOIS1  ', ttt2p - ttt1p
+    stotime
+    writime('config : ',iconf,' VOIS1  ')
 
   enddo
 
@@ -333,17 +351,16 @@ SUBROUTINE vois1_driver
   CLOSE ( kunit_DTNBFF )
 
   CLOSE(kunit_TRAJFF)
+  CLOSE(kunit_VOIS1FF)
 
   CALL vois1_dealloc
 
   return 
 
-110   FORMAT(2X,A8,I4,A20,' :  cpu time',F9.2)
-
 END SUBROUTINE vois1_driver
 
-!*********************** SUBROUTINE fixed_distance ****************************
-!******************************************************************************
+! *********************** SUBROUTINE fixed_distance ****************************
+! ******************************************************************************
 SUBROUTINE fixed_distance
 
   USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei 
@@ -436,8 +453,8 @@ SUBROUTINE fixed_distance
     !  test out of bound
     ! ====================== 
     if (knb.lt.0.or.knb.gt.nbmax) then
-      if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
-      if ( ionode ) WRITE ( stderr , '(4i6)') ia , knb , Nb(ia) , nbmax
+      io_node WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
+      io_node WRITE ( stderr , '(4i6)') ia , knb , Nb(ia) , nbmax
       STOP
     endif
     dib_nb ( 0  , knb ) = dib_nb ( 0  , knb ) + 1
@@ -481,13 +498,13 @@ SUBROUTINE fixed_distance
 
 END SUBROUTINE fixed_distance
 
-!*********************** SUBROUTINE SANN **************************************
+! *********************** SUBROUTINE SANN **************************************
 !
 !     based on sann.f :
 !     Fortran implementation of the SANN algorithm                        
 !     van Meel, Filion, Valeriani and Frenkel November (2011)             
 !
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE sann
 
   USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype
@@ -591,7 +608,7 @@ SUBROUTINE sann
           countneighbors(ia) = countneighbors(ia) + 1
         ! build a list of neighbours
           if ( countneighbors(ia) .gt. nmaxneigh ) then
-            if ( ionode ) WRITE ( stderr , '(a,4i12)' ) 'ERROR: out of bound neighbor in sann',countneighbors(ia),nmaxneigh,ia,ja
+            io_node WRITE ( stderr , '(a,4i12)' ) 'ERROR: out of bound neighbor in sann',countneighbors(ia),nmaxneigh,ia,ja
           endif
           neighbor(ia,countneighbors(ia)) = ja
         ! create a list with the distance between ia and ja 
@@ -747,7 +764,7 @@ SUBROUTINE sann
           ! ja is a neighbour of ia
             countneighbors(ia) = countneighbors(ia) + 1
             if ( countneighbors(ia) .gt. nmaxneigh ) then
-              if ( ionode ) WRITE ( stderr , '(a,4i12)' ) 'ERROR: out of bound neighbor in sann',countneighbors(ia),nmaxneigh,ia,ja
+              io_node WRITE ( stderr , '(a,4i12)' ) 'ERROR: out of bound neighbor in sann',countneighbors(ia),nmaxneigh,ia,ja
             endif
             neighbor(ia,countneighbors(ia)) = ja
             distance(ia,countneighbors(ia)) = dist
@@ -814,8 +831,8 @@ SUBROUTINE sann
       !  test out of bound
       ! ====================== 
       if (knb.lt.0.or.knb.gt.nbmax) then
-        if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
-        if ( ionode ) WRITE ( stderr , '(4i6)') ia , knb , Nb(ia) , nbmax
+        io_node WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
+        io_node WRITE ( stderr , '(4i6)') ia , knb , Nb(ia) , nbmax
         STOP
       endif
       dib_nb ( 0  , knb ) = dib_nb ( 0  , knb ) + 1
@@ -838,12 +855,10 @@ SUBROUTINE sann
       enddo
     enddo
 
-    OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
     WRITE ( kunit_VOIS1FF , '(a)' ) '#atom    nb_neighbors       ... of different types ... '
     do ia = 1 , natm
       WRITE ( kunit_VOIS1FF , '(2i6,i6,<ntype>(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
     enddo
-    CLOSE ( kunit_VOIS1FF )
     deallocate ( spec_vois1 )
 
   endif
@@ -872,7 +887,7 @@ SUBROUTINE sann
 
 END SUBROUTINE sann 
 
-!*********************** SUBROUTINE voronoi_construction **********************
+! *********************** SUBROUTINE voronoi_construction **********************
 !
 ! adapted from Allen and Tildesley
 ! we put the original description. But the actual implementation is slightly
@@ -880,28 +895,28 @@ END SUBROUTINE sann
 !    FICHE F.35  - PART B                                          
 !    THE VORONOI CONSTRUCTION IN 3D.                               
 !
-!    ** CONSTRUCTION OF VORONOI POLYHEDRON IN 3D.                     **
-!    **                                                               **
-!    ** THIS PROGRAM TAKES IN A CONFIGURATION IN A CUBIC BOX WITH     **
-!    ** CONVENTIONAL PERIODIC BOUNDARY CONDITIONS AND FOR EACH ATOM   **
-!    ** OBTAINS THE SURROUNDING VORONOI POLYHEDRON, DEFINED AS THAT   **
-!    ** REGION OF SPACE CLOSER TO THE CHOSEN ATOM THAN TO ANY OTHER.  **
-!    ** NEIGHBOURING POLYHEDRA DEFINE NEIGHBOURING ATOMS.             **
-!    ** THIS PROGRAM IS SLOW BUT ESSENTIALLY FOOLPROOF.               **
-!    ** WE USE THE MINIMUM IMAGE CONVENTION AND SET A CUTOFF BEYOND   **
-!    ** WHICH ATOMS ARE ASSUMED NOT TO BE NEIGHBOURS: BOTH OF THESE   **
-!    ** MEASURES ARE DANGEROUS FOR SMALL AND/OR RANDOM SYSTEMS.       **
-!    ** WE DELIBERATELY DO NOT USE PREVIOUSLY-FOUND NEIGHBOURS IN     **
-!    ** CONSTRUCTING NEIGHBOUR LISTS, SO THAT AN INDEPENDENT CHECK    **
-!    ** MAY BE MADE AT THE END.                                       **
-!    ** HERE WE SIMPLY PRINT OUT THE GEOMETRICAL INFORMATION AT THE   **
-!    ** END.  THE OUTPUT IS QUITE LENGTHY.  IN PRACTICE, IT WOULD     **
-!    ** PROBABLY BE ANALYZED DIRECTLY WITHOUT PRINTING IT OUT.        **
-!    ** NB: BEWARE DEGENERATE CONFIGURATIONS, I.E. ONES IN WHICH MORE **
-!    ** THAN FOUR VORONOI DOMAINS SHARE A VERTEX. THE SIMPLE CUBIC    **
-!    ** AND FACE-CENTRED CUBIC LATTICES ARE EXAMPLES.               
+!     CONSTRUCTION OF VORONOI POLYHEDRON IN 3D.                     
+!                                                                   
+!     THIS PROGRAM TAKES IN A CONFIGURATION IN A CUBIC BOX WITH     
+!     CONVENTIONAL PERIODIC BOUNDARY CONDITIONS AND FOR EACH ATOM   
+!     OBTAINS THE SURROUNDING VORONOI POLYHEDRON, DEFINED AS THAT   
+!     REGION OF SPACE CLOSER TO THE CHOSEN ATOM THAN TO ANY OTHER.  
+!     NEIGHBOURING POLYHEDRA DEFINE NEIGHBOURING ATOMS.             
+!     THIS PROGRAM IS SLOW BUT ESSENTIALLY FOOLPROOF.               
+!     WE USE THE MINIMUM IMAGE CONVENTION AND SET A CUTOFF BEYOND   
+!     WHICH ATOMS ARE ASSUMED NOT TO BE NEIGHBOURS: BOTH OF THESE   
+!     MEASURES ARE DANGEROUS FOR SMALL AND/OR RANDOM SYSTEMS.       
+!     WE DELIBERATELY DO NOT USE PREVIOUSLY-FOUND NEIGHBOURS IN     
+!     CONSTRUCTING NEIGHBOUR LISTS, SO THAT AN INDEPENDENT CHECK    
+!     MAY BE MADE AT THE END.                                       
+!     HERE WE SIMPLY PRINT OUT THE GEOMETRICAL INFORMATION AT THE   
+!     END.  THE OUTPUT IS QUITE LENGTHY.  IN PRACTICE, IT WOULD     
+!     PROBABLY BE ANALYZED DIRECTLY WITHOUT PRINTING IT OUT.        
+!     NB: BEWARE DEGENERATE CONFIGURATIONS, I.E. ONES IN WHICH MORE 
+!     THAN FOUR VORONOI DOMAINS SHARE A VERTEX. THE SIMPLE CUBIC    
+!     AND FACE-CENTRED CUBIC LATTICES ARE EXAMPLES.               
 !
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE voronoi_construction
 
   USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype
@@ -1002,7 +1017,7 @@ SUBROUTINE voronoi_construction
         if ( dist .lt. rcutsq ) then
           can = can + 1
           if ( can .gt. nmaxneigh ) then
-            if ( ionode ) WRITE ( stderr , '(a)') 'ERROR out of bound nmaxneigh too small in voronoi_construction',can,nmaxneigh
+            io_node WRITE ( stderr , '(a)') 'ERROR out of bound nmaxneigh too small in voronoi_construction',can,nmaxneigh
             STOP
           endif
           px (can)  = rxij
@@ -1085,7 +1100,7 @@ SUBROUTINE voronoi_construction
   enddo
 #endif
     deallocate ( td , labeld , labeltd , tmpdist , tmpx , tmpy , tmpz ) 
-#endif sort_voronoi
+#endif 
 
     ! ====================================
     !    PERFORM VORONOI ANALYSIS
@@ -1170,8 +1185,8 @@ SUBROUTINE voronoi_construction
     !  test out of bound
     ! ====================== 
     if (knb.lt.0.or.knb.gt.nbmax) then
-      if ( ionode ) WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
-      if ( ionode ) WRITE ( stderr , '(4i6)') ia , knb , nb(ia) , nbmax
+      io_node WRITE ( stderr , * ) 'ERROR: out of bound dist_nb'
+      io_node WRITE ( stderr , '(4i6)') ia , knb , nb(ia) , nbmax
       STOP
     endif
     dib_nb ( 0  , knb ) = dib_nb ( 0  , knb ) + 1
@@ -1223,7 +1238,7 @@ SUBROUTINE voronoi_construction
 
 END SUBROUTINE voronoi_construction
 
-!*********************** SUBROUTINE work_voronoi ******************************
+! *********************** SUBROUTINE work_voronoi ******************************
 !
 !     ROUTINE TO PERFORM VORONOI ANALYSIS                           
 !     FMV note : en toute rigueur c'est une triangulation de Delaunay (vraiment ?? )
@@ -1231,7 +1246,7 @@ END SUBROUTINE voronoi_construction
 !     WE WORK INITIALLY ON DOUBLE THE CORRECT SCALE,                
 !     I.E. THE FACES OF THE POLYHEDRON GO THROUGH THE POINTS.       
 !
-!******************************************************************************
+! ******************************************************************************
 SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges , vx , vy , vz , iv , jv , kv )
 
   USE io_file,          ONLY :  stdout
@@ -1248,7 +1263,7 @@ SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges 
   integer ::     i, j, k, l, nn1, nn2, n, v
   real(kind=dp) :: AI, BI, CI, DI, AJ, BJ, CJ, DJ, AK, BK, CK, DK
   real(kind=dp) :: AB, BC, CA, DA, DB, DC, det , detinv 
-  real(kind=dp) :: VXIJK, VYIJK, VZIJK
+  real(kind=dp) :: vxijk , vyijk , vzijk  
   real(kind=dp) , PARAMETER :: tol = 1.E-6_dp
 
   ! =============================================
@@ -1296,10 +1311,10 @@ SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges 
         ! ===========================
         !   THE PLANES INTERSECT 
         ! ===========================
-        DETINV = 1.0_dp / DET
-        VXIJK = ( - DK * BC + BK * DC - CK * DB ) * DETINV
-        VYIJK = ( - AK * DC - DK * CA + CK * DA ) * DETINV
-        VZIJK = (   AK * DB - BK * DA - DK * AB ) * DETINV
+        detinv = 1.0_dp / DET
+        vxijk  = ( - DK * BC + BK * DC - CK * DB ) * detinv
+        vyijk  = ( - AK * DC - DK * CA + CK * DA ) * detinv
+        vzijk  = (   AK * DB - BK * DA - DK * AB ) * detinv
 
         ! =================================
         !  NOW WE TAKE SHOTS AT THE VERTEX
@@ -1310,7 +1325,7 @@ SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges 
         l  = 1
         do while ( ok .AND. ( l .LE. NN ) ) 
           if ( ( l .NE. i ) .AND. ( l .NE. j ) .AND. ( l .NE. k )       ) then
-            ok = ( ( px (l) * VXIJK + py (l) * VYIJK + pz (l) * VZIJK  ) .le. ps (l) )
+            ok = ( ( px (l) * vxijk + py (l) * vyijk + pz (l) * vzijk  ) .le. ps (l) )
           endif
           l = l + 1
         enddo
@@ -1322,12 +1337,12 @@ SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges 
         if ( ok ) then
           v = v + 1
           if ( v .gt. maxcan ) STOP 'TOO MANY VERTICES'
-            IV (v)  = i
-            JV (v)  = j
-            KV (v)  = k
-            VX (v) = 0.5_dp * VXIJK
-            VY (v) = 0.5_dp * VYIJK
-            VZ (v) = 0.5_dp * VZIJK
+            iv (v)  = i
+            jv (v)  = j
+            kv (v)  = k
+            vx (v) = 0.5_dp * vxijk
+            vy (v) = 0.5_dp * vyijk
+            vz (v) = 0.5_dp * vzijk
           endif
         endif 
       enddo
@@ -1384,7 +1399,6 @@ SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges 
   return
 
 END SUBROUTINE work_voronoi
-
 
 SUBROUTINE vois1_alloc
  

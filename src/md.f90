@@ -17,59 +17,62 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
+! *********************** MODULE md ********************************************
+!> \brief 
+!! module related to molecular dynamics calculation ( calc = 'md' )
+! ******************************************************************************
 MODULE md
 
   USE constants,                ONLY :  dp
 
   implicit none
 
-  logical, SAVE :: ltraj                   ! save trajectory                                    
-  logical, SAVE :: lleapequi               ! leap-frog used in the equilibration part together with verlet -> vv + lf 
+  logical, SAVE :: ltraj                   !< save trajectory                                    
+  logical, SAVE :: lleapequi               !< leap-frog used in the equilibration part together with verlet -> vv + lf 
 
-  integer :: npas                          ! number of time steps
-  integer :: nequil                        ! number of equilibration steps
-  integer :: nequil_period                 ! equilibration period
-  integer :: spas                          ! save configuration each spas step 
-  integer :: nprint                        ! print thermo info to standard output
-  integer :: fprint                        ! print thermo info to file OSZIFF
-  integer :: itraj_start                   ! write trajectory from step itraj_start
-  integer :: itraj_period                  ! write trajectory each itraj_period steps 
-  integer :: itraj_format                  ! choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
-  integer :: updatevnl                     ! number of verlet list update  
+  integer :: npas                          !< number of time steps
+  integer :: nequil                        !< number of equilibration steps
+  integer :: nequil_period                 !< equilibration period
+  integer :: spas                          !< save configuration each spas step 
+  integer :: nprint                        !< print thermo info to standard output
+  integer :: fprint                        !< print thermo info to file OSZIFF
+  integer :: itraj_start                   !< write trajectory from step itraj_start
+  integer :: itraj_period                  !< write trajectory each itraj_period steps 
+  integer :: itraj_format                  !< choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
+  integer :: updatevnl                     !< number of verlet list update  
   integer :: itime
 
-  real(kind=dp) :: dt                   ! time step
-  real(kind=dp) :: temp                 ! temperature   
-  real(kind=dp) :: Qnosehoover          ! Q parameter in Nose-Hoover Chain 
-  real(kind=dp) :: tauberendsen         ! characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
-  real(kind=dp) :: nuandersen           ! characteristic frequency in andersen thermostat
-  real(kind=dp) :: vxi1, vxi2, xi1, xi2 ! extra variables of Nose-Hoover Chain
+  real(kind=dp) :: dt                   !< time step
+  real(kind=dp) :: temp                 !< temperature   
+  real(kind=dp) :: Qnosehoover          !< Q parameter in Nose-Hoover Chain 
+  real(kind=dp) :: tauberendsen         !< characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
+  real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat
+  real(kind=dp) :: vxi1, vxi2, xi1, xi2 !< extra variables of Nose-Hoover Chain
 
   ! ================================================
   !     algorithm for dynamic integration
   ! ================================================
-  character(len=60) :: integrator            
-  character(len=60) :: integrator_allowed(7) 
+  character(len=60) :: integrator               !< integration method   
+  character(len=60) :: integrator_allowed(7)    
   data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nve-lfq'/
 
   ! ================================================
   !  velocity distribution (Maxwell-Boltzmann or uniform)
   ! ================================================
-  character(len=60) :: setvel                 
+  character(len=60) :: setvel                   !< velocity distribution 
   character(len=60) :: setvel_allowed(2) 
   data setvel_allowed / 'MaxwBoltz', 'Uniform' /
 
 CONTAINS
 
 
-!*********************** SUBROUTINE md_init ***********************************
-!
-! molecular dynamics initialisation of main parameters
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE md_init ***********************************
+!> \brief
+!! molecular dynamics initialisation of main parameters
+! ******************************************************************************
 SUBROUTINE md_init
 
   USE control,  ONLY :  lpbc , lstatic , calc
@@ -109,10 +112,12 @@ SUBROUTINE md_init
   OPEN ( stdin , file = filename)
   READ ( stdin , mdtag ,iostat =ioerr)
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag section is absent'
+    io_node &
+    WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag section is absent'
     STOP
   elseif ( ioerr .gt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : mdtag wrong tag'
+    io_node &
+    WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : mdtag wrong tag'
     STOP
   endif
   CLOSE  ( stdin )
@@ -130,12 +135,10 @@ SUBROUTINE md_init
 END SUBROUTINE md_init 
 
 
-!*********************** SUBROUTINE md_default_tag ****************************
-!
-! set default values to md tag
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE md_default_tag ****************************
+!> \brief
+!! set default values to md tag
+! ******************************************************************************
 SUBROUTINE md_default_tag
 
   implicit none
@@ -165,14 +168,13 @@ SUBROUTINE md_default_tag
 END SUBROUTINE md_default_tag
 
 
-!*********************** SUBROUTINE md_check_tag ******************************
-!
-! check md tag values
-!
-!******************************************************************************
- 
+! *********************** SUBROUTINE md_check_tag ******************************
+!> \brief
+!! check md tag values
+! ******************************************************************************
 SUBROUTINE md_check_tag
 
+  USE control,  ONLY :  lstatic
   USE io_file,  ONLY :  ionode , stdout
 
   implicit none
@@ -181,7 +183,7 @@ SUBROUTINE md_check_tag
   logical :: allowed
   integer :: i
 
-  if (dt.eq.0.0_dp ) then
+  if (dt.eq.0.0_dp .and. .not. lstatic ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: timestep dt is zero'
     STOP
   endif
@@ -245,12 +247,10 @@ SUBROUTINE md_check_tag
 END SUBROUTINE md_check_tag
 
 
-!*********************** SUBROUTINE md_print_info *****************************
-!
-! print general information to standard output for md control tag
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE md_print_info *****************************
+!> \brief
+!! print general information to standard output for md control tag
+! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
   USE control,          ONLY :  lpbc , lstatic , lvnlist , lreduced , lminimg 
@@ -262,8 +262,10 @@ SUBROUTINE md_print_info(kunit)
   integer :: kunit
 
   if ( ionode ) then 
-                                          WRITE ( kunit ,'(a)')       '=============================================================' 
-                                          WRITE ( kunit ,'(a)')       ''
+                                          separator(kunit)    
+                                          blankline(kunit)    
+                                          WRITE ( kunit ,'(a)')       'MD MODULE ... WELCOME'
+                                          blankline(kunit)    
       if (lstatic) then
                                           WRITE ( kunit ,'(a)')       'static  calculation ....boring                 '
       else
@@ -320,7 +322,7 @@ SUBROUTINE md_print_info(kunit)
       if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : BINARY'
       if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : FORMATTED'
       endif       
-                                          WRITE ( kunit ,'(a)')       ''
+                                          blankline(kunit)    
   endif !ionode
 
 
@@ -329,12 +331,10 @@ SUBROUTINE md_print_info(kunit)
 END SUBROUTINE md_print_info
 
 
-!*********************** SUBROUTINE write_traj_xyz ****************************
-!
-! write trajectory (pos, vel, for) to TRAJFF file
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE write_traj_xyz ****************************
+!> \brief
+!! write trajectory (pos, vel, for) to TRAJFF file
+! ******************************************************************************
 SUBROUTINE write_traj_xyz 
 
   USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout

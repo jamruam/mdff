@@ -16,8 +16,13 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
+! *********************** MODULE block *****************************************
+!> \brief
+!! Module block averaging 
+! ******************************************************************************
 MODULE block
 
   USE constants,                ONLY :  dp 
@@ -34,16 +39,16 @@ MODULE block
 
 CONTAINS
 
-!*********************** SUBROUTINE block *************************************
-!
-! calculates block averages using the method of Flyberg and Petersen
-! JCP 91 (1989) pg 461
-!
-! it reads the file EQUILFF wich store all the thermodynamic quantities after
-! equilibration step , or all if ( nequil = 0 )
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE block *************************************
+!> \brief
+!! calculates block averages using the method of Flyberg and Petersen
+!! JCP 91 (1989) pg 461
+!> \note
+!! it reads the file EQUILFF wich store all the thermodynamic quantities after
+!! equilibration step , or all if ( nequil = 0 )
+!> \note
+!! not tested
+! ******************************************************************************
 SUBROUTINE block_
 
   USE md,                       ONLY :  npas , nequil
@@ -81,9 +86,9 @@ SUBROUTINE block_
   allocate ( svv ( nquan ) , avv   ( nquan ) )
   allocate ( istep (nstep) , dname ( nquan ) )
 
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' '
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' '
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' ***** Calculate block averages ************'
+  io_node blankline(stdout)
+  io_node blankline(stdout)
+  io_node WRITE ( stdout , '(a)' ) ' ***** Calculate block averages ************'
 
   ! =======================================================
   !  read thermodynamic quantities at each time in EQUILFF
@@ -101,7 +106,7 @@ SUBROUTINE block_
   enddo
   CLOSE ( kunit_EQUILFF )
   
-  if ( ionode ) WRITE ( stdout , *) '  number of blocks ', nblock
+  io_node WRITE ( stdout , *) '  number of blocks ', nblock
 
   idum = 0 
   nb20 = nblock/div
@@ -121,7 +126,7 @@ SUBROUTINE block_
     do i = 1, nb20
       idum = idum + 1
       if ( idum .gt. nstep ) then
-        if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR in block_ : out of bound bdata',idum,nstep
+        io_node WRITE ( stdout , '(a)' ) 'ERROR in block_ : out of bound bdata',idum,nstep
         STOP 
       endif  
       do j = 1, nquan
@@ -136,20 +141,21 @@ SUBROUTINE block_
       svv(j) = svv(j) + ssum(j) / DBLE ( nb20 )
     enddo
 
-    if ( ionode ) WRITE ( stdout , 99004) ii, ( sum( j ) / DBLE ( nb20 ) , j=1, nquan )
-    if ( ionode ) WRITE ( stdout , 99004) ii, ( SQRT ( ssum ( j ) / DBLE ( nb20 ) - &
+    io_node WRITE ( stdout , 99004) ii, ( sum( j ) / DBLE ( nb20 ) , j=1, nquan )
+    io_node WRITE ( stdout , 99004) ii, ( SQRT ( ssum ( j ) / DBLE ( nb20 ) - &
                                           sum( j ) * sum( j ) / DBLE ( nb20 ) / DBLE ( nb20 ) )  , j=1, nquan )
 
   enddo
 
-  if ( ionode ) WRITE ( stdout , '(a)' ) '' 
+  io_node blankline(stdout)
 
   do j = 1, nquan
     avv(j) = avv(j)/ DBLE ( div )
     svv(j) = svv(j)/ DBLE ( div ) - avv(j)*avv(j)
-    if ( ionode ) WRITE ( stdout , 99003) dname(j), avv(j), SQRT (svv(j)/DBLE (div))
+    io_node WRITE ( stdout , 99003) dname(j), avv(j), SQRT (svv(j)/DBLE (div))
   enddo
-  if ( ionode ) WRITE ( stdout , '(a)' ) '' 
+
+  io_node blankline(stdout)
  
 
   do j = 1, nquan
@@ -163,7 +169,7 @@ SUBROUTINE block_
   END DO
 
   opbl = 0
-  if ( ionode ) WRITE ( stdout , 99002) opbl, (av(j), sav(j), j=1, nquan )
+  io_node WRITE ( stdout , 99002) opbl, (av(j), sav(j), j=1, nquan )
 
 ! ================================
 !  perform block transformations

@@ -14,20 +14,20 @@
 ! You should have received a copy of the GNU General Public License
 ! along with this program; if not, write to the Free Software
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 ! ======= Hardware =======
 
-!*********************** MODULE CONF ******************************************
-!
-! This module should deal with everything related to the current configuration
-! positions, velocities, forces, density , box .... 
-!
-!******************************************************************************
-
+! *********************** MODULE CONF ******************************************
+!> \brief 
+!> This module should deal with everything related to the current configuration
+!> positions, velocities, forces, density , box .... 
+!> \author
+!> FMV
+! ******************************************************************************
 MODULE config
 
   USE constants,                ONLY :  dp 
@@ -35,52 +35,52 @@ MODULE config
 
   implicit none
 
-  integer, PARAMETER                           :: ntypemax = 16      ! maximum number of types
-  integer, PARAMETER                           :: vnlmax   = 6000      ! maximum number of types
+  integer, PARAMETER                           :: ntypemax = 16      !< maximum number of types
+  integer, PARAMETER                           :: vnlmax   = 6000    !< maximum number of types
 
-  character(len=60), SAVE                      :: system             ! system name                                              
+  character(len=60), SAVE                      :: system             !< system name                                              
 
-  integer                                      :: natm               ! number of atoms
-  integer                                      :: ntype              ! number of types
-  integer, dimension(:),           allocatable :: itype              ! type of atome i array 
-  integer, dimension(:),           allocatable :: ipolar             ! .eq. 1 if polar 
-  integer, dimension(:),           allocatable :: list, point        ! vnlist info
-  integer, dimension(0:ntypemax)               :: natmi              ! number of atoms (per type)
+  integer                                      :: natm               !< number of atoms
+  integer                                      :: ntype              !< number of types
+  integer, dimension(:),           allocatable :: itype              !< type of atome i array 
+  integer, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
+  integer, dimension(:),           allocatable :: list, point        !< vnlist info
+  integer, dimension(0:ntypemax)               :: natmi              !< number of atoms (per type)
 
-  TYPE ( celltype )                            :: simu_cell          ! simulation cell
-  real(kind=dp)                                :: tau_nonb ( 3 , 3 ) ! stress tensor ( lennard-jones , morse ... )
-  real(kind=dp)                                :: tau_coul ( 3 , 3 ) ! stress tensor coulombic
-  real(kind=dp)                                :: rho                ! density  
+  TYPE ( celltype )                            :: simu_cell          !< simulation cell
+  real(kind=dp)                                :: tau_nonb ( 3 , 3 ) !< stress tensor ( lennard-jones , morse ... )
+  real(kind=dp)                                :: tau_coul ( 3 , 3 ) !< stress tensor coulombic
+  real(kind=dp)                                :: rho                !< density  
 
-  real(kind=dp), dimension(:)    , allocatable :: rx  , ry  , rz     ! positions
-  real(kind=dp), dimension(:)    , allocatable :: vx  , vy  , vz     ! velocities
-  real(kind=dp), dimension(:)    , allocatable :: fx  , fy  , fz     ! forces
-  real(kind=dp), dimension(:)    , allocatable :: fxs , fys , fzs    ! forces (previous step t-dt) beeman
-  real(kind=dp), dimension(:)    , allocatable :: rxs , rys , rzs    ! previous positions for leap-frog integrator
-  real(kind=dp), dimension(:)    , allocatable :: xs  , ys  , zs     ! last positions in verlet list
-  real(kind=dp), dimension(:)    , allocatable :: rix , riy , riz    ! positions in the center of mass reference 
+  real(kind=dp), dimension(:)    , allocatable :: rx  , ry  , rz     !< positions
+  real(kind=dp), dimension(:)    , allocatable :: vx  , vy  , vz     !< velocities
+  real(kind=dp), dimension(:)    , allocatable :: fx  , fy  , fz     !< forces
+  real(kind=dp), dimension(:)    , allocatable :: fxs , fys , fzs    !< forces (previous step t-dt) beeman
+  real(kind=dp), dimension(:)    , allocatable :: rxs , rys , rzs    !< previous positions for leap-frog integrator
+  real(kind=dp), dimension(:)    , allocatable :: xs  , ys  , zs     !< last positions in verlet list
+  real(kind=dp), dimension(:)    , allocatable :: rix , riy , riz    !< positions in the center of mass reference 
 
-  real(kind=dp), dimension(:)    , allocatable :: qia                ! charge on ion 
-  real(kind=dp), dimension(:)    , allocatable :: quadia             ! quadrupolar moment on ion
-  real(kind=dp), dimension(:,:)  , allocatable :: dipia              ! dipole on ion 
-  real(kind=dp), dimension(:,:)  , allocatable :: dipia_ind          ! induced dipole on ion 
-  real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          ! induced dipole on ion from Wannier centers
-  real(kind=dp), dimension(:,:,:), allocatable :: polia              ! polarisation on ion
+  real(kind=dp), dimension(:)    , allocatable :: qia                !< charge on ion 
+  real(kind=dp), dimension(:)    , allocatable :: quadia             !< quadrupolar moment on ion
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia              !< dipole on ion 
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia_ind          !< induced dipole on ion 
+  real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          !< induced dipole on ion from Wannier centers
+  real(kind=dp), dimension(:,:,:), allocatable :: polia              !< polarisation on ion
 
-  real(kind=dp), dimension(:)    , allocatable :: phi_coul_tot       ! coulombic potential 
+  real(kind=dp), dimension(:)    , allocatable :: phi_coul_tot       !< coulombic potential 
 
-  character(len=3), dimension(:) , allocatable :: atype              ! atom type A or B 
-  character(len=3), dimension(0:ntypemax)      :: atypei             ! type of atoms (per type)
+  character(len=3), dimension(:) , allocatable :: atype              !< atom type label  
+  character(len=3), dimension(0:ntypemax)      :: atypei             !< type label (per type)
 
 
 CONTAINS
 
-!*********************** SUBROUTINE config_init *******************************
-!
-! set default values, read and check consistenstency of conifig parameters
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE config_init *******************************
+!>\brief
+!> set default values, read and check consistenstency of conifig parameters
+!> \author
+!> FMV
+! ******************************************************************************
 SUBROUTINE config_init 
 
   USE control,  ONLY :  calc
@@ -104,12 +104,12 @@ SUBROUTINE config_init
 END SUBROUTINE config_init 
 
 
-!*********************** SUBROUTINE config_print_info *************************
+! *********************** SUBROUTINE config_print_info *************************
 !
+!>\brief
 ! print information to standard output about the starting configuration
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE config_print_info(kunit)
 
   USE io_file,  ONLY :  ionode 
@@ -123,43 +123,47 @@ SUBROUTINE config_print_info(kunit)
   integer :: it , i
 
   if ( ionode ) then
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a,a)')          'system                             : ',system
-    WRITE ( kunit ,'(a,i16)')        'natm                               = ',natm
-    WRITE ( kunit ,'(a,i16)')        'ntype                              = ',ntype
+    blankline(kunit)
+    separator(kunit)
+    blankline(kunit)
+    WRITE ( kunit ,'(a)')            'CONFIG MODULE ... WELCOME'
+    blankline(kunit)
+    WRITE ( kunit ,'(a,a)')          'system                : ',system
+    WRITE ( kunit ,'(a,i16)')        'natm                  = ',natm
+    WRITE ( kunit ,'(a,i16)')        'ntype                 = ',ntype
     do it = 1 , ntype     
       WRITE ( kunit ,'(a,a,a,i16,f8.2,a1)') &
-                          'n',atypei(it),'                               = ',natmi(it),DBLE(natmi(it))/DBLE(natm) * 100.0_dp,'%'
+                          'n',atypei(it),'                  = ',natmi(it),DBLE(natmi(it))/DBLE(natm) * 100.0_dp,'%'
     enddo
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
-    WRITE ( kunit ,'(a)')            ''
+    blankline(kunit)
+    lseparator(kunit)
     WRITE ( kunit ,'(a)')            'direct     basis : '
-    WRITE ( kunit ,'(a,3f16.4)')     'a_vector                           = ',simu_cell%A(1,1),simu_cell%A(2,1),simu_cell%A(3,1) 
-    WRITE ( kunit ,'(a,3f16.4)')     'b_vector                           = ',simu_cell%A(1,2),simu_cell%A(2,2),simu_cell%A(3,2) 
-    WRITE ( kunit ,'(a,3f16.4)')     'c_vector                           = ',simu_cell%A(1,3),simu_cell%A(2,3),simu_cell%A(3,3) 
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a,3f16.4)')     'cell parameters     (direct)       = ',(simu_cell%ANORM(i),i=1,3)
-    WRITE ( kunit ,'(a,3f16.4)')     'perpendicular width (direct)       = ',simu_cell%WA,simu_cell%WB,simu_cell%WC
-    WRITE ( kunit ,'(a,3f16.4)')     'angles              (direct)       = ',simu_cell%ALPH,simu_cell%BET,simu_cell%GAMM
-    WRITE ( kunit ,'(a,f16.4)')      'volume              (direct)       = ',simu_cell%omega
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
-    WRITE ( kunit ,'(a)')            ''
+    lseparator(kunit)
+    WRITE ( kunit ,'(a,3f12.4)')     'a_vector              = ',simu_cell%A(1,1),simu_cell%A(2,1),simu_cell%A(3,1) 
+    WRITE ( kunit ,'(a,3f12.4)')     'b_vector              = ',simu_cell%A(1,2),simu_cell%A(2,2),simu_cell%A(3,2) 
+    WRITE ( kunit ,'(a,3f12.4)')     'c_vector              = ',simu_cell%A(1,3),simu_cell%A(2,3),simu_cell%A(3,3) 
+    WRITE ( kunit ,'(a,3f12.4)')     'cell param.           = ',(simu_cell%ANORM(i),i=1,3)
+    WRITE ( kunit ,'(a,3f12.4)')     'perpend. width        = ',simu_cell%WA,simu_cell%WB,simu_cell%WC
+    WRITE ( kunit ,'(a,3f12.4)')     'angles                = ',simu_cell%ALPH,simu_cell%BET,simu_cell%GAMM
+    WRITE ( kunit ,'(a,f12.4)')      'volume                = ',simu_cell%omega
+    blankline(kunit)
+    blankline(kunit)
+    lseparator(kunit)
     WRITE ( kunit ,'(a)')            'reciprocal basis : '
-    WRITE ( kunit ,'(a,3f16.4)')     'a*_vector                          = ',simu_cell%B(1,1),simu_cell%B(2,1),simu_cell%B(3,1) 
-    WRITE ( kunit ,'(a,3f16.4)')     'b*_vector                          = ',simu_cell%B(1,2),simu_cell%B(2,2),simu_cell%B(3,2) 
-    WRITE ( kunit ,'(a,3f16.4)')     'c*_vector                          = ',simu_cell%B(1,3),simu_cell%B(2,3),simu_cell%B(3,3) 
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a,3f16.4)')     'cell parameters     (reciprocal)   = ',(simu_cell%BNORM(i),i=1,3)
-    WRITE ( kunit ,'(a,3f16.4)')     'perpendicular width (reciprocal)   = ',simu_cell%RWA,simu_cell%RWB,simu_cell%RWC
-    WRITE ( kunit ,'(a,3f16.4)')     'angles              (reciprocal)   = ',simu_cell%RALPH,simu_cell%RBET,simu_cell%RGAMM
-    WRITE ( kunit ,'(a,f16.4)')      'volume              (reciprocal)   = ',simu_cell%romega
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a)')            '---------------------------------------------------------------------------------------------'
-    WRITE ( kunit ,'(a)')            ''
-    WRITE ( kunit ,'(a,f16.4)')      'density                              = ',rho
-    WRITE ( kunit ,'(a)')            ''
+    lseparator(kunit)
+    WRITE ( kunit ,'(a,3f12.4)')     'a*_vector             = ',simu_cell%B(1,1),simu_cell%B(2,1),simu_cell%B(3,1) 
+    WRITE ( kunit ,'(a,3f12.4)')     'b*_vector             = ',simu_cell%B(1,2),simu_cell%B(2,2),simu_cell%B(3,2) 
+    WRITE ( kunit ,'(a,3f12.4)')     'c*_vector             = ',simu_cell%B(1,3),simu_cell%B(2,3),simu_cell%B(3,3) 
+    blankline(kunit)
+    WRITE ( kunit ,'(a,3f12.4)')     'cell param.           = ',(simu_cell%BNORM(i),i=1,3)
+    WRITE ( kunit ,'(a,3f12.4)')     'perpend. width        = ',simu_cell%RWA,simu_cell%RWB,simu_cell%RWC
+    WRITE ( kunit ,'(a,3f12.4)')     'angles                = ',simu_cell%RALPH,simu_cell%RBET,simu_cell%RGAMM
+    WRITE ( kunit ,'(a,f12.4)')      'volume                = ',simu_cell%romega
+    blankline(kunit)
+    lseparator(kunit)
+    blankline(kunit)
+    WRITE ( kunit ,'(a,f12.4)')      'density               = ',rho
+    blankline(kunit)
     
   endif 
 
@@ -167,12 +171,12 @@ SUBROUTINE config_print_info(kunit)
   
 END SUBROUTINE config_print_info
 
-!*********************** SUBROUTINE write_CONTFF ******************************
+! *********************** SUBROUTINE write_CONTFF ******************************
 !
+!>\brief
 ! write configuration (pos,vel) to CONTFF file
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE write_CONTFF
 
   USE io_file,                  ONLY :  kunit_CONTFF, ionode
@@ -216,34 +220,10 @@ SUBROUTINE write_CONTFF
 END SUBROUTINE write_CONTFF
 
 
-!*********************** SUBROUTINE config_alloc ******************************
-!
-! allocation of principal arrays of the calculation:
-! 
-! positions of atom ia                      : rx(ia)  , ry(ia)   , rz(ia) 
-! velocities of atom ia                     : vx(ia)  , vy(ia)   , vz(ia) 
-! forces on atom ia                         : fx(ia)  , fy(ia)   , fz(ia) 
-! forces on atom ia previous step (beeman)  : fxs(ia) , fys(ia)  , fzs(ia) 
-! previous pos. leap-frog algo.             : rxs(ia) , rys(ia)  , rzs(ia) 
-! last config. list verlet update           : xs(ia)  , ys(ia)   , zs(ia) 
-! charge on atom                            : qia 
-! static dipole on atom                     : dipia
-! induced dipole on atom                    : dipia_ind
-! induced dipole on atom from wannier c.    : dipia_wfc
-! polarisation tensor on atom               : polia
-
-! atom type information (still not nice) 
-!
-! type of atom ia (character)               : atype(ia)  
-! type of atom ia (integer)                 : itype(ia) = 1 .. ntype
-! number of atoms of type it                : natmi(it) .le. natm
-! name of type of type it                   : atypei(it) => atypei(0) = 'ALL'
-! verlet list                               : list , point 
-! is the atom polarized ?                   : ipolar = 1 if yes 
-! coulombic potential                       : phi_coul_tot
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE config_alloc ******************************
+!> \brief
+!> allocation of principal arrays of the calculation
+! ******************************************************************************
 SUBROUTINE config_alloc
 
   USE control,  ONLY :  calc , lvnlist
@@ -265,7 +245,7 @@ SUBROUTINE config_alloc
   allocate( dipia_wfc ( natm , 3 ) )
   allocate( polia ( natm , 3 , 3 ) )
   allocate( ipolar ( natm ) )
-  allocate( phi_coul_tot ( natm ) ) ! only if we calculated coulombic interactions
+  allocate( phi_coul_tot ( natm ) ) !< only if we calculated coulombic interactions
 
   rx    = 0.0_dp
   ry    = 0.0_dp
@@ -302,12 +282,10 @@ SUBROUTINE config_alloc
 END SUBROUTINE config_alloc
 
 
-!*********************** SUBROUTINE config_dealloc ****************************
-!
-! deallocate config quantities (see config_alloc)
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE config_dealloc ****************************
+!> \brief
+!! deallocate config quantities (see config_alloc)
+! ******************************************************************************
 SUBROUTINE config_dealloc
 
   USE control, ONLY : lvnlist 
@@ -330,21 +308,24 @@ SUBROUTINE config_dealloc
   deallocate( dipia_wfc ) 
   deallocate( polia ) 
   deallocate( ipolar ) 
-  deallocate( phi_coul_tot ) ! well only if we calculated coulombic interactions
+  deallocate( phi_coul_tot ) !< well only if we calculated coulombic interactions
 
   return 
 
 END SUBROUTINE config_dealloc
 
-!*********************** SUBROUTINE center_of_mass ****************************
-!  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!  ! should depend on mass
-!  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!
-! for the moment still here but should be moved somewhere else
-! input ax
-!******************************************************************************
-
+! *********************** SUBROUTINE center_of_mass ****************************
+!> \brief
+!! for the moment still here but should be moved somewhere else
+!! \param[in] ax, ay, az position vector
+!! \param[out] com center of mass
+!! \author
+!! unknown
+!! \note
+!! adapted from quantum-espresso
+!! \todo
+!! should depend on mass 
+! ******************************************************************************
 SUBROUTINE center_of_mass ( ax , ay , az , com )
 
   implicit none
@@ -379,13 +360,12 @@ SUBROUTINE center_of_mass ( ax , ay , az , com )
 END SUBROUTINE center_of_mass
 
 
-!*********************** SUBROUTINE linear_momentum ***************************
-!
-! Calculate the linear momentum (should be conserved along nve traj)
-! NOTE : not used so far
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE linear_momentum ***************************
+!> \brief
+!! Calculate the linear momentum (should be conserved along nve traj)
+!! \note
+!! not used so far
+! ******************************************************************************
 SUBROUTINE linear_momentum
 
   implicit none
@@ -406,13 +386,12 @@ SUBROUTINE linear_momentum
 
 END SUBROUTINE linear_momentum
 
-!*********************** SUBROUTINE angular_momentum **************************
-!
-! Calculate the angular momentum (not conserved with pbc)
-! NOTE : not used so far
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE angular_momentum **************************
+!> \brief
+!! Calculate the angular momentum (not conserved with pbc)
+!! \note
+!! not used so far
+! ******************************************************************************
 SUBROUTINE angular_momentum ( Lx , Ly , Lz , normL )
 
   implicit none
@@ -437,16 +416,14 @@ SUBROUTINE angular_momentum ( Lx , Ly , Lz , normL )
 END SUBROUTINE angular_momentum
 
 
-!TMP
-!*********************** SUBROUTINE ions_reference_positions ******************
-!
-! Calculate the real position of atoms relative to the center of mass (cdm)
-! and store them in taui
-! cdmi: initial position of the center of mass (cdm) in cartesian coor.  
-! NOTE : not used so far
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE ions_reference_positions ******************
+!> \brief
+!! Calculate the real position of atoms relative to the center of mass (cdm)
+!! and store them in taui
+!! cdmi: initial position of the center of mass (cdm) in cartesian coor.  
+!! \note
+!! not used so far ... probably not working as well 
+! ******************************************************************************
 SUBROUTINE ions_reference_positions
 
   implicit none
@@ -466,17 +443,14 @@ SUBROUTINE ions_reference_positions
 END SUBROUTINE ions_reference_positions
 
 
-!*********************** SUBROUTINE ions_displacement *************************
-!
-! Calculate the sum of the quadratic displacements of the atoms in the ref.
-! of cdm respect to the initial positions.
-! taui: initial positions in real units in the ref. of cdm
-! -------------------------------------------------------------------------
-!  att!     tau_ref: starting position in center-of-mass ref. in real units
-! -------------------------------------------------------------------------
-! NOTE : not used so far
-!******************************************************************************
-
+! *********************** SUBROUTINE ions_displacement *************************
+!> \brief
+!! Calculate the sum of the quadratic displacements of the atoms in the ref.
+!! of cdm respect to the initial positions.
+!! \note
+!! not used so far
+!! tau_ref: starting position in center-of-mass ref. in real units
+! ******************************************************************************
 SUBROUTINE ions_displacement( dis, ax , ay , az )
 
   implicit none
@@ -492,7 +466,6 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
   ! =========================================================
   !  Compute the current value of cdm "Centro Di Massa"
   ! =========================================================
-
   CALL center_of_mass ( ax , ay , az , com )
  
   isa = 0

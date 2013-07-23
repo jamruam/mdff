@@ -17,53 +17,54 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
-!*********************** MODULE time ******************************************
-!
-!  this MODULE implements a small timer utility to time
-!  (see START_TIMING)
-!
-!******************************************************************************
+! *********************** MODULE time ******************************************
+!> @brief
+!> this MODULE implements a small timer utility to time
+!> (see START_TIMING)
+!> @author FMV
+! ******************************************************************************
 MODULE time
 
   USE constants, ONLY : dp
 
   implicit none
   
-  real(kind=dp) :: timetot        ! engforce        
-  real(kind=dp) :: forcetimetot   ! engforce        
-  real(kind=dp) :: fcoultimetot1  ! engforce_coul direct space      
-  real(kind=dp) :: fcoultimetot2  ! engforce_coul fourier space      
-  real(kind=dp) :: fcoultimetot3  ! engforce_coul comm only 
-  real(kind=dp) :: efgtimetot1    ! EFG direct space           
-  real(kind=dp) :: efgtimetot2    ! EFG fourier space        
-  real(kind=dp) :: efgtimetot3    ! communication only         
-  real(kind=dp) :: strftimetot    ! facteur de structure
-  real(kind=dp) :: mdsteptimetot  !                            
-  real(kind=dp) :: vacftimetot    !                            
-  real(kind=dp) :: vacftimetot2   !                            
-  real(kind=dp) :: vnlisttimetot  !                            
-  real(kind=dp) :: msdtimetot     !                            
-  real(kind=dp) :: grtimetot      !                            
-  real(kind=dp) :: grtimetot_comm !                            
-  real(kind=dp) :: opttimetot     !                          
-  real(kind=dp) :: vibtimetot     !                           
-  real(kind=dp) :: hessiantimetot !                           
-  real(kind=dp) :: bandtimetot !                           
-  real(kind=dp) :: doskpttimetot !                           
-  real(kind=dp) :: fvibtimetot    !                           
-  real(kind=dp) :: timetmp        ! use for opt               
+  real(kind=dp) :: timetot        !< total wall time        
+  real(kind=dp) :: forcetimetot   !< engforce wall time       
+  real(kind=dp) :: fcoultimetot1  !< engforce_coul direct space wall time     
+  real(kind=dp) :: fcoultimetot2  !< engforce_coul fourier space wall time     
+  real(kind=dp) :: fcoultimetot2_2  !< engforce_coul fourier space wall time     
+  real(kind=dp) :: fcoultimetot3  !< engforce_coul wall time (comm only )
+  real(kind=dp) :: efgtimetot1    !< EFG direct space wall time          
+  real(kind=dp) :: efgtimetot2    !< EFG fourier space wall time        
+  real(kind=dp) :: efgtimetot3    !< communication only wall time         
+  real(kind=dp) :: strftimetot    !< facteur de structure wall time
+  real(kind=dp) :: mdsteptimetot  !<                            
+  real(kind=dp) :: vacftimetot    !<                            
+  real(kind=dp) :: vacftimetot2   !<                            
+  real(kind=dp) :: vnlisttimetot  !<                            
+  real(kind=dp) :: msdtimetot     !<                            
+  real(kind=dp) :: grtimetot      !<                            
+  real(kind=dp) :: grtimetot_comm !<                            
+  real(kind=dp) :: opttimetot     !<                          
+  real(kind=dp) :: vibtimetot     !<                           
+  real(kind=dp) :: hessiantimetot !<                           
+  real(kind=dp) :: bandtimetot    !<                           
+  real(kind=dp) :: doskpttimetot  !<                           
+  real(kind=dp) :: fvibtimetot    !<                           
+  real(kind=dp) :: timetmp        !< use in opt               
 
 CONTAINS
 
 
 !*********************** SUBROUTINE time_init *********************************
-!
-! set time to zero
-!
+!> @brief
+!> set timers to zero
+!> @author FMV
 !******************************************************************************
-
 SUBROUTINE time_init
 
   implicit none
@@ -81,6 +82,7 @@ SUBROUTINE time_init
   forcetimetot  = 0.0_dp
   fcoultimetot1 = 0.0_dp
   fcoultimetot2 = 0.0_dp
+  fcoultimetot2_2 = 0.0_dp
   fcoultimetot3 = 0.0_dp
   vibtimetot    = 0.0_dp
   hessiantimetot= 0.0_dp
@@ -94,12 +96,12 @@ SUBROUTINE time_init
  
 END SUBROUTINE time_init
 
-!*********************** SUBROUTINE print_time_info ***************************
-!
-! print final time info
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE print_time_info ***************************
+!> @author FMV
+!> @brief
+!> print final time information
+!> @param[in] kunit unit file 
+! ******************************************************************************
 SUBROUTINE print_time_info ( kunit )  
 
   USE io_file,  ONLY :  ionode 
@@ -121,6 +123,11 @@ SUBROUTINE print_time_info ( kunit )
 
   !timing information at the end
   if ( ionode ) then
+                                        separator(kunit)    
+                                        blankline(kunit)
+                                        WRITE ( kunit , '(a)' )         'TIME MODULE ... WELCOME'
+                                        blankline(kunit)
+                                        lseparator_noionode(kunit) 
                                         WRITE ( kunit ,110)             'TOTAL'  , timetot
     if ( mdsteptimetot .ne. 0.0_dp )    WRITE ( kunit ,110)             'MD'     , mdsteptimetot
     if ( opttimetot    .ne. 0.0_dp )    WRITE ( kunit ,110)             'OPT'    , opttimetot
@@ -137,49 +144,52 @@ SUBROUTINE print_time_info ( kunit )
     if ( msdtimetot    .ne. 0.0_dp )    WRITE ( kunit ,110)             'MSD'    , msdtimetot
     if ( vacftimetot   .ne. 0.0_dp )    WRITE ( kunit ,110)             'VACF'   , vacftimetot
     if ( vacftimetot2  .ne. 0.0_dp )    WRITE ( kunit ,110)             'VACF2'  , vacftimetot2
-                                        WRITE ( kunit ,'(a)')           ''
-                                        WRITE ( kunit ,'(a)')           '======================='
+                                        blankline(kunit)
+                                        lseparator_noionode(kunit) 
                                         WRITE ( kunit ,'(a)')           'main subroutines:'
-                                        WRITE ( kunit ,'(a)')           '======================='
+                                        lseparator_noionode(kunit) 
     if ( calc .eq. 'md' ) then
                                         WRITE ( kunit ,'(a)')           'MD:'
-                                        WRITE ( kunit ,'(a)')           '======================='
+                                        lseparator_noionode(kunit) 
       if ( forcetimetot  .ne. 0.0_dp )  WRITE ( kunit ,110)             'engforce_bmlj      ' , forcetimetot        
       if ( vnlisttimetot .ne. 0.0_dp )  WRITE ( kunit ,110)             'vnlistcheck        ' , vnlisttimetot
-                                        WRITE ( kunit ,'(a)')           '======================='
+                                        lseparator_noionode(kunit) 
     endif
     
     if ( longrange .eq. 'direct' )   then
       if ( dstime        .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           'EFG:'
-                                        WRITE ( kunit ,'(a)')           '======================='
+                                        lseparator_noionode(kunit) 
       if ( efgtimetot1   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_DS(efg  only)       ', efgtimetot1 
       if ( efgtimetot3   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_DS(comm only)       ', efgtimetot3
       if ( fcoultimetot1 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_DS            ', fcoultimetot1
       if ( fcoultimetot3 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_DS(comm only) ', fcoultimetot3
     endif
     if ( longrange .eq. 'ewald')   then
-      if ( estime        .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           'EFG:'
-      if ( estime        .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           '======================='
-      if ( strftimetot   .ne. 0.0_dp )  WRITE ( kunit ,110)             'struct fact             ', strftimetot
-      if ( efgtimetot1   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(real  part)      ', efgtimetot1
-      if ( efgtimetot2   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(recip part)      ', efgtimetot2 
-      if ( efgtimetot3   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(comm  only)      ', efgtimetot3
-      if ( fcoultime_es  .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           '======================='
+      if ( calc .eq. 'efg' ) then
+        if ( estime        .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           'EFG:'
+        if ( estime        .ne. 0.0_dp )  lseparator_noionode(kunit) 
+        if ( strftimetot   .ne. 0.0_dp )  WRITE ( kunit ,110)             'struct fact             ', strftimetot
+        if ( efgtimetot1   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(real  part)      ', efgtimetot1
+        if ( efgtimetot2   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(recip part)      ', efgtimetot2 
+        if ( efgtimetot3   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(comm  only)      ', efgtimetot3
+      endif
+      if ( fcoultime_es  .ne. 0.0_dp )  lseparator_noionode(kunit) 
       if ( fcoultime_es  .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           'Coulomb:'
-      if ( fcoultime_es  .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           '======================='
+      if ( fcoultime_es  .ne. 0.0_dp )  lseparator_noionode(kunit) 
       if ( fcoultimetot1 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(real  part)', fcoultimetot1
       if ( fcoultimetot2 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(recip part)', fcoultimetot2 
+      if ( fcoultimetot2_2 .ne. 0.0_dp )  WRITE ( kunit ,110)           'multipole_ES(recip part per k )', fcoultimetot2_2 
       if ( fcoultimetot3 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(comm only) ', fcoultimetot3
     endif
-    if ( vibtimetot.ne.0.0_dp )         WRITE ( kunit ,'(a)')           '======================='
+    if ( vibtimetot.ne.0.0_dp )         lseparator_noionode(kunit) 
     if ( vibtimetot.ne.0.0_dp )         WRITE ( kunit ,'(a)')           'VIB:'
-    if ( vibtimetot.ne.0.0_dp )         WRITE ( kunit ,'(a)')           '======================='
+    if ( vibtimetot.ne.0.0_dp )         lseparator_noionode(kunit) 
     if ( hessiantimetot.ne.0.0_dp )     WRITE ( kunit ,110)             'hessian                ', hessiantimetot
     if ( bandtimetot.ne.0.0_dp )        WRITE ( kunit ,110)             'band                   ', bandtimetot
     if ( doskpttimetot.ne.0.0_dp )      WRITE ( kunit ,110)             'doskpttimetot          ', doskpttimetot
 
-    WRITE ( kunit ,'(a)') '============================================================='
   endif
+  separator(kunit)
 
 110   FORMAT(2X,A30,' :  cpu time',F9.2)
 

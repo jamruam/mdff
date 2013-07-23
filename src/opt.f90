@@ -17,42 +17,56 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 !#define intermediate_config
 ! ======= Hardware =======
 
+! *********************** MODULE opt *******************************************
+!
+!> \brief
+!!  optimisation module : 
+!!  this module initialize three different optimization methods:
+!!           - sastry
+!!           - lbfgs
+!!           - m1qn3
+!
+!> \note
+!!  drivers are defined therein but main routines are outside 
+!
+! ******************************************************************************
 MODULE opt
 
   USE constants,                ONLY :  dp
 
   implicit none
 
-  logical :: lforce              ! calculate force of the optimise configuration
+  logical :: lforce              !< calculate force of the optimise configuration
 
-  integer :: nconf               ! number of configurations in TRAJFF  
-  integer :: nskipopt            ! number of configurations skipped in the beginning 
-  integer :: nmaxopt             ! number of configurations optimized  
+  integer :: nconf               !< number of configurations in TRAJFF  
+  integer :: nskipopt            !< number of configurations skipped in the beginning 
+  integer :: nmaxopt             !< number of configurations optimized  
   integer :: nperiodopt
 
-  real(kind=dp) :: epsrel_m1qn3  ! gradient stop criterion for m1qn3
-  real(kind=dp) :: epsrel_lbfgs  ! gradient stop criterion for lbfgs
+  real(kind=dp) :: epsrel_m1qn3  !< gradient stop criterion for m1qn3
+  real(kind=dp) :: epsrel_lbfgs  !< gradient stop criterion for lbfgs
 
   ! =========================================
   !     optimization algorithm
   ! =========================================
-  character(len=60) :: optalgo     
+  character(len=60) :: optalgo    !< algorithm used during optimization 
   character(len=60) :: optalgo_allowed(3)
   data                 optalgo_allowed  / 'sastry' , 'lbfgs' , 'm1qn3' /
   
 
 CONTAINS
 
-!*********************** SUBROUTINE opt_init **********************************
+! *********************** SUBROUTINE opt_init **********************************
 !
-! optimisation initialisation
+!> \brief
+!! optimisation initialisation
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE opt_init
 
   USE io_file,                  ONLY :  stdin , stdout , ionode
@@ -81,10 +95,10 @@ SUBROUTINE opt_init
   OPEN ( stdin , file = filename )
   READ ( stdin , opttag ,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag section is absent'
+   io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag section is absent'
    STOP
   elseif ( ioerr .gt. 0 )  then
-   if ( ionode ) WRITE ( stdout, '(a)') 'ERROR reading input_file : opttag wrong tag'
+   io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : opttag wrong tag'
    STOP
   endif
 
@@ -104,12 +118,12 @@ END SUBROUTINE opt_init
 
 
 
-!*********************** SUBROUTINE opt_default_tag ***************************
+! *********************** SUBROUTINE opt_default_tag ***************************
 !
-! set default values to vacf tag
+!> \brief
+!! set default values to vacf tag
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE opt_default_tag
 
   implicit none
@@ -130,12 +144,12 @@ SUBROUTINE opt_default_tag
 END SUBROUTINE opt_default_tag
 
 
-!*********************** SUBROUTINE opt_check_tag *****************************
+! *********************** SUBROUTINE opt_check_tag *****************************
 !
-! check opt tag values
+!> \brief
+!! check opt tag values
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE opt_check_tag
 
   USE io_file,                  ONLY :  ionode , stdout
@@ -150,7 +164,7 @@ SUBROUTINE opt_check_tag
     if ( TRIM(optalgo) == optalgo_allowed(i) ) allowed = .TRUE.
   enddo
   if ( .not. allowed ) then
-    if ( ionode ) WRITE ( stdout ,'(a,a)') 'ERROR optag: optalgo should be ',optalgo_allowed
+    io_node WRITE ( stdout ,'(a,a)') 'ERROR optag: optalgo should be ',optalgo_allowed
     STOP 
   endif
 
@@ -161,12 +175,12 @@ SUBROUTINE opt_check_tag
 
 END SUBROUTINE opt_check_tag
 
-!*********************** SUBROUTINE opt_print_info ****************************
+! *********************** SUBROUTINE opt_print_info ****************************
 !
-! print optimisation information to standard output
+!> \brief
+!! print optimisation information to standard output
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE opt_print_info(kunit) 
 
   USE control,                  ONLY :  lpbc 
@@ -178,16 +192,16 @@ SUBROUTINE opt_print_info(kunit)
   integer :: kunit       
 
   if ( ionode ) then
-                               WRITE ( kunit ,'(a)')       '=============================================================' 
-                               WRITE ( kunit ,'(a)')       ''
+                               separator(kunit) 
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a)')       'minimisation (Inherent Structures)                           ' 
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
        if ( optalgo .eq. 'sastry' )  then
                                WRITE ( kunit ,'(a)')       'Line mini. via cubic extrapolation of potential '
                                WRITE ( kunit ,'(a)')       'Determines IS via unconstrained optimization    '
                                WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR '
                                WRITE ( kunit ,'(a)')       'readapted by FMV'
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a)')       'Steppest Method '
        endif
        if ( optalgo .eq. 'lbfgs' )  then
@@ -202,24 +216,24 @@ SUBROUTINE opt_print_info(kunit)
                                WRITE ( kunit ,'(a)')       'Copyright 2008, 2009, INRIA.'
                                WRITE ( kunit ,'(a)')       'M1QN3 is distributed under the terms of the GNU General Public  License.'
                                WRITE ( kunit ,'(a)')       'driver by FMV'
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a)')       'reverse communication and DIS ( see m1qn3 driver and documentation) ' 
                                WRITE ( kunit ,'(a,f12.5)') 'relative precision on the gradient',epsrel_m1qn3
        endif
 
-                               WRITE ( kunit ,'(a)')       ''  
-     if (.not.lpbc)             WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic cell wall)'
-     if (lpbc)                  WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
+     if (.not.lpbc)            WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic cell wall)'
+     if (lpbc)                 WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a)')       'read configuration from file          :   TRAJFF'
                                WRITE ( kunit ,'(a)')       'save IS thermo. properties into file  :   ISTHFF' 
                                WRITE ( kunit ,'(a)')       'save IS configurations into file      :   ISCFF '  
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a,i5)')    'number of config. in TRAJFF         =     ',nconf          
                                WRITE ( kunit ,'(a,i5)')    'number of config. to be skipped     =     ',nskipopt
                                WRITE ( kunit ,'(a,i5)')    'maximum of config. to be minimized  =     ',nmaxopt           
                                WRITE ( kunit ,'(a,i5)')    'minimized every config.             =     ',nperiodopt
-                               WRITE ( kunit ,'(a)')       ''
+                               blankline(kunit) 
                                WRITE ( kunit ,'(a)')       '=============================================================' 
   endif 
 
@@ -229,23 +243,23 @@ SUBROUTINE opt_print_info(kunit)
 END SUBROUTINE opt_print_info
 
 
-!*********************** SUBROUTINE opt_main **********************************
+! *********************** SUBROUTINE opt_main **********************************
 !
-! main subroutine for optimisation
+!> \brief
+!! driver of optimisation methods
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE opt_main 
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
                                 atype  , rho , config_alloc , list , point , simu_cell , &
                                 atypei , itype, natmi , qia , dipia , ipolar
-  USE control,          ONLY :  myrank , numprocs
+  USE control,          ONLY :  myrank , numprocs , lcoulomb 
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
   USE cell,             ONLY :  lattice , dirkar
-  USE field,            ONLY :  field_init , engforce_driver
+  USE field,            ONLY :  field_init , engforce_driver , km_coul
   USE time,             ONLY :  opttimetot
 
   implicit none
@@ -253,7 +267,7 @@ SUBROUTINE opt_main
 
   ! local 
   integer       :: i , ia , it , ic, neng, iter, nopt 
-  integer       :: iastart , iaend , ierr
+  integer       :: iastart , iaend , ikstart , ikend , ierr
   real(kind=dp) :: phigrad, pressure0, pot0, Eis
   real(kind=dp) :: ttt1,ttt2
   real(kind=dp) :: ttt1p,ttt2p
@@ -276,8 +290,8 @@ SUBROUTINE opt_main
   OPEN (UNIT = kunit_ISCFF  ,FILE = 'ISCFF') 
 
     
-  if ( ionode ) WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
-  if ( ionode ) WRITE ( kunit_ISTHFF , '(a8,3a20,2a8,2a20)') &
+  io_node WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
+  io_node WRITE ( kunit_ISTHFF , '(a8,3a20,2a8,2a20)') &
   "# config","eIS","grad","Pres","Iter","Neng","u_initial","Press_initial"
        
   READ ( kunit_TRAJFF , * ) natm
@@ -312,8 +326,9 @@ SUBROUTINE opt_main
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend )
   CALL field_init
+  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
+  if ( lcoulomb ) CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
 
   ! ==========================================   
   !  skip the first nskipopt configurations 
@@ -336,7 +351,7 @@ SUBROUTINE opt_main
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo      
     enddo
-  if ( ionode ) WRITE ( stdout , '(i6,a)' ) nskipopt,' first configs not used' 
+  io_node WRITE ( stdout , '(i6,a)' ) nskipopt,' first configs not used' 
   endif
 
   conf : do ic = nskipopt + 1, nconf
@@ -380,9 +395,9 @@ SUBROUTINE opt_main
       !         direct to cartesian
       ! ======================================
       CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
     else if ( cpos .eq. 'Cartesian' ) then
-      if ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
     endif
 
 
@@ -396,7 +411,7 @@ SUBROUTINE opt_main
       !  calc initial thermo  
       ! =======================  
       neng = 0
-      CALL engforce_driver ( iastart , iaend )
+      CALL engforce_driver ( iastart , iaend , ikstart , ikend )
       CALL calc_thermo
       pot0 = u_tot 
       pressure0 = pressure_tot
@@ -406,32 +421,32 @@ SUBROUTINE opt_main
       ! ====================================
       if (optalgo.eq.'sastry') then 
         if ( ionode ) then
-          WRITE ( stdout ,'(a)')             ''
+          blankline(stdout)
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL sastry ( iter , Eis , phigrad , neng , iastart , iaend )
+        CALL sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ikend )
       endif
 
 
       if (optalgo.eq.'lbfgs') then
         if ( ionode ) then
-          WRITE ( stdout ,'(a)')             ''
+          blankline(stdout)
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL lbfgs_driver ( iter, Eis , phigrad , iastart , iaend )
+        CALL lbfgs_driver ( iter, Eis , phigrad , iastart , iaend , ikstart , ikend )
         neng = iter ! the number of function call is iter
       endif
 
 
        if (optalgo.eq.'m1qn3') then
         if ( ionode ) then
-          WRITE ( stdout ,'(a)')             ''
+          blankline(stdout)
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL m1qn3_driver ( iter, Eis , phigrad , iastart , iaend )
+        CALL m1qn3_driver ( iter, Eis , phigrad , iastart , iaend , ikstart , ikend )
         neng = iter ! the number of function call is iter
       endif
 
@@ -443,14 +458,14 @@ SUBROUTINE opt_main
         WRITE ( stdout , '(a,2f16.8)' )      '   final energy&pressure = ',Eis,pressure_tot
         WRITE ( kunit_ISTHFF , '(i8,3f20.12,2i8,2f20.12)' ) &
         ic , Eis , phigrad , pressure_tot , iter , neng , pot0 , pressure0
-        WRITE ( stdout,'(a)') ''
-        WRITE ( stdout,'(a)') ''  
+        blankline(stdout)
+        blankline(stdout)
       endif
       
       ! ===========================================
       !  calculated forces (they should be small) 
       ! ===========================================
-      if ( lforce ) CALL engforce_driver ( iastart , iaend )
+      if ( lforce ) CALL engforce_driver ( iastart , iaend , ikstart , ikend )
       ! =============================================
       !  write IS structures
       !  new configurations are stored in rx ,ry ,rz, fx , fy ,fz
@@ -472,7 +487,7 @@ SUBROUTINE opt_main
       endif
 
     ttt2p = MPI_WTIME(ierr)
-    if ( ionode ) WRITE ( stdout , 110 ) 'config : ',ic,' OPT  ', ttt2p - ttt1p  
+    io_node WRITE ( stdout , 110 ) 'config : ',ic,' OPT  ', ttt2p - ttt1p  
 
     endif ! nperiod         
 
@@ -493,14 +508,17 @@ SUBROUTINE opt_main
 END SUBROUTINE opt_main
 
 
-!*********************** SUBROUTINE satry *************************************
+! *********************** SUBROUTINE sastry ***********************************
 !
-! Line minimizations via cubic extrapolation of potential. 
-! determines inherent structure via unconstrained optimization
+!> \brief
+!! Line minimizations via cubic extrapolation of potential. 
+!! determines inherent structure via unconstrained optimization
 !
-!******************************************************************************
-
-SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
+!> \author
+!! S. Sastry.   
+!
+! ******************************************************************************
+SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ikend )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point
   USE io_file,                  ONLY :  ionode , stdout
@@ -512,6 +530,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
   ! global
   integer :: iastart , iaend 
+  integer :: ikstart , ikend 
   integer :: iter, neng
   real(kind=dp) :: Eis, phigrad, vir
   
@@ -546,7 +565,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
   itmax = 10000
   nskp = 1
   nstep = 0
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
   neng = neng + 1
 
   umag = 0.0_dp
@@ -618,7 +637,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
 !C  reset search direction to steepest descent direction 
     if (f1_dp.ge.0.0) then
-      if ( ionode ) WRITE (stdout, * ) 'RESETTING SEARCH DIRECTION'
+      io_node WRITE (stdout, * ) 'RESETTING SEARCH DIRECTION'
       umag = 0.0_dp
       do ja = 1 , natm
         xix ( ja ) = - fx  ( ja )
@@ -653,7 +672,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 
     x1 = ds 
 
-    CALL eforce1d ( x1 , u1 , vir , iastart , iaend , f1d1 , xix , xiy , xiz , neng )
+    CALL eforce1d ( x1 , u1 , vir , iastart , iaend , ikstart , ikend , f1d1 , xix , xiy , xiz , neng )
     nstep = 0
     uprev = MIN ( u1 , u0 )
 777 nstep = nstep + 1
@@ -670,7 +689,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
         return
       else 
         if ( u0 .lt. u1 ) then
-          CALL eforce1d ( x0 , u0 , vir , iastart , iaend , f1_dp , xix , xiy , xiz , neng )
+          CALL eforce1d ( x0 , u0 , vir , iastart , iaend , ikstart , ikend , f1_dp , xix , xiy , xiz , neng )
           xsol = x0 
           u_tot = u0 
           f1ds = f1_dp
@@ -713,7 +732,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
       usol = u0 + f1_dp * dx + (uppcub * dx2/2.0_dp) + (u3pcub * dx3/6.0_dp)
 
 !C    this is to make sure u2 is not > ukeep
-524   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , f1ds , xix , xiy , xiz , neng ) 
+524   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , ikstart , ikend , f1ds , xix , xiy , xiz , neng ) 
 
 
       if (u2.gt.ukeep) then
@@ -766,7 +785,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 !C    upto here define xsol 
 
 !C    now make sure usol < ukeep
-525   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , f1ds , xix , xiy , xiz , neng )
+525   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , ikstart , ikend , f1ds , xix , xiy , xiz , neng )
 
 
       if (u2.gt.ukeep)then
@@ -816,7 +835,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
     DD2 = ftol * ( ABS ( ukeep) + ABS ( u_tot ) + epsilon)
 
     if ( DD1 .LE. DD2) then 
-      CALL engforce_driver ( iastart , iaend )
+      CALL engforce_driver ( iastart , iaend , ikstart , ikend )
       neng = neng + 1
 
       Eis = u_tot
@@ -889,13 +908,19 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend )
 END SUBROUTINE sastry     
 
 
-!*********************** SUBROUTINE eforce1d **********************************
+! *********************** SUBROUTINE eforce1d **********************************
 !
-! one dimensional minimal search for the Sastry otpmisation routine (sastry)
+!> \brief
+!! one dimensional minimal search for the sastry otpmisation routine 
 !
-!******************************************************************************
-
-SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , neng ) 
+!> \author 
+!! S. Sastry
+!
+!> \note
+!! readapted for mdff by FMV
+!
+! ******************************************************************************
+SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , ikstart , ikend , f1d , xix , xiy , xiz , neng ) 
 
   USE config,                   ONLY :  natm, rx, ry, rz, fx, fy, fz
   USE thermodynamic,            ONLY :  vir_tot , u_tot , calc_thermo
@@ -906,7 +931,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   ! global
   real(kind=dp) :: pot ,vir, x, f1d
   integer          :: iastart , iaend
-!  integer          :: list(natm * 250), point(natm + 1)
+  integer          :: ikstart , ikend
   real(kind=dp) :: xix(natm),xiy(natm),xiz(natm)
   
   ! local
@@ -949,7 +974,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   ! ================
   !  warning ! only pbc
   ! ================
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
   CALL calc_thermo
   vir = vir_tot
   pot = u_tot  
@@ -970,14 +995,14 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , f1d , xix , xiy , xiz , n
   deallocate( rxt, ryt, rzt )
   deallocate( tmpx, tmpy, tmpz )
 
-
   return
 
 END SUBROUTINE eforce1d 
 
-!*********************** SUBROUTINE lbfgs_driver ******************************
+! *********************** SUBROUTINE lbfgs_driver ******************************
 !
-! this subroutine is a driver for tje lbfgs subroutine (see file lbfgs.f90)
+!> \brief
+!! this subroutine is a driver for the lbfgs subroutine (see file lbfgs.f90)
 !
 ! Description:
 !
@@ -1004,9 +1029,8 @@ END SUBROUTINE eforce1d
 ! 
 !      the routine CSRCH written by More' and Thuente.
 !
-!******************************************************************************
-
-SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
+! ******************************************************************************
+SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  , ikstart , ikend )
 
   USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz , list, point
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
@@ -1016,7 +1040,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   implicit none
 
   ! global
-  integer :: iastart , iaend , icall
+  integer :: iastart , iaend , ikstart , ikend , icall
   real(kind=dp) :: Eis, phigrad
 
   ! local 
@@ -1157,7 +1181,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
   !==============================================================
   do its=1,itmax
 
-    CALL engforce_driver ( iastart , iaend )
+    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
     CALL calc_thermo
 
 #ifdef debug
@@ -1219,13 +1243,13 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  )
 END SUBROUTINE lbfgs_driver
 
 
-!*********************** SUBROUTINE m1qn3_driver ******************************
+! *********************** SUBROUTINE m1qn3_driver ******************************
 !
-! driver routine for the optimsation algorithm m1qn3 (see m1qn3.f90)
+!> \brief
+!! driver routine for the optimsation algorithm m1qn3 (see m1qn3.f90)
 !
-!******************************************************************************
-
-SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
+! ******************************************************************************
+SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend , ikstart , ikend )
 
   USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz, list ,point
@@ -1236,7 +1260,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   implicit none
 
   ! global
-  integer          :: iastart , iaend , icall
+  integer          :: iastart , iaend , ikstart , ikend ,  icall
   real(kind=dp)    :: Eis , phigrad
 
   !local
@@ -1272,7 +1296,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
     X( 2 * natm + ia ) = rz( ia )
   enddo
 
-  CALL engforce_driver ( iastart , iaend )
+  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
   CALL calc_thermo
 
 !#ifdef debug
@@ -1329,7 +1353,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
       rz( ia )   = X ( 2* natm + ia )
     enddo
 
-    CALL engforce_driver ( iastart , iaend )
+    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
     CALL calc_thermo
 
     f=u_tot
@@ -1380,7 +1404,6 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend )
   return
 
 END SUBROUTINE m1qn3_driver
-
 
 END MODULE opt
 ! ===== fmV =====

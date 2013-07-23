@@ -16,6 +16,8 @@
 ! Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 ! ===== fmV =====
 
+#include "symbol.h"
+
 ! ======= Hardware =======
 !#define debug
 
@@ -38,7 +40,7 @@
 
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE md_run ************************************
+! *********************** SUBROUTINE md_run ************************************
 !
 ! main routine for molecular dynamics and static calculation
 !
@@ -47,9 +49,8 @@
 !          list , point    : verlet list variables 
 !          offset          : time offset
 !
-!******************************************************************************
-
-SUBROUTINE md_run ( iastart , iaend , offset )
+! ******************************************************************************
+SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
 
 
   USE constants,                ONLY :  dp
@@ -70,21 +71,22 @@ SUBROUTINE md_run ( iastart , iaend , offset )
 
   ! global
   integer, intent(inout)                   :: iastart , iaend 
+  integer, intent(inout)                   :: ikstart , ikend 
   integer, intent(in)                      :: offset
 
   ! local
-  integer                                  :: ierr , ia 
+  integer                                  :: ia 
   integer                                  :: nefg , ngr , nmsd , ntau 
   real(kind=dp)                            :: tempi , kin 
   real(kind=dp), dimension(:), allocatable :: xtmp , ytmp , ztmp
-  real(kind=dp)                            :: ttt1, ttt2 
+  ! time declaration
+  dectime
 
   ! =============================================
   !   integration algorithm allowed to rescale
   ! =============================================
   character(len=60) :: rescale_allowed(2)
   data                 rescale_allowed / 'nve-vv' , 'nve-be' /
-
 
 #ifdef com_t
   integer :: comcount
@@ -111,10 +113,9 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   call alloc
 #endif
 
-  if ( ionode ) WRITE ( stdout , '(a,a)' ) &
-  '===============================================================================================', &
-  '======================================'
-  if ( ionode ) WRITE ( stdout , '(a)' )      'properties at t=0'
+  separator(stdout)
+
+  io_node WRITE ( stdout , '(a)' )      'properties at t=0'
  
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
 
@@ -131,7 +132,6 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   e_kin  = kin
   temp_r = tempi
 
-  
   ! ==============================================
   !  for integrator .ne. than leapfrog algorithm
   ! ==============================================
@@ -140,13 +140,14 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! =========================
     ! force + potential at t=0
     ! =========================
-     CALL engforce_driver ( iastart , iaend )
+     io_node  write(stdout,*) 'test'
+     CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
     ! ==================================================
     ! write thermodynamic information of config at t=0
     ! ==================================================
-    CALL write_thermo( offset-1 , stdout )
-    CALL write_thermo( offset-1 , kunit_OSZIFF )
+    CALL write_thermo( offset-1 , stdout , 'std' )
+    CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
 
 #ifdef debug
          CALL print_config_sample(0,0)
@@ -170,12 +171,12 @@ SUBROUTINE md_run ( iastart , iaend , offset )
     ! ===================
     ! force + potential
     ! ===================
-    CALL engforce_driver ( iastart , iaend )
+    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
     ! =======================================================
     ! write thermodynamic information of the starting point
     ! =======================================================
-    CALL write_thermo( offset-1 , stdout )
-    CALL write_thermo( offset-1 , kunit_OSZIFF )
+    CALL write_thermo( offset-1 , stdout , 'std')
+    CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
      rx = xtmp
      ry = ytmp
      rz = ztmp
@@ -187,8 +188,8 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   ! =======================
   !  stress tensor at t=0
   ! =======================
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  io_node blankline(stdout)
+  io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
@@ -196,17 +197,21 @@ SUBROUTINE md_run ( iastart , iaend , offset )
   ! =========================
   !   MAIN LOOP ( TIME )
   ! =========================
-  if ( ionode ) WRITE ( stdout , '(a)' ) ''
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'starting main loop'
-  if ( ionode ) WRITE ( stdout , '(a,a)' ) &
-  '===============================================================================================', &
-  '======================================'
+  io_node blankline(stdout)
+  io_node WRITE ( stdout , '(a)' ) 'starting main loop'
+
+  separator(stdout)
+  ! ===========
+  !  time info
+  ! ===========
+   statime 
+
 ! be careful with the offset !!!!
 MAIN:  do itime = offset , npas + (offset-1)        
 
 #ifdef block
           if ( itime .ge. nequil ) then 
-            CALL write_thermo(itime, kunit_EQUILFF)
+            CALL write_thermo( itime , kunit_EQUILFF , 'osz' )
             CALL general_accumulator
           endif
 #endif
@@ -224,29 +229,20 @@ MAIN:  do itime = offset , npas + (offset-1)
            enddo
          endif
          
-         ! ===========
-         !  time info
-         ! ===========
-         ttt1 = MPI_WTIME ( ierr )
 
          ! =========================    
          !  integration t -> t + dt 
          ! =========================
-         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend )
-         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend )
-         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend )
-         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend )
-         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend )
+         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend , ikstart , ikend )
+         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend , ikstart , ikend)
+         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
+         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
+         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
 
 #ifdef debug
          CALL print_config_sample(itime,0)
 #endif
 
-         ! ===========
-         !  time info
-         ! ===========
-         ttt2 = MPI_WTIME(ierr)
-         mdsteptimetot = mdsteptimetot + (ttt2 - ttt1) 
 
          ! ================================
          !  rescale velocities (NVE equil)
@@ -274,9 +270,10 @@ MAIN:  do itime = offset , npas + (offset-1)
            ry = ytmp
            rz = ztmp
          endif
+
 #ifdef stress_t
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  io_node blankline(stdout)
+  io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 #endif
@@ -344,7 +341,18 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  to standard output 
         ! =============================================
         if ( MOD ( itime , nprint ) .eq. 0 ) then  
-              CALL write_thermo(itime, stdout)
+              CALL write_thermo( itime , stdout , 'std' )
+        endif
+
+        ! ===========
+        !  time info
+        ! ===========
+        if ( MOD ( itime , nprint ) .eq. 0 ) then
+          stotime
+          addtime(mdsteptimetot) 
+          io_node blankline(stdout) 
+          writime(' step : ',' MD  ',itime)
+          statime
         endif
 
         ! =============================================
@@ -352,7 +360,7 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  to file OSZIFF 
         ! =============================================
         if (  MOD ( itime , fprint ) .eq. 0 ) then  ! tmp
-            CALL write_thermo(itime, kunit_OSZIFF)
+            CALL write_thermo( itime , kunit_OSZIFF, 'osz' )
         endif
   
         ! =====================
@@ -362,14 +370,13 @@ MAIN:  do itime = offset , npas + (offset-1)
           CALL write_CONTFF
         endif 
   enddo MAIN
-  
-  if ( ionode .and. .not. lstatic ) WRITE ( stdout , '(a,a)' ) &
-  '===============================================================================================', &
-  '======================================'
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'end of the main loop'
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' '
-  if ( ionode ) WRITE ( stdout , '(a)' ) ' ' 
-  if ( ionode ) WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
+ 
+  separator(stdout) 
+ 
+  io_node WRITE ( stdout , '(a)' ) 'end of the main loop'
+  io_node blankline(stdout)
+  io_node blankline(stdout)
+  io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
   if ( ionode ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)

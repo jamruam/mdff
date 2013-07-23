@@ -19,9 +19,12 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
-! complementary error function
-! W. Press et al. : Numerical Recipes, p. 214
-! built-in erfc() is buggy e.g. on some Linux distributions
+!> \brief
+!> complementary error function
+!> \author
+!> W. Press et al. : Numerical Recipes, p. 214
+!> \note
+!> built-in erfc() is buggy e.g. on some Linux distributions
   real(kind=dp) FUNCTION errfc(x)
   USE constants, ONLY : dp
   implicit none
@@ -36,7 +39,8 @@
   return
   END FUNCTION
 
-! error function
+!> \brief
+!> error function
   real(kind=dp) FUNCTION errf(x)
   USE constants, ONLY : dp
   implicit none

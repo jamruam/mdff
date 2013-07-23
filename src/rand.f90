@@ -19,12 +19,10 @@
 ! ======= Hardware =======
 ! ======= Hardware =======
 
-!*********************** SUBROUTINE init_random_seed **************************
-!
-! initialisation of seed 
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE init_random_seed **************************
+!> \brief
+!> initialisation of seed for the fortran random number generator RANDOM_NUMBER
+! ******************************************************************************
 SUBROUTINE init_random_seed
 
   implicit none
@@ -48,18 +46,20 @@ SUBROUTINE init_random_seed
 
 END SUBROUTINE
 
-!*********************** SUBROUTINE knuth *************************************
-!
-! adapted from F.24 (Allen-Tildesley)
-!
-! RANDOM VARIATE FROM THE STANDARD NORMAL DISTRIBUTION.         
-! THE DISTRIBUTION IS GAUSSIAN WITH ZERO MEAN AND UNIT VARIANCE.
-! REFERENCE:                                                    
-!     KNUTH D, THE ART OF COMPUTER PROGRAMMING, (2ND EDITION    
-!     ADDISON-WESLEY), 1978                                     
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE knuth *************************************
+!> \brief
+!! Random variate from the standard normal distribution.
+!! The distribution is gaussian with zero mean and unit variance         
+!> \note
+!! Knuth D, The Art of Computer Programming , (2nd edition Addison-Wesley), 1978                                     
+!> \note
+!! Adapted from F.24 (Allen-Tildesley)
+!> \author
+!! Allen-Tildesley
+!> \param[in] mean mean value of the gaussian distribution
+!> \param[in] sigma variance value of the gaussian distribution
+!> \param[out] G random number from the gaussian distribution define by mean and sigma
+! ******************************************************************************
 SUBROUTINE knuth ( G , mean , sigma )
 
   USE constants, ONLY : dp
@@ -97,10 +97,15 @@ SUBROUTINE knuth ( G , mean , sigma )
 
 END SUBROUTINE knuth 
 
-!*********************** SUBROUTINE boxmuller_polar ***************************
-!
-!
-!******************************************************************************
+! *********************** SUBROUTINE boxmuller_polar ***************************
+!> \brief
+!! Box-Muller polar method
+!> \note
+!! http://en.wikipedia.org/wiki/Box-Muller_transform
+!> \param[in] mean mean value of the gaussian distribution
+!> \param[in] sigma variance value of the gaussian distribution
+!> \param[out] G random number from the gaussian distribution define by mean and sigma
+! ******************************************************************************
 
 SUBROUTINE boxmuller_polar (G, mean, sigma)
 
@@ -139,14 +144,18 @@ SUBROUTINE boxmuller_polar (G, mean, sigma)
 
 END SUBROUTINE boxmuller_polar
 
-!*********************** SUBROUTINE boxmuller_basic ***************************
-!
-!
-!******************************************************************************
-
+! *********************** SUBROUTINE boxmuller_basic ***************************
+!> \brief
+!! Box-Muller cartesian method
+!> \note
+!! http://en.wikipedia.org/wiki/Box-Muller_transform
+!> \param[in] mean mean value of the gaussian distribution
+!> \param[in] sigma variance value of the gaussian distribution
+!> \param[out] G random number from the gaussian distribution define by mean and sigma
+! ******************************************************************************
 SUBROUTINE boxmuller_basic (G, mean, sigma)
   
-  USE constants,        ONLY : dp , pi
+  USE constants,        ONLY : dp , tpi
   implicit none
 
   ! global
@@ -163,7 +172,7 @@ SUBROUTINE boxmuller_basic (G, mean, sigma)
   CALL RANDOM_NUMBER(HARVEST = V)
   
   R = SQRT ( -2.0_dp * LOG ( U ) )
-  C = COS ( 2.0_dp * pi * V )
+  C = COS ( tpi * V )
   G = R * C
   G = mean + G * sigma
 

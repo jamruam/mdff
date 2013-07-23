@@ -1,5 +1,3 @@
-      subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impres,io,imode,omode,niter,nsim,iz,dz,ndz,reverse,indic,izs,rzs,dzs)
-!c
 !c-----------------------------------------------------------------------
 !c
 !c     M1QN3, Version 3.3, October 2009
@@ -80,7 +78,17 @@
 !c     <http://www.gnu.org/licenses/>.
 !c
 !c-----------------------------------------------------------------------
-!c
+!> \brief
+!! M1QN3 subroutine
+!> \author
+!! Jean Charles Gilbert, Claude Lemarechal, INRIA.
+!> \date
+!! October 2009
+!> \version
+!! Version 3.3
+
+subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impres,io,imode,omode,niter,nsim,iz,dz,ndz,reverse,indic,izs,rzs,dzs)
+
   USE constants,                ONLY : dp
   USE io_file,                  ONLY : ionode
 

@@ -17,10 +17,16 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 !#define debug
 ! ======= Hardware =======
 
-! module related to real space summation 
+! *********************** MODULE rspace ****************************************
+!> @brief
+!> module related to real space summation 
+!> @author
+!> FMV
+! ******************************************************************************
 MODULE rspace
 
   USE constants,                ONLY :  dp
@@ -31,27 +37,30 @@ MODULE rspace
   !  direct summation
   ! ===================
   TYPE rmesh
-    integer                                        :: ncell   ! nb of cell in the direct calc. in each direction  
-    integer                                        :: ncmax   ! (internal) number of cell in direct summation
-    real(kind=dp), dimension(:,:)    , allocatable :: boxxyz  ! vectors in real space
-    real(kind=dp), dimension(:)      , allocatable :: rr      ! vectors module in real space
-    integer         , dimension(:)   , allocatable :: lcell   ! lcell is 1 in the central box 
-    character(len=15)                              :: meshlabel
+    integer                                     :: ncell     !< nb of cell in the direct calc. in each direction  
+    integer                                     :: ncmax     !< (internal) number of cell in direct summation
+    real(kind=dp), dimension(:,:) , allocatable :: boxxyz    !< vectors in real space
+    real(kind=dp), dimension(:)   , allocatable :: rr        !< vectors module in real space
+    integer      , dimension(:)   , allocatable :: lcell     !< lcell is 1 in the central box 
+    character(len=15)                           :: meshlabel !< label name 
   END TYPE rmesh
 
 CONTAINS
 
-!*********************** SUBROUTINE direct_sum_init ***************************
+! *********************** SUBROUTINE direct_sum_init ***************************
+!!
+!> @brief 
+!> generate vectors in real space of the neigboring cells 
+!> in a cubic cutoff for the direct summation 
 !
-! generate vectors in real space of the neigboring cells in a cubic cutoff 
-! for the direct summation
-! cubic cutoff:  -ncelldirect to ncelldirect in each direction
+! cubic cutoff: -ncelldirect to ncelldirect in each direction
 ! vectors are stored in boxxyz(alpha,nc) alpha = 1,2,3 (x,y,z)
 ! and nc is the index of the given neighboring cell 
 ! lcell (nc) is set to 1 if nc is not the central box (ncell !=0)
+!> @author 
+!> FMV
 !
-!******************************************************************************
-
+! ******************************************************************************
 SUBROUTINE direct_sum_init ( rm )
 
   USE config,   ONLY : simu_cell 
@@ -65,7 +74,7 @@ SUBROUTINE direct_sum_init ( rm )
   ! local
   integer :: nc , ncellx , ncelly , ncellz , ncelldirect
 
-  if ( ionode ) WRITE ( stdout      ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
+  io_node WRITE ( stdout      ,'(a,a,a)') 'generate real-space  (full) ',rm%meshlabel,' mesh'
 
   ncelldirect = rm%ncell
 
@@ -89,7 +98,7 @@ SUBROUTINE direct_sum_init ( rm )
   enddo
 
   if ( nc .ne. rm%ncmax ) then
-    if ( ionode ) WRITE ( stdout ,'(a,3i7,a)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax , rm%meshlabel
+    io_node WRITE ( stdout ,'(a,3i7,a)') 'number of ncells do not match in direct_sum_init', nc , rm%ncmax , rm%meshlabel
     STOP
   endif
 
@@ -97,20 +106,18 @@ SUBROUTINE direct_sum_init ( rm )
   !  organized rpt arrays 
   ! ======================
   call reorder_rpt ( rm )
-  if ( ionode ) WRITE ( stdout      ,'(a)') '(full) real space arrays sorted'
-  if ( ionode ) WRITE ( stdout      ,'(i9)') nc 
-
-
+  io_node WRITE ( stdout      ,'(a)') '(full) real space arrays sorted'
+  io_node WRITE ( stdout      ,'(i9)') nc 
 
   return
 
 END SUBROUTINE direct_sum_init
 
-!*********************** SUBROUTINE reorder_rpt *******************************
+! *********************** SUBROUTINE reorder_rpt *******************************
 !
 ! this subroutine reorder kpt arrays (increasing k^2)
 !
-!******************************************************************************
+! ******************************************************************************
 
 SUBROUTINE reorder_rpt ( rm )
 

@@ -1,12 +1,36 @@
+.SUFFIXES: .h .F90 .f90
+
 ###################################################
 # MAKEFILE FOR MDFF ON LISA AMSTERDAM JUNE 2011
+# module load fortran/intel
+# module load openmpi/intel
+# module load mkl
+# module load lapack/intel
+#
+# #-lmkl_lapack -lmkl -lsvml -lguide -lpthread
+# #-lscalapack -lfblacs -lcblacs -lblacs -lmkl_lapack -lmkl -lguide -lpthread
+#
 ################################################### 
+
+# suffix of preprocessed source file
+SUFFIX=.F90
 
 # The compiler
 FC = mpif90 
+FCL=$(FC)
+# the pre-compiler
+CP = cpp
+CPPFLAGS=-P -C -CC -traditional
+
 # installation directory
 INSTALL_DIR=../bin
+# List of executable to be built within the package
+EXE= mdff.x 
 
+# =====================================================
+#                FORTRAN COMPILER FLAGS
+# =====================================================
+#
 # =================
 #      on lisa 
 # =================
@@ -24,19 +48,16 @@ INSTALL_DIR=../bin
 # =================
 #   on mario / babar
 # =================
-FCFLAGS = -fpp -O3 -ip -xSSE4.2
-#FCFLAGS = -fpp -O3 -ip -xAVX
-#FCFLAGS = -fpp -O3 -pg
-#FCFLAGS = -fpp -O3 -ip -xW
-#FCFLAGS = -fpp -O0 -check all -warn all 
+#FCFLAGS = -O3 -ip -xSSE4.2
+FCFLAGS = -O3 -ip -xAVX -align all 
+#FCFLAGS = -O3 -pg
+#FCFLAGS = -O3 -ip -xW
+#FCFLAGS = -O0 -check all -warn all 
 
-EXE= mdff.x 
-EXE_= mdff_.x 
 
-# libraries needed 
-
-# on mario
-
+# =======================================
+#               LIBRARIES 
+# =======================================
 
 # =================
 #      on lisa 
@@ -60,52 +81,58 @@ EXE_= mdff_.x
 # =================
 #   on T5600
 # =================
-
-MKL_PATH=/opt/intel/composerxe/mkl/lib/intel64/
-LDFLAGS =$(MKL_PATH)/libmkl_intel_lp64.a -Wl,--start-group $(MKL_PATH)/libmkl_intel_lp64.a $(MKL_PATH)/libmkl_intel_thread.a $(MKL_PATH)/libmkl_core.a -Wl,--end-group -lguide
-INC=-I/opt/intel/composerxe/mkl/include/fftw/
 LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
- 
+INC=-I/opt/intel/composerxe/mkl/include/fftw/
 
-
-# List of executables to be built within the package
-OBJ= constants.o io_file.o control.o time.o functions.o \
+# ==================
+#  target files
+# ==================
+OBJ= constants.o debug.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o kspace.o rspace.o kinetic.o thermo.o field.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o vacf.o voisin.o runmd.o 
+     radial_distrib.o efg.o vacf.o voisin.o runmd.o
 
-#OBJ_= constants.o io_file.o control.o time.o functions.o \
-     fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o thermo.o kspace.o rspace.o kinetic.o field.o \
-     tools.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg_new.o vacf.o runmd.o
+# ================================================================
+#   prepocessor :
+#   -DHOST     : hostname
+#   -Ddebug    : general debug flag !! too much outputs
+#   -Dtiming   : timing info 
+#   -DGFORTRAN : gfortran compiler 
+# ================================================================
+CPPDEFS = -DHOST=\"Linux\" \
+          -Dtiming         \
+#          -Ddebug=debug
 
-#test: $(EXE_)
-#	cp $(EXE_) $(INSTALL_DIR)
+CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)
 
-#all: libff.a $(EXE)
-all: $(EXE)
+all: $(OBJ) $(EXE)
 
-mdff.x: $(OBJ) mdff.o
-	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
-
-%.o: %.f90
-	$(FC) $(FCFLAGS) -c $<
+$(EXE): $(OBJ) mdff.o
+	$(FCL) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
 
 fft_t.o: fft_t.f90
-	$(FC) $(FCFLAGS) $(INC) -c fft_t.f90
+	$(CPP)
+	$(FC) $(FCFLAGS) $(INC) -c $*$(SUFFIX) 
 
-#libff.a: timing.o
-#	-rm libff.a
-#	ar vq libff.a timing.o 
+%.o: %.F90
+	$(FC) $(FCFLAGS) -c $<
 
+%.F90: %.f90
+	$(CPP)
 
-.PHONY: clean veryclean
+%.o: %.f90
+	$(CPP)
+	$(FC) $(FCFLAGS) -c $*$(SUFFIX) 
+
+.PHONY: clean veryclean doc
+
+doc:
+	doxygen Doxyfile
 
 
 clean:
-	rm -f *.o *.mod *.MOD *__genmod.f90 *__genmod.mod
+	rm -f *.F90 *.o *.mod *.MOD *__genmod.f90 *__genmod.mod 
 
 veryclean: clean
 	rm -f $(EXE)
@@ -117,12 +144,10 @@ install: all
 tar :
 	@if test -f mdff.tar.gz ; then /bin/rm mdff.tar.gz ; fi
 	# do not include unneeded stuff 
-	find ./ -type f | grep -v -e -e'/\.' -e'\.o$$' \
-	     -e'\.mod$$'  -e'\.x$$' \
+	find ./ -type f | grep -v "\.svn" | grep -v -e -e'/\./' -e'\.o$$' \
+	     -e'\.mod$$'  -e'\.x$$' -e'\.F90$$' \
              -e'~$$'  | xargs tar rvf mdff.tar
 	gzip mdff.tar
 
-depend:
-	@echo 'Checking dependencies...'
 
 
