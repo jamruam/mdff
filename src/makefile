@@ -17,6 +17,7 @@ SUFFIX=.F90
 
 # The compiler
 FC = mpif90 
+#FC = gfortran 
 FCL=$(FC)
 # the pre-compiler
 CP = cpp
@@ -48,8 +49,8 @@ EXE= mdff.x
 # =================
 #   on mario / babar
 # =================
-#FCFLAGS = -O3 -ip -xSSE4.2
-FCFLAGS = -O3 -ip -xAVX -align all 
+FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
+#FCFLAGS = -O3 -ip -xAVX -align all 
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
@@ -87,11 +88,11 @@ INC=-I/opt/intel/composerxe/mkl/include/fftw/
 # ==================
 #  target files
 # ==================
-OBJ= constants.o debug.o io_file.o control.o time.o functions.o \
+OBJ= constants.o io_file.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o \
+     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o harm.o quicksort.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o vacf.o voisin.o runmd.o
+     radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
 
 # ================================================================
 #   prepocessor :
@@ -109,7 +110,7 @@ CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)
 all: $(OBJ) $(EXE)
 
 $(EXE): $(OBJ) mdff.o
-	$(FCL) $(FCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(FCL) -o $@ $^ $(LDFLAGS)
 
 fft_t.o: fft_t.f90
 	$(CPP)

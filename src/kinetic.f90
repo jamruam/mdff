@@ -184,7 +184,7 @@ SUBROUTINE andersen_velocities
   
   
   CALL calc_temp(T,ekin)
-  sigma = dsqrt( temp ) 
+  sigma = sqrt( temp ) 
  
   do ia = 1, natm
   CALL RANDOM_SEED(SIZE = ISEED)

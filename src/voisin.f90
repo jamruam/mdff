@@ -65,7 +65,6 @@ MODULE voisin
   character(len=60) :: vois1algo_allowed(4)
   data                 vois1algo_allowed  / 'fixed' , 'sann' , 'sannsq' , 'voronoi' /
 
-
 CONTAINS
 
 
@@ -209,7 +208,7 @@ SUBROUTINE vois1_driver
   USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi , rho , simu_cell , config_alloc , &
-                                        config_print_info 
+                                        config_print_info , coord_format_allowed , coord_format 
   USE cell,                     ONLY :  lattice, dirkar
 
   implicit none
@@ -222,14 +221,12 @@ SUBROUTINE vois1_driver
   integer                                               :: iiii 
   character(len=60)                                     :: cccc 
   real(kind=dp)                                         :: aaaa 
+  logical                                               :: allowed
+  character(len=60)                                     :: cpos
   dectime
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
 
 
-  OPEN (UNIT = kunit_TRAJFF , FILE = 'TRAJFF')
+  OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
   OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
 
   READ ( kunit_TRAJFF , * ) natm
@@ -242,14 +239,15 @@ SUBROUTINE vois1_driver
   IF ( ionode ) WRITE ( stdout ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
   READ ( kunit_TRAJFF , * )   ( natmi ( it ) , it = 1 , ntype )
   READ ( kunit_TRAJFF , * ) cpos
-  ! ======
-  !  cpos
-  ! ======
-  do i = 1 , size( cpos_allowed )
-    if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+
+  ! ===========
+  !  cpos test
+  ! ===========
+  do i = 1 , size( coord_format_allowed )
+    if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
     STOP
   endif
 
@@ -288,24 +286,26 @@ SUBROUTINE vois1_driver
     ! ======
     !  cpos
     ! ======
-    do i = 1 , size( cpos_allowed )
-      if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+    do i = 1 , size( coord_format_allowed )
+      if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
     enddo
     if ( .not. allowed ) then
-      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
       STOP
     endif
 
     do ia = 1 , natm
       READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
-    if ( cpos .eq. 'Direct' ) then
+    if ( cpos .eq. 'Direct' .or. cpos.eq.'D' ) then
+      coord_format = 'D'
       ! ======================================
       !         direct to cartesian
       ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
       if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' ) then
+    else if ( cpos .eq. 'Cartesian' .or. cpos .eq.'C' ) then
+      coord_format = 'C'
       if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
     endif
 
@@ -363,7 +363,7 @@ END SUBROUTINE vois1_driver
 ! ******************************************************************************
 SUBROUTINE fixed_distance
 
-  USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei 
+  USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei , coord_format
   USE cell,                     ONLY :  kardir , dirkar
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_VOIS1FF
 
@@ -399,7 +399,7 @@ SUBROUTINE fixed_distance
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir (natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
     do ia = 1 , natm
       Nb (ia ) = 1
@@ -492,7 +492,7 @@ SUBROUTINE fixed_distance
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -507,7 +507,7 @@ END SUBROUTINE fixed_distance
 ! ******************************************************************************
 SUBROUTINE sann
 
-  USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype
+  USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype , coord_format
   USE control,          ONLY :  cutshortrange
   USE cell,             ONLY :  kardir , dirkar
   USE io_file,          ONLY :  ionode , stderr , stdout , kunit_VOIS1FF
@@ -585,7 +585,7 @@ SUBROUTINE sann
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir (natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
   do ia = 1 , natm
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -881,7 +881,7 @@ SUBROUTINE sann
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
       
   return
 
@@ -919,7 +919,7 @@ END SUBROUTINE sann
 ! ******************************************************************************
 SUBROUTINE voronoi_construction
 
-  USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype
+  USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype, coord_format 
   USE control,          ONLY :  cutshortrange
   USE cell,             ONLY :  kardir, dirkar
   USE io_file,          ONLY :  ionode, stdout , stderr , kunit_VOIS1FF
@@ -983,7 +983,7 @@ SUBROUTINE voronoi_construction
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir (natm,rx,ry,rz,simu_cell%B)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   ! ======================================
   !         MAIN LOOP STARTS  
@@ -1229,7 +1229,7 @@ SUBROUTINE voronoi_construction
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
 
 10001   FORMAT(1x,'atom ',3x,'face ',1x,'index ',3x,'edges ',3x,'            relative posisiton         ',3x,'  distance')

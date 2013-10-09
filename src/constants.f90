@@ -50,6 +50,7 @@ MODULE constants
   real(kind=dp),      PARAMETER :: hplanck     = 6.62617636e-34_dp                     !< Planck constant 
   real(kind=dp),      PARAMETER :: eh          = evtoj / 1e14_dp / hplanck             !< e/h (electron charge / Planck constant )
   real(kind=dp),      PARAMETER :: CQ_UNIT     = eh / 1000.0_dp                        !< Cq unit conversion (  a.u to V/A^2 )
+  real(kind=dp),      PARAMETER :: Debye_unit  = 2.54174618782479816355_dp / bohr      !< Debye unit for dipole moments in eA
 
 END MODULE constants
 ! ===== fmV =====

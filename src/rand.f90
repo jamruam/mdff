@@ -29,19 +29,18 @@ SUBROUTINE init_random_seed
 
   ! local
   integer :: i , n , clock
-  integer, dimension(:), allocatable :: seed
-  
+  INTEGER , dimension (:) , allocatable :: SEED
+
+
+  CALL RANDOM_SEED(SIZE = n)
+  allocate(SEED(n))  
+
   i=1       
-  CALL RANDOM_SEED(size = n)
-  allocate(seed(n))
-          
   CALL SYSTEM_CLOCK(COUNT = clock)
           
   seed = clock + 48 * (/ (i - 1, i = 1, n) /)
   CALL RANDOM_SEED(PUT = seed)
-          
-  deallocate(seed)
-
+         
   return
 
 END SUBROUTINE

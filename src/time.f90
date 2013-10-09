@@ -49,12 +49,22 @@ MODULE time
   real(kind=dp) :: msdtimetot     !<                            
   real(kind=dp) :: grtimetot      !<                            
   real(kind=dp) :: grtimetot_comm !<                            
+  real(kind=dp) :: rmcgrtimetot_comm
   real(kind=dp) :: opttimetot     !<                          
   real(kind=dp) :: vibtimetot     !<                           
   real(kind=dp) :: hessiantimetot !<                           
   real(kind=dp) :: bandtimetot    !<                           
   real(kind=dp) :: doskpttimetot  !<                           
   real(kind=dp) :: fvibtimetot    !<                           
+  real(kind=dp) :: chisqvartimetot
+  real(kind=dp) :: chisqvartimetotu
+  real(kind=dp) :: chisqvartime2
+  real(kind=dp) :: chisqvartime2u
+  real(kind=dp) :: chisqvartime3
+  real(kind=dp) :: chisqvartime3u
+  real(kind=dp) :: chisqvartime4
+  real(kind=dp) :: chisqvartime4u
+  real(kind=dp) :: chisqvartime5
   real(kind=dp) :: timetmp        !< use in opt               
 
 CONTAINS
@@ -91,6 +101,15 @@ SUBROUTINE time_init
   opttimetot    = 0.0_dp
   vacftimetot   = 0.0_dp                             
   vacftimetot2  = 0.0_dp                             
+  chisqvartimetot  = 0.0_dp
+  chisqvartimetotu  = 0.0_dp
+  chisqvartime2 = 0.0_dp
+  chisqvartime2u = 0.0_dp
+  chisqvartime3 = 0.0_dp
+  chisqvartime3u = 0.0_dp
+  chisqvartime4 = 0.0_dp
+  chisqvartime4u = 0.0_dp
+  chisqvartime5 = 0.0_dp
 
   return 
  
@@ -139,8 +158,17 @@ SUBROUTINE print_time_info ( kunit )
     if ( fcoultime_ds  .ne. 0.0_dp .and. &
          fcoultimetot2 .eq. 0.0_dp )    WRITE ( kunit ,110)             'FIELD_DS', fcoultime_ds
     if ( fcoultimetot2 .ne. 0.0_dp )    WRITE ( kunit ,110)             'FIELD_ES', fcoultime_es
-    if ( grtimetot     .ne. 0.0_dp )    WRITE ( kunit ,110)             'GR'                , grtimetot 
-    if ( grtimetot_comm.ne. 0.0_dp )    WRITE ( kunit ,110)             'GR(comm only)'     , grtimetot_comm 
+    if ( grtimetot     .ne. 0.0_dp )    WRITE ( kunit ,110)             'GR'                   , grtimetot 
+    if ( grtimetot_comm.ne. 0.0_dp )    WRITE ( kunit ,110)             'GR(comm only)'        , grtimetot_comm 
+    if ( chisqvartimetot.ne. 0.0_dp )    WRITE ( kunit ,110)            'eval_INVERT'        , chisqvartimetot 
+    if ( chisqvartime2 .ne. 0.0_dp )    WRITE ( kunit ,110)             '       - dab '        , chisqvartime2
+    if ( chisqvartime3 .ne. 0.0_dp )    WRITE ( kunit ,110)             '       - merge/shift' , chisqvartime3
+    if ( chisqvartime4 .ne. 0.0_dp )    WRITE ( kunit ,110)             '       - average'     , chisqvartime4
+    if ( chisqvartime5 .ne. 0.0_dp )    WRITE ( kunit ,110)             '       - chisq_var'   , chisqvartime5
+    if ( chisqvartimetotu.ne. 0.0_dp )    WRITE ( kunit ,110)            'eval_INVERT_update'        , chisqvartimetotu 
+    if ( chisqvartime2u .ne. 0.0_dp )    WRITE ( kunit ,110)             '      - dab_update '        , chisqvartime2u
+    if ( chisqvartime3u .ne. 0.0_dp )    WRITE ( kunit ,110)             '       - merge/shift/average' , chisqvartime3u
+    if ( chisqvartime4u .ne. 0.0_dp )    WRITE ( kunit ,110)             '       -chisq_var_update '     , chisqvartime4u
     if ( msdtimetot    .ne. 0.0_dp )    WRITE ( kunit ,110)             'MSD'    , msdtimetot
     if ( vacftimetot   .ne. 0.0_dp )    WRITE ( kunit ,110)             'VACF'   , vacftimetot
     if ( vacftimetot2  .ne. 0.0_dp )    WRITE ( kunit ,110)             'VACF2'  , vacftimetot2

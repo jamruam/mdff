@@ -21,7 +21,7 @@
 !// general debug flag
 !#define debug 
 !#define debug_main
-!#define debug_es
+#define debug_es
 !#define debug_multipole
 !#define debug_efg_stat
 !#define fix_grid
@@ -43,7 +43,6 @@ MODULE efg
   USE kspace,                   ONLY :  kmesh  
   USE rspace,                   ONLY :  rmesh
   USE config,                   ONLY :  ntypemax
-  USE debug,                    ONLY : intdebug
 
   implicit none
 
@@ -175,7 +174,7 @@ SUBROUTINE efg_default_tag
   lefg_old           = .false.
   lefg_restart       = .false.
   lefg_stat          = .false.
-  lvasp_units        = .false.
+  lvasp_units        = .true.
   reseta             =   0.1_dp
   resvzz             =   0.1_dp
   resu               =   0.1_dp 
@@ -198,7 +197,7 @@ END SUBROUTINE efg_default_tag
 SUBROUTINE efg_check_tag
 
   USE control,                  ONLY :  calc , longrange
-  USE io_file,                  ONLY :  ionode , stderr
+  USE io_file,                  ONLY :  ionode , stderr , stdout 
   USE config,                   ONLY :  ntype
 
   implicit none
@@ -218,7 +217,7 @@ SUBROUTINE efg_check_tag
   ! ==================================
   !  check vzzmin and Umin .ne. 0
   ! ==================================
-  if ( vzzmin .eq. 0_dp .or. umin .eq. 0_dp ) then
+  if ( vzzmin .eq. 0._dp .or. umin .eq. 0._dp ) then
     io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin
     STOP
   endif             
@@ -232,6 +231,12 @@ SUBROUTINE efg_check_tag
   if ( ncefg .eq. 0 ) then
     io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: ncefg is zero but calc=efg requested',ncefg
     STOP
+  endif
+
+  if ( lvasp_units ) then
+    io_node WRITE ( stdout, '(a)' ) 'vasp units for electric field gradient'
+  else
+    io_node WRITE ( stdout, '(a)' ) 'vasp units for electric field gradient'
   endif
 
   return
@@ -276,7 +281,7 @@ SUBROUTINE efg_print_info(kunit)
         WRITE ( kunit ,'(a)')                   'EFG for all atoms                : EFGALL '
       endif
       WRITE ( kunit ,'(a)')                     'distributions parameters:'
-      WRITE ( kunit ,500)               'eta between ', dzero,' and ',   done,' with res. ',reseta
+      WRITE ( kunit ,500)                       'eta between ', dzero,' and ',   done,' with res. ',reseta
       WRITE ( kunit ,500) &
                                                 'vzz between ',vzzmin,' and ',-vzzmin,' with res. ',resvzz
       WRITE ( kunit ,500) &
@@ -312,19 +317,23 @@ SUBROUTINE efgcalc
   USE constants,                ONLY :  fpi , e_2 
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
-                                        dipia , dipia_ind , dipia_wfc , ipolar , fx , fy , fz , phi_coul_tot , config_print_info 
-  USE control,                  ONLY :  longrange , myrank , numprocs
+                                        dipia , dipia_ind , dipia_wfc , ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
+                                        coord_format_allowed, coord_format
+  
+  USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb
   USE field,                    ONLY :  qch , dip , field_init , lpolar , lwfc , & 
                                         moment_from_pola , moment_from_wfc , rm_coul , &
-                                        km_coul , alphaES , multipole_DS , multipole_ES , field_print_info
+                                        km_coul , alphaES , multipole_DS , multipole_ES , field_print_info , ldip_wfc
   USE thermodynamic,            ONLY :  u_coul_tot , vir_coul_tot , u_pol
-  USE cell,                     ONLY :  lattice , dirkar
+  USE cell,                     ONLY :  lattice , dirkar , periodicbc
 
   implicit none
 
   INCLUDE 'mpif.h'
 
   ! local
+  logical                                               :: lwannier
+  logical                                               :: allowed
   integer                                               :: i
   integer                                               :: iastart , iaend 
   integer                                               :: ikstart , ikend
@@ -335,17 +344,11 @@ SUBROUTINE efgcalc
   real(kind=dp)                                         :: ttt1 , ttt2
   real(kind=dp) , dimension ( : , : )     , allocatable :: ef_tmp
   real(kind=dp) , dimension ( : , : , : ) , allocatable :: efg_tmp
+  character(len=60)                                     :: cpos
 #ifdef fix_grid
   real(kind=dp) , dimension ( : , : )     , allocatable :: rave !average positions
 #endif
-  ! =====================================================
-  !   type of positions coordinates 
-  ! =====================================================
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
-
+  
 
   ! ==================================
   !  if lefg_restart EFGALL are ready
@@ -369,11 +372,11 @@ SUBROUTINE efgcalc
     ! ======
     !  cpos
     ! ======
-    do i = 1 , size( cpos_allowed )
-      if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+    do i = 1 , size( coord_format_allowed )
+      if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
     enddo
     if ( .not. allowed ) then
-      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
       STOP
     endif
 
@@ -391,9 +394,9 @@ SUBROUTINE efgcalc
     ! read charge in fieldtag
     CALL field_init
     CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
-    CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
     CALL efg_alloc
     CALL efg_mesh_alloc
+    if ( lcoulomb ) CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
     CALL typeinfo_init
     ! =============
     !  print info
@@ -425,24 +428,26 @@ SUBROUTINE efgcalc
       ! ======
       !  cpos
       ! ======
-      do i = 1 , size( cpos_allowed )
-        if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+      do i = 1 , size( coord_format_allowed )
+        if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
       enddo
       if ( .not. allowed ) then
-        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
         STOP
       endif
 
       do ia = 1 , natm
         READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
       enddo
-      if ( cpos .eq. 'Direct' ) then
+      if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+        coord_format = 'D'
         ! ======================================
         !         direct to cartesian
         ! ======================================
-        CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+        CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
         if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-      else if ( cpos .eq. 'Cartesian' ) then
+      else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
+        coord_format = 'C'
         if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
       endif
 
@@ -462,6 +467,7 @@ SUBROUTINE efgcalc
       ! ============================
       call distance_tab 
 #endif
+      call periodicbc ( natm , rx , ry , rz , simu_cell , coord_format ) 
 
       ! =======================
       !  total tensor (efg_t)
@@ -473,25 +479,43 @@ SUBROUTINE efgcalc
       ! ======================================
       CALL moment_from_pola ( iastart , iaend , ikstart , ikend , dipia_ind )
 
-      ! ======================================
-      !     induced moment from wannier center  
-      ! ======================================
-      CALL moment_from_WFc ( dipia_wfc ) 
+      ! =========================================================
+      !  Is there any Wannier center ? if yes lwannier = .TRUE.
+      ! =========================================================
+      lwannier = .false.
+      do it = 1 , ntype
+        if ( lwfc ( it ) .gt. 0 ) lwannier = .true.
+      enddo
 
-      ! ======================================
-      !  total dipole mu :
-      !   static +  induced  + "wannier"
-      ! ======================================
-      mu = dipia + dipia_ind + dipia_wfc
+      if ( lwannier ) then
+        ! ======================================
+        !     induced moment from wannier center  
+        ! ======================================
+        CALL moment_from_WFc ( dipia_wfc ) 
 
-#ifdef debug_multipole
+        if ( ldip_wfc ) then
+          if ( ionode ) write( stdout , '(A)' ) 'dipole contribution to EFG from wannier centers '
+          ! ======================================
+          !  total dipole mu :
+          !   static +  induced  + "wannier"
+          ! ======================================
+          mu = dipia + dipia_ind + dipia_wfc
+        else
+          if ( ionode ) write( stdout , '(A)' ) 'no dipole contribution to EFG from wannier centers '
+          mu = dipia + dipia_ind
+        endif
+      else
+        mu = dipia + dipia_ind  
+      endif
+
+#if defined(debug_multipole) || defined(debug)
       if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ikstart , ikend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
       if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
 
       WRITE ( 10000, * ) '#electric field'
       WRITE ( 10001, * ) '#dipoles'
-      WRITE (10002, * ) '#forces'
-      WRITE (10003, * ) '#efg'
+      WRITE ( 10002, * ) '#forces'
+      WRITE ( 10003, * ) '#efg'
       do ia = 1 , natm
         WRITE (10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
         WRITE (10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
@@ -511,7 +535,7 @@ SUBROUTINE efgcalc
         ! ===============
         ! use ewald sum
         ! ===============
-        if ( longrange .eq. 'ewald' )   CALL efg_ES ( iastart , iaend , km_coul , alphaES )
+        if ( longrange .eq. 'ewald' )   CALL efg_ES ( iastart , iaend , ikstart, ikend, km_coul , alphaES )
       else
       ! =======================================
       !       efg charge + dipoles  
@@ -523,7 +547,7 @@ SUBROUTINE efgcalc
         ! ===============
         ! use ewald sum
         ! ===============
-        if ( longrange .eq. 'ewald' )   CALL multipole_efg_ES ( iastart , iaend , km_coul , alphaES , mu )
+        if ( longrange .eq. 'ewald' )   CALL multipole_efg_ES ( iastart , iaend , ikstart, ikend, km_coul , alphaES , mu )
       endif
 
       efg_t    = efg_ia 
@@ -593,7 +617,7 @@ SUBROUTINE efgcalc
   CALL io_close ( kunit_DTETAFF )
   CALL io_close ( kunit_DTVZZFF )
   CALL io_close ( kunit_DTIBUFF )
-  dibUtot = 0
+  dibUtot   = 0
   dibvzztot = 0
   dibetatot = 0
 
@@ -618,7 +642,7 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
 
   USE control,                  ONLY :  myrank , numprocs , calc , cutlongrange
   USE config,                   ONLY :  system , natm , natmi , atype , atypei , itype , &
-                                        rx , ry , rz , ntype , qia , simu_cell
+                                        rx , ry , rz , ntype , qia , simu_cell, coord_format
   USE cell,                     ONLY :  kardir , dirkar
   USE time,                     ONLY :  efgtimetot1 , efgtimetot3
   USE io_file,                  ONLY :  stdout
@@ -672,7 +696,7 @@ SUBROUTINE efg_DS ( iastart , iaend , rm )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
 atom : do ia = iastart , iaend
     rxi = rx(ia)
@@ -794,7 +818,7 @@ atom : do ia = iastart , iaend
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
 
   return
@@ -811,11 +835,11 @@ END SUBROUTINE efg_DS
 ! the reciproc part could be ( should be ) parallized
 !
 ! ******************************************************************************
-SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
+SUBROUTINE efg_ES ( iastart , iaend , ikstart, ikend , km , alphaES )
 
   USE control,                  ONLY :  myrank , numprocs , calc
   USE config,                   ONLY :  system , natm , natmi , atype , atypei , &
-                                        simu_cell , itype , rx , ry , rz , ntype , qia 
+                                        simu_cell , itype , rx , ry , rz , ntype , qia , coord_format
   USE constants,                ONLY :  pi , fpi , piroot , imag
   USE field,                    ONLY :  qch
   USE kspace,                   ONLY :  struc_fact
@@ -829,6 +853,7 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
 
   ! global
   integer, intent(in) :: iastart , iaend 
+  integer, intent(in) :: ikstart , ikend 
   TYPE ( kmesh ) :: km
   real(kind=dp) :: alphaES
 
@@ -899,7 +924,7 @@ SUBROUTINE efg_ES ( iastart , iaend , km , alphaES )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
 ! ==============================================
 !        direct space part
@@ -958,12 +983,13 @@ atom1: do ia = iastart , iaend
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ! ==============================================
   !            reciprocal space part
   ! ==============================================
-  kpoint : do ik = 1, km%nkcut
+!  kpoint : do ik = 1 , km%nkcut
+  kpoint : do ik = ikstart , ikend
     ! =================
     !   k-space  
     ! =================
@@ -1076,7 +1102,7 @@ END SUBROUTINE efg_ES
 SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
 
   USE config,                   ONLY :  natm , atype , natmi , ntype , qia , &
-                                        rx , ry , rz , fx , fy , fz , tau_coul , simu_cell ,itype 
+                                        rx , ry , rz , fx , fy , fz , tau_coul , simu_cell ,itype , coord_format 
   USE control,                  ONLY :  cutlongrange , myrank
   USE io_file,                  ONLY :  stdout , ionode 
   USE field,                    ONLY :  qch
@@ -1137,7 +1163,7 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
   
 ! ==================================================================================================
 !  MAIN LOOP calculate EFG(i)  for each atom i parallelized
@@ -1257,7 +1283,7 @@ SUBROUTINE multipole_efg_DS ( iastart, iaend , rm , mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -1271,12 +1297,12 @@ END SUBROUTINE multipole_efg_DS
 ! Based on the multipole_ES subroutine in field.f90
 ! 
 ! ******************************************************************************
-SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
+SUBROUTINE multipole_efg_ES ( iastart , iaend , ikstart, ikend , km , alphaES , mu )
 
   USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
                                         rx , ry , rz , fx , fy , fz ,  &
-                                        qia , simu_cell , itype
+                                        qia , simu_cell , itype, coord_format
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
   USE io_file,                  ONLY :  ionode , stdout 
   USE field,                    ONLY :  qch
@@ -1290,6 +1316,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
 
   ! global 
   integer, intent(in) :: iastart , iaend
+  integer, intent(in) :: ikstart , ikend
   TYPE ( kmesh ) :: km
   real(kind=dp) :: alphaES
   real(kind=dp) :: mu    ( natm , 3 )
@@ -1387,7 +1414,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   ! ==============================================
   !        direct space part
@@ -1488,12 +1515,13 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ! ==============================================
   !            reciprocal space part
   ! ==============================================
-  kpoint : do ik = 1, km%nkcut
+  !kpoint : do ik = 1, km%nkcut
+  kpoint : do ik = ikstart, ikend
     ! =================
     !   k-space  
     ! =================
@@ -1502,6 +1530,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
     kz   = km%kpt(3,ik)
     kk   = km%kptk(ik)
     Ak   = EXP ( - kk * 0.25_dp / alpha2 ) / kk
+    !write(*,*) "Ak",Ak
 
     if (km%kptk(ik) .eq. 0 ) then
       WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
@@ -1518,6 +1547,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
       k_dot_mu = ( mu ( ja , 1 ) * kx + mu ( ja , 2 ) * ky + mu ( ja , 3 ) * kz  ) 
       rhon = rhon + ( qia(ja) + imag * k_dot_mu ) * km%strf ( ik , ja ) 
     enddo
+    !write(*,*) "rhon",rhon
 
     do ia = 1 , natm
 
@@ -1527,6 +1557,7 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
       kri = ( kx * rxi + ky * ryi + kz * rzi )
       carg   = EXP  ( imag * kri )
       recarg = REAL ( CONJG ( rhon ) * carg  * Ak , kind = dp )
+      !print*,"recarg",recarg,carg
 
       ! electric field gradient
       efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) + kx * kx * recarg
@@ -1552,6 +1583,13 @@ SUBROUTINE multipole_efg_ES ( iastart , iaend , km , alphaES , mu )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 2 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
+
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 1 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 3 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 3 ) , natm )
 
   ! ======================================================
   ! remark on the unit :
@@ -1680,9 +1718,13 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
     ! write U1 and average Uk (with k>1) distribution 
     ! =================================================
     do i = 0 , PANU 
-      WRITE (kunit_u ,'(<2*ntype+3>f15.8)') umin  + REAL ( i * resu , kind = dp ) , &
+      WRITE (kunit_u ,'(<6*ntype+7>f15.8)') umin  + REAL ( i * resu , kind = dp ) , &
                                             ( r_dibUtot(1,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
-                                              r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
+                                             r_dibUtot(2,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(3,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(4,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(5,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
     enddo
     blankline(kunit_eta) 
     blankline(kunit_eta) 
@@ -2248,7 +2290,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_output , kunit_nmroutput )
         ! average Uk,k>1
         if ( ui .ne. 1 ) then
           dibUtot(6,0,ku) = dibUtot(6,0,ku) + 1
-          do it=1,2
+          do it=1,ntype
             if (itype(ia).eq.it) then
               dibUtot(6,it,ku) = dibUtot(6,it,ku) + 1
             endif
@@ -2385,7 +2427,7 @@ SUBROUTINE nmr_convention( EIG , nmr , ia )
   ! =======================================================
   diso=(EIG(1)+EIG(2)+EIG(3))/3.0_dp
   if ( ABS ( diso ) .ne. 0.0_dp .and. ABS ( diso ) .gt. 1e-3 ) then
-!    io_node WRITE ( stderr ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
+    io_node WRITE ( stderr ,'(a,i6,f48.24)') 'ERROR: trace of EFG is not null',ia,diso
      diso = 0.0_dp
   !  STOP
   endif
@@ -2486,7 +2528,7 @@ SUBROUTINE efg_alloc
 
   implicit none
 
-  if ( calc .ne. 'efg' ) return
+  if ( calc .ne. 'efg' .and. calc .ne. 'rmc-invert-efg' .and. calc .ne. 'rmc-efg' ) return
 
   allocate( dibUtot(6,0:ntype,0:PANU) )
   allocate( dibvzztot(0:ntype,0:PANvzz) )
@@ -2494,7 +2536,6 @@ SUBROUTINE efg_alloc
   dibUtot = 0
   dibvzztot = 0
   dibetatot = 0
-
 #ifdef fix_grid
   allocate ( rgrid ( 3 , natm ) )
 #endif
@@ -2558,7 +2599,7 @@ SUBROUTINE efg_mesh_alloc
   integer :: nkcut
   integer :: ncmax
 
-  if ( calc .ne. 'efg' ) return
+  if ( calc .ne. 'efg' .and. calc .ne. 'rmc-efg' .and. calc.ne.'rmc-invert-efg' ) return
 
   ! ============
   !  direct sum
@@ -2622,5 +2663,75 @@ SUBROUTINE efg_mesh_dealloc
   return
 
 END SUBROUTINE efg_mesh_dealloc
+
+SUBROUTINE read_DTIBUFF ( dibU , filename ) 
+
+  USE constants,        ONLY :  dp
+  USE config,           ONLY : ntype
+  implicit none
+
+  integer :: it, bin
+  real(kind=dp), dimension ( 6, 0:ntype , 0:PANU )  :: dibU
+  real(kind=dp) :: u
+  character(*) :: filename
+
+  OPEN(UNIT=1000,FILE=filename)
+  do bin=0 , PANU 
+    read(1000,*) u ,  ( dibU (1,it,bin) , &
+                        dibU (2,it,bin) , &
+                        dibU (3,it,bin) , &
+                        dibU (4,it,bin) , &
+                        dibU (5,it,bin) , &
+                        dibU (6,it,bin) , it = 0 , ntype )
+  enddo
+  CLOSE(1000)
+
+  return
+
+END SUBROUTINE read_DTIBUFF
+
+SUBROUTINE read_DTVZZFF ( dibvzz , filename )
+
+  USE constants,        ONLY :  dp
+  USE config,           ONLY : ntype
+  implicit none
+
+  integer :: it, bin
+  real(kind=dp), dimension ( 0:ntype , 0:PANvzz )  :: dibvzz 
+  real(kind=dp) :: u
+  character(*) :: filename
+
+  OPEN(UNIT=1000,FILE=filename)
+  do bin=0 , PANvzz
+    read(1000,*) u ,  ( dibvzz (it,bin) , it = 0 , ntype ) 
+  enddo
+  CLOSE(1000)
+
+  return
+
+END SUBROUTINE read_DTVZZFF
+
+SUBROUTINE read_DTETAFF ( dibeta , filename )
+
+  USE constants,        ONLY :  dp
+  USE config,           ONLY : ntype
+  implicit none
+
+  integer :: it, bin
+  real(kind=dp), dimension ( 0:ntype , 0:PANeta )  :: dibeta
+  real(kind=dp) :: u
+  character(*) :: filename
+
+  print*,PANeta
+  OPEN(UNIT=1000,FILE=filename)
+  do bin=0 , PANeta
+    read(1000,*) u ,  ( dibeta (it,bin) , it = 0 , ntype )  
+  enddo
+  CLOSE(1000)
+
+  return
+
+END SUBROUTINE read_DTETAFF
+
 
 END MODULE efg

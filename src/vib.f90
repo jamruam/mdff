@@ -52,6 +52,12 @@ MODULE vib
   logical          :: lwrite_vectff  !< write the vector field
   real(kind=dp)    :: tempmod        !< temperature at which we populate the mode imod
 
+  character(len=60) :: vib_allowed(5) ! vib allowed flags                     
+  ! allowed vib = 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos'
+  data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' /
+
+
+
 CONTAINS
 
 ! *********************** SUBROUTINE vib_init **********************************
@@ -229,7 +235,7 @@ SUBROUTINE vib_main
 
   USE config,                   ONLY :  system , natm , natmi , rx , ry , rz ,  & 
                                         atype , atypei , itype , simu_cell , & 
-                                        rho , ntype, config_alloc , list , point
+                                        rho , ntype, config_alloc , list , point, coord_format_allowed , coord_format
   USE control,                  ONLY :  calc , myrank , numprocs
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
                                         kunit_DOSFF , kunit_MODFF, kunit_DOSKFF , kunit_IBZKPTFF
@@ -257,15 +263,8 @@ SUBROUTINE vib_main
   integer*4                                   :: info, lwork
   real(kind=dp)                               :: ttt1 , ttt2 
   real(kind=dp)                               :: ttt1p , ttt2p 
-  ! =====================================================
-  !   type of positions coordinates 
-  ! =====================================================
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
-
-
+  logical                                     :: allowed
+  character(len=60)                           :: cpos
   ! trash 
   real(kind=dp)     :: aaaa
   character(len=60) :: cccc
@@ -300,13 +299,13 @@ SUBROUTINE vib_main
   ! ======
   !  cpos
   ! ======
-  do i = 1 , size( cpos_allowed )
-   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  do i = 1 , size( coord_format_allowed )
+    if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
     STOP
-  endif
+   endif
 
 
   CALL lattice ( simu_cell )
@@ -360,13 +359,13 @@ SUBROUTINE vib_main
       ! ======
       !  cpos
       ! ======
-      do i = 1 , size( cpos_allowed )
-        if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+      do i = 1 , size( coord_format_allowed )
+        if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
       enddo
       if ( .not. allowed ) then
-      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
         STOP
-      endif
+       endif
       CALL lattice ( simu_cell )
       rho = REAL ( natm , kind=dp ) / simu_cell%omega
     endif
@@ -374,13 +373,15 @@ SUBROUTINE vib_main
     do ia = 1 , natm
       READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa , aaaa , aaaa , aaaa , aaaa , aaaa
     enddo
-    if ( cpos .eq. 'Direct' ) then
+    if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+      coord_format = 'D'
       ! ======================================
       !         direct to cartesian
       ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
       io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
     else if ( cpos .eq. 'Cartesian' ) then
+      coord_format = 'C'
       io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
     endif
 
@@ -625,7 +626,7 @@ END SUBROUTINE vib_main
 ! ******************************************************************************
 SUBROUTINE hessian ( hess )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell
+  USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell , coord_format
   USE io_file,          ONLY :  ionode , stdout , stderr
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
   USE cell,             ONLY :  kardir , dirkar
@@ -677,7 +678,7 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format)
 
 
   do ia = 1 , natm 
@@ -1078,7 +1079,7 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   !         direct to kartesian 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ttt2 = MPI_WTIME(ierr) ! timing info
   hessiantimetot = hessiantimetot + ( ttt2 - ttt1 )
@@ -1363,7 +1364,7 @@ END SUBROUTINE generate_modes
 ! ******************************************************************************
 SUBROUTINE band ( hess )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype , coord_format
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  ionode , stdout , stderr , kunit_DOSKFF
@@ -1432,7 +1433,7 @@ SUBROUTINE band ( hess )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   ! ==================================
   !   loop on kpath index
@@ -1519,7 +1520,7 @@ SUBROUTINE band ( hess )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ttt2 = MPI_WTIME ( ierr ) ! timing info
   bandtimetot = bandtimetot + ( ttt2 - ttt1) 
@@ -1536,7 +1537,7 @@ END SUBROUTINE band
 ! ******************************************************************************
 SUBROUTINE doskpt ( hess , eigenk , nk )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype, coord_format
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  ionode , stdout , stderr , kunit_IBZKPTFF , kunit_DKFF
@@ -1608,7 +1609,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
   READ ( kunit_IBZKPTFF , * ) cccc
@@ -1743,7 +1744,7 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ttt2 = MPI_WTIME(ierr) ! timing info
   doskpttimetot = doskpttimetot + ( ttt2 - ttt1 )

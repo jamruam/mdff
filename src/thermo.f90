@@ -44,12 +44,15 @@ MODULE thermodynamic
 !  real(kind=dp) :: u_coul_dd      !< potential energy from coulombic interaction 
 !  real(kind=dp) :: u_coul_qd      !< potential energy from coulombic interaction
   real(kind=dp) :: u_pol 
+  real(kind=dp) :: u_harm         !< harmonic oscilaltor lharm  
+  real(kind=dp) :: e_nvt          !< further Nose Hoover energy for the conserved quantity 
 
   real(kind=dp) :: e_kin_r        !< kinetic energy
   real(kind=dp) :: temp_r         !< temperature ( from kinetic energy )  
   real(kind=dp) :: u_lj_r         !< potential energy from lennard_jones interaction
   real(kind=dp) :: u_morse_r      !< potential energy from morse interaction
   real(kind=dp) :: u_coul_r       !< potential energy from coulombic interaction 
+  real(kind=dp) :: e_nvt_r        !< further Nose Hoover energy for the conserved quantity 
 
 
   real(kind=dp) :: vir_tot        !< total virial
@@ -94,6 +97,7 @@ SUBROUTINE calc_thermo
 
   USE control,                  ONLY :  lreduced 
   USE config,                   ONLY :  natm , rho , simu_cell 
+  USE md,                       ONLY :  integrator
 
   implicit none
   real(kind=dp) :: omega
@@ -112,9 +116,12 @@ SUBROUTINE calc_thermo
     u_coul_r = u_coul_tot   / engunit
     e_kin_r  = e_kin        / engunit
   endif
-  
-  u_tot    = u_lj_r + u_coul_r + u_morse_r
+ 
+  e_nvt_r  = e_nvt / REAL ( natm , kind = dp ) / engunit 
+  u_tot    = u_lj_r + u_coul_r + u_morse_r + u_harm
   e_tot    = u_tot  + e_kin_r
+  if ( integrator .eq. 'nvt-nhc2' .or. integrator .eq. 'nvt-nhcn' ) e_tot = e_tot + e_nvt_r
+
   vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
   if (lreduced) then
@@ -269,7 +276,7 @@ END SUBROUTINE general_accumulator
 SUBROUTINE write_thermo ( step , kunit , key , dummy )
 
   USE config,   ONLY :  simu_cell 
-  USE md,       ONLY :  dt
+  USE md,       ONLY :  dt , integrator
   USE io_file,  ONLY :  ionode
 
   implicit none
@@ -290,21 +297,30 @@ SUBROUTINE write_thermo ( step , kunit , key , dummy )
     if ( ionode ) then
       if ( PRESENT ( dummy ) ) then
         WRITE ( kunit , 200 ) &
-        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r    , dummy
+        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r , dummy
         WRITE ( kunit , 201 ) &
         step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , dummy  
       else
         WRITE ( kunit , 100 ) &
-        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r       
+        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r , u_morse_r   
         WRITE ( kunit , 101 ) &
         step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul, omega 
       endif
     endif
   endif
   if ( key .eq. 'std' ) then
+    if ( ( integrator .ne. 'nvt-and' )  .and. &
+         ( integrator .ne. 'nvt-nhc2' ) .and. &
+         ( integrator .ne. 'nvt-nhcn' ) .and. &
+         ( integrator .ne. 'nvt-nh' ) ) then
     io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
                                  e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
                                  pressure_tot , pressure_lj , pressure_coul , omega , e_tot
+    else
+    io_node WRITE ( kunit, 301)  step , REAL ( step * dt , kind = dp ) , &
+                                 e_kin_r , temp_r , e_nvt_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
+                                 pressure_tot , pressure_lj , pressure_coul , omega , e_tot
+    endif
   endif
 
  100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
@@ -316,6 +332,7 @@ SUBROUTINE write_thermo ( step , kunit , key , dummy )
  201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
                 E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  dummy = ',E15.8)
 
+ ! lennard_jones nve
  300 FORMAT(/ &
               '  Thermodynamic information '/ &
      &        '  ---------------------------------------------'/ &
@@ -334,6 +351,25 @@ SUBROUTINE write_thermo ( step , kunit , key , dummy )
      &        '  ---------------------------------------------'/ &
      &        '  Etot                  = ',E15.8)
 
+ !lennard_jones nvt
+ 301 FORMAT(/ &
+              '  Thermodynamic information '/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  step                  = ',I9/ &
+     &        '  time                  = ',E15.8/ &
+     &        '  Ekin                  = ',E15.8/ &
+     &        '  Temp                  = ',E15.8/ &
+     &        '  Envt                  = ',E15.8/ &
+     &        '  Utot                  = ',E15.8/ &
+     &        '  U_lj                  = ',E15.8/ &
+     &        '  U_coul                = ',E15.8/ &
+     &        '  U_morse               = ',E15.8/ &
+     &        '  Pressure              = ',E15.8/ &
+     &        '  P_lj                  = ',E15.8/ &
+     &        '  P_coul                = ',E15.8/ &
+     &        '  volume                = ',E15.8/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  Etot                  = ',E15.8)
 
 
   return

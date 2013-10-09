@@ -19,7 +19,7 @@
 #include "symbol.h"
 
 ! ======= Hardware =======
-!#define debug
+#define debug
 
 ! calculate the stress tensor at each time step
 !#define stress_t 
@@ -140,7 +140,6 @@ SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
     ! =========================
     ! force + potential at t=0
     ! =========================
-     io_node  write(stdout,*) 'test'
      CALL engforce_driver ( iastart , iaend , ikstart , ikend )
 
     ! ==================================================
@@ -228,7 +227,6 @@ MAIN:  do itime = offset , npas + (offset-1)
              rzs ( ia )  = rz ( ia ) - vz ( ia ) * dt
            enddo
          endif
-         
 
          ! =========================    
          !  integration t -> t + dt 
@@ -238,6 +236,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
          if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
          if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
+         if ( integrator.eq.'nvt-nhcn')      CALL nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
 
 #ifdef debug
          CALL print_config_sample(itime,0)

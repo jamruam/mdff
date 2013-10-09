@@ -92,7 +92,7 @@ SUBROUTINE lattice ( Mylatt )
 
   do i=1,3
     do j=1,3
-      Mylatt%B(i,j)=Mylatt%B(I,J)/omega
+      Mylatt%B(i,j)=Mylatt%B(i,j)/omega
     enddo
   enddo
 
@@ -166,17 +166,21 @@ END SUBROUTINE lattice
 !! \param[in,out] VX , VY , VZ vectors being transformed
 !! \param[in] BASIS basis vector ( direct or reciprocal lattice )
 ! ******************************************************************************
-SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
+SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS , coord_format )
 
   implicit none 
 
   ! global
   integer , intent(in) :: NMAX
   real(kind=dp) :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
+  character(len=1) :: coord_format
 
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+
+  ! quick return
+ ! if ( coord_format .eq. 'D' ) return
 
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(2,1)+VZ(N)*BASIS(3,1)
@@ -186,6 +190,8 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
     VY(N)=V2
     VZ(N)=V3
   enddo
+
+  coord_format ='D'
 
   return
 
@@ -205,16 +211,21 @@ END SUBROUTINE
 !! \param[in,out] VX , VY , VZ vectors being transformed
 !! \param[in] BASIS basis vector ( direct or reciprocal lattice )
 ! ******************************************************************************
-SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
-
+SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS , coord_format )
+ 
   implicit none
 
   ! global
   integer :: NMAX
   real(kind=dp) :: VX ( NMAX ) , VY ( NMAX ) , VZ ( NMAX ) , BASIS(3,3)
+  character(len=1) :: coord_format
+
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+
+  ! quick return
+!  if ( coord_format .eq. 'C' ) return
 
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(1,2)+VZ(N)*BASIS(1,3)
@@ -224,7 +235,7 @@ SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
     VY(N)=V2
     VZ(N)=V3
   enddo
-
+  coord_format = 'C'
   return
 
 END SUBROUTINE dirkar 
@@ -239,7 +250,7 @@ END SUBROUTINE dirkar
 !! \param[in] latt lattice type
 !! \param[in,out] xxx , yyy , zzz position vectors 
 ! ******************************************************************************
-SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
+SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt , coord_format )
 
   implicit none
 
@@ -247,11 +258,12 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
   integer :: natm
   real(kind=dp) :: xxx ( natm ) , yyy ( natm ) , zzz ( natm )
   TYPE(celltype) latt
+  character(len=1) :: coord_format
 
   ! local
   integer :: ia
 
-  CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
+  CALL kardir ( natm , xxx , yyy , zzz , latt%B , coord_format ) 
 
   do ia = 1 , natm
      xxx ( ia ) = xxx ( ia ) - NINT ( xxx ( ia ) ) 
@@ -259,7 +271,7 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
      zzz ( ia ) = zzz ( ia ) - NINT ( zzz ( ia ) )  
   enddo
 
-  CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 
+  CALL dirkar ( natm , xxx , yyy , zzz , latt%A , coord_format ) 
 
   return
 

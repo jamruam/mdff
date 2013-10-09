@@ -47,17 +47,20 @@ MODULE md
 
   real(kind=dp) :: dt                   !< time step
   real(kind=dp) :: temp                 !< temperature   
-  real(kind=dp) :: Qnosehoover          !< Q parameter in Nose-Hoover Chain 
+  real(kind=dp) :: Qnosehoover          !< Nose-Hoover Chain : Q mass 
+  integer       :: nhc_yosh_order       !< Nose-Hoover Chain : order of the yoshida integrator 
+  integer       :: nhc_mults            !< Nose-Hoover Chain : number of multiple timesteps 
+  integer       :: nhc_n                !< Nose-Hoover Chain : length of the Nose-Hoover chain
   real(kind=dp) :: tauberendsen         !< characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
   real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat
-  real(kind=dp) :: vxi1, vxi2, xi1, xi2 !< extra variables of Nose-Hoover Chain
+  real(kind=dp) , dimension ( : ) , allocatable :: vxi, xi              !< general coordinates of the thermostat (Nose-Hoover Chain)
 
   ! ================================================
   !     algorithm for dynamic integration
   ! ================================================
   character(len=60) :: integrator               !< integration method   
-  character(len=60) :: integrator_allowed(7)    
-  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nve-lfq'/
+  character(len=60) :: integrator_allowed(8)    
+  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nvt-nhcn', 'nve-lfq'/
 
   ! ================================================
   !  velocity distribution (Maxwell-Boltzmann or uniform)
@@ -97,7 +100,10 @@ SUBROUTINE md_init
                       dt            , &
                       temp          , & 
                       nuandersen    , & 
-                      tauberendsen  , & 
+                      tauberendsen  , &
+                      nhc_yosh_order, & 
+                      nhc_mults     , & 
+                      nhc_n          , & 
                       Qnosehoover      
 
   if ( calc .ne. 'md' ) return
@@ -162,6 +168,8 @@ SUBROUTINE md_default_tag
   dt            = 0.0_dp
   temp          = 1.0_dp
   tauberendsen  = 0.0_dp
+  nhc_yosh_order= 3 
+  nhc_mults     = 2 
 
   return
 
@@ -241,6 +249,18 @@ SUBROUTINE md_check_tag
     integrator = 'nve-vv' 
   endif
 
+  ! allocation of thermostat coordinates
+  if ( integrator .eq. 'nvt-nhc2' ) then 
+    allocate ( vxi(2) , xi(2) )
+  endif 
+  if ( integrator .eq. 'nvt-nhcn' ) then 
+    allocate ( vxi(nhc_n) , xi(nhc_n) )
+  endif 
+  ! initial conditions
+  vxi = 1.0_dp
+   xi = 0.0_dp
+!  vxi(1) = 1.0_dp      
+
   return
 
 
@@ -288,11 +308,15 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a,f10.5)') 'nuandersen                         = ',nuandersen  
         if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
         if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       ' + Nose Hoover thermostat'
-        if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
+        if ( integrator .eq. 'nvt-nhc2' .or. &
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
         if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
-        if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a,f10.5)') 'Qnosehoover                          = ',Qnosehoover
+        if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
+        if ( integrator .eq. 'nvt-nhc2' .or. & 
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'Qnosehoover                          = ',Qnosehoover
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
+             ( integrator .ne. 'nvt-nhcn' ) .and. &
              ( integrator .ne. 'nvt-nh' ) ) then
               if ( nequil .eq. 0 ) then
                                           WRITE ( kunit ,'(a)')       'with no equilibration          '
@@ -339,7 +363,7 @@ SUBROUTINE write_traj_xyz
 
   USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
   USE config,                   ONLY :  system , natm , natmi , ntype , &
-                                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell
+                                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell, coord_format
   USE cell,                     ONLY :  periodicbc , kardir , dirkar
 
   implicit none
@@ -357,13 +381,13 @@ SUBROUTINE write_traj_xyz
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
+  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B , coord_format )
 
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell , coord_format )
   ! ======================================
-  !         cartesian to direct 
+  !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
+  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A , coord_format )
 
 
   if ( ionode ) then

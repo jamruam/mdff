@@ -18,15 +18,13 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug2
+!#define debug2
 ! ======= Hardware =======
 
-! *********************** SUBROUTINE grcalc_init *******************************
-!
+! *********************** MODULE radial_distrib ********************************
 !> \brief
 !! Module related to radial function distribution calculation and/or static
 !! factor structure
-!
 ! ******************************************************************************
 MODULE radial_distrib 
 
@@ -34,7 +32,8 @@ MODULE radial_distrib
 
   implicit none
 
-  integer :: PANGR            !< (internal) number of bins in g(r) distribution
+  integer :: nbins            !< (internal) number of bins in g(r) distribution
+  integer :: npairs            !< (internal) number of bins in g(r) distribution
   integer :: nskip            !< number of configurations skipped 
   integer :: nconf            !< number of configurations used in g(r) calculation
   real(kind=dp) :: cutgr      !< radial cut-off 
@@ -90,14 +89,14 @@ SUBROUTINE gr_init
   ! ==========================================
   ! define a new resolution to be 2^N points
   ! ==========================================
- PANGR=int(cutgr/resg)+1
+ nbins=int(cutgr/resg)+1
 !28/05/13 ! i = 1
-!28/05/13 ! do while ( 2**i .lt. PANGR )
+!28/05/13 ! do while ( 2**i .lt. nbins )
 !28/05/13 !    i = i + 1
 !28/05/13 ! enddo
 !28/05/13 ! npangr = i
-!28/05/13 ! PANGR = 2** npangr
-!28/05/13 ! resg = cutgr / DBLE ( PANGR  )
+!28/05/13 ! nbins = 2** npangr
+!28/05/13 ! resg = cutgr / DBLE ( nbins  )
 
   CALL gr_print_info(stdout)
 
@@ -118,9 +117,8 @@ SUBROUTINE gr_alloc
 
   implicit none
 
-  if ( calc .ne. 'gr' ) return
-
-  allocate(gr(0:PANGR,0:ntype,0:ntype))
+  if ( calc .ne. 'gr' .and. calc .ne. 'rmc' .and. calc .ne. 'rmc-invert' .and. calc .ne. 'rmc-efg' .and. calc .ne. 'rmc-efg-invert' ) return
+  allocate(  gr ( 0 : nbins - 1 , 0 : ntype , 0 : ntype ) ) 
   gr = 0      
 
   return 
@@ -167,7 +165,7 @@ SUBROUTINE gr_default_tag
   resg = 0.1_dp
   nskip = 0
   nconf = 0
-  cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)-0.01_dp
+  cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)
 
   return
 
@@ -192,7 +190,7 @@ SUBROUTINE gr_print_info(kunit)
 
    if ( ionode ) then
                   WRITE ( kunit ,'(a,f10.5,a)')         'resolution of g(r) function resg     = ',resg,' new value to have 2^N points in g(r)'
-                  WRITE ( kunit ,'(a,i5)')              'number of points in g(r)             = ',PANGR
+                  WRITE ( kunit ,'(a,i5)')              'number of points in g(r)             = ',nbins
                   WRITE ( kunit ,'(a)')                 'save radial_distribution in file     :   GRTFF' 
       if ( calc .eq. 'gr' )     then 
                   WRITE ( kunit ,'(a)')                 'read configuration from file         :   TRAJFF'
@@ -216,7 +214,7 @@ END SUBROUTINE gr_print_info
 SUBROUTINE grcalc
 
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                        rho , config_alloc , simu_cell , atypei , itype, natmi
+                                        rho , config_alloc , simu_cell , atypei , itype, natmi , coord_format_allowed , coord_format
   USE control,                  ONLY :  myrank , numprocs
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
@@ -227,21 +225,16 @@ SUBROUTINE grcalc
   INCLUDE 'mpif.h'
 
   ! local 
-  integer                                              :: ia , ic , it , ngr , i  
-  integer                                              :: pairs , it1 , it2 , mp , ierr 
+  integer                                              :: ia , ic , it , ngr , igr , i 
+  integer                                              :: it1 , it2 , mp , ierr 
   integer                                              :: iastart , iaend 
   real(kind=dp),     dimension ( : , : ) , allocatable :: grr 
   integer,           dimension ( : )     , allocatable :: nr 
   character(len=15), dimension ( : )     , allocatable :: cint
   real(kind=dp)                                        :: rr , vol
   real(kind=dp)                                        :: ttt1 , ttt2      
-  ! =====================================================
-  !   type of positions coordinates 
-  ! =====================================================
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
+  logical                                              :: allowed
+  character(len=60)                                    :: cpos 
 
 
   ! trash 
@@ -267,11 +260,11 @@ SUBROUTINE grcalc
   ! ======
   !  cpos
   ! ======
-  do i = 1 , size( cpos_allowed )
-   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  do i = 1 , size( coord_format_allowed )
+   if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
     STOP
   endif
 
@@ -290,8 +283,8 @@ SUBROUTINE grcalc
   CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
   CALL gr_alloc
 
-  pairs =  ntype * ( ntype + 1 ) / 2
-  allocate ( grr ( 0 : PANGR , 0 : pairs ) , nr ( 0 : pairs ) , cint ( 0 : pairs  ))
+  npairs =  ntype * ( ntype + 1 ) / 2
+  allocate ( grr ( 0 : npairs , 0 : nbins-1 ) , nr ( 0 : npairs ) , cint ( 0 : npairs  ))
   grr  = 0.0_dp
   nr   = 0
   cint = ''
@@ -299,7 +292,7 @@ SUBROUTINE grcalc
 #ifdef debug2
   if ( ionode ) then 
     WRITE ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
-    WRITE ( stdout , '(a,2i6)' ) 'debug : number of type pairs ', pairs
+    WRITE ( stdout , '(a,2i6)' ) 'debug : number of type npairs ', npairs
   endif
 #endif
 
@@ -334,26 +327,30 @@ SUBROUTINE grcalc
     if ( ic .ne. (nskip + 1) .or. nskip .ne. 0 ) then
       READ ( kunit_TRAJFF , * ) iiii
       READ ( kunit_TRAJFF , * ) cccc
-      READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
-      READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
-      READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
+      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
       READ ( kunit_TRAJFF , * ) iiii
       READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
       READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
       READ ( kunit_TRAJFF , * ) cpos
     endif
     do ia = 1 , natm
-      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
+      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) !, aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
     enddo
-    if ( cpos .eq. 'Direct' ) then
+    if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+      coord_format = 'D'
       ! ======================================
       !         direct to cartesian
       ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
       if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' ) then
+    else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
+      coord_format = 'C'
       if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
     endif
+    CALL lattice ( simu_cell )
+    rho = DBLE ( natm )  / simu_cell%omega
 
     ngr=ngr+1 
     ! ==========================
@@ -368,10 +365,10 @@ SUBROUTINE grcalc
   ! ===========================================
   ttt1 = MPI_WTIME(ierr)
 
-  CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), PANGR )
+  CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), nbins )
   do it1 = 1 , ntype
     do it2 = it1 , ntype
-      CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), PANGR )
+      CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), nbins )
     enddo  
   enddo
   ttt2 = MPI_WTIME(ierr)
@@ -379,7 +376,7 @@ SUBROUTINE grcalc
 
 
 #ifdef debug2
-  do i=0, PANGR
+  do i=0, nbins
     io_node WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
   enddo
 #endif
@@ -396,23 +393,18 @@ SUBROUTINE grcalc
     enddo
   enddo
 
-  WRITE ( kunit_GRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
-  WRITE ( kunit_NRTFF , '(<pairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , pairs ) 
+  WRITE ( kunit_GRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+  WRITE ( kunit_NRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
 
   nr ( 0 ) = 0 
 
-  do i = 1 , PANGR
-    rr  = ( dble(i)-0.5d0)*resg
-    vol = 4.d0*pi*(resg*rr*rr+(resg**3)/12.d0)
-    vol = vol/simu_cell%omega 
-!    rr = resg * ( DBLE (i) + 0.5_dp )
-!    k  = i+1
-!    k  = k*k*k
-!    k  = k-(i*i*i)
-!    vol = DBLE (k)*resg*resg*resg ! r^3
-!    vol = (4.0_dp/3.0_dp)*pi*vol/simu_cell%omega !4/3pir^3
+  do igr = 0 , nbins-1
+    rr  = ( REAL ( igr ,kind=dp )+0.5d0)*resg
+    vol = 4.d0 * pi * ( resg * rr* rr + ( resg**3 ) / 12.d0 )
+    vol = vol / simu_cell%omega 
     ! all - all pairs 
-    grr ( i , 0 ) = DBLE (gr(i,0,0))/(ngr*vol*natm*natm)
+    grr ( 0 , igr ) = DBLE ( gr ( igr , 0 , 0 ) ) / ( ngr * vol * natm * natm )
+!    grr ( 0 , igr ) = DBLE ( gr ( 0 , 0 , igr ) ) / ( ngr * vol * natm * natm )
     ! type pairs
     mp = 1
     do it1 = 1 , ntype
@@ -420,26 +412,20 @@ SUBROUTINE grcalc
 #ifdef debug2
         WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
 #endif        
-        if ( mp .lt. 0 .and. mp .gt. pairs ) then
+        if ( mp .lt. 0 .and. mp .gt. npairs ) then
           WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
           STOP
         endif 
         nr ( mp ) = it1          
-        grr ( i , mp ) = DBLE ( gr ( i , it1 , it2 ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
+        grr ( mp , igr ) = DBLE ( gr ( igr , it1 , it2 ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
+!        grr ( mp , igr ) = DBLE ( gr ( it1 , it2 , igr ) ) / DBLE ( ngr * vol * natmi ( it1 ) * natmi ( it2 ) )  
         mp = mp + 1
       enddo
     enddo
-    !if ( pairs .ne. 1 ) then
       if ( ionode ) then
-        WRITE ( kunit_GRTFF ,'(<pairs+2>f15.10)') rr , ( grr ( i , mp ) , mp = 0 , pairs ) 
-        WRITE ( kunit_NRTFF ,'(<pairs+2>f20.10)') rr , ( DBLE ( grr ( i , mp) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , pairs )
+        WRITE ( kunit_GRTFF ,'(<npairs+2>e20.10)') rr , ( grr ( mp , igr ) , mp = 0 , npairs ) 
+        WRITE ( kunit_NRTFF ,'(<npairs+2>e20.10)') rr , ( DBLE ( grr ( mp , igr ) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , npairs )
       endif
-    !else
-    !  if ( ionode ) then
-    !    WRITE (kunit_GRTFF,'(2f15.10)') rr , grr( i , 0 ) 
-    !    WRITE (kunit_NRTFF,'(f15.10,4i8)')  rr , gr(i,0,0)
-    !  endif
-    !endif
   enddo
 
 
@@ -448,7 +434,7 @@ SUBROUTINE grcalc
 
   CLOSE( kunit_TRAJFF )
 
-  !CALL static_struc_fac ( grr , PANGR , pairs ) 
+  !CALL static_struc_fac ( grr , nbins , npairs ) 
 
   deallocate ( grr , nr , cint )
   CALL gr_dealloc
@@ -465,8 +451,8 @@ END SUBROUTINE grcalc
 ! ******************************************************************************
 SUBROUTINE gr_main ( iastart , iaend )
 
-  USE control,                  ONLY :  myrank
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype
+  USE control,                  ONLY :  myrank, lvnlist
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, coord_format, list, point
   USE io_file,                  ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
   USE cell,                     ONLY :  kardir , dirkar
@@ -487,18 +473,14 @@ SUBROUTINE gr_main ( iastart , iaend )
   real(kind=dp) :: ttt1 , ttt2      
 
   ttt1 = MPI_WTIME(ierr)
-
   ! =======================
   !  cut-off half box
   ! =======================
   cut2 = cutgr * cutgr 
-
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
-
-!  print*,iastart,iaend
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
   do ia = iastart , iaend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -520,32 +502,32 @@ SUBROUTINE gr_main ( iastart , iaend )
         if ( rijsq.lt.cut2 ) then
           rr = SQRT ( rijsq )
           igr = INT ( rr / resg ) + 1
-!          print*,igr
-          if ( igr .lt. 0 .and. igr .gt. PANGR-1 ) then
-            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
-            STOP
-          endif 
+!         if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
+!            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
+!            STOP
+!          endif 
           ! all pairs
-          gr ( igr , 0 , 0 )     = gr ( igr , 0 , 0 ) + 1 
-          gr ( igr , ita , jta ) = gr ( igr , ita , jta ) + 1
+          gr ( igr , 0    , 0   ) = gr ( igr , 0   ,   0 ) + 1 
+          gr ( igr , ita  , jta ) = gr ( igr , ita , jta  ) + 1
+!          gr ( 0    , 0   , igr ) = gr ( 0   ,   0 , igr ) + 1 
+!          gr ( ita  , jta , igr ) = gr ( ita , jta , igr ) + 1
         endif
       endif
     enddo
   enddo
   
 #ifdef debug2
-  do igr=0, PANGR-1
-    WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,1,1)
+  do igr=0, nbins-1
+    WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,0,0)
   enddo
 #endif 
-
-  ttt2 = MPI_WTIME(ierr)
-  grtimetot = grtimetot + ( ttt2 - ttt1 )
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  ttt2 = MPI_WTIME(ierr)
+  grtimetot = grtimetot + ( ttt2 - ttt1 )
 
   return
  
@@ -555,7 +537,7 @@ END SUBROUTINE gr_main
 !
 !
 ! ******************************************************************************
-!SUBROUTINE static_struc_fac ( gr , PANGR , pairs )
+!SUBROUTINE static_struc_fac ( gr , nbins , npairs )
 
 !  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
 !  USE config,                   ONLY :  rho
@@ -563,8 +545,8 @@ END SUBROUTINE gr_main
 
 !  implicit none
 !  ! global
-!  integer :: PANGR , pairs
-!  real(kind=dp) :: gr ( 0 : PANGR-1 , 0 : pairs ) , rr
+!  integer :: nbins , npairs
+!  real(kind=dp) :: gr ( 0 : nbins-1 , 0 : npairs ) , rr
 !
 !  ! local
 !  integer :: i , j , is , NN
@@ -579,22 +561,22 @@ END SUBROUTINE gr_main
 !
 !  io_node WRITE ( stdout , '(a)' ) 'in static_struc_fac'
 !
-!  allocate ( in ( PANGR ) , out ( PANGR /2 + 1 ) )
+!  allocate ( in ( nbins ) , out ( nbins /2 + 1 ) )
 !
 !  in  = ( 0.0,0.0)
 !  out = ( 0.0,0.0)
 !  ! ========
 !  !   FFT
 !  ! ========
-!  do i=0,PANGR-1
+!  do i=0,nbins-1
 !    in ( i + 1 ) = gr ( i , 0 ) 
 !  enddo
 !
-!!  CALL fft_1D_complex ( in , out , PANGR )
-!  CALL fft_1D_real(in,out,PANGR)
+!!  CALL fft_1D_complex ( in , out , nbins )
+!  CALL fft_1D_real(in,out,nbins)
 !
-!  do i= 1 , PANGR/2+1
-!    q = ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR ) / resg
+!  do i= 1 , nbins/2+1
+!    q = ( dble ( i )  + 0.5_dp ) / DBLE ( nbins ) / resg
 !    Sk = 1.0_dp + rho * out( i + 1 )  
 !    io_node WRITE ( 20000 , '(3e16.8)' )  q , Sk  
 !  enddo
@@ -603,22 +585,22 @@ END SUBROUTINE gr_main
 !
 !! other version
 !  ! Uji (eq 12) J Phys Cndens Matter V17 2005 )
-!!  allocate ( Uji ( PANGR , PANGR ) ) 
+!!  allocate ( Uji ( nbins , nbins ) ) 
 !
-!  do i = 1 , PANGR
+!  do i = 1 , nbins
 !!    ri  = ( dble ( i )  + 0.5_dp )  * res
 !    rip = ( dble ( i + 1 )  + 0.5_dp )  * res
-!!    do j = 1 , PANGR
-!      qj = tpi * DBLE ( j ) + 0.5_dp / DBLE ( PANGR / 2 + 1 ) / resg
+!!    do j = 1 , nbins
+!      qj = tpi * DBLE ( j ) + 0.5_dp / DBLE ( nbins / 2 + 1 ) / resg
 !      Uji ( j , i ) = SR ( ri , qj ) - SR ( rip , qj ) 
 ! !     Uji ( j , i ) = Uji ( j , i ) / qj  
 !    enddo
 ! ! enddo
 !  Uji = 2.0_dp * tpi * Uji
 !!
-!  do i= 1 , PANGR/2+1
-!    q = tpi * ( dble ( i )  + 0.5_dp ) / DBLE ( PANGR / 2 + 1) / resg
-!!    do j = 1 , PANGR
+!  do i= 1 , nbins/2+1
+!    q = tpi * ( dble ( i )  + 0.5_dp ) / DBLE ( nbins / 2 + 1) / resg
+!!    do j = 1 , nbins
 !      Sk =  Sk + Uji ( j , i ) * ( gr ( j , 0 ) -1.0_dp )  
 !    enddo
 !    io_node WRITE ( 30000 , '(3e16.8)' )  q , Sk
@@ -666,6 +648,25 @@ END SUBROUTINE gr_main
 
 !END SUBROUTINE static_struc_fac
 
+
+SUBROUTINE read_GRTFF( grr , filename)
+
+  USE constants,         only : dp
+  implicit none
+
+  integer :: mp , bin
+  real(kind=dp) , dimension ( 0:npairs , 0: nbins-1 ) :: grr
+  real(kind=dp) :: rr
+  character(*) :: filename
+
+  OPEN(UNIT=1000,FILE=filename)
+    read(1000,*)      
+    do bin=0,nbins-1
+      read(1000,*) rr, ( grr ( mp , bin ), mp = 0 , npairs )
+    enddo 
+  CLOSE(1000)
+
+END SUBROUTINE
 
 END MODULE radial_distrib 
 ! ===== fmV =====

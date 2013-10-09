@@ -18,6 +18,7 @@
 
 
 ! ======= Hardware =======
+!#define debug_nvt_nhcn
 ! ======= Hardware =======
 
 !================================================================================
@@ -208,8 +209,8 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz 
-  USE md,                       ONLY :  dt, vxi1, vxi2, xi1, xi2
-  USE thermodynamic,            ONLY :  temp_r , e_kin
+  USE md,                       ONLY :  dt, vxi, xi , Qnosehoover
+  USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt
 
   implicit none
 
@@ -217,18 +218,32 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
   integer, intent(inout) :: iastart , iaend 
   integer, intent(inout) :: ikstart , ikend 
   ! local
+  integer                :: inhc
   real(kind=dp)          :: kin , tempi
+  real(kind=dp)          :: Q(2)
+
+  ! thermostat mass
+  Q(1) = natm * Qnosehoover
+  Q(2) = Qnosehoover
  
   CALL calc_temp ( tempi , kin )
 
-  CALL chain_nh_2 ( kin , vxi1 , vxi2 , xi1 , xi2 )
+  CALL chain_nhc_2 ( kin , vxi , xi , Q )
 
   CALL prop_pos_vel_verlet ( kin , iastart , iaend , ikstart , ikend )
 
-  CALL chain_nh_2( kin, vxi1, vxi2, xi1, xi2 ) 
+  CALL chain_nhc_2( kin, vxi, xi , Q ) 
+
 
   tempi = (2.0_dp/3.0_dp) * kin
   tempi = tempi/DBLE (natm)
+
+  e_nvt = 0.0_dp
+  do inhc = 1 , 2
+    e_nvt = e_nvt + vxi(inhc) * vxi(inhc) * 0.5_dp * Q(inhc)
+  enddo
+  e_nvt = e_nvt + 3.0_dp * natm * tempi * xi(1)
+  e_nvt = e_nvt + tempi * xi(2)
 
   e_kin = kin
   temp_r = tempi
@@ -236,6 +251,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
   return
 
 END SUBROUTINE nose_hoover_chain2
+
 
 ! *********************** SUBROUTINE chain_nh_2 ********************************
 !
@@ -246,40 +262,41 @@ END SUBROUTINE nose_hoover_chain2
 !! adapted from Frenkel and Smit
 !
 ! ******************************************************************************
-SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
+SUBROUTINE chain_nhc_2 ( kin, vxi, xi , Q )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , vx , vy , vz 
-  USE md,                       ONLY :  temp , dt , Qnosehoover
+  USE md,                       ONLY :  temp , dt 
 
   implicit none
 
   ! global
-  real(kind=dp), intent (inout) :: kin, vxi1, vxi2, xi1, xi2
+  real(kind=dp), intent (inout) :: kin
+  real(kind=dp), intent (inout) :: vxi(2), xi(2) , Q(2)
 
   ! local
   integer       :: ia
-  real(kind=dp) :: G1, G2, Q1, Q2  
+  real(kind=dp) :: G1, G2  
   real(kind=dp) :: dt2, dt4, dt8
   real(kind=dp) :: s, L
 
+  ! some constants related integrator step dt
   dt2 = dt  * 0.5_dp
   dt4 = dt2 * 0.5_dp
   dt8 = dt4 * 0.5_dp
-
-  Q1 = natm * Qnosehoover
-  Q2 = Qnosehoover
+  ! degree of freedom
   L  = DBLE (3 * natm)
 
-  G2   = ( Q1 * vxi1 * vxi1 - temp)
-  vxi2 = vxi2 + G2 * dt4
-  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
-  G1   = ( 2.0_dp *  kin - L * temp) / Q1
-  vxi1 = vxi1 + G1 * dt4
-  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
-  xi1  = xi1 + vxi1 * dt2
-  xi2  = xi2 + vxi2 * dt2
-  s    = EXP ( - vxi1 * dt2 )
+  G2     = ( Q(1) * vxi(1) * vxi(1) - temp) / Q(2)
+  vxi(2) = vxi(2) + G2 * dt4
+  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
+  G1     = ( 2.0_dp *  kin - L * temp) / Q(1)
+  vxi(1) = vxi(1) + G1 * dt4
+  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
+  xi(1)  = xi(1) + vxi(1) * dt2
+  xi(2)  = xi(2) + vxi(2) * dt2
+  s      = EXP ( - vxi(1) * dt2 )
+  kin    = kin * s * s
 
   do ia = 1, natm
     vx ( ia ) = s * vx ( ia )
@@ -287,17 +304,16 @@ SUBROUTINE chain_nh_2 ( kin, vxi1, vxi2, xi1, xi2)
     vz ( ia ) = s * vz ( ia )
   enddo
   
-  kin  = kin * s * s
-  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
-  G1   = ( 2.0_dp *  kin - L * temp) / Q1
-  vxi1 = vxi1 + G1 * dt4
-  vxi1 = vxi1 * EXP ( - vxi2 * dt8 )
-  G2   = ( Q1 * vxi1 * vxi1 - temp) / Q2
-  vxi2 = vxi2 + G2 * dt4
+  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
+  G1     = ( 2.0_dp *  kin - L * temp) / Q(1)
+  vxi(1) = vxi(1) + G1 * dt4
+  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
+  G2     = ( Q(1) * vxi(1) * vxi(1) - temp) / Q(2)
+  vxi(2) = vxi(2) + G2 * dt4
 
   return
  
-END SUBROUTINE chain_nh_2
+END SUBROUTINE chain_nhc_2
 
 
 ! *********************** SUBROUTINE prop_pos_vel_verlet ***********************
@@ -446,5 +462,170 @@ SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
   return
 
 END SUBROUTINE beeman
+
+SUBROUTINE nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
+
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz
+  USE md,                       ONLY :  dt, vxi, xi , Qnosehoover , nhc_n
+  USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt
+
+  implicit none
+
+  ! global
+  integer, intent(inout) :: iastart , iaend
+  integer, intent(inout) :: ikstart , ikend
+  ! local
+  integer                :: inhc
+  real(kind=dp)          :: kin , tempi
+  real(kind=dp), dimension ( : ) , allocatable :: Q
+
+  ! thermostat mass
+  allocate ( Q(nhc_n) )
+  Q=Qnosehoover
+  Q(1) = Q(1) * natm 
+
+  CALL calc_temp ( tempi , kin )
+  CALL chain_nhc_n( kin , vxi , xi , Q )
+
+!  CALL prop_pos_vel_verlet ( kin , iastart , iaend , ikstart , ikend )
+  CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
+
+  CALL chain_nhc_n( kin, vxi, xi , Q )
+  kin = kin * 0.5_dp
+
+  tempi = (2.0_dp/3.0_dp) * kin 
+  tempi = tempi / DBLE (natm)
+  temp_r = tempi
+
+  e_nvt = 0.0_dp
+  do inhc = 1 , nhc_n 
+    e_nvt = e_nvt + vxi(inhc) * vxi(inhc) * 0.5_dp * Q(inhc)
+  enddo
+  e_nvt = e_nvt + 3.0_dp * natm * tempi * xi(1)
+  e_nvt = e_nvt + tempi * xi(2)
+#ifdef debug_nvt_nhcn
+  print*,'vxi',vxi
+  print*,'xi',xi
+  print*,'Q',Q
+  print*,'tempi',tempi
+  print*,'e_nvt',e_nvt / DBLE (natm)
+#endif
+
+  e_kin = kin 
+
+  deallocate(Q)
+
+  return
+
+END SUBROUTINE nose_hoover_chain_n
+
+
+
+! ref : 
+! [1] Molecular Physics, (1996), v87, n5, p1117 Martyna and al.
+! [2] Phys Lett. A, (1190), v150 n5,6,7, p262, Yoshida
+SUBROUTINE chain_nhc_n ( kin , vxi , xi , Q )
+
+  USE constants,                ONLY :  dp 
+  USE config,                   ONLY :  natm , vx , vy , vz 
+  USE md,                       ONLY :  temp , dt , nhc_n , nhc_yosh_order
+
+  implicit none
+
+  ! global
+  real(kind=dp), intent (inout) :: kin
+  real(kind=dp), intent (inout) :: vxi(nhc_n), xi(nhc_n) , Q(nhc_n)
+
+  ! local
+  integer :: ia , j , inh
+  real(kind=dp), dimension ( : ) , allocatable :: G
+  real(kind=dp) :: s , dts , dts2 , dts4 , dts8 , L
+
+  real(kind=dp) , dimension ( : ), allocatable :: yosh_w  ! integrator order as in [2] YOSHIDA 
+  real(kind=dp) , dimension ( : ), allocatable :: dt_yosh ! yoshida time 
+
+  allocate ( yosh_w  ( nhc_yosh_order) )       
+  allocate ( dt_yosh ( nhc_yosh_order) )       
+       
+  SELECT CASE ( nhc_yosh_order )
+  CASE (1)
+     yosh_w(1) = 1.0_dp
+  CASE (3)
+     yosh_w(1) = 1.0_dp/(2.0_dp-(2.0_dp)**(1.0_dp/3.0_dp))
+     yosh_w(2) = 1.0_dp - 2.0_dp*yosh_w(1)
+     yosh_w(3) = yosh_w(1)
+  CASE (5)
+     yosh_w(1) = 1.0_dp/(4.0_dp-(4.0_dp)**(1.0_dp/3.0_dp))
+     yosh_w(2) = yosh_w(1)
+     yosh_w(3) = yosh_w(1)
+     yosh_w(4) = yosh_w(1)
+     yosh_w(5) = 1.0_dp - 4.0_dp*yosh_w(1)
+  CASE (7)
+     yosh_w(1) = .78451361047756_dp
+     yosh_w(2) = .235573213359357_dp
+     yosh_w(3) = -1.17767998417887_dp
+     yosh_w(4) = 1.0_dp - 2.0_dp*(yosh_w(1)+yosh_w(2)+yosh_w(3))
+     yosh_w(5) = yosh_w(3)
+     yosh_w(6) = yosh_w(2)
+     yosh_w(7) = yosh_w(1)
+  END SELECT
+
+  kin = kin * 2.0_dp
+  allocate ( G ( nhc_n) )
+  ! thermostat mass
+  L  = DBLE (3 * natm)
+  dt_yosh =  yosh_w * dt
+
+  s = 1.0_dp ! scale
+
+  do j=1, nhc_yosh_order 
+
+    dts = dt_yosh( j ) 
+    dts2 = dts  * 0.5d0
+    dts4 = dts2 * 0.5d0
+    dts8 = dts4 * 0.5d0
+
+    vxi ( nhc_n )  = vxi ( nhc_n ) + G ( nhc_n ) * dts4 
+    !print*,"vxi(nhc_n)",vxi
+
+    do inh=nhc_n-1,1,-1
+      vxi ( inh )= vxi ( inh  ) * EXP ( - vxi ( inh + 1) * dts8 )
+      vxi ( inh )    = vxi ( inh ) + G ( inh ) * dts4 
+      vxi ( inh )= vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 )
+    enddo
+
+    ! propagating xi 
+    xi = xi + vxi * dts2
+
+    s = s * EXP ( - vxi(1) * dts2 ) ! typo in instructions (35) [1] ?
+
+    G ( 1 )   = ( kin*s - L * temp) / Q ( 1 )
+
+    do inh = 1 , nhc_n - 1
+      vxi ( inh )     = vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 )  
+      vxi ( inh )     = vxi(inh) + G(inh) * dts4
+      vxi ( inh )     = vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 )  
+        G ( inh + 1 ) = ( Q(inh) * vxi(inh) * vxi(inh) - temp) / Q ( inh + 1 )
+    enddo
+
+     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
+
+  enddo
+
+    do ia = 1, natm
+      vx ( ia ) = s * vx ( ia )
+      vy ( ia ) = s * vy ( ia )
+      vz ( ia ) = s * vz ( ia )
+    enddo
+  
+
+  deallocate ( G )
+  deallocate ( yosh_w  )       
+  deallocate ( dt_yosh )       
+
+  return
+
+END SUBROUTINE chain_nhc_n
 
 ! ===== fmV =====

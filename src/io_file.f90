@@ -46,7 +46,7 @@ MODULE io_file
   !> thermodynamic info
   integer, PARAMETER :: kunit_OSZIFF    = 10
 
-  !> trajectory (positions, velocities , forces )
+  !> MD, RMC trajectory (positions, velocities , forces )
   integer, PARAMETER :: kunit_TRAJFF    = 20
 
   !> input configuration
@@ -129,7 +129,7 @@ MODULE io_file
   !> static structure factor
   integer, PARAMETER :: kunit_STRFACFF  = 240
 
-  !> static structure factor
+  !> ??
   integer, PARAMETER :: kunit_EQUILFF   = 250
 
   !> mean number of atoms in a shell of width at distance r
@@ -143,6 +143,11 @@ MODULE io_file
 
   !> number of neighbors distribution
   integer, PARAMETER :: kunit_DTNBFF      = 290
+
+  !> input config info for rmc calculation 
+  integer, PARAMETER :: kunit_RMCFF      = 300
+  !> output chi rmc 
+  integer, PARAMETER :: kunit_RMCLOG     = 310
 
 CONTAINS
 
@@ -158,7 +163,7 @@ CONTAINS
 SUBROUTINE io_init
 
   implicit none
-  INCLUDE 'mpif.h'
+  INCLUDE "mpif.h"
 
   ! local 
   integer :: myrank , ierr

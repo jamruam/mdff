@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug_vnl  ! verlet list debugging
+#define debug_vnl  ! verlet list debugging
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE estimate_alpha ****************************
@@ -214,7 +214,7 @@ END SUBROUTINE do_split
 SUBROUTINE distance_tab 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype
+  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype, coord_format 
   USE field,                    ONLY :  sigmalj , lwfc
   USE io_file,                  ONLY :  ionode , stdout, stderr
   USE cell,                     ONLY :  kardir , dirkar 
@@ -225,9 +225,10 @@ SUBROUTINE distance_tab
   integer                             :: ia , ja , PANdis, kdis , it , jt 
   real(kind=dp)                       :: rxi, ryi, rzi
   real(kind=dp)                       :: sxij, syij, szij
-  real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm
+  real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm, d
   real(kind=dp)                       :: resdis,mindis 
   integer, dimension (:) ,allocatable :: dist
+  integer :: indxmin(2)
 
   resdis = 0.5_dp ! should be keep hardware no need to be controled
 
@@ -237,22 +238,24 @@ SUBROUTINE distance_tab
   dist = 0
   mindis = 100000.0_dp
 
+!  CALL print_config_sample(0,0)
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+!  CALL print_config_sample(0,0)
 
   kdis =0
-  do ia = 1 , natm - 1
+  do ia = 1 , natm 
     it = itype ( ia ) 
-    if ( lwfc ( it ) .eq. -1 ) cycle
+    !if ( lwfc ( it ) .eq. -1 ) cycle
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
-    do ja = ia + 1 , natm
+    do ja = 1 , natm
       if ( ia .ne. ja ) then
         jt = itype ( ja ) 
-        if ( lwfc ( jt ) .eq. -1 ) cycle
+    !    if ( lwfc ( jt ) .eq. -1 ) cycle
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -263,15 +266,19 @@ SUBROUTINE distance_tab
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
-        rij = SQRT ( rijsq )  
-        mindis = MIN ( mindis , rij )
-        if ( rij .lt. sigmalj(1,1) * 0.001_dp ) then
+        d = SQRT ( rijsq ) 
+        if ( mindis .gt. rij ) then
+          mindis = d
+          indxmin(1) = ia
+          indxmin(2) = ja
+        endif
+        if ( d .lt. sigmalj(1,1) * 0.001_dp ) then
           if ( ionode ) &
           WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
-          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij 
+          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',d
           STOP 
         endif
-        rij = rij / resdis
+        rij = d / resdis
         kdis = INT ( rij )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
           io_node WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
@@ -280,12 +287,13 @@ SUBROUTINE distance_tab
       endif
     enddo 
   enddo
+  print*,mindis
 
   norm = natm * ( natm - 1 ) / 2
  
   if ( ionode ) then
     WRITE ( stderr ,'(a)')       'distance check subroutine'
-    WRITE ( stderr ,'(a,f13.5)') 'smallest distance = ',mindis
+    WRITE ( stderr ,'(a,f13.5,2i6)') 'smallest distance = ',mindis,indxmin(1),indxmin(2)
     if  ( any(lwfc .eq. -1) )  then
     WRITE ( stderr ,'(a)')       'WARNING : we do not check distance to wannier centers'
     endif
@@ -297,8 +305,7 @@ SUBROUTINE distance_tab
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -337,7 +344,7 @@ END SUBROUTINE distance_tab
 SUBROUTINE vnlist_pbc ( iastart , iaend )
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax, coord_format
   USE control,                  ONLY :  skindiff , cutshortrange 
   USE cell,                     ONLY :  kardir , dirkar
   USE io_file,                  ONLY :  ionode , stdout , stderr
@@ -368,7 +375,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   icount = 1
   do ia = iastart , iaend
@@ -398,7 +405,6 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
             io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
             STOP
           endif
-
           list(icount-1) = ja
         endif
       endif
@@ -410,7 +416,7 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -531,7 +537,7 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
         
   ! ========================================
   ! DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
-  !  I don't know where this come from, 
+  !  I don't know from where this come from, 
   !  It was in the very first version
   ! ========================================
 
@@ -539,6 +545,7 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
     updatevnl = updatevnl + 1
 #ifdef debug_vnl
   if ( ionode .and. itime .ne. 0 ) write ( stdout , '(a,2i6,2f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl)
+  if ( ionode ) write ( stdout , '(a,2i6,5f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl),skindiff, drneimax,drneimax2
 #endif
     if ( lpbc ) then
         CALL vnlist_pbc ( iastart, iaend )
@@ -663,6 +670,7 @@ SUBROUTINE merge_1(A,NA,B,NB,C,NC,labela,labelb,labelc)
   ! local
   integer :: i,j,k
 
+  !dir$ vector aligned
   i = 1; j = 1; k = 1;
   do while(i .le. NA .and. j .le. NB)
     if (A ( i ) .le. B ( j )) then

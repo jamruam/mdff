@@ -41,7 +41,7 @@
 !! - jan2011                                                
 !! - jan2013                                                      \n
 !!
-!! ===============================================================\n
+!  ===============================================================
 
 
 ! ======= Hardware =======
@@ -64,6 +64,7 @@ PROGRAM main_MDFF
   USE opt
   USE efg
   USE radial_distrib 
+  USE rmc
   USE voisin
   USE msd
   USE vacf 
@@ -74,20 +75,15 @@ PROGRAM main_MDFF
 
   ! local
   integer       :: argc               ! input argument of the executable
-  integer       :: ierr               ! error variable
   integer       :: iastart , iaend    ! atom decomposition
   integer       :: ikstart , ikend    ! k-point decomposition
   integer       :: offset             ! offset ( not used yet )
-  real(kind=dp) :: ttt2, ttt1         ! timing variable
+  dectime                             ! timing declaration ( ierr also declared ) 
+
 #ifdef MULTRUN
   integer :: irun          
   real(kind=dp) :: tempi
 #endif
-  character(len=60) :: vib_allowed(5) ! vib allowed flags                     
-  ! allowed vib = 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos'
-  data vib_allowed / 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos' / 
-  
-
   ! date time version infog as from vasp 5.3 ;)
   CHARACTER (LEN=80),PARAMETER :: MDFF = &
         'mdff.0.3.1' // ' ' // &
@@ -98,27 +94,31 @@ PROGRAM main_MDFF
   ! MPI initialisation
   ! ====================================================
   CALL MPI_INIT ( ierr )                           
+
   ! ====================================================
   ! time information init 
   ! ====================================================
   CALL time_init
-  ttt1 = MPI_WTIME ( ierr ) 
+  statime 
+
   ! ====================================================      
   ! random number generator init
-  ! ====================================================      
   ! MD is too sensitive to the initial velocities
   ! for test purpose keep it commented
   ! uncomment it if you want uncorrelated runs  
   ! ====================================================
-  ! CALL init_random_seed 
+  CALL init_random_seed 
+
   ! ====================================================
   ! gives rank index (myrank) 
   ! ====================================================
   CALL MPI_COMM_RANK ( MPI_COMM_WORLD , myrank   , ierr )  
+
   ! ====================================================
   ! gives total proc number  
   ! ====================================================
   CALL MPI_COMM_SIZE ( MPI_COMM_WORLD , numprocs , ierr )  
+
   ! ====================================================
   ! input/output init 
   ! ====================================================
@@ -141,7 +141,7 @@ PROGRAM main_MDFF
   CALL control_init ( MDFF ) 
 
   ! =====================================
-  ! bmlj_init is the main PROGRAM: 
+  ! md_init is the main subroutine  
   ! only binary mixture lennard-jones
   ! particules are avaiable different 
   ! properties EFG, GR ... 
@@ -170,14 +170,19 @@ PROGRAM main_MDFF
     ! different procs. iastart , iaend are the index of atoms 
     ! for rank = myrank.  only for calc='md'. 
     ! for the other type of calc this is done when natm is known
+    ! 
+    ! k-point parallelisation for lcoulomb calculation ( electric 
+    ! field, electric field gradient ...
+    ! TODO make bounds iastart,iaend,ikstart,ikend global in a 
+    ! specific module or where it used.
     ! ===========================================================
-    if ( calc .eq. 'md' ) CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
-    if ( lcoulomb ) CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
+    if ( calc .eq. 'md' ) CALL do_split ( natm          , myrank , numprocs , iastart , iaend ,'atoms' )
+    if ( lcoulomb )       CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
 
     ! =====================================
     ! verlet list generation
     ! mmmmh only md ? 
-    ! vnlist should be test with opt too 
+    ! vnlist should be test for calc='opt' 
     ! =====================================
     if ( calc .eq. 'md' ) then 
       if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   ( iastart , iaend )
@@ -191,17 +196,17 @@ PROGRAM main_MDFF
     ! some initialization of on-the-fly properties
     ! ===============================================
 
-          ! =====================================
-          ! mean square displacement
-          ! =====================================
-          CALL msd_init
-          CALL msd_alloc 
+    ! =====================================
+    ! mean square displacement
+    ! =====================================
+    CALL msd_init
+    CALL msd_alloc 
 
-          ! =====================================
-          ! velocity auto-correlation function
-          ! =====================================
-          CALL vacf_init
-          CALL vacf_alloc
+    ! =====================================
+    ! velocity auto-correlation function
+    ! =====================================
+    CALL vacf_init
+    CALL vacf_alloc
 
     ! ==================================================
     ! OUTSIDE LOOP (not used yet)
@@ -251,7 +256,14 @@ PROGRAM main_MDFF
 #endif
   
     ENDIF MDLOOP
+    ! ==============================================
+    !          end of calc = 'md' loop
+    ! ==============================================
 
+    ! ==============================================
+    !                calc != 'md' 
+    ! ==============================================
+    
     ! ==============================================
     ! IF OPT :
     ! - optimisation of structures read in TRAJFF 
@@ -264,7 +276,7 @@ PROGRAM main_MDFF
     ! ==============================================
     ! IF VIB : 
     ! - phonon related calculations
-    ! - structures read in ISCFF ( optimize structure )
+    ! - structures read in ISCFF ( optimized structures )
     ! ==============================================
     if ( any( calc .eq. vib_allowed ) ) then       
       CALL vib_init
@@ -275,7 +287,8 @@ PROGRAM main_MDFF
     ! - electric field gradient calculation 
     ! - structures read in TRAJFF   
     ! - main output EFGALL file
-    ! - calculate from point charges and dipoles
+    ! - calculate from point charges and/or dipoles
+    ! - polarisation or wannier function centres (wfc)
     ! ==============================================
     if ( calc .eq. 'efg' ) then
       CALL efg_init
@@ -298,6 +311,10 @@ PROGRAM main_MDFF
     if ( calc .eq. 'gr' ) then
       CALL grcalc 
     endif
+    if ( any( calc .eq. rmc_allowed ) ) then 
+      CALL rmc_init
+      CALL rmc_main
+    endif    
     ! ==============================================
     ! IF VOIS1 : 
     ! - first neighbour sphere analysis  
@@ -313,7 +330,6 @@ PROGRAM main_MDFF
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
     endif
-
  
     ! ==============================================
     ! deallocate prop quantities
@@ -325,7 +341,6 @@ PROGRAM main_MDFF
     ! deallocate coulombic related quantities
     ! ==============================================
     CALL finalize_coulomb
-
     ! ==============================================
     ! deallocate principal quantites
     ! ==============================================
@@ -335,6 +350,7 @@ PROGRAM main_MDFF
 #ifdef block
     CALL block_
 #endif
+! test 
 
   else
   ! =======================
@@ -350,10 +366,11 @@ PROGRAM main_MDFF
   endif
 
 
-  ttt2 = MPI_WTIME(ierr)
-  timetot = ttt2 - ttt1
+  stotime
+  addtime(timetot) 
   CALL print_time_info ( stdout ) 
   !CALL io_end
   CALL MPI_FINALIZE(ierr)
+
 END PROGRAM main_MDFF
 ! ===== fmV =====

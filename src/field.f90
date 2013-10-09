@@ -25,6 +25,7 @@
 !#define debug_wfc
 !#define debug_morse
 !#define debug_bmlj
+!#define debug_bmlj_pbc
 !#define debug_quadratic
 !#define debug_para
 ! ======= Hardware =======
@@ -54,6 +55,7 @@ MODULE field
   logical, SAVE     :: lKA               !< use Kob-Andersen model for BMLJ                        
   logical, SAVE     :: lautoES           !< auto-determination of Ewald parameter from epsw ( accuracy)
   logical, SAVE     :: lwrite_dip_wfc    !< write dipoles from wannier centers to file
+  logical, SAVE     :: ldip_wfc          !< calculate electrostatic contribution from dipolar momemt coming from wfc
   logical, SAVE     :: lquiet            !< unknown
 
 
@@ -164,6 +166,7 @@ SUBROUTINE field_default_tag
   lpolar        = 0
   lwfc          = 0
   lwrite_dip_wfc= .false.            
+  ldip_wfc      = .true.            
   rcut_wfc      = 0.5_dp
 
   conv_tol_ind  = 1e-5
@@ -281,6 +284,7 @@ SUBROUTINE field_init
                          lautoES       , &  
                          lwfc          , &            
                          lwrite_dip_wfc, &            
+                         ldip_wfc      , &            
                          rcut_wfc      , &            
                          lpolar           
                  
@@ -320,7 +324,7 @@ SUBROUTINE field_init
   ! =====================================  
   !  if efg print field info and return 
   ! =====================================  
-  if ( calc .eq. 'efg' ) then 
+  if ( calc .eq. 'efg' .or. calc .eq. 'rmc-efg' .or. calc .eq. 'rmc-invert-efg') then 
     CALL field_print_info(stdout,quiet=.true.)
     return
   endif
@@ -851,7 +855,7 @@ END SUBROUTINE initialize_param_bmlj_morse
 SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
 
   USE config,                   ONLY :  natm , dipia
-  USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lshiftpot , longrange
+  USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lharm , lshiftpot , longrange
   USE io_file,                  ONLY :  ionode , stdout 
 
   implicit none
@@ -862,6 +866,12 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
   ! local 
   logical :: lj_and_coul
   real(kind=dp) :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
+
+  ! harmonic oscillator ( test purpose )
+  if ( lharm ) then
+    CALL engforce_harm
+  endif
+
 
   ! ====================================
   !  check if LJ and COULOMBIC 
@@ -989,7 +999,7 @@ END SUBROUTINE engforce_driver
 ! ******************************************************************************
 SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell 
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell , coord_format 
   USE control,                  ONLY :  lvnlist , myrank
   USE thermodynamic,            ONLY :  u_lj , vir_lj , write_thermo
   USE io_file,                  ONLY :  stdout
@@ -1043,7 +1053,7 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   do ia = iastart , iaend
     rxi = rx ( ia )
@@ -1085,6 +1095,9 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
           sr2 = sigsq(p1,p2) / rijsq
           srp = sr2 ** (ptwo(p1,p2))
           srq = sr2 ** (qtwo(p1,p2))
+#ifdef debug_bmlj_pbc
+          write(*,*)  ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) , rijsq , rcutsq(p1,p2)
+#endif
           ! potential energy ( truncated )  
           if ( trunc .eq. 0 ) then
             u = u  + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp )
@@ -1156,7 +1169,7 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 #ifdef debug_para
@@ -1600,7 +1613,7 @@ END SUBROUTINE induced_moment
 ! ******************************************************************************
 SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell 
+  USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell, coord_format  
   USE control,                  ONLY :  cutlongrange,myrank
   USE io_file,                  ONLY :  stdout , ionode 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
@@ -1711,7 +1724,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
 ! ==================================================================================================
 !  MAIN LOOP calculate EF(i) , EFG(i) , virial , potential, forces ... for each atom i parallelized
@@ -2056,7 +2069,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -2083,7 +2096,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
 
   USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
-                                        rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell 
+                                        rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell, coord_format 
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
   USE io_file,                  ONLY :  ionode , stdout 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
@@ -2267,7 +2280,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   ! =================
   !  some constants 
@@ -2535,7 +2548,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   ! ==============================================
   !            reciprocal space part
@@ -2882,7 +2895,7 @@ END SUBROUTINE multipole_ES
 ! ******************************************************************************
 SUBROUTINE engforce_morse_pbc ( iastart , iaend )
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell, coord_format
   USE control,                  ONLY :  lvnlist , myrank 
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
@@ -2928,7 +2941,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   do ia = iastart , iaend
     rxi = rx ( ia )
@@ -3013,7 +3026,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 
@@ -3210,8 +3223,8 @@ END SUBROUTINE moment_from_pola
 ! ******************************************************************************
 SUBROUTINE moment_from_WFc ( mu )
 
-  USE constants,                ONLY :  bohr
-  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz
+  USE constants,                ONLY :  Debye_unit
+  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz, coord_format 
   USE cell,                     ONLY :  kardir , dirkar 
   USE io_file,                  ONLY :  ionode , kunit_DIPWFC , stdout 
 
@@ -3228,12 +3241,14 @@ SUBROUTINE moment_from_WFc ( mu )
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
   real(kind=dp) :: sxij , syij , szij
-  real(kind=dp) :: Debye_unit , dmu
+  real(kind=dp) :: dmu
   logical          :: lwannier 
 
-  ! =========================================================
+  ! ==========================================================================
+  !  quick return 
   !  Is there any Wannier center ? if yes lwannier = .TRUE.
-  ! =========================================================
+  !  redondant : cette condition est egalement evalué avant ( fast anyway )
+  ! ==========================================================================
   lwannier = .false.
   do it = 1 , ntype
     if ( lwfc ( it ) .gt. 0 ) lwannier = .true.
@@ -3258,7 +3273,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
 
   icount = 1
   do ia = 1 , natm 
@@ -3355,12 +3370,15 @@ SUBROUTINE moment_from_WFc ( mu )
     CLOSE ( kunit_DIPWFC ) 
   endif
 
-  Debye_unit = 2.54174618782479816355_dp / bohr
+  ! see constants.f90
+  ! Debye_unit = 2.54174618782479816355_dp / bohr
 
   if ( ionode ) then
     WRITE ( stdout , '(a)' ) 'Dipoles from WFCs'
     WRITE ( stdout , '(a)' ) 'atom         |mu| [D]      |mu| [eA]'
     do ia = 1 , natm 
+      it = itype ( ia )  
+      if ( lwfc ( it ) .eq. -1 ) cycle
       dmu = mu ( ia , 1 ) * mu ( ia , 1 ) + mu ( ia , 2 ) * mu ( ia , 2 ) + mu ( ia , 3 ) *  mu ( ia , 3 )
       dmu = SQRT ( dmu ) 
       WRITE ( stdout , '(a,4x,2e16.8)' ) atype(ia), dmu * Debye_unit, dmu 
@@ -3373,7 +3391,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
 
   return
 

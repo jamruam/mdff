@@ -67,11 +67,19 @@ MODULE config
   real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          !< induced dipole on ion from Wannier centers
   real(kind=dp), dimension(:,:,:), allocatable :: polia              !< polarisation on ion
 
-  real(kind=dp), dimension(:)    , allocatable :: phi_coul_tot       !< coulombic potential 
+  real(kind=dp), dimension(:)    , allocatable   :: phi_coul_tot       !< coulombic potential 
 
-  character(len=3), dimension(:) , allocatable :: atype              !< atom type label  
-  character(len=3), dimension(0:ntypemax)      :: atypei             !< type label (per type)
+  character(len=3), dimension(:) , allocatable   :: atype            !< atom type label  
+  character(len=3), dimension(0:ntypemax)        :: atypei           !< type label (per type)
+  character(len=3), dimension(:,:) , allocatable :: allowedmove      !< atom type label  
+  character(len=3)                               :: coord_format     !< coordinat format = 'C' : Cartesian of 'D' : Direct
 
+
+  ! =====================================================
+  !   type of positions coordinates 
+  ! =====================================================
+  character(len=60), SAVE :: coord_format_allowed(4)
+  data coord_format_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
 
 CONTAINS
 
@@ -194,7 +202,7 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  !CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell , coord_format )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -236,6 +244,7 @@ SUBROUTINE config_alloc
   allocate( fxs ( natm ) , fys ( natm ) , fzs ( natm ) )
   allocate( rxs ( natm ) , rys ( natm ) , rzs ( natm ) )
   allocate( atype ( natm ) , itype ( natm ) )
+  allocate( allowedmove ( 3 , natm ) )
   allocate( list ( natm * vnlmax ) , point (  natm + 1 ) )
   allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
@@ -288,9 +297,12 @@ END SUBROUTINE config_alloc
 ! ******************************************************************************
 SUBROUTINE config_dealloc
 
-  USE control, ONLY : lvnlist 
+  USE control, ONLY : lvnlist , calc
 
   implicit none 
+        
+  ! tmp 
+  if ( calc .eq.'rmc' ) return
 
   deallocate( rx  , ry  , rz )
   deallocate( vx  , vy  , vz )
@@ -380,7 +392,7 @@ SUBROUTINE linear_momentum
     Pz = Pz + vz ( ia )
   enddo
 
-  normP = dsqrt(Px*Px + Py*Py + Pz*Pz)
+  normP = SQRT(Px*Px + Py*Py + Pz*Pz)
 
   return  
 
@@ -409,7 +421,7 @@ SUBROUTINE angular_momentum ( Lx , Ly , Lz , normL )
    Lz = Lz + rx ( ia ) * vy ( ia ) - ry ( ia ) * vx ( ia )
   enddo
 
-  normL = dsqrt( Lx * Lx + Ly * Ly + Lz * Lz)
+  normL = SQRT( Lx * Lx + Ly * Ly + Lz * Lz)
 
   return
 

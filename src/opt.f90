@@ -253,7 +253,7 @@ SUBROUTINE opt_main
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
                                 atype  , rho , config_alloc , list , point , simu_cell , &
-                                atypei , itype, natmi , qia , dipia , ipolar
+                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , coord_format
   USE control,          ONLY :  myrank , numprocs , lcoulomb 
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
@@ -266,20 +266,14 @@ SUBROUTINE opt_main
   INCLUDE 'mpif.h'
 
   ! local 
-  integer       :: i , ia , it , ic, neng, iter, nopt 
-  integer       :: iastart , iaend , ikstart , ikend , ierr
-  real(kind=dp) :: phigrad, pressure0, pot0, Eis
-  real(kind=dp) :: ttt1,ttt2
-  real(kind=dp) :: ttt1p,ttt2p
-  ! =====================================================
-  !   type of positions coordinates 
-  ! =====================================================
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
-  ! trash 
-  real(kind=dp) :: aaaa
+  integer           :: i , ia , it , ic, neng, iter, nopt 
+  integer           :: iastart , iaend , ikstart , ikend , ierr
+  real(kind=dp)     :: phigrad, pressure0, pot0, Eis
+  real(kind=dp)     :: ttt1,ttt2
+  real(kind=dp)     :: ttt1p,ttt2p
+  logical           :: allowed
+  character(len=60) :: cpos
+  real(kind=dp)     :: aaaa
 
   ttt1 = MPI_WTIME(ierr)
 
@@ -307,11 +301,11 @@ SUBROUTINE opt_main
   ! ======
   !  cpos
   ! ======
-  do i = 1 , size( cpos_allowed )
-   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  do i = 1 , size( coord_format_allowed )
+   if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', cpos_allowed
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
     STOP
   endif
 
@@ -373,11 +367,11 @@ SUBROUTINE opt_main
       ! ======
       !  cpos
       ! ======
-      do i = 1 , size( cpos_allowed )
-        if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+      do i = 1 , size( coord_format_allowed )
+        if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
       enddo
       if ( .not. allowed ) then
-        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', cpos_allowed
+        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
         STOP
       endif
 
@@ -394,7 +388,7 @@ SUBROUTINE opt_main
       ! ======================================
       !         direct to cartesian
       ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
       io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
     else if ( cpos .eq. 'Cartesian' ) then
       io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'

@@ -36,7 +36,7 @@ SUBROUTINE read_pos
   USE control,                  ONLY :  calc , lrestart
   USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
                                         natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
-                                        simu_cell , config_print_info
+                                        simu_cell , config_print_info , coord_format_allowed , coord_format 
   USE field,                    ONLY :  qch , dip , lpolar , field_init
   USE io_file,                  ONLY :  ionode , stdout , kunit_POSFF
   USE cell,                     ONLY :  lattice, periodicbc , dirkar
@@ -44,14 +44,9 @@ SUBROUTINE read_pos
   implicit none
 
   ! local
-  integer :: it , ia , i
-  ! =====================================================
-  !   type of positions coordinates 
-  ! =====================================================
-  logical :: allowed
-  character(len=60), SAVE :: cpos
-  character(len=60), SAVE :: cpos_allowed(4)
-  data cpos_allowed / 'Direct' , 'D' , 'Cartesian' , 'C' /
+  integer           :: it , ia , i
+  logical           :: allowed
+  character(len=60) :: cpos
 
 
   separator(stdout) 
@@ -75,16 +70,18 @@ SUBROUTINE read_pos
   ! ======
   !  cpos
   ! ======
-  do i = 1 , size( cpos_allowed )
-   if ( trim(cpos) .eq. cpos_allowed(i))  allowed = .true.
+  do i = 1 , size( coord_format_allowed )
+   if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', cpos_allowed
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
     STOP
   endif
-  if ( cpos .eq. 'Direct' ) then
+  if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+    coord_format = 'D'
     io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-  else if ( cpos .eq. 'Cartesian' ) then
+  else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
+    coord_format = 'C'
     io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
   endif
 
@@ -118,12 +115,14 @@ SUBROUTINE read_pos
 
   !CALL print_config_sample(0,0)
 
-  if ( cpos .eq. 'Direct' ) then
+  if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+    coord_format = 'D'
     ! ======================================
     !         direct to cartesian
     ! ======================================
-    CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-  else if ( cpos .eq. 'Cartesian' ) then
+    CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
+    coord_format = 'C'
   endif 
 
   CLOSE ( kunit_POSFF )

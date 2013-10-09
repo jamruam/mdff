@@ -46,6 +46,7 @@ MODULE control
   logical,           SAVE :: lreduced         !< print reduced thermo quantites by the number of atoms (natm)
   logical,           SAVE :: lshiftpot        !< shifted potential
   logical,           SAVE :: lbmlj            !< binary mixture lennard-jones potential
+  logical,           SAVE :: lharm            !< harmonic oscilaltor ( to test integration )
   logical,           SAVE :: lmorse           !< morse potential 
   logical,           SAVE :: lcoulomb         !< coulombic potential
   logical,           SAVE :: lsurf            !< add surface contribution in electrostatic quantities  
@@ -60,9 +61,10 @@ MODULE control
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc             !< type of calculation : md, opt, vib, efg ...  
-  character(len=60), SAVE :: calc_allowed(11)    
-  data calc_allowed / 'md' , 'opt' , 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , &
-                      'vib+dos' , 'efg' , 'efg+acf', 'gr' , 'vois1' /
+  character(len=60), SAVE :: calc_allowed(15)    
+  data calc_allowed / 'md'       , 'opt'     , 'vib'        , 'vib+fvib'       , 'vib+gmod' , &
+                      'vib+band' , 'vib+dos' , 'efg'        , 'efg+acf'        , 'gr'       , &
+                      'vois1'    , 'rmc'     , 'rmc-invert' , 'rmc-invert-efg' , 'rmc-efg'  /
 
   ! =====================================================
   ! algorithm for long-range calculation
@@ -103,6 +105,7 @@ SUBROUTINE control_init ( MDFF )
                          lmorse       , &
                          lcoulomb     , &
                          lsurf        , &
+                         lharm        , &
                          cutlongrange , &
                          cutshortrange, &
                          lvnlist      , &
@@ -167,6 +170,7 @@ SUBROUTINE control_default_tag
   lmorse        = .false.
   lcoulomb      = .false.
   lsurf         = .false.
+  lharm         = .false.
   lvnlist       = .true.
   lstatic       = .false.
   lpbc          = .true.
@@ -236,8 +240,8 @@ SUBROUTINE control_check_tag
 
   if ( calc .ne. 'md' ) return 
 
-  if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse ) then
-   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, morse or coulomb or all of them . Anyway make a choice !! '
+  if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm ) then
+   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, harm , morse or coulomb or all of them . Anyway make a choice !! '
    STOP
   endif
 
@@ -301,6 +305,7 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a)')       "           | |\  /| |    | |  | | |  _|     |  _|    "
      WRITE ( kunit ,'(a)')       "          _| |_\/_| |_  _| |_.' /_| |_     _| |_     "
      WRITE ( kunit ,'(a)')       "         |_____||_____||______.'|_____|   |_____|    "
+     blankline(kunit)
      separator(kunit)
      blankline(kunit)
      WRITE ( kunit ,'(a)')       'MOLECULAR DYNAMICS ...for fun                 '
