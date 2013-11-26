@@ -34,6 +34,7 @@
 MODULE vib
 
   USE constants,                ONLY : dp
+  USE mpimdff
 
   implicit none
 
@@ -51,6 +52,7 @@ MODULE vib
   real(kind=dp)    :: omegamax       !< maximum value in dos
   logical          :: lwrite_vectff  !< write the vector field
   real(kind=dp)    :: tempmod        !< temperature at which we populate the mode imod
+
 
   character(len=60) :: vib_allowed(5) ! vib allowed flags                     
   ! allowed vib = 'vib' , 'vib+fvib' , 'vib+gmod' , 'vib+band' , 'vib+dos'
@@ -235,34 +237,35 @@ SUBROUTINE vib_main
 
   USE config,                   ONLY :  system , natm , natmi , rx , ry , rz ,  & 
                                         atype , atypei , itype , simu_cell , & 
-                                        rho , ntype, config_alloc , list , point, coord_format_allowed , coord_format
-  USE control,                  ONLY :  calc , myrank , numprocs
+                                        rho , ntype, config_alloc , list , point, coord_format_allowed , atom_dec , read_traj_header , read_traj
+  USE control,                  ONLY :  calc , iscff_format , iscff_save
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
                                         kunit_DOSFF , kunit_MODFF, kunit_DOSKFF , kunit_IBZKPTFF
   USE thermodynamic,            ONLY :  u_tot , pressure_tot , calc_thermo
   USE cell,                     ONLY :  lattice , dirkar
   USE field,                    ONLY :  field_init , engforce_driver
-  USE time,                     ONLY :  vibtimetot
+  USE time,                     ONLY :  vibtimetot , diaghessiantimetot
+  USE kspace,                   ONLY :  kmesh , kpoint_sum_init_BZ
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! local
-  integer                                     :: iastart , iaend
-  integer                                     :: i , j , ik , ierr , ikd , ia , ja , im , ic , ka , it , nk
+  integer                                     :: i , j , ik , ierr , ikd , ia , ja , im , ic , ka , it , nk 
   integer, dimension(:), allocatable          :: dostab
   integer, dimension(:), allocatable          :: dostabtot
   integer, dimension(:,:), allocatable        :: dostabk
   integer, dimension(:,:), allocatable        :: dostabktot
   real(kind=dp), dimension(:,:), allocatable  :: hess
   real(kind=dp), dimension(:), allocatable    :: work, deig, ipiv !,deig_reorder(3 * n)
-  real(kind=dp) ,dimension (:,:), allocatable :: eigenk
+  real(kind=dp),dimension (:,:), allocatable  :: eigenk
   real(kind=dp)                               :: ak
+  TYPE(kmesh)                                 :: km 
 !  real(kind=dp)                               :: pressure0, pot0 removed 28/05/13
   character(len=1)                            :: jobz, uplo
   integer*4                                   :: info, lwork
   real(kind=dp)                               :: ttt1 , ttt2 
   real(kind=dp)                               :: ttt1p , ttt2p 
+  real(kind=dp)                               :: ttt1d , ttt2d
   logical                                     :: allowed
   character(len=60)                           :: cpos
   ! trash 
@@ -272,7 +275,6 @@ SUBROUTINE vib_main
   ttt1 = MPI_WTIME( ierr )
 
  
-  OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF'  )
   OPEN ( UNIT = kunit_EIGFF , FILE = 'EIGFF'  )
   OPEN ( UNIT = kunit_VECTFF, FILE = 'VECTFF' )
   OPEN ( UNIT = kunit_DOSFF , FILE = 'DOSFF'  )
@@ -283,30 +285,15 @@ SUBROUTINE vib_main
   '       #rx               ry             dx              dy              rx              rz              dx             dz              ry              rz              dy             dz           eigenvalue'   
   endif
 
-  ! ==============================
-  !  read main config parameters
-  ! ==============================
-  READ ( kunit_ISCFF , * ) natm  
-  READ ( kunit_ISCFF , * ) system 
-  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-  READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-  READ ( kunit_ISCFF , * ) ntype
-  READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-  READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
-  READ ( kunit_ISCFF ,*) cpos
-  ! ======
-  !  cpos
-  ! ======
-  do i = 1 , size( coord_format_allowed )
-    if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-  enddo
-  if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
-    STOP
-   endif
-
+  ! ====================================================
+  !  read main config parameters from ISCFF and reopen
+  ! ====================================================
+  if ( iscff_format .ne. 0 ) OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF'  )
+  if ( iscff_format .eq. 0 ) OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF',form='unformatted'  )
+  CALL read_traj_header( kunit_ISCFF , iscff_format ) 
+  if ( iscff_format .ne. 0 ) OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF'  )
+  if ( iscff_format .eq. 0 ) OPEN ( UNIT = kunit_ISCFF , FILE = 'ISCFF',form='unformatted'  )
+  
 
   CALL lattice ( simu_cell )
   rho = REAL ( natm , kind=dp ) / simu_cell%omega 
@@ -315,7 +302,7 @@ SUBROUTINE vib_main
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend ,'atoms')
+  CALL do_split ( natm , myrank , numprocs , atom_dec , 'atoms')
   CALL field_init
   CALL typeinfo_init
 
@@ -328,14 +315,13 @@ SUBROUTINE vib_main
   allocate( dostabtot ( 0 : PANdos + 1 )          )
   allocate( dostab    ( 0 : PANdos + 1 )          )
   allocate( dostabktot( 0 : PANdos + 1,0:3*ntype )      )
-  allocate( dostabk   ( 0 : PANdos + 1,0:3*ntype )      )
   dostabktot = 0
   dostabtot = 0
 
   CALL print_general_info ( stdout )
 
   io_node blankline(stdout)
-  WRITE ( stdout ,'(a,i9,a,i9)')  'hessian dimension ', 3 * natm , ' x ' , 3 * natm
+  io_node WRITE ( stdout ,'(a,i9,a,i9)')  'hessian dimension ', 3 * natm , ' x ' , 3 * natm
 
   ! ===========================================
   !  LOOP OVER CONFIGURATIONS (AT EQUILIBRIUM)
@@ -344,46 +330,12 @@ SUBROUTINE vib_main
   conf : do ic = 1, nconf
     ttt1p = MPI_WTIME( ierr )
 
-    WRITE ( stdout ,'(a,i5)') 'read config',ic
-    if ( ic .ne. 1 ) then
-      READ ( kunit_ISCFF , * ) natm
-      READ ( kunit_ISCFF , * ) system
-      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-      READ ( kunit_ISCFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-      READ ( kunit_ISCFF , * ) ntype
-      READ ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
-      IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-      READ ( kunit_ISCFF , * ) ( natmi ( it ) , it = 1 , ntype )
-      READ ( kunit_ISCFF ,*) cpos
-      ! ======
-      !  cpos
-      ! ======
-      do i = 1 , size( coord_format_allowed )
-        if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-      enddo
-      if ( .not. allowed ) then
-        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
-        STOP
-       endif
-      CALL lattice ( simu_cell )
-      rho = REAL ( natm , kind=dp ) / simu_cell%omega
-    endif
+    if ( ionode ) WRITE ( stdout ,'(a,i5)') 'read config',ic
 
-    do ia = 1 , natm
-      READ ( kunit_ISCFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa , aaaa , aaaa , aaaa , aaaa , aaaa
-    enddo
-    if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
-      coord_format = 'D'
-      ! ======================================
-      !         direct to cartesian
-      ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
-      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' ) then
-      coord_format = 'C'
-      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
-    endif
+    CALL read_traj ( kunit_ISCFF , iscff_format , iscff_save )
+
+    CALL lattice ( simu_cell )
+    rho = natm / simu_cell%omega
 
 
 
@@ -392,7 +344,7 @@ SUBROUTINE vib_main
     ! ===============================================
     ! do we need forces or energy at this point ??? 
     ! ===============================================
-    !CALL engforce_driver ( iastart , iaend )
+    !CALL engforce_driver 
 
     !CALL calc_thermo
     !pot0      = u_tot
@@ -411,15 +363,18 @@ SUBROUTINE vib_main
       ! ===========================
       !  diagonalisation of hess
       ! ===========================
-      WRITE( stdout ,'(a)') 'start diagonalization'
+      io_node WRITE( stdout ,'(a)') 'start diagonalization'
       lwork = 9 * natm
       jobz = 'V'
       uplo = 'U'
+      ttt1d = MPI_WTIME( ierr )  
       CALL DSYEV( jobz , uplo , 3 * natm , hess ,3 * natm , deig , work , lwork , info )
       if ( info .ne. 0 ) then
         io_node WRITE ( stderr ,'(a,i5)') 'ERROR in vib_main : improper termination. of DSYEV info = ',info
         STOP 
       else
+        ttt2d = MPI_WTIME( ierr )  
+        diaghessiantimetot = diaghessiantimetot + ( ttt2d - ttt1d )
         io_node WRITE ( stderr ,'(a)')    'hessian diagonalisation ok'
       endif
 
@@ -449,7 +404,8 @@ SUBROUTINE vib_main
 
       do i = 0 , PANdos + 1
         io_node WRITE ( kunit_DOSFF ,'(3f16.8)') &
-        REAL( i , kind=dp ) * resdos, dostab(i) / ( 3.0 * natm * resdos ) , dostabtot(i) / ( 3.0 * natm * resdos * ic)
+        REAL( i , kind=dp ) * resdos, REAL(dostab(i),kind=dp)    / ( 3.0_dp * REAL(natm,kind=dp) * resdos ) , &
+                                      REAL(dostabtot(i),kind=dp) / ( 3.0_dp * REAL(natm,kind=dp) * resdos * REAL( ic ,kind = dp) )
       enddo
       io_node blankline(kunit_DOSFF )
       io_node blankline(kunit_DOSFF )
@@ -491,38 +447,52 @@ SUBROUTINE vib_main
       !  generate k-point mesh in reciprocal lattice 
       !  write kpoints on IBZKPTFF file 
       ! ============================================ 
-      CALL gene_IBZKPTFF 
+!      CALL gene_IBZKPTFF 
+      nk = ( ( nkphon + 1 ) *( nkphon + 1 ) * ( nkphon + 1 ) )
+      ! kmax could be read in control.F
+      km%kmax(1) = nkphon
+      km%kmax(2) = nkphon
+      km%kmax(3) = nkphon
+      km%nk = nk
+      km%meshlabel='km-dos'
+      allocate ( km%kpt( 3 , nk ) , km%kptk(nk) )
+      CALL do_split ( km%nk , myrank , numprocs , km%kpt_dec , 'kpts')
+      CALL kpoint_sum_init_BZ ( km )
+
       ! ============================================
       !  read number of kpoints in IBZKPTFF
       ! ============================================
-      OPEN ( UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
-      READ ( kunit_IBZKPTFF , * ) cccc
-      READ ( kunit_IBZKPTFF , * ) nk
-      READ ( kunit_IBZKPTFF , * ) cccc
-      CLOSE( kunit_IBZKPTFF     )
+!      OPEN ( UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
+!      READ ( kunit_IBZKPTFF , * ) cccc
+!      READ ( kunit_IBZKPTFF , * ) nk
+!      READ ( kunit_IBZKPTFF , * ) cccc
+!      CLOSE( kunit_IBZKPTFF     )
 
       ! ============================================
       !  allocate eigenvalues 3 modes per kpoints
       ! ============================================
       allocate( eigenk ( nk , 3 * ntype  ) )
-
+      eigenk = 0.0_dp
        
       ! ============================================
       !   diagonalisation of the 3*nk states
       ! ============================================
-      CALL doskpt( hess , eigenk , nk )
+      CALL doskpt( hess , eigenk , km )
       ! ============================================
       !  DOS: density of states of the 3*nk modes
       ! ============================================
-      dostabk = 0
+      if ( ionode ) write(  stdout , '(a)' ) 'dos of the 3*nk modes'
       k_loop : do ik = 1, nk
         ! ==========================================
         !    loop on modes
         ! ==========================================
         do ikd = 1 , 3 * ntype 
-          ak = (eigenk(ik,ikd))/resdos
+          if (eigenk(ik,ikd).lt.0.0_dp ) then
+            cycle 
+          endif
+          ak = (SQRT(eigenk(ik,ikd)))/resdos
           ka = INT (ak) + 1
-          write (stdout, '(i9,2f12.6,2i9)') ,ik,ak,eigenk(ik,ikd),ka,PANdos
+          !write (stdout, '(i9,2f12.6,2i9)') ,ik,ak,eigenk(ik,ikd),ka,PANdos
           if (ka.gt.PANdos + 1.or.ka.lt.0) then
              WRITE ( stderr , * ) 'ERROR out of bound in dostabk'
              WRITE ( stderr , '(3i12,2f12.5)' ) ik,ka,PANdos + 1,ak,eigenk(ik,ikd)
@@ -533,28 +503,14 @@ SUBROUTINE vib_main
           !   index 0 : all modes
           !   index ikd : separately
           ! ========================================
-          dostabk(ka,0) = dostabk(ka,0) + 1
-          dostabk(ka,ikd) = dostabk(ka,ikd) + 1
-          ! we store the total dos ( all config ) in dostabktot
           dostabktot(ka,0) = dostabktot(ka,0) + 1
           dostabktot(ka,ikd) = dostabktot(ka,ikd) + 1
         enddo
 
       enddo k_loop 
 
-      ! ===========================================
-      !    write density of states to DOSKFF file
-      ! ===========================================
-      do i = 0,PANdos + 1
-        io_node WRITE ( kunit_DOSKFF ,'(<6*ntype+3>f16.8)') &
-        REAL ( i, kind = dp ) * resdos , ( REAL ( dostabk   (i,j) , kind = dp ) / ( 3.0 * nk * resdos )        , j = 0 , 3*ntype ) , &
-                                         ( REAL ( dostabktot(i,j) , kind = dp ) / ( 3.0 * nk * resdos * nconf ), j = 0 , 3*ntype )
-      enddo
-      io_node blankline(kunit_DOSKFF )
-      io_node blankline(kunit_DOSKFF )
-      io_node WRITE ( stdout ,'(a)')       'dos (k) ok'
-
-      deallocate(eigenk)  
+      deallocate(eigenk) 
+      deallocate(km%kpt,km%kptk) 
         
     endif ! vib+dos
 
@@ -562,6 +518,17 @@ SUBROUTINE vib_main
     io_node WRITE ( stdout , 110 ) 'config : ',ic,' VIB  ', ttt2p - ttt1p  
 
   enddo conf 
+
+  ! ===========================================
+  !    write density of states to DOSKFF file
+  ! ===========================================
+  do i = 0,PANdos + 1
+    io_node WRITE ( kunit_DOSKFF ,'(<6*ntype+3>f16.8)') &
+    REAL ( i, kind = dp ) * resdos , ( REAL ( dostabktot(i,j) , kind = dp ) / ( 3.0 * nk * resdos * nconf ), j = 0 , 3*ntype )
+  enddo
+  io_node blankline(kunit_DOSKFF )
+  io_node blankline(kunit_DOSKFF )
+  io_node WRITE ( stdout ,'(a)')       'dos (k) ok'
 
   CLOSE ( kunit_DOSKFF ) 
   CLOSE ( kunit_DOSFF ) 
@@ -604,7 +571,6 @@ SUBROUTINE vib_main
   endif
 
   deallocate(dostabktot)
-  deallocate(dostabk)
   deallocate(dostab)
   deallocate(dostabtot)
   deallocate(deig)
@@ -616,7 +582,7 @@ SUBROUTINE vib_main
 
   return
 
-110   FORMAT(2X,A8,I4,A20,' :  cpu time',F9.2)
+110   FORMAT(2X,A8,I8,A20,' :  cpu time',F9.2)
 
 END SUBROUTINE vib_main
 
@@ -626,14 +592,14 @@ END SUBROUTINE vib_main
 ! ******************************************************************************
 SUBROUTINE hessian ( hess )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell , coord_format
+  USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell 
   USE io_file,          ONLY :  ionode , stdout , stderr
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
   USE cell,             ONLY :  kardir , dirkar
   USE time,             ONLY :  hessiantimetot
 
   implicit none
-  INCLUDE "mpif.h"
+
   ! global
   real(kind=dp) :: hess(3 * natm,3 * natm)
 
@@ -678,7 +644,7 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
 
   do ia = 1 , natm 
@@ -1079,7 +1045,7 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   !         direct to kartesian 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ttt2 = MPI_WTIME(ierr) ! timing info
   hessiantimetot = hessiantimetot + ( ttt2 - ttt1 )
@@ -1364,7 +1330,7 @@ END SUBROUTINE generate_modes
 ! ******************************************************************************
 SUBROUTINE band ( hess )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype , coord_format
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  ionode , stdout , stderr , kunit_DOSKFF
@@ -1374,7 +1340,6 @@ SUBROUTINE band ( hess )
   USE time,             ONLY :  bandtimetot
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! global  
   real(kind=dp)    :: hess(3 * natm,3 * natm)
@@ -1433,7 +1398,7 @@ SUBROUTINE band ( hess )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   ! ==================================
   !   loop on kpath index
@@ -1520,7 +1485,7 @@ SUBROUTINE band ( hess )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ttt2 = MPI_WTIME ( ierr ) ! timing info
   bandtimetot = bandtimetot + ( ttt2 - ttt1) 
@@ -1535,23 +1500,24 @@ END SUBROUTINE band
 !! calculates the DOS for a given set of k-points
 !
 ! ******************************************************************************
-SUBROUTINE doskpt ( hess , eigenk , nk )
+SUBROUTINE doskpt ( hess , eigenk , km )
 
-  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype, coord_format
+  USE config,           ONLY :  natm , rx , ry , rz , itype , simu_cell , ntype
   USE control,          ONLY :  calc
   USE constants,        ONLY :  tpi , pi
   USE io_file,          ONLY :  ionode , stdout , stderr , kunit_IBZKPTFF , kunit_DKFF
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc 
   USE cell,             ONLY :  kardir , dirkar
   USE time,             ONLY :  doskpttimetot
+  USE kspace,           ONLY :  kmesh
+  USE cell,             ONLY :  dirkar_1
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! global  
-  integer       , intent (in)  :: nk
-  real(kind=dp) , intent (in)  :: hess(3 * natm,3 * natm)
-  real(kind=dp) , intent (out) :: eigenk(nk,3*ntype)
+  TYPE(kmesh)                  :: km 
+  real(kind=dp) , intent (in)  :: hess  (3 * natm, 3 * natm )
+  real(kind=dp) , intent (out) :: eigenk( km%nk  , 3 * ntype)
 
   ! local
   integer          :: ck , kl , wi , ierr , si , sj , im
@@ -1559,8 +1525,8 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   real(kind=dp)    :: rxi , ryi , rzi
   real(kind=dp)    :: rxij , ryij , rzij , rijsq
   real(kind=dp)    :: sxij , syij , szij
-  real(kind=dp)    :: sphase
-  real(kind=dp)    :: kxi , kyi , kzi , kr 
+  real(kind=dp)    :: sphase , ncell_tpi
+  real(kind=dp)    :: kr 
   real(kind=dp)    :: kx , ky , kz
   real(kind=dp)    :: ttt1 , ttt2 
   real(kind=dp)    :: ttt1l , ttt2l ! inside loop
@@ -1600,36 +1566,27 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
 
   ttt1 = MPI_WTIME(ierr) ! timing info
 
-  OPEN (UNIT = kunit_DKFF ,FILE = 'DKFF')
-
   lwork = 9*ntype
   jobz = 'N'
   uplo = 'U'
 
+  ! some constants of the loop 
+  ncell_tpi = REAL( ncell , kind = dp ) * tpi
+
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
-
-  OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
-  READ ( kunit_IBZKPTFF , * ) cccc
-  READ ( kunit_IBZKPTFF , * ) iiii 
-  READ ( kunit_IBZKPTFF , * ) cccc
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   wi = 1
-  WRITE ( stdout ,'(a,i8,a)') 'read nk = ',nk,' kpoints in IBZKPTFF'
 
-  kl = 1
-  ck = 1
   ttt1l = MPI_WTIME(ierr) ! timing info
-  do ik = 0 , nk - 1
 
-    READ ( kunit_IBZKPTFF , * ) kxi , kyi , kzi , wi
+  do ik = km%kpt_dec%istart , km%kpt_dec%iend
 
-    ! direct to kartesian times 2 * pi 
-    kx = tpi * ( kxi * simu_cell%B(1,1) +  kyi * simu_cell%B(1,2) + kzi * simu_cell%B(1,3) ) * ncell 
-    ky = tpi * ( kxi * simu_cell%B(2,1) +  kyi * simu_cell%B(2,2) + kzi * simu_cell%B(2,3) ) * ncell 
-    kz = tpi * ( kxi * simu_cell%B(3,1) +  kyi * simu_cell%B(3,2) + kzi * simu_cell%B(3,3) ) * ncell 
+    kx = km%kpt(1,ik) * REAL( ncell , kind = dp )
+    ky = km%kpt(2,ik) * REAL( ncell , kind = dp )
+    kz = km%kpt(3,ik) * REAL( ncell , kind = dp )
 
     tmphess = 0.0_dp
     hessij  = 0.0_dp
@@ -1678,29 +1635,14 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
         endif
       enddo  ! j atom loop
     enddo ! i atom loop
-    
-    if ( MOD ( ik + 1 , nk / 20 ) .eq. 0 ) then
+   
+    if ( MOD ( ik + 1 , km%kpt_dec%dim_data / 20 ) .eq. 0 ) then
       ttt2l = MPI_WTIME(ierr) ! timing info
-      io_node WRITE ( stdout , 110 ) ' kpoints : ',ck,' DOSKPT  ', ttt2l - ttt1l
+      io_node WRITE ( stdout , 110 ) ' kpoints : ',int(ik*numprocs),' DOSKPT  ', ttt2l - ttt1l
       ttt1l = MPI_WTIME(ierr) ! timing info
     endif
     hessij = - tmphess * 2.0_dp / natm
     
- !   CALL print_tensor_nxn ( hessij , 'HESS_NxN', 3*ntype ) 
- 
-!    hessij(1,1) = - tmphess ( 1 , 1 ) * 2.0_dp / natm
-!    hessij(2,2) = - tmphess ( 2 , 2 ) * 2.0_dp / natm
-!    hessij(3,3) = - tmphess ( 3 , 3 ) * 2.0_dp / natm
-
-!    hessij(1,2) = - tmphess ( 1 , 2 ) * 2.0_dp / natm
-!    hessij(1,3) = - tmphess ( 1 , 3 ) * 2.0_dp / natm
-!    hessij(2,3) = - tmphess ( 2 , 3 ) * 2.0_dp / natm
-
-!    hessij(2,1) = hessij(1,2)
-!    hessij(3,1) = hessij(1,3)
-!    hessij(3,2) = hessij(2,3)
-
-
     ! diagonalisation of the 3x3 matrix
     CALL DSYEV(jobz,uplo,3*ntype,hessij,3*ntype,ww,work,lwork,info)
     if ( info .ne. 0 ) then
@@ -1708,34 +1650,40 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
       STOP 
     endif
 
-    do i = 1 , wi
-      if ( MOD ( ik + 1 , nk / 20 ) .eq. 0 ) then
-        if ( ALL(ww.ge.0.0d0,3*ntype)) then
-          WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kxi, kyi, kzi, ( SQRT ( ww ( im ) ) , im = 1 , 3 * ntype )
-        else
-          WRITE ( stdout ,'(a)')    'WARNING imaginary frequency'
-          WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kxi, kyi, kzi, ( ww ( im )  , im = 1 , 3 * ntype )
-          STOP
-        endif
-        kl = kl * 1
-        
-      endif
-        if ( ALL(ww.ge.0.0d0,3*ntype)) then
-          WRITE ( kunit_DKFF ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kxi, kyi, kzi, ( SQRT ( ww ( im ) ) , im = 1 , 3 * ntype )
-        else
-          WRITE ( stdout ,'(a)')    'WARNING imaginary frequency'
-          WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kxi, kyi, kzi, ( ww ( im )  , im = 1 , 3 * ntype )
-          STOP
-        endif
-      ck = ck + 1
-    enddo
 
-   eigenk ( ik +1 , : ) = SQRT(ww(:))
+    ! remove for the parallel version it was probably wrong anyway
+    !CALL dirkar_1 ( kx , ky , kz , simu_cell%B , ncell )
+    !do i = 1 , wi
+     ! if ( MOD ( ik , km%nk / 20 ) .eq. 0 ) then
+     !   if ( ALL(ww.ge.0.0d0,3*ntype)) then
+     !     WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kx, ky, kz, ( SQRT ( ww ( im ) ) , im = 1 , 3 * ntype )
+     !   else
+     !     WRITE ( stdout ,'(a)')    'WARNING imaginary frequency'
+     !     WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kx, ky, kz, ( ww ( im )  , im = 1 , 3 * ntype )
+     !     STOP
+     !   endif
+     !   
+     ! endif
+    !    if ( ALL(ww.ge.0.0d0,3*ntype)) then
+    !      WRITE ( kunit_DKFF ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kx, ky, kz, ( SQRT ( ww ( im ) ) , im = 1 , 3 * ntype )
+    !    else
+    !      WRITE ( stdout ,'(a)')    'WARNING imaginary frequency'
+    !      WRITE ( stdout ,'(i7,3f12.4,<3*ntype>f18.6)')    ck, kx, ky, kz, ( ww ( im )  , im = 1 , 3 * ntype )
+    !      STOP
+    !    endif
+    !  ck = ck + 1
+    !enddo
+
+   eigenk ( ik , : ) = ww(:)
 
   enddo !ik loop
 
-  CLOSE ( kunit_IBZKPTFF )
-  CLOSE ( kunit_DKFF )
+  do im = 1 , 3 * ntype
+    CALL MPI_ALL_REDUCE_DOUBLE ( eigenk ( : , im ) , km%nk ) 
+  enddo
+
+!  CLOSE ( kunit_IBZKPTFF )
+  !CLOSE ( kunit_DKFF )
 
   deallocate ( tmphess )
   deallocate ( hessij  )
@@ -1744,12 +1692,12 @@ SUBROUTINE doskpt ( hess , eigenk , nk )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ttt2 = MPI_WTIME(ierr) ! timing info
   doskpttimetot = doskpttimetot + ( ttt2 - ttt1 )
 
-110   FORMAT(2X,A8,I4,A20,' :  cpu time',F9.2)
+110   FORMAT(2X,A8,I8,A20,' :  cpu time',F9.2)
 
   return  
 
@@ -1761,22 +1709,22 @@ END SUBROUTINE doskpt
 !! calculates the DOS for a given set of k-points
 !
 ! ******************************************************************************
-SUBROUTINE gene_IBZKPTFF
+SUBROUTINE write_IBZKPTFF ( km ) 
 
-  USE constants,  ONLY : pi
-  USE io_file  ,  ONLY : ionode, kunit_IBZKPTFF
-
+  USE constants,        ONLY :  pi
+  USE io_file  ,        ONLY :  ionode, kunit_IBZKPTFF
+  USE kspace,           ONLY :  kmesh
 
   implicit none
+  ! global
+  TYPE ( kmesh ), intent(in) :: km
 
-  integer :: ikx , iky , ikz
+  ! local
+  integer :: ik , i 
   integer :: nk , wi , nktot
-  real(kind=dp) :: ak 
 
   wi = 1
-  nk = nkphon
-
-  nktot = ( ( nk + 1 ) *( nk + 1 ) * ( nk + 1 ) )
+  nktot = ( ( nkphon + 1 ) *( nkphon + 1 ) * ( nkphon + 1 ) )
 
   OPEN (UNIT = kunit_IBZKPTFF ,FILE = 'IBZKPTFF')
 
@@ -1786,23 +1734,15 @@ SUBROUTINE gene_IBZKPTFF
     WRITE (kunit_IBZKPTFF,*) 'Reciprocal lattice'
   endif
 
-
-  ak=(1.0_dp)/(nk) 
-
-
-  do ikx = 0 , nk
-    do iky = 0 , nk        
-      do ikz = 0 , nk
-        io_node WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ikx * ak , iky * ak , ikz * ak, wi
-      enddo
-    enddo
+  do ik = 1 , nktot
+    io_node WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ( km%kpt(i,ik) , i = 1 , 3 ) 
   enddo
 
   CLOSE(kunit_IBZKPTFF)
 
   return
 
-END SUBROUTINE gene_IBZKPTFF
+END SUBROUTINE write_IBZKPTFF
 
 
 END MODULE vib

@@ -1,0 +1,25 @@
+ex7
+
+temperature       86.56 
+steps             50000
+timestep          0.006   # 0.003 / 2.17 ps Ar units
+equilibration      5000
+scale                10
+
+
+no elec 
+delr 1.0
+cutoff 8.5 
+rvdw 8.5
+rdf  10 0.01
+print rdf
+
+ensemble nve
+
+print               100
+stats               100
+
+job time 3600
+close time 1000
+
+finish

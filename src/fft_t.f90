@@ -31,7 +31,7 @@ SUBROUTINE fft_1D_complex(in,out,N)
   USE constants , ONLY : dp 
   implicit none
   INCLUDE "fftw3.f"
-  INCLUDE "mpif.h"
+!  INCLUDE "mpif.h"
 
   integer :: N
   complex(kind=dp), dimension(N) :: in, out

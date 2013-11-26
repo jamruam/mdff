@@ -22,28 +22,45 @@
 ! *********************** SUBROUTINE init_random_seed **************************
 !> \brief
 !> initialisation of seed for the fortran random number generator RANDOM_NUMBER
+!> \note
+!  modification for mpi execution to generate and propagates the same seed on
+!  all processes.
 ! ******************************************************************************
-SUBROUTINE init_random_seed
+SUBROUTINE init_random_seed(rank,nump)
+
+  USE mpimdff
 
   implicit none
+  integer :: rank,nump
 
   ! local
-  integer :: i , n , clock
+  integer :: i , n , clock , root, tag , ierr, proc
   INTEGER , dimension (:) , allocatable :: SEED
+  integer status(MPI_STATUS_SIZE)
 
-
-  CALL RANDOM_SEED(SIZE = n)
-  allocate(SEED(n))  
-
-  i=1       
+  if ( rank .eq. 0 ) then
+    CALL RANDOM_SEED(SIZE = n)
+    do proc = 1 , nump-1
+      tag = 0
+      CALL MPI_SEND( n , 1, MPI_INTEGER, proc, tag, MPI_COMM_WORLD, ierr)
+    enddo
+  else
+    root = 0
+    tag = 0
+    call MPI_RECV ( n , 100, MPI_INTEGER, root, tag, MPI_COMM_WORLD, status, ierr)
+  endif
+  allocate(SEED(n))
+  i=1
   CALL SYSTEM_CLOCK(COUNT = clock)
-          
+
   seed = clock + 48 * (/ (i - 1, i = 1, n) /)
+  CALL MPI_ALL_REDUCE_INTEGER ( seed , n )
   CALL RANDOM_SEED(PUT = seed)
-         
+
   return
 
 END SUBROUTINE
+
 
 ! *********************** SUBROUTINE knuth *************************************
 !> \brief

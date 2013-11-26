@@ -82,15 +82,15 @@ FCFLAGS = -O3 -ip -static -xSSE4.2 -align all
 # =================
 #   on T5600
 # =================
-LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
+LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
 INC=-I/opt/intel/composerxe/mkl/include/fftw/
 
 # ==================
 #  target files
 # ==================
-OBJ= constants.o io_file.o control.o time.o functions.o \
+OBJ= constants.o io_file.o mpi_mdff.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o harm.o quicksort.o \
+     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
 
@@ -110,7 +110,7 @@ CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)
 all: $(OBJ) $(EXE)
 
 $(EXE): $(OBJ) mdff.o
-	$(FCL) -o $@ $^ $(LDFLAGS)
+	$(FCL) -openmp -o $@ $^ $(LDFLAGS)
 
 fft_t.o: fft_t.f90
 	$(CPP)

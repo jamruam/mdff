@@ -19,7 +19,8 @@
 #include "symbol.h"
 
 ! ======= Hardware =======
-#define debug
+!#define debug
+!#define debug_para
 
 ! calculate the stress tensor at each time step
 !#define stress_t 
@@ -45,37 +46,33 @@
 ! main routine for molecular dynamics and static calculation
 !
 ! input : 
-!          iastart , iaend : index for atom decomposition (parallel)           
 !          list , point    : verlet list variables 
 !          offset          : time offset
 !
 ! ******************************************************************************
-SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
+SUBROUTINE md_run ( offset )
 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , &
-                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul 
-  USE control,                  ONLY :  lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , nprop
-  USE io_file,                  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF , kunit_EFGFF , &
-                                        kunit_EFGALL , kunit_EQUILFF
-  USE md,                       ONLY :  npas , ltraj , lleapequi , itraj_period , itraj_start , nequil , nequil_period , nprint, &
-                                        fprint, spas , dt,  temp , updatevnl , write_traj_xyz , integrator , itime
+  USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
+                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz
+  USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
+  USE io_file,                  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF
+  USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
+                                        fprint, spas , dt,  temp , updatevnl , integrator , itime
 
   USE thermodynamic,            ONLY :  e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver 
+  USE mpimdff
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! global
-  integer, intent(inout)                   :: iastart , iaend 
-  integer, intent(inout)                   :: ikstart , ikend 
   integer, intent(in)                      :: offset
 
   ! local
-  integer                                  :: ia 
+  integer                                  :: ia , ip
   integer                                  :: nefg , ngr , nmsd , ntau 
   real(kind=dp)                            :: tempi , kin 
   real(kind=dp), dimension(:), allocatable :: xtmp , ytmp , ztmp
@@ -120,7 +117,8 @@ SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
 
   OPEN (unit = kunit_OSZIFF ,file = 'OSZIFF',STATUS = 'UNKNOWN')
-  OPEN (unit = kunit_TRAJFF ,file = 'TRAJFF')
+  if ( itraj_format .ne. 0 ) OPEN (unit = kunit_TRAJFF ,file = 'TRAJFF')
+  if ( itraj_format .eq. 0 ) OPEN (unit = kunit_TRAJFF ,file = 'TRAJFF', form='unformatted')
 #ifdef block
   OPEN (unit = kunit_EQUILFF,file = 'EQUILFF',STATUS = 'UNKNOWN')
 #endif
@@ -140,17 +138,13 @@ SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
     ! =========================
     ! force + potential at t=0
     ! =========================
-     CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+     CALL engforce_driver 
 
     ! ==================================================
     ! write thermodynamic information of config at t=0
     ! ==================================================
     CALL write_thermo( offset-1 , stdout , 'std' )
     CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
-
-#ifdef debug
-         CALL print_config_sample(0,0)
-#endif
 
   else
   ! ===========================================================================
@@ -170,7 +164,7 @@ SUBROUTINE md_run ( iastart , iaend , offset , ikstart , ikend )
     ! ===================
     ! force + potential
     ! ===================
-    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+    CALL engforce_driver 
     ! =======================================================
     ! write thermodynamic information of the starting point
     ! =======================================================
@@ -231,15 +225,19 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! =========================    
          !  integration t -> t + dt 
          ! =========================
-         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog ( iastart , iaend , ikstart , ikend )
-         if ( integrator.eq.'nve-be'  )      CALL beeman ( iastart , iaend , ikstart , ikend)
-         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
-         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
-         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
-         if ( integrator.eq.'nvt-nhcn')      CALL nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
+         if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog 
+         if ( integrator.eq.'nve-be'  )      CALL beeman 
+         if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet 
+         if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet 
+         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 
+         if ( integrator.eq.'nvt-nhcn')      CALL nose_hoover_chain_n 
 
-#ifdef debug
-         CALL print_config_sample(itime,0)
+#ifdef debug_para
+        if ( MOD ( itime , nprint ) .eq. 0 ) then
+          do ip=0,numprocs-1
+           CALL print_config_sample(itime,ip)
+          enddo
+        endif
 #endif
 
 
@@ -264,7 +262,7 @@ MAIN:  do itime = offset , npas + (offset-1)
            xtmp = rx
            ytmp = ry
            ztmp = rz
-           CALL write_traj_xyz
+           CALL write_trajff_xyz
            rx = xtmp
            ry = ytmp
            rz = ztmp
@@ -378,7 +376,7 @@ MAIN:  do itime = offset , npas + (offset-1)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-  if ( ionode ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
+  if ( ionode .and. lvnlist ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
 
   CALL  write_average_thermo ( stdout ) 
 

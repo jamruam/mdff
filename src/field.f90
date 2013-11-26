@@ -40,9 +40,12 @@ MODULE field
   USE config,                           ONLY :  ntypemax 
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
+  USE io_file,                          ONLY :  ionode
+  USE mpimdff
 
   implicit none
 
+  integer :: cccc=0
   real(kind=dp)     :: utail               !< long-range correction of short-range interaction 
   character(len=60) :: units               !< energy units currently used 
   character(len=60) :: units_allowed(5)
@@ -324,7 +327,7 @@ SUBROUTINE field_init
   ! =====================================  
   !  if efg print field info and return 
   ! =====================================  
-  if ( calc .eq. 'efg' .or. calc .eq. 'rmc-efg' .or. calc .eq. 'rmc-invert-efg') then 
+  if ( calc .eq. 'efg' .or. calc .eq. 'rmc' ) then 
     CALL field_print_info(stdout,quiet=.true.)
     return
   endif
@@ -606,7 +609,7 @@ SUBROUTINE ewald_param
   kmax_3=nint(0.25_dp+simu_cell%ANORM(3)*alpha*tol1/pi)
   if ( lautoES ) then
     ! dl_poly like
-    write ( * , * ) 'auto ES dl_poly like'  
+    io_node write ( stdout , '(a)' ) 'auto ES dl_poly like'  
     alphaES = alpha
     kES(1)=kmax_1
     kES(2)=kmax_2
@@ -820,11 +823,11 @@ SUBROUTINE initialize_param_bmlj_morse
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
            utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
 
-           io_node write(stdout,*) 'long range correction',utail
+           io_node write(stdout,*) 'long range correction (init)',utail
 
-#ifdef debug
-  WRITE ( stdout , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
-#endif
+!#ifdef debug
+!  WRITE ( stdout , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
+!#endif
     enddo
   enddo
  
@@ -846,23 +849,18 @@ END SUBROUTINE initialize_param_bmlj_morse
 !! this subroutine is main driver to select the different potential and forces
 !! subroutines
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 !> \todo
 !! make it more clean
 !
 ! ******************************************************************************
-SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
+SUBROUTINE engforce_driver 
 
-  USE config,                   ONLY :  natm , dipia
+  USE config,                   ONLY :  natm , dipia , fx,rx,vx
   USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lharm , lshiftpot , longrange
   USE io_file,                  ONLY :  ionode , stdout 
 
   implicit none
 
-  ! global
-  integer, intent(inout)  :: iastart , iaend 
-  integer, intent(inout)  :: ikstart , ikend 
   ! local 
   logical :: lj_and_coul
   real(kind=dp) :: eftmp( natm , 3 ) , efgtmp ( natm , 3 , 3 ) , u_coultmp , vir_coultmp , phi_coultmp ( natm ) 
@@ -885,7 +883,7 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
   if ( lmorse ) then
     lbmlj=.false.
     lcoulomb =.false.
-    CALL engforce_morse_pbc         ( iastart , iaend )
+    CALL engforce_morse_pbc         
   endif
 
   !  io_node WRITE ( stdout ,'(a)') 'debug ' 
@@ -900,18 +898,14 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
     !   PBC
     ! =======
     if ( lpbc ) then
-#ifdef debug  
-      print*,'before lj'
-      CALL print_config_sample(0,0)
-#endif
-      if ( lshiftpot .and. lminimg ) CALL engforce_bmlj_pbc         ( iastart , iaend )
-      if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift ( iastart , iaend )
+      if ( lshiftpot .and. lminimg ) CALL engforce_bmlj_pbc         
+      if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift 
 #ifdef debug  
       print*,'before coul'
       CALL print_config_sample(0,0)
 #endif
-      if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( iastart , iaend , ikstart , ikend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
-      if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'direct' ) CALL multipole_DS ( eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
 #ifdef debug  
       print*,'before after coul'
       CALL print_config_sample(0,0)
@@ -921,8 +915,8 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
       ! =======
     else
       WRITE ( stdout ,'(a)') 'ERROR sick job: coulomb + nopbc'
-      if ( lshiftpot )               CALL engforce_bmlj_nopbc       ( iastart , iaend )
-!      if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift ( iastart , iaend ) 
+      if ( lshiftpot )               CALL engforce_bmlj_nopbc       
+!      if ( .not.lshiftpot )          CALL engforce_bmlj_pbc_noshift 
     endif
     ! ================================
     !      ONLY LENNARD-JONES
@@ -938,8 +932,27 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
 #ifdef debug  
        WRITE ( stdout , '(a)' ) 'debug : pbc ' 
 #endif  
-       if ( lshiftpot       )     CALL engforce_bmlj_pbc         ( iastart , iaend )
-       if ( .not. lshiftpot )     CALL engforce_bmlj_pbc_noshift ( iastart , iaend )
+!   if ( ionode ) then
+!    print*,'before lj'
+!    write(*,'(a,f60.40)') 'ri before prop',rx(1)
+!    write(*,'(a,f60.40)') 'rj before prop',rx(167)
+!    write(*,'(a,f60.40)') 'vi before prop',vx(1)
+!    write(*,'(a,f60.40)') 'vj before prop',vx(167)
+!    write(*,'(a,f60.40)') 'fi before prop',fx(1)
+!    write(*,'(a,f60.40)') 'fj before prop',fx(167)
+!  endif
+       if ( lshiftpot       )     CALL engforce_bmlj_pbc         
+       if ( .not. lshiftpot )     CALL engforce_bmlj_pbc_noshift 
+!   if ( ionode ) then
+!    print*,'after lj'
+!    write(*,'(a,f60.40)') 'ri before prop',rx(1)
+!    write(*,'(a,f60.40)') 'rj before prop',rx(167)
+!    write(*,'(a,f60.40)') 'vi before prop',vx(1)
+!    write(*,'(a,f60.40)') 'vj before prop',vx(167)
+!    write(*,'(a,f60.40)') 'fi before prop',fx(1)
+!    write(*,'(a,f60.40)') 'fj before prop',fx(167)
+!  endif
+
        ! =======
        !  NO PBC
        ! =======
@@ -947,8 +960,8 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
 #ifdef debug  
        WRITE ( stdout , '(a)' ) 'debug : no pbc ' 
 #endif  
-       if ( lshiftpot )          CALL engforce_bmlj_nopbc          ( iastart , iaend )
-!      if ( .not. lshiftpot )   CALL engforce_bmlj_nopbc_noshift ( iastart , iaend ) 
+       if ( lshiftpot )          CALL engforce_bmlj_nopbc          
+!      if ( .not. lshiftpot )   CALL engforce_bmlj_nopbc_noshift 
        if ( .not. lshiftpot ) then
          WRITE ( stdout , '(a)' ) 'not yet : nopbc + no shift pot'
          STOP
@@ -966,8 +979,8 @@ SUBROUTINE engforce_driver ( iastart , iaend , ikstart , ikend )
     !   PBC
     ! =======
     if ( lpbc ) then
-      if ( longrange .eq. 'ewald'  ) CALL multipole_ES              ( iastart , iaend , ikstart , ikend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
-      if ( longrange .eq. 'direct' ) CALL multipole_DS              ( iastart , iaend , eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'ewald'  ) CALL multipole_ES    ( eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
+      if ( longrange .eq. 'direct' ) CALL multipole_DS    ( eftmp , efgtmp , dipia , u_coultmp , vir_coultmp , phi_coultmp )
       ! =======
       !  NO PBC
       ! =======
@@ -988,8 +1001,6 @@ END SUBROUTINE engforce_driver
 !! total potential energy forces for each atoms for a bmlj potential with 
 !! periodic boundaries conditions, with or without vnlist.
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 !> \author
 !! F.Affouard / FMV
 !
@@ -997,20 +1008,16 @@ END SUBROUTINE engforce_driver
 !! adapted from F. Affouard code. Parallelized in december 2008
 !
 ! ******************************************************************************
-SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
+SUBROUTINE engforce_bmlj_pbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, tau_nonb , atype , itype , list , point , ntype , simu_cell , coord_format 
-  USE control,                  ONLY :  lvnlist , myrank
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx,vy,vz,tau_nonb , atype , itype , list , point , ntype , simu_cell , atom_dec
+  USE control,                  ONLY :  lvnlist 
   USE thermodynamic,            ONLY :  u_lj , vir_lj , write_thermo
   USE io_file,                  ONLY :  stdout
   USE time,                     ONLY :  forcetimetot 
   USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent(in)  :: iastart , iaend 
 
   ! local
   integer          :: ia , ja , it , jt , j1 , je , jb , ierr 
@@ -1026,19 +1033,22 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   real(kind=dp) :: u , vir 
 
 #ifdef debug_bmlj
+  WRITE ( stdout , '(a,2i6)' ) 'debug : atom decomposition ',atom_dec%istart,atom_dec%iend
   do ia=1,natm
-  WRITE ( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
-  WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
+    WRITE ( stdout , '(a,i6,a,a)' )  'debug : atype ',ia,'',atype(ia)
+    WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
   enddo
 #endif
 
   ttt1 = MPI_WTIME(ierr) ! timing info
+  cccc = cccc + 1
 
   u   = 0.0_dp
   vir = 0.0_dp
   fx  = 0.0_dp
   fy  = 0.0_dp
   fz  = 0.0_dp
+  tau_nonb = 0.0d0
  
   do jt = 1 , ntype
     do it = 1 , ntype
@@ -1047,20 +1057,19 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
     enddo
   enddo
 
-
-  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
+  if ( lvnlist ) CALL vnlistcheck 
 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
-  do ia = iastart , iaend
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
     ! =====================================
-    !  if verlet list : ja in point arrays
+    !  verlet list : ja index in point arrays
     ! =====================================
     if ( lvnlist ) then
       jb = point( ia )
@@ -1079,6 +1088,8 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
         ja = j1
       endif
       if ( ( lvnlist .and. ja .ne. ia ) .or. ( .not. lvnlist .and. ja .gt. ia )  ) then
+!      if ( ( lvnlist .and. ja .ne. ia ) .or. ( .not. lvnlist .and.  ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+!                                                                      ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -1095,9 +1106,6 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
           sr2 = sigsq(p1,p2) / rijsq
           srp = sr2 ** (ptwo(p1,p2))
           srq = sr2 ** (qtwo(p1,p2))
-#ifdef debug_bmlj_pbc
-          write(*,*)  ( plj(p1,p2) * srq -qlj(p1,p2) * srp ) , rijsq , rcutsq(p1,p2)
-#endif
           ! potential energy ( truncated )  
           if ( trunc .eq. 0 ) then
             u = u  + epsp(p1,p2) * ( plj(p1,p2) * srq -qlj(p1,p2) * srp )
@@ -1141,16 +1149,9 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   ttt2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot + ( ttt2 - ttt1 )
 
-  
-#ifdef debug_para
-        write ( * , 800 ) myrank,' u para before mpi ',u/real ( natm ) 
-#endif
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   ) 
-#ifdef debug_para
-        write ( * , 800 ) myrank,' u para after mpi ',u/real ( natm ) 
-#endif
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir ) 
-
+  
   CALL MPI_ALL_REDUCE_DOUBLE ( fx , natm ) 
   CALL MPI_ALL_REDUCE_DOUBLE ( fy , natm ) 
   CALL MPI_ALL_REDUCE_DOUBLE ( fz , natm ) 
@@ -1162,19 +1163,12 @@ SUBROUTINE engforce_bmlj_pbc ( iastart , iaend )
   u_lj = u
   vir_lj = vir
 
-#ifdef debug_para
-        write (*,800) myrank, ' u = ', u / real ( natm )
-#endif
-
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
-#ifdef debug_para
-800 FORMAT ( i6,a,e60.40,e60.40)
-#endif
 
 END SUBROUTINE engforce_bmlj_pbc
 
@@ -1184,21 +1178,14 @@ END SUBROUTINE engforce_bmlj_pbc
 !! total potential energy forces for each atoms for a bmlj potential with 
 !! *NO* periodic boundaries conditions, with or without vnlist (lvnlist=.TRUE.OR.FALSE.)
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 ! ******************************************************************************
-SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
+SUBROUTINE engforce_bmlj_nopbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell 
-  USE control,                  ONLY :  lvnlist , myrank
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell , atom_dec
+  USE control,                  ONLY :  lvnlist
   USE thermodynamic,            ONLY :  u_lj , vir_lj
-  !USE time,                     ONLY :  
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent(inout) :: iastart , iaend !, list(250 * natm),point(natm+1)
 
   ! local
   integer :: ia , ja , it, jt, j1, je, jb !, ierr
@@ -1224,8 +1211,8 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend ) !, list , point )
-  do ia = iastart, iaend
+  if ( lvnlist ) CALL vnlistcheck 
+  do ia = atom_dec%istart, atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -1234,7 +1221,7 @@ SUBROUTINE engforce_bmlj_nopbc ( iastart , iaend )
       je = point ( ia + 1 ) - 1
     else
       jb = ia 
-      je = iaend
+      je = atom_dec%iend
     endif
     do j1 = jb, je
       if ( lvnlist ) then
@@ -1309,8 +1296,6 @@ END SUBROUTINE engforce_bmlj_nopbc
 !> \brief
 !! same as engforce_bmlj_pbc but with no shift in the potential 
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 !> \note
 !! if ok it should be merged !
 !
@@ -1318,18 +1303,14 @@ END SUBROUTINE engforce_bmlj_nopbc
 !! test it !
 !
 ! ******************************************************************************
-SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
+SUBROUTINE engforce_bmlj_pbc_noshift 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell
-  USE control,                  ONLY :  lvnlist , myrank
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell , atom_dec
+  USE control,                  ONLY :  lvnlist 
   USE thermodynamic,            ONLY :  u_lj , vir_lj
   USE time,                     ONLY :  forcetimetot
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent(in)  :: iastart , iaend 
 
   ! local
   integer       :: ia , ja , it , jt , j1 , je , jb , ierr
@@ -1360,8 +1341,8 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
-  do ia = iastart , iaend
+  if ( lvnlist ) CALL vnlistcheck 
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -1370,7 +1351,7 @@ SUBROUTINE engforce_bmlj_pbc_noshift ( iastart , iaend )
       je = point ( ia + 1 ) - 1
     else
       jb = ia 
-      je = iaend 
+      je = atom_dec%iend 
     endif
     do j1 = jb, je
       if ( lvnlist ) then
@@ -1449,7 +1430,7 @@ SUBROUTINE initialize_coulomb
   implicit none
 
   ! local
-  integer :: nkcut , ncmax 
+  integer :: nk , ncmax 
 
   allocate ( ef_t ( natm , 3 ) )
   allocate ( efg_t ( natm , 3 , 3 ) )
@@ -1474,12 +1455,11 @@ SUBROUTINE initialize_coulomb
     km_coul%kmax(1) = kES(1)
     km_coul%kmax(2) = kES(2)
     km_coul%kmax(3) = kES(3)
-    nkcut = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
-    nkcut = nkcut - 1
-    km_coul%nkcut = nkcut
-    allocate ( km_coul%kptk( nkcut ) , km_coul%kpt(3,nkcut) )
-    allocate ( km_coul%strf ( nkcut, natm ) ) 
-    CALL kpoint_sum_init ( km_coul )
+    nk = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
+    km_coul%nk = nk
+    allocate ( km_coul%kptk( nk ) , km_coul%kpt(3,nk) )
+    allocate ( km_coul%strf ( nk, natm ) ) 
+    CALL kpoint_sum_init ( km_coul , alphaES )
   endif
 
   return
@@ -1598,7 +1578,6 @@ END SUBROUTINE induced_moment
 !! potential energy, virial, electric potential and forces at ions in
 !! multipole expansion by Direct summation
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
 !> \param[in]  mu electric dipole at ions
 !> \param[out] ef electric field
 !> \param[out] efg electric field gradient
@@ -1611,10 +1590,10 @@ END SUBROUTINE induced_moment
 !! some quantities are not even converges at all
 !
 ! ******************************************************************************
-SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , phi_coul )
+SUBROUTINE multipole_DS ( ef , efg , mu , u_coul , vir_coul , phi_coul )
 
-  USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell, coord_format  
-  USE control,                  ONLY :  cutlongrange,myrank
+  USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell , atom_dec 
+  USE control,                  ONLY :  cutlongrange
   USE io_file,                  ONLY :  stdout , ionode 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
   USE cell,                     ONLY :  kardir , dirkar
@@ -1622,10 +1601,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
 
   implicit none
 
-  INCLUDE 'mpif.h'
-
   ! global 
-  integer, intent(in) :: iastart , iaend
   real(kind=dp) , intent(in)    :: mu     ( natm , 3 )
   real(kind=dp) , intent(out)   :: ef     ( natm , 3 )
   real(kind=dp) , intent(out)   :: efg    ( natm , 3 , 3 )
@@ -1695,7 +1671,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   do it = 1 , ntype
     WRITE ( stdout , '(a,3f12.5)') 'debug : dipole (type ) ',  mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
   enddo
-  WRITE ( stdout , '(a,2i8)')      'debug : iastart iaend  ',iastart ,iaend
+  WRITE ( stdout , '(a,2i8)')      'debug : atom_dec ',atom_dec%istart , atom_dec%iend
   WRITE ( stdout , '(a,f20.5)')    'debug : cutsq          ',cutsq
   endif
   call print_config_sample(0,0)
@@ -1724,12 +1700,12 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
 ! ==================================================================================================
 !  MAIN LOOP calculate EF(i) , EFG(i) , virial , potential, forces ... for each atom i parallelized
 ! ==================================================================================================
-  atom : do ia = iastart , iaend
+  atom : do ia = atom_dec%istart , atom_dec%iend
 
     rxi  = rx  ( ia )
     ryi  = ry  ( ia )
@@ -2069,7 +2045,7 @@ SUBROUTINE multipole_DS ( iastart, iaend , ef , efg , mu , u_coul , vir_coul , p
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -2081,7 +2057,6 @@ END SUBROUTINE multipole_DS
 !! potential energy, virial, electric potential and forces at ions in
 !! a multipole expansion by Ewald summation
 !
-!> \param[in]  iastart , iaend atom decomposition for parallelization
 !> \param[in]  mu electric dipole at ions
 !> \param[out] ef electric field
 !> \param[out] efg electric field gradient
@@ -2092,11 +2067,11 @@ END SUBROUTINE multipole_DS
 !> \todo
 !! make it more condensed 
 ! ******************************************************************************
-SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_coul , vir_coul , phi_coul )
+SUBROUTINE multipole_ES ( ef , efg , mu , u_coul , vir_coul , phi_coul )
 
   USE control,                  ONLY :  lsurf , cutshortrange 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
-                                        rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell, coord_format 
+                                        rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell , atom_dec
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
   USE io_file,                  ONLY :  ionode , stdout 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
@@ -2106,11 +2081,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
 
   implicit none
 
-  INCLUDE 'mpif.h'
-
   ! global 
-  integer, intent(in) :: iastart , iaend
-  integer, intent(in) :: ikstart , ikend
   real(kind=dp)    :: ef     ( natm , 3 )
   real(kind=dp)    :: efg    ( natm , 3 , 3 )
   real(kind=dp)    :: mu     ( natm , 3 )
@@ -2202,7 +2173,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
 #ifdef debug_multipole_ES
   if ( ionode ) then
   WRITE( stdout , '(a)')          'debug : in engforce_charge_ES'
-  WRITE( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nkcut,' ',km_coul%meshlabel
+  WRITE( stdout , '(a,i8,a,a)')   'debug : km_coul       ',km_coul%nk,' ',km_coul%meshlabel
   do ia = 1 , natm
     WRITE( stdout , '(a,f12.5)')  'debug : charge (atom) ',qia(ia)
   enddo
@@ -2215,7 +2186,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   do it = 1 , ntype
     WRITE( stdout , '(a,3f12.5)') 'debug : dipole (type) ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
   enddo
-  WRITE( stdout , '(a,2i8)')      'debug : iastart iaend ',iastart ,iaend
+  WRITE( stdout , '(a,2i8)')      'debug : atom decompositon istart,iend ', atom_dec%istart , atom_dec%iend
   WRITE( stdout , '(a,f20.5)')    'debug : alphaES       ', alphaES
   endif
   call print_config_sample(0,0)
@@ -2280,7 +2251,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   ! =================
   !  some constants 
@@ -2300,7 +2271,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   !        direct space part
   ! ==============================================
 
-  do ia = iastart , iaend
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx(ia)
     ryi = ry(ia)
     rzi = rz(ia)
@@ -2548,13 +2519,13 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ! ==============================================
   !            reciprocal space part
   ! ==============================================
-!  kpoint : do ik = 1 , km_coul%nkcut
-  kpoint : do ik = ikstart, ikend 
+!  kpoint : do ik = 1 , km_coul%nk
+  kpoint : do ik = km_coul%kpt_dec%istart, km_coul%kpt_dec%iend 
   
     ttt6 = MPI_WTIME(ierr)
     ! =================
@@ -2567,15 +2538,14 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
     Ak   = EXP ( - kk * 0.25_dp / alpha2 ) / kk
     kcoe = 2.0_dp * ( 1.0_dp / alpha2  + 1.0_dp / kk )
 
-    if (km_coul%kptk(ik) .eq. 0 ) then
-      WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
-      STOP
-    endif
+    if (km_coul%kptk(ik) .eq. 0 ) cycle 
+    !  WRITE ( stdout , * ) 'the sum should be done on k! =  0',ik
     ! ===============================
     !                              ---
     !  charge density in k-space ( \   q * facteur de structure  )
     !                              /__
     ! ===============================
+    ! check multipole_efg_ES 
     rhon   = (0.0_dp, 0.0_dp)
     rhonmu = (0.0_dp, 0.0_dp)
     do ja = 1, natm
@@ -2641,7 +2611,7 @@ SUBROUTINE multipole_ES ( iastart, iaend , ikstart, ikend , ef , efg , mu , u_co
     ttt_2 = ttt_2 + ( ttt7 - ttt6 )
   enddo kpoint
 !  print*,ttt_2
-  ttt_2 = ttt_2 / km_coul%nkcut
+  ttt_2 = ttt_2 / km_coul%nk
   fcoultimetot2_2 = fcoultimetot2_2 + ttt_2
 
   ttt4 = MPI_WTIME(ierr)
@@ -2887,26 +2857,20 @@ END SUBROUTINE multipole_ES
 !! periodic boundaries conditions, with or without vnlist
 !! (lvnlist=.TRUE.OR.FALSE.)
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 !> \warning
 !! not fully tested
 !
 ! ******************************************************************************
-SUBROUTINE engforce_morse_pbc ( iastart , iaend )
+SUBROUTINE engforce_morse_pbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell, coord_format
-  USE control,                  ONLY :  lvnlist , myrank 
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , point , ntype , simu_cell , atom_dec
+  USE control,                  ONLY :  lvnlist  
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
   USE io_file,                  ONLY :  stdout , ionode
   USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent(in)  :: iastart , iaend
 
   ! local
   integer          :: ia , ja , j1 , je , jb , ierr
@@ -2937,13 +2901,13 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   fy  = 0.0_dp
   fz  = 0.0_dp
 
-  if ( lvnlist ) CALL vnlistcheck ( iastart , iaend )
+  if ( lvnlist ) CALL vnlistcheck 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
-  do ia = iastart , iaend
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -2951,8 +2915,8 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
       jb = point( ia )
       je = point( ia + 1 ) - 1
     else
-      jb = ia
-      je = iaend
+      jb = 1 
+      je = natm !atom_dec%iend
     endif
     do j1 = jb, je
       if ( lvnlist ) then
@@ -3026,7 +2990,7 @@ SUBROUTINE engforce_morse_pbc ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -3039,15 +3003,13 @@ END SUBROUTINE engforce_morse_pbc
 !! The evaluation is done self-consistently starting from the the field due the
 !! point charges only.
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!> \param[in]  ikstart , ikend kpoint decomposition index for parallelization
 !> \param[out] mu_ind induced electric dipole from polarizabilities
 !
 !> \note
 !! The stopping criteria is governed by conv_tol_ind
 !
 ! ******************************************************************************
-SUBROUTINE moment_from_pola ( iastart , iaend , ikstart, ikend , mu_ind ) 
+SUBROUTINE moment_from_pola ( mu_ind ) 
 
   USE io_file, ONLY : ionode , stdout 
   USE config,  ONLY : natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax
@@ -3057,8 +3019,6 @@ SUBROUTINE moment_from_pola ( iastart , iaend , ikstart, ikend , mu_ind )
   implicit none
 
   ! global
-  integer       , intent (in)  :: iastart , iaend 
-  integer       , intent (in)  :: ikstart , ikend 
   real(kind=dp) , intent (out) :: mu_ind ( natm , 3 ) 
 
   ! local
@@ -3089,8 +3049,8 @@ SUBROUTINE moment_from_pola ( iastart , iaend , ikstart, ikend , mu_ind )
   ! =============================================
   !  coulombic energy , forces (field) and virial
   ! =============================================
-  if ( longrange .eq. 'direct' ) CALL  multipole_DS ( iastart, iaend , ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
-  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( iastart, iaend , ikstart , ikend , ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
+  if ( longrange .eq. 'direct' ) CALL  multipole_DS ( ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
+  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( ef_tmp , efg_tmp , dipia , u_tmp , vir_tmp , phi_tmp ) 
 
   Efield_stat = Efield_stat + ef_tmp
 
@@ -3147,8 +3107,8 @@ SUBROUTINE moment_from_pola ( iastart , iaend , ikstart, ikend , mu_ind )
     !  calculate Efield_ind from mu_ind
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
     ! ==========================================================
-    if ( longrange .eq. 'direct' ) CALL multipole_DS ( iastart, iaend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
-    if ( longrange .eq. 'ewald' )  CALL multipole_ES ( iastart, iaend , ikstart , ikend , Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
+    if ( longrange .eq. 'direct' ) CALL multipole_DS ( Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
+    if ( longrange .eq. 'ewald' )  CALL multipole_ES ( Efield_ind , efg_tmp , mu_ind , u_tmp , vir_tmp , phi_tmp ) 
     fx = 0.0_dp ; fy = 0.0_dp ; fz = 0.0_dp
 
     Efield = Efield_stat + Efield_ind
@@ -3224,7 +3184,7 @@ END SUBROUTINE moment_from_pola
 SUBROUTINE moment_from_WFc ( mu )
 
   USE constants,                ONLY :  Debye_unit
-  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz, coord_format 
+  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz 
   USE cell,                     ONLY :  kardir , dirkar 
   USE io_file,                  ONLY :  ionode , kunit_DIPWFC , stdout 
 
@@ -3273,7 +3233,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   icount = 1
   do ia = 1 , natm 
@@ -3391,7 +3351,7 @@ SUBROUTINE moment_from_WFc ( mu )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 

@@ -4,27 +4,18 @@
 
 coe=$1
 pause=$2
+i=767
+#first mode is 0
 
-echo "#!/usr/bin/gnuplot -persist" > plot.vectff.gpi
-echo "reset" >> plot.vectff.gpi
-echo "a=a+1" >> plot.vectff.gpi
-echo "set xr [-5:5]" >> plot.vectff.gpi
-echo "set yr [-5:5]" >> plot.vectff.gpi
-for ((i=1;i<=1500;i++))
-do
-echo "p 'VECTFF' index $i u 1:2:(\$3*$coe):(\$4*$coe) w vectors" >> plot.vectff.gpi
-echo "pause $pause" >> plot.vectff.gpi
-done
-echo "if(a<2) reread" >> plot.vectff.gpi
-
-echo "#!/usr/bin/gnuplot -persist" > plot
-echo "reset" >> plot
-echo "set term x11" >> plot
-echo "unset key" >> plot
-echo "a=0;" >> plot
-echo "load 'plot.vectff.gpi'" >> plot
-
-chmod u+x plot
-./plot
+echo "#!/usr/bin/gnuplot -persist"                                > plot.vectff
+echo "reset"                                                     >> plot.vectff
+echo "set term x11"                                              >> plot.vectff
+echo "set xr [-4:4]"                                             >> plot.vectff
+echo "set yr [-4:4]"                                             >> plot.vectff
+echo "unset key"                                                 >> plot.vectff
+echo "set title 'highest energy mode = $((i+1))' "               >> plot.vectff
+echo "p 'VECTFF' index $i u 1:2:(\$3*$coe):(\$4*$coe) w vectors" >> plot.vectff
+chmod u+x plot.vectff
+./plot.vectff
 
 

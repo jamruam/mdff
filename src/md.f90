@@ -30,7 +30,6 @@ MODULE md
 
   implicit none
 
-  logical, SAVE :: ltraj                   !< save trajectory                                    
   logical, SAVE :: lleapequi               !< leap-frog used in the equilibration part together with verlet -> vv + lf 
 
   integer :: npas                          !< number of time steps
@@ -39,9 +38,6 @@ MODULE md
   integer :: spas                          !< save configuration each spas step 
   integer :: nprint                        !< print thermo info to standard output
   integer :: fprint                        !< print thermo info to file OSZIFF
-  integer :: itraj_start                   !< write trajectory from step itraj_start
-  integer :: itraj_period                  !< write trajectory each itraj_period steps 
-  integer :: itraj_format                  !< choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
   integer :: updatevnl                     !< number of verlet list update  
   integer :: itime
 
@@ -86,16 +82,13 @@ SUBROUTINE md_init
   integer            :: ioerr
   character(len=132) :: filename
 
-  namelist /mdtag/    ltraj         , &
-                      integrator    , & 
+  namelist /mdtag/    integrator    , & 
                       setvel        , & 
                       npas          , & 
                       nequil        , &
                       nequil_period , & 
                       nprint        , & 
                       fprint        , & 
-                      itraj_start   , & 
-                      itraj_period  , & 
                       spas          , & 
                       dt            , &
                       temp          , & 
@@ -152,7 +145,6 @@ SUBROUTINE md_default_tag
   ! =================
   !  default values
   ! =================
-  ltraj         = .false.
   lleapequi     = .false.
   integrator    = 'nve-vv'
   setvel        = 'MaxwBoltz'
@@ -161,9 +153,6 @@ SUBROUTINE md_default_tag
   nequil_period = 1
   nprint        = 1             
   fprint        = 1
-  itraj_start   = 1          
-  itraj_period  = 10000
-  itraj_format  = 1
   spas          = 1000           
   dt            = 0.0_dp
   temp          = 1.0_dp
@@ -257,8 +246,8 @@ SUBROUTINE md_check_tag
     allocate ( vxi(nhc_n) , xi(nhc_n) )
   endif 
   ! initial conditions
-  vxi = 1.0_dp
-   xi = 0.0_dp
+!   vxi = 1.0_dp
+!   xi = 0.0_dp
 !  vxi(1) = 1.0_dp      
 
   return
@@ -273,7 +262,7 @@ END SUBROUTINE md_check_tag
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
-  USE control,          ONLY :  lpbc , lstatic , lvnlist , lreduced , lminimg 
+  USE control,          ONLY :  ltraj , lpbc , lstatic , lvnlist , lreduced , lminimg , itraj_start , itraj_period , itraj_format  
   USE io_file,          ONLY :  ionode 
 
   implicit none
@@ -354,63 +343,6 @@ SUBROUTINE md_print_info(kunit)
 
 END SUBROUTINE md_print_info
 
-
-! *********************** SUBROUTINE write_traj_xyz ****************************
-!> \brief
-!! write trajectory (pos, vel, for) to TRAJFF file
-! ******************************************************************************
-SUBROUTINE write_traj_xyz 
-
-  USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
-  USE config,                   ONLY :  system , natm , natmi , ntype , &
-                                        rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , simu_cell, coord_format
-  USE cell,                     ONLY :  periodicbc , kardir , dirkar
-
-  implicit none
-
-  ! local
-  integer :: ia , it , i , j
-  real(kind=dp), dimension (:) , allocatable :: xxx , yyy , zzz
-
-  allocate ( xxx ( natm ) , yyy ( natm ) , zzz ( natm ) )
-
-  xxx = rx
-  yyy = ry
-  zzz = rz
-
-  ! ======================================
-  !         cartesian to direct 
-  ! ======================================
-  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B , coord_format )
-
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell , coord_format )
-  ! ======================================
-  !         direct to cartesian
-  ! ======================================
-  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A , coord_format )
-
-
-  if ( ionode ) then
-    WRITE ( kunit_TRAJFF , '(i6)' ) natm
-    WRITE ( kunit_TRAJFF , '(a)' ) system
-    do i = 1 , 3
-      WRITE ( kunit_TRAJFF , '(3f20.12)' ) (simu_cell%A(i,j),j=1,3) 
-    enddo
-    WRITE ( kunit_TRAJFF , '(i4)' ) ntype
-    WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
-    WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
-    WRITE ( kunit_TRAJFF,'(A)') 'Cartesian' 
-    WRITE ( kunit_TRAJFF,'(a,9e20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
-                                                         vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
-                                                         fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
-    
-  endif
-
- 200 FORMAT(A2,9E20.12)
-
- return
-
-END SUBROUTINE write_traj_xyz
 
 END MODULE md 
 ! ===== fmV =====

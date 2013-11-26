@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug_vnl  ! verlet list debugging
+!#define debug_vnl  ! verlet list debugging
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE estimate_alpha ****************************
@@ -125,79 +125,6 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
 
 END SUBROUTINE accur_ES_frenkel_smit
 
-! *********************** SUBROUTINE do_split **********************************
-!
-!> \brief
-!! this routine split the number of atoms into np procs
-!! iastart and iaend are the atom index for myrank task
-!
-!> \param[in]  n     number of atoms
-!> \param[in]  mrank current task index
-!> \param[in]  np    number of mpi tasks
-!> \param[out] iastart , iaend atom decomposition index for parallelization
-!
-!> \author
-!! FMV
-!
-! ******************************************************************************
-SUBROUTINE do_split ( n , mrank , np , iastart , iaend , decomposition )
-
-  USE io_file,                  ONLY :  ionode , stdout
-
-  implicit none
-
-  ! global
-  integer :: n       !< number of atoms to be splitted
-  integer :: np      !< number of mpi tasks
-  integer :: mrank   !< local index proc
-  integer :: iastart !< starting index ( for atoms )
-  integer :: iaend   !< ending index   ( for atoms )
-  character(len=5) :: decomposition
-
-  ! local 
-  integer :: imin,imax                          
-  integer :: istartV(0:np-1),iendV(0:np-1)      
-  integer :: splitnumberV(0:np-1),isteps,x,y,me 
-
-  imin = 1
-  imax = n      
-
-  isteps = (imax-imin)+1
-  x = isteps/np
-  y = MOD ( isteps , np )
-
-  do me = 0,np-1
-     if ((me.eq.0).or.(me.gt.y)) then
-        splitnumberV(me) = x
-     else if ((me.gt.0).or.(me.lt.(y+1))) then
-        splitnumberV(me) = x+1
-     endif
-  enddo
-  do me = 0,np-1
-     if (me.eq.0) then
-        istartV(0) = imin
-        iendV(0)   = imin + ( x -1 )
-     else if (me.gt.0) then
-        istartV(me) = iendV(me-1) + 1
-        iendV(me)   = istartV(me) + splitnumberV(me) - 1
-     endif
-  enddo
-
-  iastart = istartV(mrank)
-  iaend = iendV(mrank)
-
-  if ( ionode ) then
-    WRITE ( stdout ,'(a,a5,a)')      'paralelisation - ',decomposition,' decomposition'
-    do me = 0,np-1
-      WRITE ( stdout ,'(a5,i4,a5,i8,a3,i8)')      'rank = ',me,decomposition,istartV(me),'to',iendV(me)
-    enddo     
-  endif
-
-  return
-
-END SUBROUTINE do_split
-
-
 ! *********************** SUBROUTINE distance_tab ******************************
 !
 !> \brief
@@ -214,7 +141,7 @@ END SUBROUTINE do_split
 SUBROUTINE distance_tab 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype, coord_format 
+  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype 
   USE field,                    ONLY :  sigmalj , lwfc
   USE io_file,                  ONLY :  ionode , stdout, stderr
   USE cell,                     ONLY :  kardir , dirkar 
@@ -238,12 +165,10 @@ SUBROUTINE distance_tab
   dist = 0
   mindis = 100000.0_dp
 
-!  CALL print_config_sample(0,0)
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
-!  CALL print_config_sample(0,0)
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   kdis =0
   do ia = 1 , natm 
@@ -287,7 +212,6 @@ SUBROUTINE distance_tab
       endif
     enddo 
   enddo
-  print*,mindis
 
   norm = natm * ( natm - 1 ) / 2
  
@@ -305,7 +229,7 @@ SUBROUTINE distance_tab
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -338,22 +262,17 @@ END SUBROUTINE distance_tab
 !!                     enddo
 !!                   enddo
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 ! ******************************************************************************
-SUBROUTINE vnlist_pbc ( iastart , iaend )
+SUBROUTINE vnlist_pbc 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax, coord_format
-  USE control,                  ONLY :  skindiff , cutshortrange 
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax , atom_dec
+  USE control,                  ONLY :  skindiff , cutshortrange
   USE cell,                     ONLY :  kardir , dirkar
   USE io_file,                  ONLY :  ionode , stdout , stderr
 
   implicit none
 
-  ! global
-  integer , intent (in)  :: iastart , iaend
- 
   ! local
   integer :: icount , ia , ja , it , jt , k
   integer :: p1 , p2
@@ -375,10 +294,10 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   icount = 1
-  do ia = iastart , iaend
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -411,12 +330,12 @@ SUBROUTINE vnlist_pbc ( iastart , iaend )
     enddo
     point(ia) = icount-k
   enddo
-  point (iaend + 1 ) = icount
+  point (atom_dec%iend + 1 ) = icount
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -428,19 +347,14 @@ END SUBROUTINE vnlist_pbc
 !! no periodic boundaries condition version of verlet list
 !! same as vnlist_pbc but no periodic boundaries
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 ! ******************************************************************************
-SUBROUTINE vnlist_nopbc ( iastart , iaend )
+SUBROUTINE vnlist_nopbc 
 
   USE constants, ONLY : dp
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype , atom_dec
   USE control,  ONLY :  skindiff , cutshortrange 
 
   implicit none
-
-  ! global
-  integer :: iastart , iaend
 
   ! local
   integer :: icount , ia , ja , it , jt , k
@@ -457,7 +371,7 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
   enddo
 
   icount = 1
-  do ia = iastart , iaend
+  do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -480,7 +394,7 @@ SUBROUTINE vnlist_nopbc ( iastart , iaend )
     enddo
     point (ia ) = icount-k
   enddo
-  point( iaend + 1 ) = icount
+  point( atom_dec%iend + 1 ) = icount
 
   return
 
@@ -491,23 +405,18 @@ END SUBROUTINE vnlist_nopbc
 !> \brief
 !! check wether verlet list should be updated
 !
-!> \param[in]  iastart , iaend atom decomposition index for parallelization
-!
 ! ******************************************************************************
-SUBROUTINE vnlistcheck ( iastart , iaend ) 
+SUBROUTINE vnlistcheck 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point
-  USE control,                  ONLY :  lpbc , lminimg , skindiff 
+  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point , atom_dec
+  USE control,                  ONLY :  lpbc , lminimg , skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
   USE io_file,                  ONLY :  stdout , ionode
+  USE mpimdff
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent (in) :: iastart , iaend 
 
   ! local
   integer :: ia , ierr
@@ -548,9 +457,9 @@ SUBROUTINE vnlistcheck ( iastart , iaend )
   if ( ionode ) write ( stdout , '(a,2i6,5f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl),skindiff, drneimax,drneimax2
 #endif
     if ( lpbc ) then
-        CALL vnlist_pbc ( iastart, iaend )
+        CALL vnlist_pbc 
     else
-      CALL vnlist_nopbc ( iastart, iaend )
+      CALL vnlist_nopbc 
     endif
     do ia = 1, natm 
       xs ( ia ) = rx ( ia )
@@ -799,7 +708,7 @@ END SUBROUTINE
 SUBROUTINE print_config_sample ( time , rank )
 
   USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
-  USE control,  ONLY :  myrank
+  USE mpimdff,  ONLY :  myrank
   USE io_file,  ONLY :  stdout
 
   implicit none
@@ -893,86 +802,4 @@ SUBROUTINE dumb_guy(kunit)
 
 END SUBROUTINE dumb_guy
 
-! *********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE *********************
-!
-!
-!
-! ******************************************************************************
-SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
-
-  USE constants, ONLY : dp
-  implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer :: ndim
-  real(kind=dp), dimension ( ndim ) :: vec_result 
-  ! local 
-  integer :: ierr
-  real(kind=dp), dimension ( : ) , allocatable :: vec_sum
-
-  allocate ( vec_sum ( ndim ) )
-  vec_sum=0.0_dp
-
-  CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
-  vec_result = vec_sum 
-
-  deallocate ( vec_sum ) 
-
-  return
-
-END SUBROUTINE MPI_ALL_REDUCE_DOUBLE
-
-! *********************** SUBROUTINE MPI_ALL_REDUCE_INTEGER ********************
-!
-!
-!
-! ******************************************************************************
-SUBROUTINE MPI_ALL_REDUCE_INTEGER ( vec_result , ndim )
-
-  implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer :: ndim
-  integer , dimension ( ndim ) :: vec_result
-  ! local 
-  integer :: ierr
-  integer , dimension ( : ) , allocatable :: vec_sum
-
-  allocate ( vec_sum ( ndim ) )
-  vec_sum=0
-
-  CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
-  vec_result = vec_sum
-
-  deallocate ( vec_sum )
-
-  return
-
-END SUBROUTINE MPI_ALL_REDUCE_INTEGER
-
-! *********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR **************
-!
-!
-!
-! ******************************************************************************
-SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
-
-  USE constants, ONLY : dp
-  implicit none
-  INCLUDE 'mpif.h'
-
-  real(kind=dp), intent (inout) :: sresult
-  ! local 
-  integer          :: ierr
-  real(kind=dp) :: ssum
-
-  ssum=0.0_dp
-  CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
-  sresult = ssum
-
-  return
-
-END SUBROUTINE
 ! ===== fmV =====

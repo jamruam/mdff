@@ -38,15 +38,15 @@
 MODULE opt
 
   USE constants,                ONLY :  dp
+  USE mpimdff
 
   implicit none
 
   logical :: lforce              !< calculate force of the optimise configuration
 
   integer :: nconf               !< number of configurations in TRAJFF  
-  integer :: nskipopt            !< number of configurations skipped in the beginning 
   integer :: nmaxopt             !< number of configurations optimized  
-  integer :: nperiodopt
+  integer :: nperiodopt          !< (internal) period between optimized points
 
   real(kind=dp) :: epsrel_m1qn3  !< gradient stop criterion for m1qn3
   real(kind=dp) :: epsrel_lbfgs  !< gradient stop criterion for lbfgs
@@ -78,7 +78,6 @@ SUBROUTINE opt_init
 
   namelist /opttag/ optalgo       , &
                     nconf         , & 
-                    nskipopt      , &
                     epsrel_m1qn3  , & 
                     epsrel_lbfgs  , & 
                     lforce        , &
@@ -133,7 +132,6 @@ SUBROUTINE opt_default_tag
   ! ================
   optalgo      = 'sastry' 
   nconf        = 0
-  nskipopt     = 0 
   nmaxopt      = 1 
   epsrel_m1qn3 = 1.0e-5
   epsrel_lbfgs = 1.0e-5
@@ -168,7 +166,7 @@ SUBROUTINE opt_check_tag
     STOP 
   endif
 
-  nperiodopt = (nconf - nskipopt)/nmaxopt
+  nperiodopt = nconf/nmaxopt
   if ( nperiodopt .lt. 1) nperiodopt = 1
 
   return
@@ -230,7 +228,6 @@ SUBROUTINE opt_print_info(kunit)
                                WRITE ( kunit ,'(a)')       'save IS configurations into file      :   ISCFF '  
                                blankline(kunit) 
                                WRITE ( kunit ,'(a,i5)')    'number of config. in TRAJFF         =     ',nconf          
-                               WRITE ( kunit ,'(a,i5)')    'number of config. to be skipped     =     ',nskipopt
                                WRITE ( kunit ,'(a,i5)')    'maximum of config. to be minimized  =     ',nmaxopt           
                                WRITE ( kunit ,'(a,i5)')    'minimized every config.             =     ',nperiodopt
                                blankline(kunit) 
@@ -251,10 +248,10 @@ END SUBROUTINE opt_print_info
 ! ******************************************************************************
 SUBROUTINE opt_main 
 
-  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , fx , fy , fz , &
+  USE config,           ONLY :  system , natm , ntype , rx , ry , rz , vx , vy ,vz , fx , fy , fz , &
                                 atype  , rho , config_alloc , list , point , simu_cell , &
-                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , coord_format
-  USE control,          ONLY :  myrank , numprocs , lcoulomb 
+                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header 
+  USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , itraj_save 
   USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
@@ -263,11 +260,9 @@ SUBROUTINE opt_main
   USE time,             ONLY :  opttimetot
 
   implicit none
-  INCLUDE 'mpif.h'
 
   ! local 
-  integer           :: i , ia , it , ic, neng, iter, nopt 
-  integer           :: iastart , iaend , ikstart , ikend , ierr
+  integer           :: i , ia , it , ic, neng, iter, nopt , ierr
   real(kind=dp)     :: phigrad, pressure0, pot0, Eis
   real(kind=dp)     :: ttt1,ttt2
   real(kind=dp)     :: ttt1p,ttt2p
@@ -279,7 +274,6 @@ SUBROUTINE opt_main
 
   nopt=0
  
-  OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
   OPEN (UNIT = kunit_ISTHFF ,FILE = 'ISTHFF')
   OPEN (UNIT = kunit_ISCFF  ,FILE = 'ISCFF') 
 
@@ -287,29 +281,13 @@ SUBROUTINE opt_main
   io_node WRITE ( kunit_ISTHFF , '(a)' )                '#neng: evaluation of force'
   io_node WRITE ( kunit_ISTHFF , '(a8,3a20,2a8,2a20)') &
   "# config","eIS","grad","Pres","Iter","Neng","u_initial","Press_initial"
-       
-  READ ( kunit_TRAJFF , * ) natm
-  READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-  READ ( kunit_TRAJFF , * ) ntype
-  READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-  READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-  READ( kunit_TRAJFF ,*) cpos
-  ! ======
-  !  cpos
-  ! ======
-  do i = 1 , size( coord_format_allowed )
-   if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-  enddo
-  if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
-    STOP
-  endif
-
-
+  
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
+  CALL read_traj_header( kunit_TRAJFF , itraj_format )
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
+     
   CALL lattice (simu_cell)
   rho = DBLE ( natm )  / simu_cell%omega 
 
@@ -321,91 +299,29 @@ SUBROUTINE opt_main
   ! ================================== 
   CALL config_alloc 
   CALL field_init
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
-  if ( lcoulomb ) CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
+                  CALL do_split ( natm       , myrank , numprocs , atom_dec        , 'atoms' )
+  if ( lcoulomb ) CALL do_split ( km_coul%nk , myrank , numprocs , km_coul%kpt_dec ,'kpts-dec' )
 
-  ! ==========================================   
-  !  skip the first nskipopt configurations 
-  ! ==========================================
-  if (nskipopt.gt.0) then
-
-    do ic = 1 , nskipopt
-
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) natm
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) system
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ntype 
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-      IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-      if ( ic .ne. 1 ) READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-      if ( ic .ne. 1 ) READ( kunit_TRAJFF ,*) cpos
-      do ia = 1 , natm 
-        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) ,rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      enddo      
-    enddo
-  io_node WRITE ( stdout , '(i6,a)' ) nskipopt,' first configs not used' 
-  endif
-
-  conf : do ic = nskipopt + 1, nconf
+  conf : do ic = 1, nconf
 
     ttt1p = MPI_WTIME(ierr)
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    if ( ic .ne. (nskipopt + 1) .or. nskipopt .ne. 0 ) then 
-      READ ( kunit_TRAJFF , * ) natm
-      READ ( kunit_TRAJFF , * ) system
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-      READ ( kunit_TRAJFF , * ) ntype
-      READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype ) 
-      READ ( kunit_TRAJFF , *) ( natmi ( it ) , it = 1 , ntype )
-      READ ( kunit_TRAJFF , *) cpos
-      ! ======
-      !  cpos
-      ! ======
-      do i = 1 , size( coord_format_allowed )
-        if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-      enddo
-      if ( .not. allowed ) then
-        if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed
-        STOP
-      endif
-
-    endif
-    
-    do ia = 1 , natm
-      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-    enddo
+    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save ) 
 
     CALL lattice (simu_cell)
     rho = DBLE ( natm )  / simu_cell%omega
 
-    if ( cpos .eq. 'Direct' ) then
-      ! ======================================
-      !         direct to cartesian
-      ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
-      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' ) then
-      io_node WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
-    endif
-
-
-
-
     CALL typeinfo_init  
 
-    if ( (( MOD ( ic , nperiodopt ) .eq. 0) .or. (ic .eq. nskipopt + 1) ) .and. nopt.lt.nmaxopt ) then 
+    if ( ( MOD ( ic , nperiodopt ) .eq. 0) .or. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
       ! =======================
       !  calc initial thermo  
       ! =======================  
       neng = 0
-      CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+      CALL engforce_driver 
       CALL calc_thermo
       pot0 = u_tot 
       pressure0 = pressure_tot
@@ -419,7 +335,7 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ikend )
+        CALL sastry ( iter , Eis , phigrad , neng )
       endif
 
 
@@ -429,7 +345,7 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL lbfgs_driver ( iter, Eis , phigrad , iastart , iaend , ikstart , ikend )
+        CALL lbfgs_driver ( iter, Eis , phigrad )
         neng = iter ! the number of function call is iter
       endif
 
@@ -440,7 +356,7 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        CALL m1qn3_driver ( iter, Eis , phigrad , iastart , iaend , ikstart , ikend )
+        CALL m1qn3_driver ( iter, Eis , phigrad )
         neng = iter ! the number of function call is iter
       endif
 
@@ -459,25 +375,39 @@ SUBROUTINE opt_main
       ! ===========================================
       !  calculated forces (they should be small) 
       ! ===========================================
-      if ( lforce ) CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+      if ( lforce ) CALL engforce_driver 
       ! =============================================
       !  write IS structures
       !  new configurations are stored in rx ,ry ,rz, fx , fy ,fz
       ! =============================================         
       if ( ionode ) then   
-        WRITE ( kunit_ISCFF , * ) natm 
-        WRITE ( kunit_ISCFF , * ) system 
-        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
-        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
-        WRITE ( kunit_ISCFF , * ) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-        WRITE ( kunit_ISCFF , * ) ntype 
-        WRITE ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
-        WRITE ( kunit_ISCFF , * ) ( natmi  ( it ) , it = 1 , ntype )
-        WRITE ( kunit_ISCFF , * ) ' Cartesian'
-        do ia = 1 , natm 
-          WRITE ( kunit_ISCFF ,'(A2,9F20.12)') &
-          atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , dzero,dzero,dzero, fx ( ia ) , fy ( ia ) , fz ( ia )
-        enddo       
+        if ( iscff_format .ne. 0 ) then
+          WRITE ( kunit_ISCFF , * ) natm 
+          WRITE ( kunit_ISCFF , * ) system 
+          WRITE ( kunit_ISCFF , * ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+          WRITE ( kunit_ISCFF , * ) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+          WRITE ( kunit_ISCFF , * ) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+          WRITE ( kunit_ISCFF , * ) ntype 
+          WRITE ( kunit_ISCFF , * ) ( atypei ( it ) , it = 1 , ntype )
+          WRITE ( kunit_ISCFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+          WRITE ( kunit_ISCFF , * ) ' Cartesian'
+          do ia = 1 , natm 
+            WRITE ( kunit_ISCFF ,'(A2,9F20.12)') &
+            atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , dzero,dzero,dzero, fx ( ia ) , fy ( ia ) , fz ( ia )
+          enddo       
+        endif
+        if ( iscff_format .eq. 0 ) then
+          WRITE ( kunit_ISCFF ) natm
+          WRITE ( kunit_ISCFF ) system
+          WRITE ( kunit_ISCFF ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+          WRITE ( kunit_ISCFF ) simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+          WRITE ( kunit_ISCFF ) simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+          WRITE ( kunit_ISCFF ) ntype 
+          WRITE ( kunit_ISCFF ) ( atypei ( it ) , it = 1 , ntype )
+          WRITE ( kunit_ISCFF ) ( natmi  ( it ) , it = 1 , ntype )
+          WRITE ( kunit_ISCFF ) 'C'
+          WRITE ( kunit_ISCFF ) rx , ry , rz , vx , vy , vz ,fx , fy , fz 
+        endif
       endif
 
     ttt2p = MPI_WTIME(ierr)
@@ -512,19 +442,16 @@ END SUBROUTINE opt_main
 !! S. Sastry.   
 !
 ! ******************************************************************************
-SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ikend )
+SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point , write_trajff_xyz
   USE io_file,                  ONLY :  ionode , stdout
   USE thermodynamic,            ONLY :  u_tot      
-  USE md,                       ONLY :  write_traj_xyz
   USE field,                    ONLY :  engforce_driver 
 
   implicit none
 
   ! global
-  integer :: iastart , iaend 
-  integer :: ikstart , ikend 
   integer :: iter, neng
   real(kind=dp) :: Eis, phigrad, vir
   
@@ -559,7 +486,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
   itmax = 10000
   nskp = 1
   nstep = 0
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
   neng = neng + 1
 
   umag = 0.0_dp
@@ -598,7 +525,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
            xtmp = rx
            ytmp = ry
            ztmp = rz
-           CALL write_traj_xyz
+           CALL write_trajff_xyz
            rx = xtmp
            ry = ytmp
            rz = ztmp
@@ -666,7 +593,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
 
     x1 = ds 
 
-    CALL eforce1d ( x1 , u1 , vir , iastart , iaend , ikstart , ikend , f1d1 , xix , xiy , xiz , neng )
+    CALL eforce1d ( x1 , u1 , vir , f1d1 , xix , xiy , xiz , neng )
     nstep = 0
     uprev = MIN ( u1 , u0 )
 777 nstep = nstep + 1
@@ -683,7 +610,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
         return
       else 
         if ( u0 .lt. u1 ) then
-          CALL eforce1d ( x0 , u0 , vir , iastart , iaend , ikstart , ikend , f1_dp , xix , xiy , xiz , neng )
+          CALL eforce1d ( x0 , u0 , vir , f1_dp , xix , xiy , xiz , neng )
           xsol = x0 
           u_tot = u0 
           f1ds = f1_dp
@@ -726,7 +653,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
       usol = u0 + f1_dp * dx + (uppcub * dx2/2.0_dp) + (u3pcub * dx3/6.0_dp)
 
 !C    this is to make sure u2 is not > ukeep
-524   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , ikstart , ikend , f1ds , xix , xiy , xiz , neng ) 
+524   CALL eforce1d ( xsol , u2 , vir , f1ds , xix , xiy , xiz , neng ) 
 
 
       if (u2.gt.ukeep) then
@@ -779,7 +706,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
 !C    upto here define xsol 
 
 !C    now make sure usol < ukeep
-525   CALL eforce1d ( xsol , u2 , vir , iastart , iaend , ikstart , ikend , f1ds , xix , xiy , xiz , neng )
+525   CALL eforce1d ( xsol , u2 , vir , f1ds , xix , xiy , xiz , neng )
 
 
       if (u2.gt.ukeep)then
@@ -829,7 +756,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng , iastart , iaend , ikstart , ik
     DD2 = ftol * ( ABS ( ukeep) + ABS ( u_tot ) + epsilon)
 
     if ( DD1 .LE. DD2) then 
-      CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+      CALL engforce_driver 
       neng = neng + 1
 
       Eis = u_tot
@@ -914,7 +841,7 @@ END SUBROUTINE sastry
 !! readapted for mdff by FMV
 !
 ! ******************************************************************************
-SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , ikstart , ikend , f1d , xix , xiy , xiz , neng ) 
+SUBROUTINE eforce1d( x , pot , vir , f1d , xix , xiy , xiz , neng ) 
 
   USE config,                   ONLY :  natm, rx, ry, rz, fx, fy, fz
   USE thermodynamic,            ONLY :  vir_tot , u_tot , calc_thermo
@@ -924,8 +851,6 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , ikstart , ikend , f1d , x
 
   ! global
   real(kind=dp) :: pot ,vir, x, f1d
-  integer          :: iastart , iaend
-  integer          :: ikstart , ikend
   real(kind=dp) :: xix(natm),xiy(natm),xiz(natm)
   
   ! local
@@ -968,7 +893,7 @@ SUBROUTINE eforce1d( x , pot , vir , iastart , iaend , ikstart , ikend , f1d , x
   ! ================
   !  warning ! only pbc
   ! ================
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
   CALL calc_thermo
   vir = vir_tot
   pot = u_tot  
@@ -1024,7 +949,7 @@ END SUBROUTINE eforce1d
 !      the routine CSRCH written by More' and Thuente.
 !
 ! ******************************************************************************
-SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  , ikstart , ikend )
+SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
 
   USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz , list, point
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
@@ -1034,7 +959,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  , ikstart , ik
   implicit none
 
   ! global
-  integer :: iastart , iaend , ikstart , ikend , icall
+  integer :: icall
   real(kind=dp) :: Eis, phigrad
 
   ! local 
@@ -1175,7 +1100,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad , iastart , iaend  , ikstart , ik
   !==============================================================
   do its=1,itmax
 
-    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+    CALL engforce_driver 
     CALL calc_thermo
 
 #ifdef debug
@@ -1243,7 +1168,7 @@ END SUBROUTINE lbfgs_driver
 !! driver routine for the optimsation algorithm m1qn3 (see m1qn3.f90)
 !
 ! ******************************************************************************
-SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend , ikstart , ikend )
+SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
   USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz, list ,point
@@ -1254,7 +1179,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend , ikstart , iken
   implicit none
 
   ! global
-  integer          :: iastart , iaend , ikstart , ikend ,  icall
+  integer          :: icall
   real(kind=dp)    :: Eis , phigrad
 
   !local
@@ -1290,7 +1215,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend , ikstart , iken
     X( 2 * natm + ia ) = rz( ia )
   enddo
 
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
   CALL calc_thermo
 
 !#ifdef debug
@@ -1347,7 +1272,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad, iastart , iaend , ikstart , iken
       rz( ia )   = X ( 2* natm + ia )
     enddo
 
-    CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+    CALL engforce_driver 
     CALL calc_thermo
 
     f=u_tot

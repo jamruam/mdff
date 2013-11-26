@@ -19,7 +19,7 @@
 #include "symbol.h"
 ! ======= Hardware =======
 !#define debug_vois1_fixed
-#define debug_vois1_sann
+!#define debug_vois1_sann
 !#define debug_vois1_voronoi
 !#define sort_voronoi
 !#define further_info_voronoi    
@@ -44,19 +44,21 @@ MODULE voisin
 
   USE constants,                        ONLY :  dp
   USE config,                           ONLY :  ntypemax
+  USE mpimdff
 
   implicit none
 
-  integer , PARAMETER ::  nmaxneigh = 100
+  integer , PARAMETER ::  nmaxneigh = 500
 
   integer :: nconf                       ! number of configurations readed for vois1 analysis (only when calc = 'vois1') 
-  real(kind=dp) :: cutvois1 ( ntypemax ) ! cutoff of the first neighbour sphere for each type
+  real(kind=dp) :: cutvois1 ( ntypemax , ntypemax ) ! cutoff of the first neighbour sphere for each pair of types
 
   ! ===============
   !  distributions
   ! ===============
   integer         , dimension(:,:)  , allocatable :: dib_nb 
   integer                                         :: nbmax
+  integer       , dimension (:)   , allocatable   :: kk 
 
   ! =========================================
   !     neighbor algorithm
@@ -172,7 +174,7 @@ SUBROUTINE vois1_print_info(kunit)
   ! global 
   integer :: kunit
   ! local
-  integer :: it 
+  integer :: it1,it2 
 
   if ( ionode ) then
       separator(kunit)
@@ -183,8 +185,10 @@ SUBROUTINE vois1_print_info(kunit)
       if ( vois1algo .eq. 'fixed' ) then
         WRITE ( kunit ,'(a,f12.5)') 'fixed distance algorithm'
         WRITE ( kunit ,'(a,f12.5)') 'first neighbour sphere cutoff radius for each types ' 
-        do it = 1 , ntype
-          WRITE ( kunit ,'(a,f12.5)') atypei(it),cutvois1(it) 
+        do it1 = 1 , ntype
+          do it2 = it1 , ntype
+            WRITE ( kunit ,'(2a,f12.5)') atypei(it1),atypei(it2),cutvois1(it1,it2) 
+          enddo
         enddo
       else if ( vois1algo .eq. 'sann' .or. vois1algo .eq. 'sannsq') then
         WRITE ( kunit ,'(a,f12.5)') 'the solid-angle based nearest-neighbor algorithm (SANN)'
@@ -205,51 +209,30 @@ END SUBROUTINE vois1_print_info
 SUBROUTINE vois1_driver
 
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_DTNBFF , kunit_VOIS1FF
-  USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi , rho , simu_cell , config_alloc , &
-                                        config_print_info , coord_format_allowed , coord_format 
+                                        config_print_info , coord_format_allowed , atom_dec , read_traj_header , read_traj 
   USE cell,                     ONLY :  lattice, dirkar
+  USE control,                  ONLY :  itraj_format , itraj_save
 
   implicit none
 
-  INCLUDE 'mpif.h'
-
   ! local 
-  integer                                               :: iastart , iaend , i , inb
-  integer                                               :: ia , iconf , it 
-  integer                                               :: iiii 
-  character(len=60)                                     :: cccc 
-  real(kind=dp)                                         :: aaaa 
-  logical                                               :: allowed
-  character(len=60)                                     :: cpos
+  integer            :: i , inb , iiii
+  integer            :: ia , iconf , it 
+  real(kind=dp)      :: aaaa 
+  character(len=60)  :: cccc 
   dectime
 
 
-  OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
   OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
 
-  READ ( kunit_TRAJFF , * ) natm
-  READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-  READ ( kunit_TRAJFF , * ) ntype
-  READ ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( stdout ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-  READ ( kunit_TRAJFF , * )   ( natmi ( it ) , it = 1 , ntype )
-  READ ( kunit_TRAJFF , * ) cpos
-
-  ! ===========
-  !  cpos test
-  ! ===========
-  do i = 1 , size( coord_format_allowed )
-    if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-  enddo
-  if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
-    STOP
-  endif
+  ! get systems info from TRAJFF
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
+  CALL read_traj_header( kunit_TRAJFF , itraj_format )
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
 
   CALL lattice ( simu_cell )
   rho = natm / simu_cell%omega
@@ -258,7 +241,7 @@ SUBROUTINE vois1_driver
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms')
+  CALL do_split ( natm , myrank , numprocs , atom_dec , 'atoms')
   CALL vois1_alloc
   CALL typeinfo_init
   ! =============
@@ -271,43 +254,15 @@ SUBROUTINE vois1_driver
   ! ============================================
   ! LOOP OVER CONFIGURATIONS 
   ! ============================================
+  allocate ( kk ( 0:nbmax ) ) 
+  kk = 0
   do iconf = 1, nconf
     statime
 
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  natm
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  system
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF, * )  iiii
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
-    if ( iconf .ne. 1 ) READ ( kunit_TRAJFF , * ) cpos
-    ! ======
-    !  cpos
-    ! ======
-    do i = 1 , size( coord_format_allowed )
-      if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-    enddo
-    if ( .not. allowed ) then
-      if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
-      STOP
-    endif
-
-    do ia = 1 , natm
-      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) ,aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-    enddo
-    if ( cpos .eq. 'Direct' .or. cpos.eq.'D' ) then
-      coord_format = 'D'
-      ! ======================================
-      !         direct to cartesian
-      ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
-      if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' .or. cpos .eq.'C' ) then
-      coord_format = 'C'
-      if ( ionode .and. iconf .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
-    endif
+    ! ====================
+    !  read config iconf
+    ! ====================
+    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save )
 
     CALL lattice ( simu_cell )
 
@@ -332,13 +287,17 @@ SUBROUTINE vois1_driver
     ! parameter-free method
     ! ======================================
     else if ( vois1algo .eq. 'sann' .or. vois1algo .eq. 'sannsq' ) then
-      CALL sann 
+      CALL sann  ( iconf )
     endif
 
     stotime
-    writime('config : ',iconf,' VOIS1  ')
+    writime('config : ',' VOIS1  ',iconf)
 
   enddo
+  do i=0,nbmax
+    write(20000,*) i,kk(i)
+  enddo
+  deallocate ( kk ) 
 
   ! ===================
   !  write distrib Nb 
@@ -346,7 +305,7 @@ SUBROUTINE vois1_driver
   OPEN (UNIT = kunit_DTNBFF , FILE = 'DTNBFF')
   WRITE( kunit_DTNBFF , '(a)') '#nb    P(Nb)'
   do inb = 0 , nbmax
-     WRITE( kunit_DTNBFF , '(i6,<ntype+1>f12.6)' ) inb , ( REAL ( dib_nb ( it , inb ) ) / REAL ( nconf , kind = dp ) , it = 0 , ntype )
+     WRITE( kunit_DTNBFF , '(i6,<ntype+1>f12.6)' ) inb , ( REAL ( dib_nb ( it , inb ) ) / ( REAL ( nconf , kind = dp ) ) , it = 0 , ntype )
   enddo
   CLOSE ( kunit_DTNBFF )
 
@@ -363,22 +322,25 @@ END SUBROUTINE vois1_driver
 ! ******************************************************************************
 SUBROUTINE fixed_distance
 
-  USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei , coord_format
-  USE cell,                     ONLY :  kardir , dirkar
+  USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei 
+  USE cell,                     ONLY :  kardir , dirkar , dirkar_1
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_VOIS1FF
 
   implicit none
 
   ! local
-  integer :: ia , ja , it , jt , im
+  integer :: ia , ja , it , jt , im , jnb , jtnb , kkkk
   real(kind=dp) :: dist 
   real(kind=dp) :: rxi ,ryi ,rzi
   real(kind=dp) :: rxij ,ryij ,rzij
   real(kind=dp) :: sxij ,syij ,szij
+  integer       , dimension (:)   , allocatable  :: natmi_cluster 
+  character(len=2), dimension (:) , allocatable  :: atypei_cluster 
 
   integer , dimension (:)   , allocatable  :: Nb 
   integer , dimension (:,:) , allocatable  :: selectedneighbors ! neighbour table
   integer , dimension (:,:) , allocatable  :: spec_vois1 ! neighbour table
+  real(kind=dp)                                  :: xxx , yyy , zzz 
 
   ! distributions
   integer :: knb
@@ -394,12 +356,11 @@ SUBROUTINE fixed_distance
   allocate ( selectedneighbors ( natm , nmaxneigh ) )
   allocate ( Nb ( natm ) )
   selectedneighbors = 0
-  Nb = 0
 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
     do ia = 1 , natm
       Nb (ia ) = 1
@@ -420,27 +381,74 @@ SUBROUTINE fixed_distance
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         dist = rxij * rxij + ryij * ryij + rzij * rzij
-        if ( sqrt(dist) .lt. cutvois1(itype(ia)) ) then
-#ifdef debug_vois1_fixed
-           WRITE ( stdout , '(a,i4,2x,a,i4,f16.8,i8)' ) atype(ia),ia, atype(ja),ja , sqrt(dist) , selectedneighbors (ia , 0 )
-#endif
+        if ( sqrt(dist) .lt. cutvois1(itype(ia),itype(ja)) ) then
            selectedneighbors ( ia , Nb ( ia ) ) = ja
            Nb ( ia ) = Nb ( ia ) + 1 
+#ifdef debug_vois1_fixed
+           WRITE ( stdout , '(a,i4,2x,a,i4,f16.8,2i8)' ) atype(ia),ia, atype(ja),ja , sqrt(dist) , selectedneighbors (ia , 0 ),Nb ( ia )
+#endif
         endif
       enddo
     enddo
 
-   ! #n of neighbours inside cutoff
+   ! Nb was used used as the index of selectedneighbors
+   ! Nb of neighbours inside cutoff
    Nb = Nb - 1
 
 #ifdef debug_vois1_fixed
   WRITE ( stdout , * )
   do ia = 1 , natm
-    WRITE ( stdout , '(a,a,i6)' ) 'atom      : ', atype(ia), ia 
-    WRITE ( stdout , '(a,  i6)' ) '#nb vois1 = ', Nb ( ia ) 
+    WRITE ( stdout , '(a,a,i6)' )       'atom      : ', atype(ia), ia 
+    WRITE ( stdout , '(a,  i6)' )       '#nb vois1 = ', Nb ( ia ) 
     WRITE ( stdout , '(a,<Nb(ia)>i6)' ) 'neighb    : ', ( selectedneighbors (ia , im ), im = 1 , Nb ( ia ) )
   enddo
 #endif 
+
+  allocate ( natmi_cluster  ( 0: ntype ) )
+  allocate ( atypei_cluster ( 0: ntype ) )
+  do ia = 1 , natm
+    it = itype ( ia )
+    atypei_cluster(0) = 'C'//atype(ia)
+    atypei_cluster(1) = 'A'
+    atypei_cluster(2) = 'B'
+    natmi_cluster     = 0
+    do ja = 1 , Nb ( ia )
+      jnb = selectedneighbors ( ia , ja )
+      jtnb= itype ( jnb )
+      natmi_cluster(jtnb) = natmi_cluster(jtnb) + 1
+    enddo
+    natmi_cluster(0)    = 1
+    kkkk = 10000+Nb ( ia ) + 1
+    kk(Nb ( ia ) + 1) = kk(Nb ( ia ) + 1) + 1
+    WRITE ( kkkk , * ) Nb ( ia ) + 1
+    WRITE ( kkkk , '(a)' ) 'cluster'
+    WRITE ( kkkk , '(3f20.12)' )  1000.0_dp ,    0.0_dp ,    0.0_dp
+    WRITE ( kkkk , '(3f20.12)' )     0.0_dp , 1000.0_dp ,    0.0_dp
+    WRITE ( kkkk , '(3f20.12)' )     0.0_dp ,    0.0_dp , 1000.0_dp
+    WRITE ( kkkk , '(i4)'      )  ntype+1
+    WRITE ( kkkk , '(<ntype+1>a3 )') ( atypei_cluster(it) , it=0,ntype )
+    WRITE ( kkkk , *           ) ( natmi_cluster (it) , it=0,ntype )
+    WRITE ( kkkk ,'(A)')         'Cartesian'
+    WRITE ( kkkk ,'(a,3e20.12)') atypei_cluster(0) , 0.0_dp , 0.0_dp , 0.0_dp
+    do it = 1 , ntype
+      do ja = 1 , Nb ( ia )
+        jnb = selectedneighbors ( ia , ja )
+        jtnb= itype ( jnb )
+        xxx = rx ( jnb ) - rx ( ia ) - NINT ( rx ( jnb ) - rx ( ia ) )
+        yyy = ry ( jnb ) - ry ( ia ) - NINT ( ry ( jnb ) - ry ( ia ) )
+        zzz = rz ( jnb ) - rz ( ia ) - NINT ( rz ( jnb ) - rz ( ia ) )
+        CALL dirkar_1 ( xxx , yyy , zzz , simu_cell%A , 1 )
+        if ( jtnb .eq. it ) WRITE ( kkkk ,'(a,3e20.12)') atype ( jnb ) , xxx , yyy , zzz
+      enddo
+    enddo
+    !WRITE ( 10000 , '(a,i6,a,i6,a,<Nb(ia)>(i6,a))' ) 'neighbors of atom : ', ia
+    !, ' #nb : ', Nb ( ia ), ' : ', ( selectedneighbors ( ia , ja ) , atype
+    !(selectedneighbors ( ia , ja )) , ja = 1 , Nb ( ia ) )
+  enddo
+  deallocate ( natmi_cluster )
+  deallocate ( atypei_cluster )
+
+
 
   ! =================================
   !         some statistic
@@ -477,12 +485,10 @@ SUBROUTINE fixed_distance
     enddo
   enddo
 
-  OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
   WRITE ( kunit_VOIS1FF , '(a)' ) '#atom    nb_neighbors       ... of different types ... '
   do ia = 1 , natm
    WRITE ( kunit_VOIS1FF , '(2i6,i6,<ntype>(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
   enddo
-  CLOSE( kunit_VOIS1FF )
   deallocate ( spec_vois1 )
 
 
@@ -492,7 +498,7 @@ SUBROUTINE fixed_distance
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   return
 
@@ -505,17 +511,20 @@ END SUBROUTINE fixed_distance
 !     van Meel, Filion, Valeriani and Frenkel November (2011)             
 !
 ! ******************************************************************************
-SUBROUTINE sann
+SUBROUTINE sann ( iconf )
 
-  USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype , coord_format
+  USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype , natmi
   USE control,          ONLY :  cutshortrange
-  USE cell,             ONLY :  kardir , dirkar
+  USE cell,             ONLY :  kardir , dirkar, dirkar_1
   USE io_file,          ONLY :  ionode , stderr , stdout , kunit_VOIS1FF
   
   implicit none
+  
+  ! global
+  integer, intent ( in ) :: iconf 
 
   ! local
-  integer :: ia, ja , im , sm , it , jt 
+  integer :: ia, ja , im , sm , it , jt  , jnb , jtnb , kkkk , i
   integer :: m
   real(kind=dp) :: dist
   real(kind=dp) :: rxi ,ryi ,rzi
@@ -523,7 +532,9 @@ SUBROUTINE sann
   real(kind=dp) :: sxij ,syij ,szij
   real(kind=dp) :: rm , rm1  !     R(m) as in Eq.3 in the manuscript
 
-  integer       , dimension (:)   , allocatable  :: Nb 
+  integer       , dimension (:)   , allocatable  :: Nb
+  integer       , dimension (:)   , allocatable  :: natmi_cluster 
+  character(len=2), dimension (:) , allocatable  :: atypei_cluster 
   integer       , dimension (:)   , allocatable  :: countneighbors 
   integer       , dimension (:,:) , allocatable  :: neighbor 
   integer       , dimension (:,:) , allocatable  :: sortneighbor 
@@ -534,6 +545,7 @@ SUBROUTINE sann
   real(kind=dp) , dimension (:,:) , allocatable  :: distance 
   real(kind=dp) , dimension (:)   , allocatable  :: tmpdist 
   real(kind=dp) , dimension (:)   , allocatable  :: td 
+  real(kind=dp)                                  :: xxx , yyy , zzz 
   real(kind=dp) , dimension (:,:) , allocatable  :: distancesorted 
 
   ! distributions
@@ -585,7 +597,8 @@ SUBROUTINE sann
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
   do ia = 1 , natm
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -602,7 +615,7 @@ SUBROUTINE sann
       ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
       rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
       dist = rxij * rxij + ryij * ryij + rzij * rzij
-      !print*,ia,ja,sqrt(dist)
+!      print*,ia,ja,sqrt(dist),cutshortrange*0.75d0
       if ( sqrt(dist) .lt. cutshortrange*0.75d0 ) then
         ! ja is a neighbour of ia
           countneighbors(ia) = countneighbors(ia) + 1
@@ -660,7 +673,7 @@ SUBROUTINE sann
   !do ia = 1 , natm
     ia = 1
     do im = 1 , countneighbors ( ia )
-      WRITE ( stdout , '(a)' ) distancesorted ( ia , im ) , sortneighbor ( ia , im ) 
+      WRITE ( stdout , * ) distancesorted ( ia , im ) , sortneighbor ( ia , im ) 
     enddo 
   !enddo
 #endif
@@ -717,9 +730,52 @@ SUBROUTINE sann
     enddo
   enddo
 
-  !do ia = 1 , natm
-  !  WRITE ( stdout , '(a,i6,a,i6,a,<Nb(ia)>(i6,a))' ) 'neighbors of atom : ', ia , ' #nb : ', Nb ( ia ), ' : ', ( selectedneighbors ( ia , ja ) , atype (selectedneighbors ( ia , ja )) , ja = 1 , Nb ( ia ) )
-  !enddo
+  ! output clusters 
+  allocate ( natmi_cluster ( 0: ntype ) )
+  allocate ( atypei_cluster ( 0: ntype ) )
+  do ia = 1 , natm
+    it = itype ( ia ) 
+    atypei_cluster(0) = 'C'//atype(ia)
+    atypei_cluster(1) = 'A'
+    atypei_cluster(2) = 'B'
+    natmi_cluster     = 0
+    do ja = 1 , Nb ( ia )
+      jnb = selectedneighbors ( ia , ja )
+      jtnb= itype ( jnb ) 
+      natmi_cluster(jtnb) = natmi_cluster(jtnb) + 1
+    enddo
+    natmi_cluster(0)    = 1
+    kkkk = 10000+Nb ( ia ) + 1
+    kk(Nb ( ia ) + 1) = kk(Nb ( ia ) + 1) + 1
+    WRITE ( kkkk , * ) Nb ( ia ) + 1
+    WRITE ( kkkk , '(a)' ) 'cluster'
+    WRITE ( kkkk , '(3f20.12)' )  1000.0_dp ,    0.0_dp ,    0.0_dp
+    WRITE ( kkkk , '(3f20.12)' )     0.0_dp , 1000.0_dp ,    0.0_dp
+    WRITE ( kkkk , '(3f20.12)' )     0.0_dp ,    0.0_dp , 1000.0_dp
+    WRITE ( kkkk , '(i4)'      )  ntype+1
+    WRITE ( kkkk , '(<ntype+1>a3 )') ( atypei_cluster(it) , it=0,ntype )
+    WRITE ( kkkk , *           ) ( natmi_cluster (it) , it=0,ntype )
+    WRITE ( kkkk ,'(A)')         'Cartesian'
+    WRITE ( kkkk ,'(a,3e20.12)') atypei_cluster(0) , 0.0_dp , 0.0_dp , 0.0_dp 
+    do it = 1 , ntype
+      do ja = 1 , Nb ( ia )
+        jnb = selectedneighbors ( ia , ja )
+        jtnb= itype ( jnb )
+        xxx = rx ( jnb ) - rx ( ia ) - NINT ( rx ( jnb ) - rx ( ia ) )
+        yyy = ry ( jnb ) - ry ( ia ) - NINT ( ry ( jnb ) - ry ( ia ) )
+        zzz = rz ( jnb ) - rz ( ia ) - NINT ( rz ( jnb ) - rz ( ia ) )
+        CALL dirkar_1 ( xxx , yyy , zzz , simu_cell%A , 1 )
+        if ( jtnb .eq. it ) WRITE ( kkkk ,'(a,3e20.12)') atype ( jnb ) , xxx , yyy , zzz 
+      enddo 
+    enddo
+    !WRITE ( 10000 , '(a,i6,a,i6,a,<Nb(ia)>(i6,a))' ) 'neighbors of atom : ', ia , ' #nb : ', Nb ( ia ), ' : ', ( selectedneighbors ( ia , ja ) , atype (selectedneighbors ( ia , ja )) , ja = 1 , Nb ( ia ) )
+  enddo
+  deallocate ( natmi_cluster )
+  deallocate ( atypei_cluster )
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   ! ===================================================
   !  Square version : discard selectedneighbors atoms
@@ -881,7 +937,7 @@ SUBROUTINE sann
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
       
   return
 
@@ -919,7 +975,7 @@ END SUBROUTINE sann
 ! ******************************************************************************
 SUBROUTINE voronoi_construction
 
-  USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype, coord_format 
+  USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype 
   USE control,          ONLY :  cutshortrange
   USE cell,             ONLY :  kardir, dirkar
   USE io_file,          ONLY :  ionode, stdout , stderr , kunit_VOIS1FF
@@ -944,7 +1000,7 @@ SUBROUTINE voronoi_construction
   integer       , dimension (:,:)   , allocatable :: spec_vois1
 
   integer :: knb
-#ifdef vertices_info_voronoi
+#ifdef further_info_voronoi
   integer :: ver
 #endif
 
@@ -983,7 +1039,7 @@ SUBROUTINE voronoi_construction
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   ! ======================================
   !         MAIN LOOP STARTS  
@@ -1071,7 +1127,7 @@ SUBROUTINE voronoi_construction
 #ifdef debug_vois1_voronoi
   WRITE ( stdout , '(a)' ) 'before merge_sort'
   do im = 1 , ncan
-    WRITE ( stdout , '(a)' ) ps ( im ) , px ( im ) , py ( im )
+    WRITE ( stdout , '(3f16.8)' ) ps ( im ) , px ( im ) , py ( im )
   enddo
 #endif
     ! ===========================================
@@ -1116,13 +1172,13 @@ SUBROUTINE voronoi_construction
     WRITE(*,10001)
 #endif
     do can = 1, ncan
-      if ( edges ( can ) .ne. 0) then
+      if ( edges ( can ) .ne. 0 ) then
         ps ( can ) = sqrt ( ps ( can ) )
 #ifdef further_info_voronoi    
         WRITE(*,'(2i5,4f12.5)') tag ( can ), edges ( can ), px ( can ), py ( can ), pz ( can ), ps ( can )
 #endif
         nb ( ia ) = nb ( ia ) + 1
-        selectedneighbors ( nb (ia) , ia ) = tag ( can )
+        selectedneighbors ( ia, nb (ia) ) = tag ( can )
       endif
     enddo
 
@@ -1157,8 +1213,8 @@ SUBROUTINE voronoi_construction
     do im = 1, Nb ( ia )
       ja = selectedneighbors ( ia , im )
       ok = .FALSE.
-      jm = 0
-      do while ( ( .NOT. ok ) .AND. ( jm .LE. Nb ( ja ) )) 
+      jm = 1
+      do while ( jm .LE. Nb ( ja ) ) 
         ok = ( ia .EQ. selectedneighbors ( ja , im ) )
         jm = jm + 1
       enddo
@@ -1229,7 +1285,7 @@ SUBROUTINE voronoi_construction
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
 
 10001   FORMAT(1x,'atom ',3x,'face ',1x,'index ',3x,'edges ',3x,'            relative posisiton         ',3x,'  distance')

@@ -30,6 +30,7 @@
 MODULE msd
 
   USE constants,  ONLY : dp
+  USE mpimdff 
   implicit none
 
 !  integer ,PARAMETER :: nblock=10, ibmax=20
@@ -243,7 +244,6 @@ SUBROUTINE msd_main ( nmsd )
 
   implicit none
 
-  INCLUDE 'mpif.h'
   ! global
   integer :: nmsd
 

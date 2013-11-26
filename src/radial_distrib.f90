@@ -29,12 +29,12 @@
 MODULE radial_distrib 
 
   USE constants,                ONLY :  dp
+  USE mpimdff
 
   implicit none
 
   integer :: nbins            !< (internal) number of bins in g(r) distribution
   integer :: npairs            !< (internal) number of bins in g(r) distribution
-  integer :: nskip            !< number of configurations skipped 
   integer :: nconf            !< number of configurations used in g(r) calculation
   real(kind=dp) :: cutgr      !< radial cut-off 
   real(kind=dp) :: resg       !< resolution in g(r) distribution 
@@ -63,7 +63,6 @@ SUBROUTINE gr_init
   character(len=132) :: filename
 
   namelist /grtag/   nconf , &
-                     nskip , &
                      cutgr , &
                      resg  
 
@@ -117,7 +116,7 @@ SUBROUTINE gr_alloc
 
   implicit none
 
-  if ( calc .ne. 'gr' .and. calc .ne. 'rmc' .and. calc .ne. 'rmc-invert' .and. calc .ne. 'rmc-efg' .and. calc .ne. 'rmc-efg-invert' ) return
+  if ( calc .ne. 'gr' .and. calc .ne. 'rmc' ) return
   allocate(  gr ( 0 : nbins - 1 , 0 : ntype , 0 : ntype ) ) 
   gr = 0      
 
@@ -163,7 +162,6 @@ SUBROUTINE gr_default_tag
   !  default value
   ! ===============
   resg = 0.1_dp
-  nskip = 0
   nconf = 0
   cutgr=0.5_dp * MIN(simu_cell%WA,simu_cell%WB,simu_cell%WC)
 
@@ -196,7 +194,6 @@ SUBROUTINE gr_print_info(kunit)
                   WRITE ( kunit ,'(a)')                 'read configuration from file         :   TRAJFF'
                   blankline(kunit)
                   WRITE ( kunit ,'(a,i5)')              'number of config. in TRAJFF          = ',nconf        
-                  WRITE ( kunit ,'(a,i5)')              'number of config. to be skipped      = ',nskip
                   blankline(kunit)
       endif
    endif 
@@ -213,21 +210,19 @@ END SUBROUTINE gr_print_info
 ! ******************************************************************************
 SUBROUTINE grcalc
 
+  USE control,                  ONLY :  itraj_format , itraj_save
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                        rho , config_alloc , simu_cell , atypei , itype, natmi , coord_format_allowed , coord_format
-  USE control,                  ONLY :  myrank , numprocs
+                                        rho , config_alloc , simu_cell , atypei , itype, natmi , coord_format_allowed , atom_dec , read_traj , read_traj_header
   USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
   USE cell,                     ONLY :  lattice , dirkar
   USE time,                     ONLY :  grtimetot_comm
 
   implicit none
-  INCLUDE 'mpif.h'
 
   ! local 
   integer                                              :: ia , ic , it , ngr , igr , i 
   integer                                              :: it1 , it2 , mp , ierr 
-  integer                                              :: iastart , iaend 
   real(kind=dp),     dimension ( : , : ) , allocatable :: grr 
   integer,           dimension ( : )     , allocatable :: nr 
   character(len=15), dimension ( : )     , allocatable :: cint
@@ -243,30 +238,14 @@ SUBROUTINE grcalc
   character(len=60)  :: cccc
 
 
-  OPEN (UNIT = kunit_TRAJFF ,FILE = 'TRAJFF') 
   OPEN ( kunit_GRTFF , file = 'GRTFF' )
   OPEN ( kunit_NRTFF , file = 'NRTFF' )
 
-  READ ( kunit_TRAJFF , * ) natm
-  READ ( kunit_TRAJFF , * ) system
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-  READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-  READ ( kunit_TRAJFF , * ) ntype
-  READ ( kunit_TRAJFF ,* ) ( atypei ( it ) , it = 1 , ntype )
-  IF ( ionode ) WRITE ( stdout      ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
-  READ( kunit_TRAJFF ,*)   ( natmi ( it ) , it = 1 , ntype )
-  READ( kunit_TRAJFF ,*) cpos
-  ! ======
-  !  cpos
-  ! ======
-  do i = 1 , size( coord_format_allowed )
-   if ( trim(cpos) .eq. coord_format_allowed(i))  allowed = .true.
-  enddo
-  if ( .not. allowed ) then
-    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed
-    STOP
-  endif
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
+  CALL read_traj_header ( kunit_TRAJFF , itraj_format )
+  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
 
   CALL lattice ( simu_cell ) 
   rho = DBLE ( natm )  / simu_cell%omega 
@@ -280,7 +259,7 @@ SUBROUTINE grcalc
   !  and decomposition can be applied 
   ! ================================== 
   CALL config_alloc 
-  CALL do_split ( natm , myrank , numprocs , iastart , iaend , 'atoms' )
+  CALL do_split ( natm , myrank , numprocs , atom_dec , 'atoms' )
   CALL gr_alloc
 
   npairs =  ntype * ( ntype + 1 ) / 2
@@ -291,64 +270,19 @@ SUBROUTINE grcalc
 
 #ifdef debug2
   if ( ionode ) then 
-    WRITE ( stdout , '(a,2i6)' ) 'debug : iastart, iaend ',iastart , iaend
+    WRITE ( stdout , '(a,2i6)' ) 'debug : atom decomposition istart, iend ', atom_dec%istart , atom_dec%iend
     WRITE ( stdout , '(a,2i6)' ) 'debug : number of type npairs ', npairs
   endif
 #endif
 
   CALL typeinfo_init
 
-  ! ==========================================   
-  !  skip the first nskip configurations 
-  ! ==========================================
-  if (nskip.gt.0) then
-    do ic = 1,nskip
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) iiii   
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) cccc
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) aaaa   ,  aaaa ,  aaaa
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) iiii
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
-      if ( ic .ne. 1 ) READ ( kunit_TRAJFF , * ) cpos
-      do ia = 1 , natm 
-        READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-      enddo      
-    enddo
-  endif
-
   ngr = 0
-  do ic = nskip + 1, nconf
+  do ic = 1, nconf
     io_node WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nconf,' ] '
-    ! ===================================
-    !  read config from trajectory file
-    ! ===================================
-    if ( ic .ne. (nskip + 1) .or. nskip .ne. 0 ) then
-      READ ( kunit_TRAJFF , * ) iiii
-      READ ( kunit_TRAJFF , * ) cccc
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
-      READ ( kunit_TRAJFF , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
-      READ ( kunit_TRAJFF , * ) iiii
-      READ ( kunit_TRAJFF , * ) ( cccc , it = 1 , ntype )
-      READ ( kunit_TRAJFF , * ) ( iiii , it = 1 , ntype )
-      READ ( kunit_TRAJFF , * ) cpos
-    endif
-    do ia = 1 , natm
-      READ ( kunit_TRAJFF , * ) atype ( ia ) , rx ( ia) , ry ( ia ) , rz ( ia ) !, aaaa,aaaa,aaaa,aaaa,aaaa,aaaa
-    enddo
-    if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
-      coord_format = 'D'
-      ! ======================================
-      !         direct to cartesian
-      ! ======================================
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
-      if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
-    else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
-      coord_format = 'C'
-      if ( ionode .and. ic .eq. 1 ) WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
-    endif
+
+    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save ) 
+
     CALL lattice ( simu_cell )
     rho = DBLE ( natm )  / simu_cell%omega
 
@@ -356,7 +290,7 @@ SUBROUTINE grcalc
     ! ==========================
     !  calc radial_distribution 
     ! ==========================  
-    call gr_main ( iastart , iaend )
+    call gr_main 
 
   enddo !nconf 
 
@@ -449,19 +383,15 @@ END SUBROUTINE grcalc
 !! based on Frenkel and Smit
 !
 ! ******************************************************************************
-SUBROUTINE gr_main ( iastart , iaend )
+SUBROUTINE gr_main 
 
   USE control,                  ONLY :  myrank, lvnlist
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, coord_format, list, point
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, list, point , atom_dec
   USE io_file,                  ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
   USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
-  INCLUDE 'mpif.h'
-
-  ! global
-  integer, intent(in) :: iastart , iaend
 
   ! local
   integer :: ia , ja , ierr , ita , jta 
@@ -480,8 +410,10 @@ SUBROUTINE gr_main ( iastart , iaend )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
-  CALL kardir ( natm , rx , ry , rz , simu_cell%B , coord_format )
-  do ia = iastart , iaend
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
+  do ia = atom_dec%istart , atom_dec%iend
+
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
@@ -525,7 +457,7 @@ SUBROUTINE gr_main ( iastart , iaend )
   ! ======================================
   !         direct to cartesian
   ! ======================================
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A , coord_format )
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
   ttt2 = MPI_WTIME(ierr)
   grtimetot = grtimetot + ( ttt2 - ttt1 )
 

@@ -55,11 +55,6 @@ MODULE io_file
   !> end configuration 
   integer, PARAMETER :: kunit_CONTFF    = 40
 
-  !> electric field gradient trajectory
-  integer, PARAMETER :: kunit_EFGFF     = 50  
-  integer, PARAMETER :: kunit_EFGFFIT1  = 51  
-  integer, PARAMETER :: kunit_EFGFFIT2  = 52  
-
   !> all efg for each atoms (if lefgprintall)
   integer, PARAMETER :: kunit_EFGALL    = 60 
   integer, PARAMETER :: kunit_EFGALLIT1 = 61
@@ -125,6 +120,7 @@ MODULE io_file
   !> EFG auto-correlation output file
   integer, PARAMETER :: kunit_EFGACFFF  = 230
   integer, PARAMETER :: kunit_NMRACFFF  = 231
+  integer, PARAMETER :: kunit_UIACFFF   = 232
 
   !> static structure factor
   integer, PARAMETER :: kunit_STRFACFF  = 240
@@ -163,7 +159,7 @@ CONTAINS
 SUBROUTINE io_init
 
   implicit none
-  INCLUDE "mpif.h"
+  include "mpif.h"
 
   ! local 
   integer :: myrank , ierr

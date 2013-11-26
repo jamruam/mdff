@@ -29,15 +29,19 @@
 MODULE control 
 
   USE constants , ONLY : dp 
+  USE mpimdff
       
   implicit none
 
-  integer,           SAVE :: myrank           !< rank of the actual proc   
-  integer,           SAVE :: numprocs         !< total number of procs    
   integer,           SAVE :: nprop            !< properties period
+  integer                 :: itraj_start      !< write trajectory from step itraj_start
+  integer                 :: itraj_period     !< write trajectory each itraj_period steps 
+  integer                 :: itraj_format     !< choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
+  integer                 :: iscff_format     !< format of optimized configuration 0 = BINARY
   character(len=8),  SAVE :: DATE             !< execution DATE
   character(len=10), SAVE :: HOUR             !< execution HOUR
 
+  logical,           SAVE :: ltraj            !< save trajectory                                    
   logical,           SAVE :: lstatic          !< no MD                                                
   logical,           SAVE :: lvnlist          !< verlet list if .true.                            
   logical,           SAVE :: lpbc             !< PBC (periodic ...) if .true.                     
@@ -55,16 +59,17 @@ MODULE control
   real(kind=dp),     SAVE :: cutlongrange     !< longrange cutoff
   real(kind=dp),     SAVE :: cutshortrange    !< shortrange cutoff
   real(kind=dp),     SAVE :: skindiff         !< verlet-list cutoff ( cutoff + skindiff )
+  TYPE(decomposition), SAVE :: kpt_dec
 
 
   ! =====================================================
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc             !< type of calculation : md, opt, vib, efg ...  
-  character(len=60), SAVE :: calc_allowed(15)    
+  character(len=60), SAVE :: calc_allowed(12)    
   data calc_allowed / 'md'       , 'opt'     , 'vib'        , 'vib+fvib'       , 'vib+gmod' , &
                       'vib+band' , 'vib+dos' , 'efg'        , 'efg+acf'        , 'gr'       , &
-                      'vois1'    , 'rmc'     , 'rmc-invert' , 'rmc-invert-efg' , 'rmc-efg'  /
+                      'vois1'    , 'rmc'     /
 
   ! =====================================================
   ! algorithm for long-range calculation
@@ -81,6 +86,14 @@ MODULE control
   character(len=60), SAVE :: dgauss_allowed(3) 
   data dgauss_allowed / 'boxmuller_basic', 'boxmuller_polar' , 'knuth' /
 
+  ! =====================================================
+  !  format of TRAJFF allowed  
+  ! =====================================================
+  character(len=3), SAVE :: itraj_save
+  character(len=3), SAVE :: iscff_save
+  character(len=3), SAVE :: itraj_save_allowed(4)
+  data itraj_save_allowed / 'rvf' , 'rnn' , 'rnf' , 'rvn' /
+  
 CONTAINS
 
 ! *********************** SUBROUTINE control_init ******************************
@@ -106,6 +119,7 @@ SUBROUTINE control_init ( MDFF )
                          lcoulomb     , &
                          lsurf        , &
                          lharm        , &
+                         ltraj        , &
                          cutlongrange , &
                          cutshortrange, &
                          lvnlist      , &
@@ -119,6 +133,11 @@ SUBROUTINE control_init ( MDFF )
                          calc         , &
                          dgauss       , &
                          longrange    , &
+                         itraj_start  , & 
+                         itraj_period , & 
+                         itraj_format , & 
+                         itraj_save   , & 
+                         iscff_format , & 
                          skindiff     
                
   ! ======================
@@ -171,6 +190,7 @@ SUBROUTINE control_default_tag
   lcoulomb      = .false.
   lsurf         = .false.
   lharm         = .false.
+  ltraj         = .false.
   lvnlist       = .true.
   lstatic       = .false.
   lpbc          = .true.
@@ -182,10 +202,15 @@ SUBROUTINE control_default_tag
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
-  cutlongrange  = 40.0_dp
-  cutshortrange = 3.0_dp
   skindiff      = 0.15_dp
+  cutshortrange = 0.0_dp
+  cutlongrange  = 0.0_dp
   nprop         = 1
+  itraj_start   = 1          
+  itraj_period  = 10000
+  itraj_format  = 1
+  itraj_save    = 'rnn'
+  iscff_format  = 1
 
   return 
  
@@ -237,12 +262,36 @@ SUBROUTINE control_check_tag
   if ( .not. allowed ) then
     io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: dgauss should be ', dgauss_allowed
   endif
+  ! =========
+  ! traj_save  
+  ! =========
+  do i = 1 , size( itraj_save_allowed )
+   if ( trim(itraj_save) .eq. itraj_save_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: itraj_save should be ', itraj_save_allowed
+  endif
+  do i = 1 , size( itraj_save_allowed )
+   if ( trim(iscff_save) .eq. itraj_save_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: iscff_save should be ', itraj_save_allowed
+  endif
+
 
   if ( calc .ne. 'md' ) return 
 
   if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm ) then
    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, harm , morse or coulomb or all of them . Anyway make a choice !! '
    STOP
+  endif
+
+  if ( ( lbmlj .or. lmorse ) .and. cutshortrange .eq. 0.0_dp ) then
+    io_node WRITE ( stdout , '(a)' ) 'controltag: cutshortrange is null', cutshortrange
+  endif
+
+  if ( lcoulomb .and. ( cutlongrange .eq. 0.0_dp .or. cutshortrange .eq. 0.0_dp ) ) then
+    io_node WRITE ( stdout , '(a)' ) 'controltag: cutlongrange or cutshortrange is null', cutlongrange, cutshortrange
   endif
 
   return
@@ -261,6 +310,7 @@ END SUBROUTINE control_check_tag
 SUBROUTINE control_print_info( kunit , MDFF )
 
   USE io_file,  ONLY :  ionode 
+  USE mpimdff,  ONLY :  numprocs
 
   implicit none
  

@@ -17,6 +17,7 @@
 ! ===== fmV =====
 
 ! ======= Hardware =======
+#include "symbol.h"
 ! ======= Hardware =======
 
 !> \brief
@@ -24,6 +25,7 @@
 MODULE cell
   
   USE constants,                ONLY :  dp 
+  USE mpimdff
 
   implicit none      
 
@@ -166,21 +168,22 @@ END SUBROUTINE lattice
 !! \param[in,out] VX , VY , VZ vectors being transformed
 !! \param[in] BASIS basis vector ( direct or reciprocal lattice )
 ! ******************************************************************************
-SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS , coord_format )
+SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
+
+  USE time,     ONLY : kardirtottime
 
   implicit none 
 
   ! global
   integer , intent(in) :: NMAX
   real(kind=dp) :: VX(NMAX), VY(NMAX),VZ(NMAX), BASIS(3,3)
-  character(len=1) :: coord_format
 
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+  dectime
 
-  ! quick return
- ! if ( coord_format .eq. 'D' ) return
+  statime  
 
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(2,1)+VZ(N)*BASIS(3,1)
@@ -191,8 +194,8 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS , coord_format )
     VZ(N)=V3
   enddo
 
-  coord_format ='D'
-
+  stotime
+  addtime(kardirtottime)
   return
 
 END SUBROUTINE
@@ -211,22 +214,21 @@ END SUBROUTINE
 !! \param[in,out] VX , VY , VZ vectors being transformed
 !! \param[in] BASIS basis vector ( direct or reciprocal lattice )
 ! ******************************************************************************
-SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS , coord_format )
- 
+SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
+
+  USE time,     ONLY : dirkartottime 
   implicit none
 
   ! global
   integer :: NMAX
   real(kind=dp) :: VX ( NMAX ) , VY ( NMAX ) , VZ ( NMAX ) , BASIS(3,3)
-  character(len=1) :: coord_format
 
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+  dectime
 
-  ! quick return
-!  if ( coord_format .eq. 'C' ) return
-
+  statime  
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(1,2)+VZ(N)*BASIS(1,3)
     V2=VX(N)*BASIS(2,1)+VY(N)*BASIS(2,2)+VZ(N)*BASIS(2,3)
@@ -235,7 +237,9 @@ SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS , coord_format )
     VY(N)=V2
     VZ(N)=V3
   enddo
-  coord_format = 'C'
+
+  stotime
+  addtime(dirkartottime)
   return
 
 END SUBROUTINE dirkar 
@@ -250,7 +254,7 @@ END SUBROUTINE dirkar
 !! \param[in] latt lattice type
 !! \param[in,out] xxx , yyy , zzz position vectors 
 ! ******************************************************************************
-SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt , coord_format )
+SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
 
   implicit none
 
@@ -258,12 +262,11 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt , coord_format )
   integer :: natm
   real(kind=dp) :: xxx ( natm ) , yyy ( natm ) , zzz ( natm )
   TYPE(celltype) latt
-  character(len=1) :: coord_format
 
   ! local
   integer :: ia
 
-  CALL kardir ( natm , xxx , yyy , zzz , latt%B , coord_format ) 
+  CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
 
   do ia = 1 , natm
      xxx ( ia ) = xxx ( ia ) - NINT ( xxx ( ia ) ) 
@@ -271,11 +274,53 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt , coord_format )
      zzz ( ia ) = zzz ( ia ) - NINT ( zzz ( ia ) )  
   enddo
 
-  CALL dirkar ( natm , xxx , yyy , zzz , latt%A , coord_format ) 
+  CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 
 
   return
 
 END SUBROUTINE periodicbc
+
+
+! *********************** SUBROUTINE dirkar ************************************
+!> \brief
+!! transform a set of scalars from
+!! ) direct lattice      (BASIS must be equal to A direct lattice)
+!! ) reciprocal lattice  (BASIS must be equal to B reciprocal lattice)
+!! to cartesian coordinates
+!! \author 
+!! gK (VASP)
+!! \note 
+!! adapted from VASP
+!! \param[in] NMAX dimension of vectors VX , VY , VZ 
+!! \param[in,out] VX , VY , VZ vectors being transformed
+!! \param[in] BASIS basis vector ( direct or reciprocal lattice )
+! ******************************************************************************
+SUBROUTINE dirkar_1 ( VX , VY , VZ , BASIS , ncell )
+
+  USE time,     ONLY : dirkartottime
+  implicit none
+
+  ! global
+  integer :: ncell
+  real(kind=dp) :: VX , VY , VZ , BASIS(3,3)
+
+  ! local 
+  real(kind=dp) :: V1 , V2 , V3
+  dectime
+
+  statime
+  V1=VX*BASIS(1,1)+VY*BASIS(1,2)+VZ*BASIS(1,3)
+  V2=VX*BASIS(2,1)+VY*BASIS(2,2)+VZ*BASIS(2,3)
+  V3=VX*BASIS(3,1)+VY*BASIS(3,2)+VZ*BASIS(3,3)
+  VX=V1*REAL(ncell,kind=dp)
+  VY=V2*REAL(ncell,kind=dp)
+  VZ=V3*REAL(ncell,kind=dp)
+
+  stotime
+  addtime(dirkartottime)
+  return
+
+END SUBROUTINE dirkar_1
 
 
 END MODULE cell

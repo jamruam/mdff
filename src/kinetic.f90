@@ -174,7 +174,7 @@ SUBROUTINE andersen_velocities
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , vx , vy , vz
   USE md,                       ONLY :  dt , temp , nuandersen 
-  USE control,                  ONLY :  myrank , dgauss
+  USE control,                  ONLY :  dgauss
 
   implicit none
 
@@ -235,9 +235,9 @@ SUBROUTINE uniform_random_velocities
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
   USE io_file,  ONLY :  ionode , stdout
+  USE mpimdff
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! local
   integer :: i
@@ -328,9 +328,9 @@ SUBROUTINE maxwellboltzmann_velocities
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
   USE io_file,  ONLY :  ionode , stdout 
+  USE mpimdff
 
   implicit none
-  INCLUDE "mpif.h"
 
   ! local
   integer :: ia

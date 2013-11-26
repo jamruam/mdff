@@ -32,6 +32,7 @@ MODULE config
 
   USE constants,                ONLY :  dp 
   USE cell,                     ONLY :  celltype
+  USE mpimdff,                  ONLY :  decomposition
 
   implicit none
 
@@ -72,7 +73,8 @@ MODULE config
   character(len=3), dimension(:) , allocatable   :: atype            !< atom type label  
   character(len=3), dimension(0:ntypemax)        :: atypei           !< type label (per type)
   character(len=3), dimension(:,:) , allocatable :: allowedmove      !< atom type label  
-  character(len=3)                               :: coord_format     !< coordinat format = 'C' : Cartesian of 'D' : Direct
+
+  TYPE(decomposition), SAVE :: atom_dec
 
 
   ! =====================================================
@@ -202,7 +204,7 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
 
-  !CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell , coord_format )
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -499,6 +501,262 @@ SUBROUTINE ions_displacement( dis, ax , ay , az )
   return
  
 END SUBROUTINE ions_displacement
+
+! *********************** SUBROUTINE write_trajff_xyz **************************
+!> \brief
+!! write trajectory (pos, vel, for) to TRAJFF file
+! ******************************************************************************
+SUBROUTINE write_trajff_xyz
+
+  USE control,                  ONLY :  itraj_format , itraj_save
+  USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
+  USE cell,                     ONLY :  periodicbc , kardir , dirkar
+
+  implicit none
+
+  ! local
+  integer :: ia , it , i , j
+  real(kind=dp), dimension (:) , allocatable :: xxx , yyy , zzz
+
+  allocate ( xxx ( natm ) , yyy ( natm ) , zzz ( natm ) )
+
+  xxx = rx
+  yyy = ry
+  zzz = rz
+
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
+
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
+
+
+  if ( ionode ) then
+   if ( itraj_format .ne. 0) then
+     WRITE ( kunit_TRAJFF , '(i6)' ) natm
+     WRITE ( kunit_TRAJFF , '(a)' ) system
+     do i = 1 , 3
+       WRITE ( kunit_TRAJFF , '(3f20.12)' ) (simu_cell%A(i,j),j=1,3)
+     enddo
+     WRITE ( kunit_TRAJFF , '(i4)' ) ntype
+     WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
+     WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
+     WRITE ( kunit_TRAJFF,'(A)') 'Cartesian'
+    if ( itraj_save .eq. 'rvf' ) then  
+      do ia = 1 , natm
+        WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , vx( ia ) , vy( ia ) , vz( ia ) , fx( ia ) , fy( ia ) , fz( ia )
+      enddo
+    endif
+    if ( itraj_save .eq. 'rvn' ) then
+      do ia = 1 , natm
+        WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , vx( ia ) , vy( ia ) , vz( ia )
+      enddo
+    endif
+    if ( itraj_save .eq. 'rnf' ) then
+      do ia = 1 , natm
+        WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , fx( ia ) , fy( ia ) , fz( ia )
+      enddo
+    endif
+    if ( itraj_save .eq. 'rnn' ) then
+      do ia = 1 , natm
+        WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia )
+      enddo
+    endif
+   endif
+   if ( itraj_format .eq. 0) then
+     WRITE ( kunit_TRAJFF ) natm
+     WRITE ( kunit_TRAJFF ) system
+     do i = 1 , 3
+        WRITE ( kunit_TRAJFF ) (simu_cell%A(i,j),j=1,3)
+     enddo
+     WRITE ( kunit_TRAJFF ) ntype
+     WRITE ( kunit_TRAJFF ) ( atypei ( it ) , it = 1 , ntype )
+     WRITE ( kunit_TRAJFF ) ( natmi  ( it ) , it = 1 , ntype )
+     WRITE ( kunit_TRAJFF ) 'C'
+    if ( itraj_save .eq. 'rvf' ) then  
+      WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , vx , vy , vz , fx , fy , fz
+    endif
+    if ( itraj_save .eq. 'rvn' ) then
+      WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , vx , vy , vz
+    endif
+    if ( itraj_save .eq. 'rnf' ) then
+      WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , fx , fy , fz
+    endif
+    if ( itraj_save .eq. 'rnn' ) then
+      WRITE ( kunit_TRAJFF ) xxx , yyy , zzz 
+    endif
+   endif
+  endif
+
+ 200 FORMAT(A2,9E20.12)
+
+  return
+
+END SUBROUTINE write_trajff_xyz
+
+SUBROUTINE read_traj_header ( kunit , iformat ) 
+
+  USE io_file,          ONLY :  ionode , stdout
+
+  implicit none
+
+  integer, intent(in) :: kunit , iformat 
+  integer            :: i , it
+  logical            :: allowed
+  character(len=60)  :: coord_format
+  character(len=60)  :: coord_format1
+  character(len=1)   :: coord_format2
+
+  if ( iformat .ne. 0 ) then
+    READ ( kunit , * ) natm
+    READ ( kunit , * ) system
+    READ ( kunit , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+    READ ( kunit , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+    READ ( kunit , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+    READ ( kunit , * ) ntype
+    READ ( kunit , * ) ( atypei ( it ) , it = 1 , ntype )
+    READ ( kunit , * ) ( natmi ( it )  , it = 1 , ntype )
+    READ ( kunit , * ) coord_format1
+    coord_format = coord_format1
+  endif
+  if ( iformat .eq. 0 ) then
+    READ ( kunit ) natm
+    READ ( kunit ) system
+    READ ( kunit ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+    READ ( kunit ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+    READ ( kunit ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+    READ ( kunit ) ntype
+    READ ( kunit ) ( atypei ( it ) , it = 1 , ntype )
+    READ ( kunit ) ( natmi ( it )  , it = 1 , ntype )
+    READ ( kunit ) coord_format2
+    coord_format = coord_format2
+  endif
+  if ( ionode ) WRITE ( stdout ,'(A,20A3)' ) 'found type information on TRAJFF : ', atypei ( 1:ntype )
+
+  ! ===================
+  !  coord_format test
+  ! ===================
+  do i = 1 , size( coord_format_allowed )
+    if ( trim(coord_format) .eq. coord_format_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in TRAJFF at line 9 should be ', coord_format_allowed , coord_format1
+    STOP
+  endif
+  if ( ionode .and. &
+       ( coord_format .eq. 'Direct' .or. coord_format .eq. 'D' ) ) &
+       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+  if ( ionode .and. &
+       ( coord_format .eq. 'Cartesian' .or. coord_format .eq. 'C' ) ) &
+       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+
+  CLOSE ( kunit )
+
+  return
+
+END SUBROUTINE read_traj_header
+
+SUBROUTINE read_traj ( kunit , iformat , csave ) 
+
+  USE io_file,          ONLY :  ionode , stdout
+  USE cell,             ONLY :  dirkar
+
+  implicit none
+
+  integer, intent(in) :: kunit , iformat
+  character(len=3)    :: csave
+  integer             :: ia , i , it
+  logical             :: allowed
+  character(len=60)   :: coord_format
+  character(len=60)   :: coord_format1
+  character(len=1)    :: coord_format2
+
+  if ( iformat .ne. 0 ) then
+    READ ( kunit , * ) natm
+    READ ( kunit , * ) system
+    READ ( kunit , * ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+    READ ( kunit , * ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+    READ ( kunit , * ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+    READ ( kunit , * ) ntype
+    READ ( kunit , * ) ( atypei ( it ) , it = 1 , ntype )
+    READ ( kunit , * ) ( natmi ( it )  , it = 1 , ntype )
+    READ ( kunit , * ) coord_format1
+    coord_format = coord_format1
+    if ( csave .eq. 'rvf' ) then  
+      do ia = 1 , natm
+        READ ( kunit , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , vx( ia ) , vy( ia ) , vz( ia ) , fx( ia ) , fy( ia ) , fz( ia )
+      enddo
+    endif
+    if ( csave .eq. 'rvn' ) then
+      do ia = 1 , natm
+        READ ( kunit , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , vx( ia ) , vy( ia ) , vz( ia )
+      enddo
+    endif
+    if ( csave .eq. 'rnf' ) then
+      do ia = 1 , natm
+        READ ( kunit , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , fx( ia ) , fy( ia ) , fz( ia )
+      enddo
+    endif
+    if ( csave .eq. 'rnn' ) then
+      do ia = 1 , natm
+        READ ( kunit , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia )
+      enddo
+    endif
+  endif
+  if ( iformat .eq. 0 ) then
+    READ ( kunit ) natm
+    READ ( kunit ) system
+    READ ( kunit ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+    READ ( kunit ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+    READ ( kunit ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+    READ ( kunit ) ntype
+    READ ( kunit ) ( atypei ( it ) , it = 1 , ntype )
+    READ ( kunit ) ( natmi ( it )  , it = 1 , ntype )
+    READ ( kunit ) coord_format2
+    coord_format = coord_format2
+    if ( csave .eq. 'rvf' ) then  
+      READ ( kunit ) rx , ry , rz , vx , vy , vz , fx , fy , fz
+    endif
+    if ( csave .eq. 'rvn' ) then
+      READ ( kunit ) rx , ry , rz , vx , vy , vz
+    endif
+    if ( csave .eq. 'rnf' ) then
+      READ ( kunit ) rx , ry , rz , fx , fy , fz
+    endif
+    if ( csave .eq. 'rnn' ) then
+      READ ( kunit ) rx , ry , rz 
+    endif
+  endif
+
+  ! ====================
+  !  coord_format test
+  ! ====================
+  do i = 1 , size( coord_format_allowed )
+    if ( trim(coord_format) .eq. coord_format_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR in POSFF at line 9 should be ', coord_format_allowed , coord_format
+    STOP
+  endif
+
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  if ( coord_format .eq. 'Direct' .or. coord_format .eq.'D' ) CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
+  return
+
+END SUBROUTINE read_traj
+
+!  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
+!  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
+
+
 
 END MODULE config
 ! ===== fmV =====

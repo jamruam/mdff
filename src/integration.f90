@@ -42,7 +42,7 @@
 !! leap-frog and verlet are not clearly distinguished !!
 !
 ! ******************************************************************************
-SUBROUTINE prop_leap_frog ( iastart , iaend , ikstart , ikend )
+SUBROUTINE prop_leap_frog 
 
   USE constants,                ONLY :  dp 
   USE control,                  ONLY :  lpbc
@@ -52,10 +52,6 @@ SUBROUTINE prop_leap_frog ( iastart , iaend , ikstart , ikend )
   USE field,                    ONLY :  engforce_driver
 
   implicit none
-
-  ! global
-  integer, intent(inout)                    :: iastart , iaend
-  integer, intent(inout)                    :: ikstart , ikend
 
   ! local
   integer                                   :: ia 
@@ -74,7 +70,7 @@ SUBROUTINE prop_leap_frog ( iastart , iaend , ikstart , ikend )
   ! ==========================
   ! force + potential f(t)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
 
   ! ================================================= 
   !  r(t+dt) = 2 r(t) - r (t-dt) + f(t) dt*dt
@@ -129,20 +125,17 @@ END SUBROUTINE prop_leap_frog
 !! test it relatively to prop_leap_frog
 !
 ! ******************************************************************************
-SUBROUTINE prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
+SUBROUTINE prop_velocity_verlet 
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm, rx, ry, rz, vx, vy, vz, fx, fy, fz
   USE md,                       ONLY :  dt
   USE control,                  ONLY :  lpbc , lshiftpot
   USE thermodynamic,            ONLY :  temp_r , e_kin
+  USE io_file,                  ONLY :  ionode
   USE field,                    ONLY :  engforce_driver
 
   implicit none
-
-  ! global
-  integer, intent(inout) :: iastart , iaend 
-  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -151,10 +144,14 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
   real(kind=dp) :: tempi , kin
 
 
+  ! save previous forces
   allocate (fsx(natm),fsy(natm),fsz(natm))
   fsx = 0.0_dp
   fsy = 0.0_dp
   fsz = 0.0_dp
+  fsx = fx
+  fsy = fy
+  fsz = fz
 
   dtsq2 = dt * dt * 0.5_dp
   dt2 = dt * 0.5_dp
@@ -167,15 +164,12 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
     rx  ( ia ) = rx ( ia ) + vx ( ia ) * dt + fx ( ia ) * dtsq2
     ry  ( ia ) = ry ( ia ) + vy ( ia ) * dt + fy ( ia ) * dtsq2
     rz  ( ia ) = rz ( ia ) + vz ( ia ) * dt + fz ( ia ) * dtsq2
-    fsx ( ia ) = fx ( ia )
-    fsy ( ia ) = fy ( ia )
-    fsz ( ia ) = fz ( ia )
   enddo
 
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
 
   ! ==============================================
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
@@ -185,6 +179,7 @@ SUBROUTINE prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
     vy ( ia ) = vy ( ia ) + ( fsy ( ia ) + fy ( ia ) ) * dt2
     vz ( ia ) = vz ( ia ) + ( fsz ( ia ) + fz ( ia ) ) * dt2
   enddo
+
 
   CALL calc_temp(tempi, kin)
   temp_r = tempi      
@@ -205,7 +200,7 @@ END SUBROUTINE prop_velocity_verlet
 !! adapted from Frenkel and Smit
 !
 ! ******************************************************************************
-SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
+SUBROUTINE nose_hoover_chain2 
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz 
@@ -214,9 +209,6 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
 
   implicit none
 
-  ! global
-  integer, intent(inout) :: iastart , iaend 
-  integer, intent(inout) :: ikstart , ikend 
   ! local
   integer                :: inhc
   real(kind=dp)          :: kin , tempi
@@ -230,7 +222,7 @@ SUBROUTINE nose_hoover_chain2 ( iastart , iaend , ikstart , ikend )
 
   CALL chain_nhc_2 ( kin , vxi , xi , Q )
 
-  CALL prop_pos_vel_verlet ( kin , iastart , iaend , ikstart , ikend )
+  CALL prop_pos_vel_verlet ( kin )
 
   CALL chain_nhc_2( kin, vxi, xi , Q ) 
 
@@ -322,7 +314,7 @@ END SUBROUTINE chain_nhc_2
 !! propagates position and position in the velet algorithm
 !
 ! ******************************************************************************
-SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend , ikstart, ikend )
+SUBROUTINE prop_pos_vel_verlet ( kin )
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz 
@@ -334,8 +326,6 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend , ikstart, ikend )
 
   ! global
   real(kind=dp), intent (out) :: kin
-  integer, intent(inout) :: iastart , iaend 
-  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -355,7 +345,7 @@ SUBROUTINE prop_pos_vel_verlet ( kin , iastart , iaend , ikstart, ikend )
   ! ==========================
   ! force + potential f(t+dt)
   ! ==========================
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
 
   kin  = 0.0_dp
   do ia = 1 , natm
@@ -383,7 +373,7 @@ END SUBROUTINE prop_pos_vel_verlet
 !! Journal of Computational Physics 20 pp. 130-139 (1976)
 !
 ! ******************************************************************************
-SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
+SUBROUTINE beeman 
 
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz , fxs , fys , fzs 
@@ -393,10 +383,6 @@ SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
   USE field,                    ONLY :  engforce_driver
 
   implicit none
-
-  ! global
-  integer, intent(inout) :: iastart , iaend 
-  integer, intent(inout) :: ikstart , ikend 
 
   ! local
   integer :: ia
@@ -435,7 +421,7 @@ SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
   ! ===========================
   ! force + potential  f(t+dt)
   ! ===========================
-  CALL engforce_driver ( iastart , iaend , ikstart , ikend )
+  CALL engforce_driver 
 
   ! ==================================================================
   ! v (t+dt) = v (t) + ( 1/3 f(t+dt) + 5/6 f(t) - 1/6  f(t-dt) )  dt
@@ -463,7 +449,7 @@ SUBROUTINE beeman ( iastart , iaend , ikstart , ikend )
 
 END SUBROUTINE beeman
 
-SUBROUTINE nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
+SUBROUTINE nose_hoover_chain_n 
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz
@@ -472,9 +458,6 @@ SUBROUTINE nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
 
   implicit none
 
-  ! global
-  integer, intent(inout) :: iastart , iaend
-  integer, intent(inout) :: ikstart , ikend
   ! local
   integer                :: inhc
   real(kind=dp)          :: kin , tempi
@@ -488,8 +471,8 @@ SUBROUTINE nose_hoover_chain_n ( iastart , iaend , ikstart , ikend )
   CALL calc_temp ( tempi , kin )
   CALL chain_nhc_n( kin , vxi , xi , Q )
 
-!  CALL prop_pos_vel_verlet ( kin , iastart , iaend , ikstart , ikend )
-  CALL prop_velocity_verlet ( iastart , iaend , ikstart , ikend )
+!  CALL prop_pos_vel_verlet ( kin )
+  CALL prop_velocity_verlet 
 
   CALL chain_nhc_n( kin, vxi, xi , Q )
   kin = kin * 0.5_dp

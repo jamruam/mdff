@@ -29,18 +29,22 @@
 ! ******************************************************************************
 MODULE kspace 
 
-  USE constants , ONLY : dp 
+  USE constants ,       ONLY :  dp 
+  USE mpimdff,          ONLY :  decomposition        
 
   implicit none
 
   TYPE :: kmesh
     integer                                        :: nk        !< total number of kpoints
-    integer                                        :: nkcut     !< (internal) number of k-points in each direction 
     integer                                        :: kmax(3)   !< nb of kpts in each recip. direction in ewald sum.
     real(kind=dp)   , dimension(:,:) , allocatable :: kpt       !< kpoints mesh : dimension ( 3 , nk )
     real(kind=dp)   , dimension(:)   , allocatable :: kptk      !< k module
+    real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< k module
     complex(kind=dp), dimension(:,:) , allocatable :: strf      !< facteur de structure
+    complex(kind=dp), dimension(:,:) , allocatable :: expkr     !< facteur de structure
+    complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
     character(len=15)                              :: meshlabel !< giving a name to kmesh
+    TYPE ( decomposition )                         :: kpt_dec   
   END TYPE
 
   TYPE :: kpath
@@ -126,7 +130,7 @@ END SUBROUTINE get_kpath
 !! FMV
 ! ******************************************************************************
 
-SUBROUTINE kpoint_sum_init( km ) 
+SUBROUTINE kpoint_sum_init( km , alpha ) 
 
   USE config,           ONLY :  simu_cell 
   USE io_file,          ONLY :  ionode , stdout
@@ -139,31 +143,34 @@ SUBROUTINE kpoint_sum_init( km )
 
   ! local
   integer :: nx , ny , nz , nk 
-  real(kind=dp) :: kx, ky, kz, kk
+  real(kind=dp) :: kx, ky, kz, kk , alpha , alpha2
 
   io_node WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (full) ',km%meshlabel,' mesh'
+
+  alpha2 = alpha * alpha
 
   nk = 0
   do nx =  - km%kmax(1) , km%kmax(1)
     do ny = - km%kmax(2)  , km%kmax(2)
       do nz = - km%kmax(3) , km%kmax(3)
-        if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
+!        if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
           nk = nk + 1
-          kx = tpi * ( DBLE (nx) * simu_cell%B(1,1) +  DBLE (ny) * simu_cell%B(1,2) + DBLE (nz) * simu_cell%B(1,3) )
-          ky = tpi * ( DBLE (nx) * simu_cell%B(2,1) +  DBLE (ny) * simu_cell%B(2,2) + DBLE (nz) * simu_cell%B(2,3) )
-          kz = tpi * ( DBLE (nx) * simu_cell%B(3,1) +  DBLE (ny) * simu_cell%B(3,2) + DBLE (nz) * simu_cell%B(3,3) )
+          kx = tpi * ( REAL (nx) * simu_cell%B(1,1) +  REAL (ny) * simu_cell%B(1,2) + REAL (nz) * simu_cell%B(1,3) )
+          ky = tpi * ( REAL (nx) * simu_cell%B(2,1) +  REAL (ny) * simu_cell%B(2,2) + REAL (nz) * simu_cell%B(2,3) )
+          kz = tpi * ( REAL (nx) * simu_cell%B(3,1) +  REAL (ny) * simu_cell%B(3,2) + REAL (nz) * simu_cell%B(3,3) )
           kk = kx * kx + ky * ky + kz * kz
           km%kpt ( 1 , nk ) = kx
           km%kpt ( 2 , nk ) = ky
           km%kpt ( 3 , nk ) = kz
           km%kptk ( nk )    = kk
-        endif
+          km%Ak   ( nk )    = EXP ( - kk * 0.25_dp / alpha2 ) / kk 
+!        endif
       enddo
     enddo
   enddo
  
-  if ( nk .ne. km%nkcut ) then
-    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nkcut , km%meshlabel
+  if ( nk .ne. km%nk ) then
+    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nk , km%meshlabel
     STOP
   endif
 
@@ -179,9 +186,9 @@ SUBROUTINE kpoint_sum_init( km )
 
 END SUBROUTINE kpoint_sum_init
 
-! *********************** SUBROUTINE kpoint_sum_init_half **********************
+! *********************** SUBROUTINE kpoint_sum_init_BZ **********************
 !> \brief
-!! this subroutine initialized the k vectors for the ewald summation
+!! this subroutine initialized the k vectors of the Brillouin zone 
 ! kpt(3,:) are the three components in 2pi/box units
 ! kptk is the square module
 !> \param[in,out] km kpoint mesh being initialized
@@ -193,7 +200,7 @@ END SUBROUTINE kpoint_sum_init
 !> \note
 !! this subroutine generate only half of the brillouin zone 
 ! ******************************************************************************
-SUBROUTINE kpoint_sum_init_half ( km )
+SUBROUTINE kpoint_sum_init_BZ ( km )
 
   USE config,           ONLY :  simu_cell 
   USE io_file,          ONLY :  ionode , stdout
@@ -205,34 +212,36 @@ SUBROUTINE kpoint_sum_init_half ( km )
   TYPE ( kmesh ), intent(inout) :: km
   
   ! local
-  integer :: nx , ny , nz , nk 
+  integer       :: nx , ny , nz , nk 
   real(kind=dp) :: kx, ky, kz, kk
+  real(kind=dp) :: kxi , kyi , kzi
 
   io_node WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
   
   nk = 0
   do nx =  0 , km%kmax(1) 
+    kxi = REAL( nx , kind = dp ) / REAL( km%kmax(1) , kind = dp )
     do ny = 0  , km%kmax(2)
+      kyi = REAL( ny , kind = dp ) / REAL( km%kmax(2) , kind = dp )
       do nz = 0 , km%kmax(3)
-        if ( ( nx .ne. 0 ) .or. ( ny .ne. 0) .or. ( nz .ne. 0) ) then
-          nk = nk + 1
-          kx = tpi * DBLE (nx) * simu_cell%BNORM(1) 
-          ky = tpi * DBLE (ny) * simu_cell%BNORM(2)
-          kz = tpi * DBLE (nz) * simu_cell%BNORM(3)
-          kk = kx * kx + ky * ky + kz * kz
-          km%kpt(1,nk) = kx
-          km%kpt(2,nk) = ky
-          km%kpt(3,nk) = kz
-          km%kptk(nk) = kk
-        endif
+        kzi = REAL( nz , kind = dp ) / REAL( km%kmax(3) , kind = dp )
+        nk = nk + 1
+        kx = tpi * ( kxi * simu_cell%B(1,1) +  kyi * simu_cell%B(1,2) + kzi * simu_cell%B(1,3) )
+        ky = tpi * ( kxi * simu_cell%B(2,1) +  kyi * simu_cell%B(2,2) + kzi * simu_cell%B(2,3) )
+        kz = tpi * ( kxi * simu_cell%B(3,1) +  kyi * simu_cell%B(3,2) + kzi * simu_cell%B(3,3) )
+        km%kpt(1,nk) = kx 
+        km%kpt(2,nk) = ky 
+        km%kpt(3,nk) = kz 
+        km%kptk(nk) = kx*kx + ky*ky + kz*kz 
       enddo
     enddo
   enddo
 
-  if ( nk .ne. km%nkcut ) then
-    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init_half ', nk , km%nkcut , km%meshlabel
+  if ( nk .ne. km%nk ) then
+    io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init_BZ ', nk , km%nk , km%meshlabel
     STOP
   endif
+  io_node WRITE ( stdout ,'(a,a,i8)') 'number of k-points in ', km%meshlabel , km%nk
 
   ! ======================
   !  organized kpt arrays 
@@ -242,7 +251,7 @@ SUBROUTINE kpoint_sum_init_half ( km )
 
   return
 
-END SUBROUTINE kpoint_sum_init_half
+END SUBROUTINE kpoint_sum_init_BZ
 
 ! *********************** SUBROUTINE reorder_kpt *******************************
 !> \brief
@@ -263,16 +272,16 @@ SUBROUTINE reorder_kpt ( km )
   !local
   integer :: ik, lk
   real(kind=dp), dimension (:), allocatable :: tkpt
-  real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz
+  real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz , tmpak
   integer, dimension (:), allocatable :: labelkpt, labelt
 
-  allocate ( tkpt ((km%nkcut+1)/2) , labelkpt(km%nkcut), labelt((km%nkcut+1)/2) )
-  allocate ( tmpkx(km%nkcut) , tmpky(km%nkcut) , tmpkz(km%nkcut)  )
+  allocate ( tkpt ((km%nk+1)/2) , labelkpt(km%nk), labelt((km%nk+1)/2) )
+  allocate ( tmpkx(km%nk) , tmpky(km%nk) , tmpkz(km%nk)  , tmpak(km%nk) )
 
   ! ==============================
   !  set the initial array labels
   ! ==============================
-  do ik=1,km%nkcut
+  do ik=1,km%nk
     labelkpt(ik)=ik
   enddo
 
@@ -282,7 +291,7 @@ SUBROUTINE reorder_kpt ( km )
   !  the old labels are stored in labelkpt
   !  that will be used to reorganized kx,ky,kz
   ! ===========================================
-  call merge_sort ( km%kptk , km%nkcut , tkpt , labelkpt , labelt )
+  call merge_sort ( km%kptk , km%nk , tkpt , labelkpt , labelt )
 
   ! ==============================
   !  save previous order
@@ -290,14 +299,16 @@ SUBROUTINE reorder_kpt ( km )
   tmpkx=km%kpt(1,:)
   tmpky=km%kpt(2,:)
   tmpkz=km%kpt(3,:) 
+  if ( ALLOCATED(km%Ak) ) tmpak=km%Ak
   ! ===============================================
   !  change kptx , kpty , kptz following kptk sort
   ! ===============================================
-  do ik=1,km%nkcut
+  do ik=1,km%nk
     lk=labelkpt(ik)
     km%kpt(1,ik) = tmpkx(lk) 
     km%kpt(2,ik) = tmpky(lk) 
     km%kpt(3,ik) = tmpkz(lk) 
+    if ( ALLOCATED(km%Ak) ) km%Ak(ik) = tmpak(lk) 
   enddo
 
   deallocate ( tkpt , labelkpt , labelt )
@@ -340,7 +351,7 @@ SUBROUTINE struc_fact ( km )
         rzi = rz ( ia ) 
  
 !        if ( itype (ia) .eq. it ) then
-           do ik = 1, km%nkcut 
+           do ik = 1, km%nk 
               arg = ( km%kpt ( 1 , ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
               km%strf  ( ik , ia ) = km%strf  ( ik , ia ) + EXP( imag * arg ) 
            enddo
@@ -351,6 +362,51 @@ SUBROUTINE struc_fact ( km )
   return
 
 END SUBROUTINE struc_fact
+
+SUBROUTINE charge_density_k ( km , mu )
+
+  USE constants,        ONLY :  imag
+  USE config,           ONLY :  natm , rx , ry , rz , qia 
+
+  implicit none
+
+  ! global
+  TYPE ( kmesh ), intent(inout) :: km
+  real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
+
+  ! local
+  integer :: ia ,ik
+  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz
+  real(kind=dp) :: kx , ky , kz 
+
+  km%rhon  = (0.0_dp,0.0_dp)
+  km%expkr = (0.0_dp,0.0_dp)
+  
+  do ia = 1 , natm
+
+    rxi = rx ( ia )
+    ryi = ry ( ia )
+    rzi = rz ( ia )
+    mux = mu ( ia , 1 )
+    muy = mu ( ia , 2 )
+    muz = mu ( ia , 3 )
+
+    do ik = 1, km%nk
+       kx = km%kpt ( 1 , ik )
+       ky = km%kpt ( 2 , ik )
+       kz = km%kpt ( 3 , ik )
+       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
+       k_dot_mu = ( mux * kx + muy * ky + muz * kz )
+       km%expkr ( ik , ia ) = EXP ( imag * k_dot_r ) 
+       km%rhon  ( ik )      = km%rhon ( ik ) + ( qia ( ia ) + imag * k_dot_mu ) * km%expkr  ( ik , ia ) 
+    enddo  
+
+  enddo
+
+  return
+
+END SUBROUTINE charge_density_k
+
 
 END MODULE kspace 
 ! ===== fmV =====

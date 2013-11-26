@@ -69,14 +69,12 @@ PROGRAM main_MDFF
   USE msd
   USE vacf 
   USE block
+  USE mpimdff
 
   implicit none
-  INCLUDE 'mpif.h'
 
   ! local
   integer       :: argc               ! input argument of the executable
-  integer       :: iastart , iaend    ! atom decomposition
-  integer       :: ikstart , ikend    ! k-point decomposition
   integer       :: offset             ! offset ( not used yet )
   dectime                             ! timing declaration ( ierr also declared ) 
 
@@ -107,7 +105,7 @@ PROGRAM main_MDFF
   ! for test purpose keep it commented
   ! uncomment it if you want uncorrelated runs  
   ! ====================================================
-  CALL init_random_seed 
+  !CALL init_random_seed 
 
   ! ====================================================
   ! gives rank index (myrank) 
@@ -123,6 +121,8 @@ PROGRAM main_MDFF
   ! input/output init 
   ! ====================================================
   CALL io_init                                            
+
+  !CALL print_kind_info ( stdout )
   
   ! ========================================
   ! reads command line
@@ -167,17 +167,17 @@ PROGRAM main_MDFF
 
     ! ===========================================================
     ! parallelization: atom decomposition split atom into
-    ! different procs. iastart , iaend are the index of atoms 
+    ! different procs. dec%istart , dec%iend are the index of atoms 
     ! for rank = myrank.  only for calc='md'. 
     ! for the other type of calc this is done when natm is known
     ! 
     ! k-point parallelisation for lcoulomb calculation ( electric 
     ! field, electric field gradient ...
-    ! TODO make bounds iastart,iaend,ikstart,ikend global in a 
+    ! TODO make bounds global in a      !done october 2013 
     ! specific module or where it used.
     ! ===========================================================
-    if ( calc .eq. 'md' ) CALL do_split ( natm          , myrank , numprocs , iastart , iaend ,'atoms' )
-    if ( lcoulomb )       CALL do_split ( km_coul%nkcut , myrank , numprocs , ikstart , ikend ,'k-pts')
+    if ( calc .eq. 'md' )                 CALL do_split ( natm       , myrank , numprocs , atom_dec , 'atoms' )
+    if ( calc .eq. 'md' .and. lcoulomb )  CALL do_split ( km_coul%nk , myrank , numprocs , kpt_dec  , 'k-pts' )
 
     ! =====================================
     ! verlet list generation
@@ -185,8 +185,8 @@ PROGRAM main_MDFF
     ! vnlist should be test for calc='opt' 
     ! =====================================
     if ( calc .eq. 'md' ) then 
-      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   ( iastart , iaend )
-      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc ( iastart , iaend )       
+      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   
+      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc 
     endif  
 
     !IF MD
@@ -232,7 +232,7 @@ PROGRAM main_MDFF
              offset = 1
              npas = 0
              integrator = 'nve-vv' 
-             CALL md_run ( iastart , iaend , offset , ikstart , ikend )
+             CALL md_run ( offset )
          ! =======================
          ! .... or dynamic   
          ! =======================
@@ -246,7 +246,7 @@ PROGRAM main_MDFF
              ! this offset will be used if the OUTSIDE LOOP is used
              ! ===============================================================
 !             offset = ( ( irun - 1 ) * npas ) + 1  
-             CALL md_run ( iastart , iaend , 1 , ikstart , ikend ) 
+             CALL md_run ( 1 ) 
 !                                            ^ 
 !                                           offset   
            endif
@@ -311,7 +311,7 @@ PROGRAM main_MDFF
     if ( calc .eq. 'gr' ) then
       CALL grcalc 
     endif
-    if ( any( calc .eq. rmc_allowed ) ) then 
+    if ( calc .eq. 'rmc' ) then 
       CALL rmc_init
       CALL rmc_main
     endif    

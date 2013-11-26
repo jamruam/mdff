@@ -29,6 +29,7 @@ MODULE constants
   save
 
   integer, PARAMETER, PUBLIC    :: dp          = selected_real_kind(15,300)            !< double precision definition 
+  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)            !< double precision definition 
   real(kind=dp),      PARAMETER :: pi          = 3.14159265358979323846264338327950_dp !< pi
   real(kind=dp),      PARAMETER :: dzero       = 0.0_dp                                !< zero 
   real(kind=dp),      PARAMETER :: done        = 1.0_dp                                !< one 
@@ -51,6 +52,49 @@ MODULE constants
   real(kind=dp),      PARAMETER :: eh          = evtoj / 1e14_dp / hplanck             !< e/h (electron charge / Planck constant )
   real(kind=dp),      PARAMETER :: CQ_UNIT     = eh / 1000.0_dp                        !< Cq unit conversion (  a.u to V/A^2 )
   real(kind=dp),      PARAMETER :: Debye_unit  = 2.54174618782479816355_dp / bohr      !< Debye unit for dipole moments in eA
+
+
+
+CONTAINS 
+!------------------------------------------------------------------------------!
+!
+!   Print information about the used data types.
+!   from Quantum-espresso package
+!
+SUBROUTINE print_kind_info (stdout)
+!
+!------------------------------------------------------------------------------!
+!
+        IMPLICIT NONE
+        INTEGER, INTENT(IN) :: stdout
+!
+        WRITE( stdout,'(/,T2,A)') 'DATA TYPE INFORMATION:'
+!
+        WRITE( stdout,'(/,T2,A,T78,A,2(/,T2,A,T75,I6),3(/,T2,A,T67,E15.8))') &
+          'REAL: Data type name:', 'DP', '      Kind value:', kind(0.0_DP), &
+          '      Precision:', precision(0.0_DP), &
+          '      Smallest nonnegligible quantity relative to 1:', &
+          epsilon(0.0_DP), '      Smallest positive number:', tiny(0.0_DP), &
+          '      Largest representable number:', huge(0.0_DP)
+        WRITE( stdout,'(/,T2,A,T78,A,2(/,T2,A,T75,I6),3(/,T2,A,T67,E15.8))') &
+          '      Data type name:', 'sgl', '      Kind value:', kind(0.0_sgl), &
+          '      Precision:', precision(0.0_sgl), &
+          '      Smallest nonnegligible quantity relative to 1:', &
+          epsilon(0.0_sgl), '      Smallest positive number:', tiny(0.0_sgl), &
+          '      Largest representable number:', huge(0.0_sgl)
+        WRITE( stdout,'(/,T2,A,T72,A,4(/,T2,A,T61,I20))') &
+          'INTEGER: Data type name:', '(default)', '         Kind value:', &
+          kind(0), '         Bit size:', bit_size(0), &
+          '         Largest representable number:', huge(0)
+        WRITE( stdout,'(/,T2,A,T72,A,/,T2,A,T75,I6,/)') 'LOGICAL: Data type name:', &
+          '(default)', '         Kind value:', kind(.TRUE.)
+        WRITE( stdout,'(/,T2,A,T72,A,/,T2,A,T75,I6,/)') &
+          'CHARACTER: Data type name:', '(default)', '           Kind value:', &
+          kind('C')
+!
+      END SUBROUTINE print_kind_info
+!
+!------------------------------------------------------------------------------!
 
 END MODULE constants
 ! ===== fmV =====

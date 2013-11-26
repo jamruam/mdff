@@ -53,6 +53,7 @@ MODULE time
   real(kind=dp) :: opttimetot     !<                          
   real(kind=dp) :: vibtimetot     !<                           
   real(kind=dp) :: hessiantimetot !<                           
+  real(kind=dp) :: diaghessiantimetot !<                           
   real(kind=dp) :: bandtimetot    !<                           
   real(kind=dp) :: doskpttimetot  !<                           
   real(kind=dp) :: fvibtimetot    !<                           
@@ -65,6 +66,8 @@ MODULE time
   real(kind=dp) :: chisqvartime4
   real(kind=dp) :: chisqvartime4u
   real(kind=dp) :: chisqvartime5
+  real(kind=dp) :: kardirtottime 
+  real(kind=dp) :: dirkartottime 
   real(kind=dp) :: timetmp        !< use in opt               
 
 CONTAINS
@@ -96,6 +99,7 @@ SUBROUTINE time_init
   fcoultimetot3 = 0.0_dp
   vibtimetot    = 0.0_dp
   hessiantimetot= 0.0_dp
+  diaghessiantimetot = 0.0_dp
   bandtimetot   = 0.0_dp
   doskpttimetot = 0.0_dp
   opttimetot    = 0.0_dp
@@ -110,6 +114,8 @@ SUBROUTINE time_init
   chisqvartime4 = 0.0_dp
   chisqvartime4u = 0.0_dp
   chisqvartime5 = 0.0_dp
+  kardirtottime = 0.0_dp
+  dirkartottime = 0.0_dp
 
   return 
  
@@ -158,6 +164,8 @@ SUBROUTINE print_time_info ( kunit )
     if ( fcoultime_ds  .ne. 0.0_dp .and. &
          fcoultimetot2 .eq. 0.0_dp )    WRITE ( kunit ,110)             'FIELD_DS', fcoultime_ds
     if ( fcoultimetot2 .ne. 0.0_dp )    WRITE ( kunit ,110)             'FIELD_ES', fcoultime_es
+    if ( kardirtottime .ne. 0.0_dp )    WRITE ( kunit ,110)             'kardir'  , kardirtottime
+    if ( dirkartottime .ne. 0.0_dp )    WRITE ( kunit ,110)             'dirkar'  , dirkartottime
     if ( grtimetot     .ne. 0.0_dp )    WRITE ( kunit ,110)             'GR'                   , grtimetot 
     if ( grtimetot_comm.ne. 0.0_dp )    WRITE ( kunit ,110)             'GR(comm only)'        , grtimetot_comm 
     if ( chisqvartimetot.ne. 0.0_dp )    WRITE ( kunit ,110)            'eval_INVERT'        , chisqvartimetot 
@@ -213,6 +221,7 @@ SUBROUTINE print_time_info ( kunit )
     if ( vibtimetot.ne.0.0_dp )         WRITE ( kunit ,'(a)')           'VIB:'
     if ( vibtimetot.ne.0.0_dp )         lseparator_noionode(kunit) 
     if ( hessiantimetot.ne.0.0_dp )     WRITE ( kunit ,110)             'hessian                ', hessiantimetot
+    if ( diaghessiantimetot.ne.0.0_dp ) WRITE ( kunit ,110)             'full diag : hessian    ', diaghessiantimetot
     if ( bandtimetot.ne.0.0_dp )        WRITE ( kunit ,110)             'band                   ', bandtimetot
     if ( doskpttimetot.ne.0.0_dp )      WRITE ( kunit ,110)             'doskpttimetot          ', doskpttimetot
 

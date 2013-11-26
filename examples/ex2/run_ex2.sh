@@ -21,7 +21,7 @@ do
 	echo "A"                     >> tmp.file
 	echo $cluster                >> tmp.file
 	echo "Cartesian"             >> tmp.file
-	awk '{print "A",$1,$2,$3,"0.0000 0.0000 0.0000 0.0 0.0 0.0"}' clusters/$cluster >> tmp.file 
+	awk '{print "A",$1,$2,$3}' clusters/$cluster >> tmp.file 
 	mv tmp.file POSFF
 
 
@@ -45,7 +45,7 @@ do
         echo "A" >> tmp.file
         echo $cluster >> tmp.file
 	echo "Cartesian"             >> tmp.file
-        awk '{print "A",$1,$2,$3,"0.0000 0.0000 0.0000 0.0 0.0 0.0"}' clusters/$((cluster))i >> tmp.file
+        awk '{print "A",$1,$2,$3}' clusters/$((cluster))i >> tmp.file
         mv tmp.file POSFF
 
         $EXE control.F > stdout
