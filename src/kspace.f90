@@ -66,7 +66,7 @@ CONTAINS
 SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
 
   USE config,           ONLY :  simu_cell
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
   USE cell,             ONLY :  dirkar
 
   implicit none
@@ -133,7 +133,7 @@ END SUBROUTINE get_kpath
 SUBROUTINE kpoint_sum_init( km , alpha ) 
 
   USE config,           ONLY :  simu_cell 
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
   USE constants,        ONLY :  tpi
 
   implicit none
@@ -203,7 +203,7 @@ END SUBROUTINE kpoint_sum_init
 SUBROUTINE kpoint_sum_init_BZ ( km )
 
   USE config,           ONLY :  simu_cell 
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
   USE constants,        ONLY :  tpi
 
   implicit none
@@ -262,7 +262,7 @@ END SUBROUTINE kpoint_sum_init_BZ
 ! ******************************************************************************
 SUBROUTINE reorder_kpt ( km )
 
-  USE io_file,  ONLY :  ionode , stdout 
+  USE io,  ONLY :  ionode , stdout 
 
   implicit none
 
@@ -329,7 +329,7 @@ END SUBROUTINE reorder_kpt
 SUBROUTINE struc_fact ( km ) 
   
   USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
-  USE io_file,          ONLY :  ionode , kunit_STRFACFF
+  USE io,          ONLY :  ionode , kunit_STRFACFF
   USE constants,        ONLY :  imag , mimag
 
   implicit none

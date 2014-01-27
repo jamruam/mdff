@@ -54,7 +54,7 @@
 PROGRAM main_MDFF
 
   USE constants
-  USE io_file
+  USE io
   USE control 
   USE config
   USE time

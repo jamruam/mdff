@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug
+#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE CONF ******************************************
@@ -61,6 +61,7 @@ MODULE config
   real(kind=dp), dimension(:)    , allocatable :: xs  , ys  , zs     !< last positions in verlet list
   real(kind=dp), dimension(:)    , allocatable :: rix , riy , riz    !< positions in the center of mass reference 
 
+  real(kind=dp), dimension(:)    , allocatable :: massia             !< mass on ion 
   real(kind=dp), dimension(:)    , allocatable :: qia                !< charge on ion 
   real(kind=dp), dimension(:)    , allocatable :: quadia             !< quadrupolar moment on ion
   real(kind=dp), dimension(:,:)  , allocatable :: dipia              !< dipole on ion 
@@ -94,7 +95,7 @@ CONTAINS
 SUBROUTINE config_init 
 
   USE control,  ONLY :  calc
-  USE io_file,  ONLY :  ionode , stdin, stdout 
+  USE io,  ONLY :  ionode , stdin, stdout 
 
   implicit none
 
@@ -122,7 +123,7 @@ END SUBROUTINE config_init
 ! ******************************************************************************
 SUBROUTINE config_print_info(kunit)
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
 
   implicit none
 
@@ -189,7 +190,7 @@ END SUBROUTINE config_print_info
 ! ******************************************************************************
 SUBROUTINE write_CONTFF
 
-  USE io_file,                  ONLY :  kunit_CONTFF, ionode
+  USE io,                  ONLY :  kunit_CONTFF, ionode
   USE cell,                     ONLY :  kardir , periodicbc
 
   implicit none
@@ -245,11 +246,13 @@ SUBROUTINE config_alloc
   allocate( fx  ( natm ) , fy ( natm )  , fz ( natm ) )
   allocate( fxs ( natm ) , fys ( natm ) , fzs ( natm ) )
   allocate( rxs ( natm ) , rys ( natm ) , rzs ( natm ) )
-  allocate( atype ( natm ) , itype ( natm ) )
+  allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
+  allocate( atype ( natm ) )
+  allocate( itype ( natm ) )
   allocate( allowedmove ( 3 , natm ) )
   allocate( list ( natm * vnlmax ) , point (  natm + 1 ) )
-  allocate( xs ( natm ) , ys ( natm ) , zs ( natm ) ) 
   allocate( qia ( natm ) )
+  allocate( massia ( natm ) )
   allocate( quadia ( natm ) )
   allocate( dipia ( natm , 3 ) )
   allocate( dipia_ind ( natm , 3 ) )
@@ -280,6 +283,7 @@ SUBROUTINE config_alloc
   list      = 0
   point     = 0
   qia       = 0.0_dp
+  massia    = 0.0_dp
   quadia    = 0.0_dp
   dipia     = 0.0_dp
   dipia_ind = 0.0_dp
@@ -315,6 +319,7 @@ SUBROUTINE config_dealloc
   deallocate( itype )
   deallocate( list , point )
   deallocate( xs , ys , zs )
+  deallocate( massia ) 
   deallocate( qia ) 
   deallocate( quadia ) 
   deallocate( dipia ) 
@@ -509,7 +514,7 @@ END SUBROUTINE ions_displacement
 SUBROUTINE write_trajff_xyz
 
   USE control,                  ONLY :  itraj_format , itraj_save
-  USE io_file,                  ONLY :  ionode , kunit_TRAJFF , stdout
+  USE io,                  ONLY :  ionode , kunit_TRAJFF , stdout
   USE cell,                     ONLY :  periodicbc , kardir , dirkar
 
   implicit none
@@ -601,7 +606,7 @@ END SUBROUTINE write_trajff_xyz
 
 SUBROUTINE read_traj_header ( kunit , iformat ) 
 
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
 
   implicit none
 
@@ -650,11 +655,14 @@ SUBROUTINE read_traj_header ( kunit , iformat )
   endif
   if ( ionode .and. &
        ( coord_format .eq. 'Direct' .or. coord_format .eq. 'D' ) ) &
-       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in POSFF'
+       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in direct coordinates in TRAJFF'
   if ( ionode .and. &
        ( coord_format .eq. 'Cartesian' .or. coord_format .eq. 'C' ) ) &
-       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in POSFF'
+       WRITE ( stdout      ,'(A,20A3)' ) 'atomic positions in cartesian coordinates in TRAJFF'
 
+#ifdef debug
+   write(*,*) simu_cell%A
+#endif
   CLOSE ( kunit )
 
   return
@@ -663,7 +671,7 @@ END SUBROUTINE read_traj_header
 
 SUBROUTINE read_traj ( kunit , iformat , csave ) 
 
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
   USE cell,             ONLY :  dirkar
 
   implicit none

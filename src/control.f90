@@ -55,6 +55,7 @@ MODULE control
   logical,           SAVE :: lcoulomb         !< coulombic potential
   logical,           SAVE :: lsurf            !< add surface contribution in electrostatic quantities  
   logical,           SAVE :: ltest            !< testing flag
+  logical,           SAVE :: lcsvr            !< Stochastic velocity rescaling
 
   real(kind=dp),     SAVE :: cutlongrange     !< longrange cutoff
   real(kind=dp),     SAVE :: cutshortrange    !< shortrange cutoff
@@ -105,7 +106,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE control_init ( MDFF )
 
-  USE io_file,  ONLY :  ionode , stdin , stdout
+  USE io,  ONLY :  ionode , stdin , stdout
 
   implicit none
 
@@ -118,6 +119,7 @@ SUBROUTINE control_init ( MDFF )
                          lmorse       , &
                          lcoulomb     , &
                          lsurf        , &
+                         lcsvr        , &
                          lharm        , &
                          ltraj        , &
                          cutlongrange , &
@@ -189,6 +191,7 @@ SUBROUTINE control_default_tag
   lmorse        = .false.
   lcoulomb      = .false.
   lsurf         = .false.
+  lcsvr         = .false.
   lharm         = .false.
   ltraj         = .false.
   lvnlist       = .true.
@@ -224,7 +227,7 @@ END SUBROUTINE control_default_tag
 ! ******************************************************************************
 SUBROUTINE control_check_tag
 
-  USE io_file,  ONLY :  stdout , ionode
+  USE io,  ONLY :  stdout , ionode
 
   implicit none
 
@@ -309,7 +312,7 @@ END SUBROUTINE control_check_tag
 ! ******************************************************************************
 SUBROUTINE control_print_info( kunit , MDFF )
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
   USE mpimdff,  ONLY :  numprocs
 
   implicit none

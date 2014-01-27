@@ -57,7 +57,7 @@ SUBROUTINE md_run ( offset )
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
                                         write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz
   USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
-  USE io_file,                  ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF
+  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime
 
@@ -82,8 +82,8 @@ SUBROUTINE md_run ( offset )
   ! =============================================
   !   integration algorithm allowed to rescale
   ! =============================================
-  character(len=60) :: rescale_allowed(2)
-  data                 rescale_allowed / 'nve-vv' , 'nve-be' /
+  character(len=60) :: rescale_allowed(3)
+  data                 rescale_allowed / 'nve-vv' , 'nve-be' , 'npe-vv'/
 
 #ifdef com_t
   integer :: comcount
@@ -199,8 +199,17 @@ SUBROUTINE md_run ( offset )
   ! ===========
    statime 
 
-! be careful with the offset !!!!
+! WARNING offset !!!!
 MAIN:  do itime = offset , npas + (offset-1)        
+
+  ! ioprint condition
+  if ( MOD ( itime , nprint ) .eq. 0 ) then
+    ioprint = .true.
+  else
+    ioprint = .false.
+  endif
+
+
 
 #ifdef block
           if ( itime .ge. nequil ) then 
@@ -228,12 +237,14 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nve-lf'  )      CALL prop_leap_frog 
          if ( integrator.eq.'nve-be'  )      CALL beeman 
          if ( integrator.eq.'nve-vv'  )      CALL prop_velocity_verlet 
+         if ( integrator.eq.'npe-vv'  )      CALL prop_velocity_verlet 
          if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet 
-         if ( integrator.eq.'nvt-nhc2')      CALL nose_hoover_chain2 
-         if ( integrator.eq.'nvt-nhcn')      CALL nose_hoover_chain_n 
+         if ( integrator.eq.'nvt-nhc2')      CALL nhc2 
+         if ( integrator.eq.'nvt-nhcn')      CALL nhcn 
+         if ( integrator.eq.'npt-nhcpn')     CALL nhcpn
 
 #ifdef debug_para
-        if ( MOD ( itime , nprint ) .eq. 0 ) then
+        if ( ioprint ) then
           do ip=0,numprocs-1
            CALL print_config_sample(itime,ip)
           enddo
@@ -248,6 +259,14 @@ MAIN:  do itime = offset , npas + (offset-1)
                   ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
                     ( itime .ne. npas + ( offset - 1 ) .and. itime .ne. offset ) ) ) then
            CALL rescale_velocities(0)
+         endif
+         ! ================================
+         !  rescale volume (NPE equil)
+         ! ================================
+         if ( integrator .eq. 'npe-vv' .and.  &
+                  ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
+                    ( itime .ne. npas + ( offset - 1 ) .and. itime .ne. offset ) ) ) then
+           CALL rescale_volume(0)
          endif
 
          ! ===================================
@@ -276,7 +295,7 @@ MAIN:  do itime = offset , npas + (offset-1)
 #endif
        
 #ifdef com_t
-     if ( MOD ( itime , nprint ) .eq. 0 ) then
+     if ( ioprint ) then
        comcount = comcount + 1 
        CALL center_of_mass ( rx , ry , rz , com )
        WRITE ( stdout ,'(a3,i10,3e18.6)') 'ALL',itime , com(0,:)
@@ -337,14 +356,12 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  write instanteanous thermodynamic properties
         !  to standard output 
         ! =============================================
-        if ( MOD ( itime , nprint ) .eq. 0 ) then  
-              CALL write_thermo( itime , stdout , 'std' )
-        endif
+        io_print CALL write_thermo( itime , stdout , 'std' )
 
         ! ===========
         !  time info
         ! ===========
-        if ( MOD ( itime , nprint ) .eq. 0 ) then
+        if ( ioprint ) then
           stotime
           addtime(mdsteptimetot) 
           io_node blankline(stdout) 
@@ -374,9 +391,9 @@ MAIN:  do itime = offset , npas + (offset-1)
   io_node blankline(stdout)
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
-  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
-  if ( lcoulomb )         CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-  if ( ionode .and. lvnlist ) write ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
+  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb , 'TAU_NONB' ) 
+  if ( lcoulomb )          CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
+  if ( ionode .and. lvnlist ) WRITE ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
 
   CALL  write_average_thermo ( stdout ) 
 

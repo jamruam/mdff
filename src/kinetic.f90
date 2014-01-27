@@ -30,7 +30,7 @@ SUBROUTINE init_velocities
   USE constants,        ONLY :  dp 
   USE config,           ONLY :  vx , vy , vz , natm , ntype , ntypemax , atypei , center_of_mass
   USE md,               ONLY :  nequil , setvel , temp
-  USE io_file,          ONLY :  ionode , stdout
+  USE io,          ONLY :  ionode , stdout
   USE control,          ONLY :  lrestart
 
   implicit none
@@ -116,15 +116,17 @@ END SUBROUTINE init_velocities
 ! *********************** SUBROUTINE rescale_velocities ************************
 !> \brief
 !! this subroutine rescale velocities with beredsen thermostat.
-!! If tauberendsen = dt , this becomes a simple rescale procedure
+!! If tauTberendsen = dt , this becomes a simple rescale procedure
 !> \param[in] quite make the subroutine quite
 ! ******************************************************************************
 SUBROUTINE rescale_velocities (quite)
 
   USE constants,                ONLY :  dp 
-  USE config,                   ONLY :  natm , vx , vy , vz
-  USE md,                       ONLY :  dt , temp , tauberendsen
-  USE io_file,                  ONLY :  ionode , stdout
+  USE control,                  ONLY :  lcsvr
+  USE config,                   ONLY :  natm , vx , ntype, vy , vz, ntypemax, atypei ,center_of_mass
+  USE md,                       ONLY :  dt , temp , tauTberendsen, taucsvr
+  USE io,                  ONLY :  ionode , stdout
+  USE thermodynamic,            ONLY :  csvr_conint
 
   implicit none
 
@@ -132,18 +134,54 @@ SUBROUTINE rescale_velocities (quite)
   integer, intent(in) :: quite
 
   ! local
-  integer :: ia
-  real(kind=dp) :: T, lambda, ekin
+  integer :: ia ,it , ndeg
+  real(kind=dp) :: T, lambda, ekin , sigma , com( 0 : ntypemax , 3  ), SUMX,SUMY,SUMZ
+  real(kind=dp) , external :: resamplekin
 
   CALL calc_temp(T,ekin)
 
-  lambda = ( 1.0_dp + (dt / tauberendsen) * (  (temp / T) - 1.0_dp) ) ** 0.5_dp
+  lambda = ( 1.0_dp + (dt / tauTberendsen) * (  (temp / T) - 1.0_dp) ) ** 0.5_dp
+  
+  if ( lcsvr ) then 
+    ndeg = 3 * natm - 3 
+    sigma = ndeg * temp * 0.5d0 
+    lambda=resamplekin(ekin,sigma,ndeg,taucsvr)
+    csvr_conint= csvr_conint - (lambda-ekin)
+    lambda=sqrt(lambda/ekin)
+#ifdef debug
+    write(*,'(a,3e20.8)') 'resamplekin',ekin,sigma,lambda
+#endif
+  endif
+
+  !CALL print_config_sample(0,0)
 
   do ia = 1 , natm
      vx ( ia ) = vx ( ia ) * lambda
      vy ( ia ) = vy ( ia ) * lambda
      vz ( ia ) = vz ( ia ) * lambda
   enddo
+
+
+  if ( lcsvr ) then 
+    SUMX = 0.0_dp
+    SUMY = 0.0_dp
+    SUMZ = 0.0_dp
+    do ia = 1 , natm
+      SUMX = SUMX + vx ( ia )
+      SUMY = SUMY + vy ( ia )
+      SUMZ = SUMZ + vz ( ia )
+    enddo
+    SUMX = SUMX / DBLE ( natm )
+    SUMY = SUMY / DBLE ( natm )
+    SUMZ = SUMZ / DBLE ( natm )
+   ! print*,'sum',SUMX,SUMY,SUMZ
+    do ia = 1 , natm
+       vx ( ia ) = vx ( ia ) - SUMX
+       vy ( ia ) = vy ( ia ) - SUMY
+       vz ( ia ) = vz ( ia ) - SUMZ
+    enddo
+   ! CALL print_config_sample(0,0)
+  endif
 
   if ( ionode .and. quite .eq. 1) then
     WRITE ( stdout ,'(a,f10.4)') 'Berendsen thermostat'
@@ -162,6 +200,63 @@ SUBROUTINE rescale_velocities (quite)
   return
 
 END SUBROUTINE rescale_velocities
+
+! *********************** SUBROUTINE rescale_volume ************************
+!> \brief
+!! this subroutine rescale the volume with a beredsen barostat.
+!! If tauPberendsen = dt , this becomes a simple rescale procedure
+!> \param[in] quite make the subroutine quite
+! ******************************************************************************
+SUBROUTINE rescale_volume (quite)
+
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , rx, ry, rz , simu_cell
+  USE md,                       ONLY :  dt , press , tauPberendsen
+  USE io,                  ONLY :  ionode , stdout
+  USE cell,                     ONLY :  lattice, dirkar, kardir
+  USE thermodynamic,            ONLY :  pressure_tot, calc_thermo
+
+  implicit none
+
+  ! global
+  integer, intent(in) :: quite
+
+  ! local
+  integer :: ia
+  real(kind=dp) :: P, lambda, lambda3
+
+  CALL calc_thermo()
+  P = pressure_tot
+
+  lambda  = ( 1.0_dp - (dt / tauPberendsen) * ( press - P ) ) 
+  lambda3 = lambda ** ( 1.0d0 / 3.0d0 )
+
+  simu_cell%A(:,1) = simu_cell%A(:,1) * lambda3 ! A
+  simu_cell%A(:,2) = simu_cell%A(:,2) * lambda3 ! B
+  simu_cell%A(:,3) = simu_cell%A(:,3) * lambda3 ! C
+
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B ) 
+  CALL lattice ( simu_cell )
+  do ia = 1, natm
+    rx(ia) = rx(ia) * lambda3
+    ry(ia) = ry(ia) * lambda3
+    rz(ia) = rz(ia) * lambda3
+  enddo
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+
+  if ( ionode .and. quite .eq. 1) then
+    WRITE ( stdout ,'(a,f10.4)') 'Berendsen barostat'
+    WRITE ( stdout ,'(a,f10.4)') 'current pressure           P        = ',P
+    WRITE ( stdout ,'(a,f10.4)') 'wanted  pressure           P0       = ',press
+    WRITE ( stdout ,'(a,f10.4)') 'volume rescaled by                  = ',lambda
+    blankline(stdout)
+  endif
+
+
+  return
+
+END SUBROUTINE rescale_volume
+
 
 ! *********************** SUBROUTINE andersen_velocities ***********************
 !!> \brief
@@ -234,7 +329,7 @@ SUBROUTINE uniform_random_velocities
   USE config,   ONLY :  natm , vx , vy , vz
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
-  USE io_file,  ONLY :  ionode , stdout
+  USE io,  ONLY :  ionode , stdout
   USE mpimdff
 
   implicit none
@@ -327,7 +422,7 @@ SUBROUTINE maxwellboltzmann_velocities
   USE config,   ONLY :  natm , vx , vy , vz
   USE md,       ONLY :  dt , temp  
   USE control,  ONLY :  dgauss
-  USE io_file,  ONLY :  ionode , stdout 
+  USE io,  ONLY :  ionode , stdout 
   USE mpimdff
 
   implicit none
@@ -454,4 +549,84 @@ SUBROUTINE calc_temp (T, ekin)
   return
 
 END SUBROUTINE calc_temp
+
+! *********************** FUNCTION resamplekin ******************************
+! Stochastic velocity rescale, as described in
+! Bussi, Donadio and Parrinello, J. Chem. Phys. 126, 014101 (2007)
+!
+! This subroutine implements Eq.(A7) and returns the new value for the kinetic energy,
+! which can be used to rescale the velocities.
+! The procedure can be applied to all atoms or to smaller groups.
+! If it is applied to intersecting groups in sequence, the kinetic energy
+! that is given as an input (kk) has to be up-to-date with respect to the previous rescalings.
+!
+! When applied to the entire system, and when performing standard molecular dynamics (fixed c.o.m. (center of mass))
+! the degrees of freedom of the c.o.m. have to be discarded in the calculation of ndeg,
+! and the c.o.m. momentum HAS TO BE SET TO ZERO.
+! When applied to subgroups, one can chose to:
+! (a) calculate the subgroup kinetic energy in the usual reference frame, and count the c.o.m. in ndeg
+! (b) calculate the subgroup kinetic energy with respect to its c.o.m. motion, discard the c.o.m. in ndeg
+!     and apply the rescale factor with respect to the subgroup c.o.m. velocity.
+! They should be almost equivalent.
+! If the subgroups are expected to move one respect to the other, the choice (b) should be better.
+!
+! If a null relaxation time is required (taut=0.0), the procedure reduces to an istantaneous
+! randomization of the kinetic energy, as described in paragraph IIA.
+!
+! HOW TO CALCULATE THE EFFECTIVE-ENERGY DRIFT
+! The effective-energy (htilde) drift can be used to check the integrator against discretization errors.
+! The easiest recipe is:
+! htilde = h + conint
+! where h is the total energy (kinetic + potential)
+! and conint is a quantity accumulated along the trajectory as minus the sum of all the increments of kinetic
+! energy due to the thermostat.
+! ******************************************************************************
+function resamplekin(kk,sigma,ndeg,taut)
+  USE constants, ONLY : dp
+  implicit none
+  real(kind=dp)               :: resamplekin
+  real(kind=dp) ,  intent(in)  :: kk    ! present value of the kinetic energy of the atoms to be thermalized (in arbitrary units)
+  real(kind=dp) ,  intent(in)  :: sigma ! target average value of the kinetic energy (ndeg k_b T/2)  (in the same units as kk)
+  integer, intent(in)  :: ndeg  ! number of degrees of freedom of the atoms to be thermalized
+  real(kind=dp) ,  intent(in)  :: taut  ! relaxation time of the thermostat, in units of 'how often this routine is called'
+  real(kind=dp)  :: factor,rr,G2
+  if(taut>0.1) then
+    factor=exp(-1.0/taut)
+  else
+    factor=0.0
+  end if
+  CALL boxmuller_polar (G2, 0.0d0, 1.0d0)
+  rr = G2 
+  resamplekin = kk + (1.0-factor)* (sigma*(sumnoises(ndeg-1)+rr**2)/ndeg-kk) &
+               + 2.0*rr*sqrt(kk*sigma/ndeg*(1.0-factor)*factor)
+
+contains
+
+! returns the sum of n independent gaussian noises squared
+! (i.e. equivalent to summing the square of the return values of nn calls to gasdev)
+double precision function sumnoises(nn)
+
+  USE constants, ONLY : dp
+  implicit none
+  integer, intent(in) :: nn
+  real(kind=dp) :: G1, G2
+  
+  if(nn==0) then
+    sumnoises=0.0
+  else if(nn==1) then
+    CALL boxmuller_polar (G2, 0.0d0, 1.0d0)
+    sumnoises=G2**2
+  else if(modulo(nn,2)==0) then
+    CALL gammadev(G1,nn/2)
+    sumnoises=2.0*G1
+  else
+    CALL gammadev(G1,(nn-1)/2)
+    CALL boxmuller_polar (G2, 0.0d0, 1.0d0)
+    sumnoises=2.0*G1 + G2**2
+  end if
+end function sumnoises
+
+end function resamplekin
+
+
 ! ===== fmV =====

@@ -11,7 +11,8 @@
 # #-lscalapack -lfblacs -lcblacs -lblacs -lmkl_lapack -lmkl -lguide -lpthread
 #
 ################################################### 
-
+UNAME := $(shell uname -a)
+HOST  := $(shell hostname -s)
 # suffix of preprocessed source file
 SUFFIX=.F90
 
@@ -49,8 +50,8 @@ EXE= mdff.x
 # =================
 #   on mario / babar
 # =================
-FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
-#FCFLAGS = -O3 -ip -xAVX -align all 
+#FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
+FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
@@ -82,15 +83,21 @@ FCFLAGS = -O3 -ip -static -xSSE4.2 -align all
 # =================
 #   on T5600
 # =================
-LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+#LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+#INC=-I/opt/intel/composerxe/mkl/include/fftw/
+
+# =================
+#   on charrue
+# =================
+LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/ia32/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
 INC=-I/opt/intel/composerxe/mkl/include/fftw/
 
 # ==================
 #  target files
 # ==================
-OBJ= constants.o io_file.o mpi_mdff.o control.o time.o functions.o \
+OBJ= constants.o io.o mpi_mdff.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o kspace.o rspace.o kinetic.o thermo.o field.o harm.o \
+     block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
 
@@ -101,7 +108,7 @@ OBJ= constants.o io_file.o mpi_mdff.o control.o time.o functions.o \
 #   -Dtiming   : timing info 
 #   -DGFORTRAN : gfortran compiler 
 # ================================================================
-CPPDEFS = -DHOST=\"Linux\" \
+CPPDEFS = -DHOST=\"$(HOST)\" \
           -Dtiming         \
 #          -Ddebug=debug
 

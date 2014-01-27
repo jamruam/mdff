@@ -58,7 +58,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE msd_init
 
-  USE io_file,  ONLY :  stdin, stdout, ionode
+  USE io,  ONLY :  stdin, stdout, ionode
 
   implicit none
 
@@ -143,7 +143,7 @@ END SUBROUTINE msd_check_tag
 ! ******************************************************************************
 SUBROUTINE msd_print_info(kunit)
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
 
   implicit none
   
@@ -240,7 +240,7 @@ SUBROUTINE msd_main ( nmsd )
   USE config,     ONLY :  natm , vx , vy , vz
   USE md,         ONLY :  dt
   USE time,       ONLY :  msdtimetot
-  USE io_file,    ONLY :  stdout       
+  USE io,    ONLY :  stdout       
 
   implicit none
 
@@ -360,7 +360,7 @@ END SUBROUTINE msd_main
 ! ******************************************************************************
 SUBROUTINE msd_write_output ( quite ) 
 
-  USE io_file,    ONLY :  ionode , kunit_MSDFF , stdout
+  USE io,    ONLY :  ionode , kunit_MSDFF , stdout
 
   implicit none
 

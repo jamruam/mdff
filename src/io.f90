@@ -25,12 +25,14 @@
 !> \brief definition of the units for output files
 !
 ! ******************************************************************************
-MODULE io_file
+MODULE io
 
   implicit none
 
   !> rank for output (if true myrank.eq.0)
-  logical :: ionode        
+  logical :: ionode 
+  !> global md print condition (nprint)      
+  logical :: ioprint        
 
   !> standard output
   integer, PARAMETER :: stdout          = 6  
@@ -153,7 +155,7 @@ CONTAINS
 !! initialize the ionode logical variable
 !
 !> \note
-!! usage : io_node WRITE ( unit , * )   (symbol.h)
+!! usage : if ( ionode ) WRITE ( unit , * )   (symbol.h)
 !
 ! ******************************************************************************
 SUBROUTINE io_init
@@ -199,7 +201,7 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
   OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
 
   if ( ioerr .lt. 0 )  then
-    io_node WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
+    if ( ionode ) WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
     STOP
   endif
 
@@ -227,7 +229,7 @@ SUBROUTINE io_close ( kunit )
   CLOSE(UNIT=kunit,IOSTAT=ioerr)
 
   if ( ioerr .lt. 0 )  then
-    io_node WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
+    if ( ionode ) WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
     STOP
   endif
 
@@ -265,5 +267,5 @@ character(len=30) FUNCTION sweep_blanks ( in_str )
         
 END FUNCTION sweep_blanks
 
-END MODULE io_file
+END MODULE io
 ! ===== fmV =====

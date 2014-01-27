@@ -52,7 +52,7 @@ CONTAINS
 SUBROUTINE block_
 
   USE md,                       ONLY :  npas , nequil
-  USE io_file,                  ONLY :  ionode , stdout , kunit_EQUILFF
+  USE io,                  ONLY :  ionode , stdout , kunit_EQUILFF
 
   implicit none
 

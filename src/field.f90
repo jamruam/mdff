@@ -40,7 +40,7 @@ MODULE field
   USE config,                           ONLY :  ntypemax 
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
-  USE io_file,                          ONLY :  ionode
+  USE io,                          ONLY :  ionode
   USE mpimdff
 
   implicit none
@@ -188,7 +188,7 @@ END SUBROUTINE field_default_tag
 SUBROUTINE field_check_tag
 
   USE config,                   ONLY :  ntype
-  USE io_file,                  ONLY :  ionode , stdout
+  USE io,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -254,7 +254,7 @@ END SUBROUTINE field_check_tag
 SUBROUTINE field_init
 
   USE control,                  ONLY :  calc , lbmlj , lcoulomb , lmorse , longrange
-  USE io_file,                  ONLY :  ionode, stdin, stdout 
+  USE io,                  ONLY :  ionode, stdin, stdout 
   USE config,                   ONLY :  dipia
 
   implicit none
@@ -360,7 +360,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
 
   USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell 
   USE control,          ONLY :  calc , cutshortrange , lbmlj , lmorse , lcoulomb , longrange , lreduced , cutlongrange
-  USE io_file,          ONLY :  ionode 
+  USE io,          ONLY :  ionode 
   USE constants,        ONLY :  pi , pisq
 
   implicit none
@@ -394,7 +394,6 @@ SUBROUTINE field_print_info ( kunit , quiet )
     WRITE ( kunit ,'(a)')               'FIELD MODULE ... WELCOME'
     blankline(kunit)
     WRITE ( kunit ,'(a)')               'energy units in input/output ',units 
-    WRITE ( kunit ,'(a)')               'no masses are implemented                      '
     blankline(kunit)
     lseparator(kunit) 
     WRITE ( kunit ,'(a)')               'point charges: '
@@ -583,7 +582,7 @@ SUBROUTINE ewald_param
   USE constants,                ONLY :  pi , pisq
   USE config,                   ONLY :  simu_cell 
   USE control,                  ONLY :  cutshortrange
-  USE io_file,                  ONLY :  stdout
+  USE io,                  ONLY :  stdout
 
   implicit none
 
@@ -670,7 +669,7 @@ SUBROUTINE initialize_param_bmlj_morse
   USE constants,                ONLY :  tpi
   USE config,                   ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
   USE control,                  ONLY :  skindiff , cutshortrange , lreduced, calc
-  USE io_file,                  ONLY :  ionode, stdout
+  USE io,                  ONLY :  ionode, stdout
 
   implicit none
 
@@ -857,7 +856,7 @@ SUBROUTINE engforce_driver
 
   USE config,                   ONLY :  natm , dipia , fx,rx,vx
   USE control,                  ONLY :  lpbc , lminimg , lbmlj , lcoulomb , lmorse , lharm , lshiftpot , longrange
-  USE io_file,                  ONLY :  ionode , stdout 
+  USE io,                  ONLY :  ionode , stdout 
 
   implicit none
 
@@ -1010,10 +1009,11 @@ END SUBROUTINE engforce_driver
 ! ******************************************************************************
 SUBROUTINE engforce_bmlj_pbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx,vy,vz,tau_nonb , atype , itype , list , point , ntype , simu_cell , atom_dec
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx, vy , vz , tau_nonb ,  &
+                                        atype , itype , list , point , ntype , simu_cell , atom_dec
   USE control,                  ONLY :  lvnlist 
   USE thermodynamic,            ONLY :  u_lj , vir_lj , write_thermo
-  USE io_file,                  ONLY :  stdout
+  USE io,                  ONLY :  stdout
   USE time,                     ONLY :  forcetimetot 
   USE cell,                     ONLY :  kardir , dirkar
 
@@ -1513,7 +1513,7 @@ END SUBROUTINE finalize_coulomb
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   USE config, ONLY : natm , itype , atypei, ntype , polia
-  USE io_file, ONLY : stdout
+  USE io, ONLY : stdout
 
   implicit none
 
@@ -1594,7 +1594,7 @@ SUBROUTINE multipole_DS ( ef , efg , mu , u_coul , vir_coul , phi_coul )
 
   USE config,                   ONLY :  natm , atype , natmi , ntype , qia , rx , ry , rz , fx , fy , fz , tau_coul , simu_cell , atom_dec 
   USE control,                  ONLY :  cutlongrange
-  USE io_file,                  ONLY :  stdout , ionode 
+  USE io,                  ONLY :  stdout , ionode 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
   USE cell,                     ONLY :  kardir , dirkar
   USE time,                     ONLY :  fcoultimetot1 , fcoultimetot3
@@ -2073,7 +2073,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , u_coul , vir_coul , phi_coul )
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
                                         rx , ry , rz , fx , fy , fz , tau_coul , qia , simu_cell , atom_dec
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
-  USE io_file,                  ONLY :  ionode , stdout 
+  USE io,                  ONLY :  ionode , stdout 
   USE thermodynamic,            ONLY :  u_pol, u_coul_tot , vir_coul_tot 
   USE cell,                     ONLY :  kardir , dirkar 
   USE time,                     ONLY :  strftimetot , fcoultimetot1 , fcoultimetot2 , fcoultimetot3 , fcoultimetot2_2
@@ -2867,7 +2867,7 @@ SUBROUTINE engforce_morse_pbc
   USE control,                  ONLY :  lvnlist  
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
-  USE io_file,                  ONLY :  stdout , ionode
+  USE io,                  ONLY :  stdout , ionode
   USE cell,                     ONLY :  kardir , dirkar
 
   implicit none
@@ -3011,7 +3011,7 @@ END SUBROUTINE engforce_morse_pbc
 ! ******************************************************************************
 SUBROUTINE moment_from_pola ( mu_ind ) 
 
-  USE io_file, ONLY : ionode , stdout 
+  USE io, ONLY : ionode , stdout 
   USE config,  ONLY : natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax
   USE control, ONLY : longrange
   USE thermodynamic, ONLY : u_pol
@@ -3186,7 +3186,7 @@ SUBROUTINE moment_from_WFc ( mu )
   USE constants,                ONLY :  Debye_unit
   USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz 
   USE cell,                     ONLY :  kardir , dirkar 
-  USE io_file,                  ONLY :  ionode , kunit_DIPWFC , stdout 
+  USE io,                  ONLY :  ionode , kunit_DIPWFC , stdout 
 
   implicit none
 

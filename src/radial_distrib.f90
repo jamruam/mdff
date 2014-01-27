@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug2
+!#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE radial_distrib ********************************
@@ -53,7 +53,7 @@ SUBROUTINE gr_init
 
   USE config,                   ONLY :  simu_cell
   USE control,                  ONLY :  calc
-  USE io_file,                  ONLY :  stdin , stdout , ionode
+  USE io,                  ONLY :  stdin , stdout , ionode
 
   implicit none
 
@@ -179,7 +179,7 @@ END SUBROUTINE gr_default_tag
 SUBROUTINE gr_print_info(kunit)
 
   USe control,                  ONLY :  calc
-  USE io_file,                  ONLY :  ionode 
+  USE io,                  ONLY :  ionode 
 
   implicit none
  
@@ -212,8 +212,9 @@ SUBROUTINE grcalc
 
   USE control,                  ONLY :  itraj_format , itraj_save
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
-                                        rho , config_alloc , simu_cell , atypei , itype, natmi , coord_format_allowed , atom_dec , read_traj , read_traj_header
-  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
+                                        rho , config_alloc , simu_cell , atypei , itype, natmi, &
+                                        coord_format_allowed , atom_dec , read_traj , read_traj_header
+  USE io,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
   USE cell,                     ONLY :  lattice , dirkar
   USE time,                     ONLY :  grtimetot_comm
@@ -250,10 +251,22 @@ SUBROUTINE grcalc
   CALL lattice ( simu_cell ) 
   rho = DBLE ( natm )  / simu_cell%omega 
 
+#ifdef debug
+  write(*,*) simu_cell%A
+  write(*,*) simu_cell%omega
+  write(*,*) simu_cell%ANORM
+#endif
+
   CALL gr_init
 
   CALL print_general_info( stdout )
 
+#ifdef debug
+  write(*,*)
+  write(*,*) simu_cell%A
+  write(*,*) simu_cell%omega
+  write(*,*) simu_cell%ANORM
+#endif
   ! ===================================
   !  here we know natm, then alloc 
   !  and decomposition can be applied 
@@ -268,7 +281,7 @@ SUBROUTINE grcalc
   nr   = 0
   cint = ''
 
-#ifdef debug2
+#ifdef debug
   if ( ionode ) then 
     WRITE ( stdout , '(a,2i6)' ) 'debug : atom decomposition istart, iend ', atom_dec%istart , atom_dec%iend
     WRITE ( stdout , '(a,2i6)' ) 'debug : number of type npairs ', npairs
@@ -309,7 +322,7 @@ SUBROUTINE grcalc
   grtimetot_comm = grtimetot_comm + ( ttt2 - ttt1 )
 
 
-#ifdef debug2
+#ifdef debug
   do i=0, nbins
     io_node WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
   enddo
@@ -343,7 +356,7 @@ SUBROUTINE grcalc
     mp = 1
     do it1 = 1 , ntype
       do it2 = it1 , ntype
-#ifdef debug2
+#ifdef debug
         WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
 #endif        
         if ( mp .lt. 0 .and. mp .gt. npairs ) then
@@ -387,7 +400,7 @@ SUBROUTINE gr_main
 
   USE control,                  ONLY :  myrank, lvnlist
   USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, list, point , atom_dec
-  USE io_file,                  ONLY :  ionode , stdout  , stderr
+  USE io,                  ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
   USE cell,                     ONLY :  kardir , dirkar
 
@@ -433,7 +446,7 @@ SUBROUTINE gr_main
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         if ( rijsq.lt.cut2 ) then
           rr = SQRT ( rijsq )
-          igr = INT ( rr / resg ) + 1
+          igr = INT ( rr / resg ) 
 !         if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
 !            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
 !            STOP
@@ -448,7 +461,7 @@ SUBROUTINE gr_main
     enddo
   enddo
   
-#ifdef debug2
+#ifdef debug
   do igr=0, nbins-1
     WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,0,0)
   enddo
@@ -471,7 +484,7 @@ END SUBROUTINE gr_main
 ! ******************************************************************************
 !SUBROUTINE static_struc_fac ( gr , nbins , npairs )
 
-!  USE io_file,                  ONLY :  ionode , kunit_STRFACFF , stdout 
+!  USE io,                       ONLY :  ionode , kunit_STRFACFF , stdout 
 !  USE config,                   ONLY :  rho
 !  USE constants,                ONLY :  pi , tpi , imag
 

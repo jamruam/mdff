@@ -19,6 +19,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
+#define debug_readpos
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE read_pos **********************************
@@ -32,21 +33,26 @@
 !
 ! ******************************************************************************
 SUBROUTINE read_pos 
-  
+ 
+  USE constants,                ONLY :  dp 
   USE control,                  ONLY :  calc , lrestart
   USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
                                         natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
                                         simu_cell , config_print_info , coord_format_allowed 
   USE field,                    ONLY :  qch , dip , lpolar , field_init
-  USE io_file,                  ONLY :  ionode , stdout , kunit_POSFF
+  USE io,                       ONLY :  ionode , stdout , kunit_POSFF
   USE cell,                     ONLY :  lattice, periodicbc , dirkar
 
   implicit none
 
   ! local
-  integer           :: it , ia , i
+  integer           :: it , ia , i, j, ndata, error
   logical           :: allowed
   character(len=60) :: cpos
+  character, dimension (4096) :: xxxx
+  integer           :: buffersize, status
+  character(len=2)  :: xx
+  real(kind=dp)     :: value
 
 
   separator(stdout) 
@@ -98,17 +104,59 @@ SUBROUTINE read_pos
   ! ===============================
   CALL field_init
 
+  ! ==============================================
+  !  number of columns in POSFF (pos,vel,for ??)
+  ! ==============================================
+  READ (kunit_POSFF , '(4096a)' ,ADVANCE='no' , SIZE=buffersize, IOSTAT=status) xxxx
+  READ (kunit_POSFF , '(4096a)' ,SIZE=buffersize, IOSTAT=status) xxxx
+  !do i =1,190   ! The very maximum that the string can contain
+  !  read( xxxx, *, iostat=error ) xx, ( value, j=1,i )
+  !  if ( error .ne. 0 ) then
+  !      ndata = i - 1
+  !      exit
+  !  endif
+  !enddo
+#ifdef debug_readpos
+  print*,status
+  print*,buffersize
+  !stop
+#endif
   ! =========================================      
-  ! read positions and velocities from disk 
+  ! read positions, velocities, forces from disk 
   ! =========================================      
-  
-  if ( lrestart ) then  
+  if ( buffersize .le. 64 ) then
+    ndata=3
+    print*,'number of columns',ndata
+    
+    READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , ia = 1 , natm )
+  else if ( buffersize .gt. 64 .and. buffersize .le. 124 ) then
+    ndata=6
+    print*,'number of columns',ndata
+    !READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+    !                                           vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm ) 
+    do ia=1, natm  
+    READ  ( kunit_POSFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                               vx ( ia ) , vy ( ia ) , vz ( ia ) 
+    print*,ia,atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                               vx ( ia ) , vy ( ia ) , vz ( ia )
+    enddo
+    
+  else if ( buffersize .gt. 124 ) then
+    ndata=9
+    print*,'number of columns',ndata
     READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
                                                vx ( ia ) , vy ( ia ) , vz ( ia ) , &
                                                fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
-  else
-    READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , ia = 1 , natm )
-  
+  endif
+  if ( .not. lrestart ) then  
+    if ( ionode .and. ndata .ne. 3 ) WRITE ( stdout ,'(A,20A3)' ) &
+    'WARNING in non restart mode velocities and forces are not considered even present in the input file POSFF'
+    vx=0.0_dp
+    vy=0.0_dp
+    vz=0.0_dp
+    fx=0.0_dp
+    fy=0.0_dp
+    fz=0.0_dp
   endif
 
   !CALL print_config_sample(0,0)
@@ -147,8 +195,8 @@ END SUBROUTINE read_pos
 ! ******************************************************************************
 SUBROUTINE typeinfo_init
 
-  USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , dipia , qia , quadia , ipolar , polia  
-  USE field ,   ONLY : qch , quad_efg , dip , lpolar , pol
+  USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , massia, dipia , qia , quadia , ipolar , polia  
+  USE field ,   ONLY : mass, qch , quad_efg , dip , lpolar , pol
   
   implicit none
 
@@ -168,6 +216,7 @@ SUBROUTINE typeinfo_init
       atype ( ia )     = atypei ( it )
       itype ( ia )     = it
       qia   ( ia )     = qch ( it )
+      massia( ia )     = mass( it )
       quadia( ia )     = quad_efg ( it )   
       dipia ( ia , 1 ) = dip ( it , 1 )
       dipia ( ia , 2 ) = dip ( it , 2 )

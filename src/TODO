@@ -1,9 +1,10 @@
 ===============================================================
 CHECK (optimise default value):
 
-* nuandersen
 * skindiff
-* Qnosehoover
+* nuandersen (thermostat)
+* Qmass (nosehoover thermostat)
+* Wmass (andersen barostat)
 * tauberendsen  
 
 ===============================================================

@@ -7,6 +7,7 @@
         lbmlj         = .true.
         cutshortrange = 2.5d0
         lrestart = .true.
+        ltraj         = .false.  
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 
@@ -20,7 +21,6 @@
         fprint        = 1         ! printing info to OSZIFF
         nequil        = 10        ! equilibration for nequil steps
         nequil_period = 1         ! period of rescaling 
-        ltraj         = .false.  
 &end
 ! ======================================================================
 ! parameters for the force-field 

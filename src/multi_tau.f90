@@ -53,7 +53,7 @@ CONTAINS
 SUBROUTINE alloc
 
   USE config,   ONLY :  natm
-  USE io_file,  ONLY :  stdout
+  USE io,  ONLY :  stdout
 
   implicit none
 
@@ -211,7 +211,7 @@ END SUBROUTINE multi_tau_main
 
 SUBROUTINE multi_tau_write_output
 
-  USE io_file,  ONLY :  ionode , stdout 
+  USE io,  ONLY :  ionode , stdout 
   USE md,       ONLY :  dt 
   USE config,   ONLY :  natm
 

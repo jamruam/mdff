@@ -64,7 +64,7 @@ CONTAINS
 SUBROUTINE direct_sum_init ( rm )
 
   USE config,   ONLY : simu_cell 
-  USE io_file,  ONLY : ionode , stdout 
+  USE io,  ONLY : ionode , stdout 
 
   implicit none
  
@@ -121,7 +121,7 @@ END SUBROUTINE direct_sum_init
 
 SUBROUTINE reorder_rpt ( rm )
 
-  USE io_file,  ONLY :  ionode , stdout 
+  USE io,  ONLY :  ionode , stdout 
 
   implicit none
 

@@ -88,7 +88,7 @@ SUBROUTINE accur_ES_frenkel_smit ( epsw , alpha , rc , nc )
 
   USE constants,                ONLY :  dp , pi
   USE config,                   ONLY :  simu_cell 
-  USE io_file,                  ONLY :  stderr
+  USE io,                  ONLY :  stderr
 
   implicit none
 
@@ -143,7 +143,7 @@ SUBROUTINE distance_tab
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype 
   USE field,                    ONLY :  sigmalj , lwfc
-  USE io_file,                  ONLY :  ionode , stdout, stderr
+  USE io,                  ONLY :  ionode , stdout, stderr
   USE cell,                     ONLY :  kardir , dirkar 
 
   implicit none
@@ -269,7 +269,7 @@ SUBROUTINE vnlist_pbc
   USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax , atom_dec
   USE control,                  ONLY :  skindiff , cutshortrange
   USE cell,                     ONLY :  kardir , dirkar
-  USE io_file,                  ONLY :  ionode , stdout , stderr
+  USE io,                  ONLY :  ionode , stdout , stderr
 
   implicit none
 
@@ -413,7 +413,7 @@ SUBROUTINE vnlistcheck
   USE control,                  ONLY :  lpbc , lminimg , skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
-  USE io_file,                  ONLY :  stdout , ionode
+  USE io,                  ONLY :  stdout , ionode
   USE mpimdff
 
   implicit none
@@ -490,7 +490,7 @@ SUBROUTINE print_tensor( tens , key )
 
   USE constants, ONLY : dp
   USE config,   ONLY :  natm
-  USE io_file,  ONLY :  ionode , stdout
+  USE io,  ONLY :  ionode , stdout
 
   implicit none
 
@@ -525,7 +525,7 @@ SUBROUTINE print_tensor_nxn ( tens , key , n )
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm
-  USE io_file,                  ONLY :  ionode , stdout
+  USE io,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -709,7 +709,7 @@ SUBROUTINE print_config_sample ( time , rank )
 
   USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
   USE mpimdff,  ONLY :  myrank
-  USE io_file,  ONLY :  stdout
+  USE io,  ONLY :  stdout
 
   implicit none
 
@@ -751,7 +751,7 @@ END SUBROUTINE print_config_sample
 ! ******************************************************************************
 SUBROUTINE print_general_info (kunit)
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
   USE config,   ONLY : natm , ntype , rho , simu_cell
 
   implicit none
@@ -785,7 +785,7 @@ END SUBROUTINE print_general_info
 
 SUBROUTINE dumb_guy(kunit)
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
 
   implicit none
 

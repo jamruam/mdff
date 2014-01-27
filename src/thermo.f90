@@ -45,7 +45,9 @@ MODULE thermodynamic
 !  real(kind=dp) :: u_coul_qd      !< potential energy from coulombic interaction
   real(kind=dp) :: u_pol 
   real(kind=dp) :: u_harm         !< harmonic oscilaltor lharm  
-  real(kind=dp) :: e_nvt          !< further Nose Hoover energy for the conserved quantity 
+  real(kind=dp) :: e_nvt          !< Nose Hoover thermostat "energy" (conserved quantity) 
+  real(kind=dp) :: e_npt          !< Nose-Hoover-Andersen (thermostat+barostat) "energy" (conserved quantity) 
+  real(kind=dp) :: csvr_conint    !< CSVR Stochastic velocity rescaling (conserved quantity) 
 
   real(kind=dp) :: e_kin_r        !< kinetic energy
   real(kind=dp) :: temp_r         !< temperature ( from kinetic energy )  
@@ -120,7 +122,6 @@ SUBROUTINE calc_thermo
   e_nvt_r  = e_nvt / REAL ( natm , kind = dp ) / engunit 
   u_tot    = u_lj_r + u_coul_r + u_morse_r + u_harm
   e_tot    = u_tot  + e_kin_r
-  if ( integrator .eq. 'nvt-nhc2' .or. integrator .eq. 'nvt-nhcn' ) e_tot = e_tot + e_nvt_r
 
   vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
@@ -275,9 +276,10 @@ END SUBROUTINE general_accumulator
 ! ******************************************************************************
 SUBROUTINE write_thermo ( step , kunit , key , dummy )
 
+  USE control,  ONLY :  lcsvr
   USE config,   ONLY :  simu_cell 
   USE md,       ONLY :  dt , integrator
-  USE io_file,  ONLY :  ionode
+  USE io,  ONLY :  ionode
 
   implicit none
 
@@ -313,13 +315,19 @@ SUBROUTINE write_thermo ( step , kunit , key , dummy )
          ( integrator .ne. 'nvt-nhc2' ) .and. &
          ( integrator .ne. 'nvt-nhcn' ) .and. &
          ( integrator .ne. 'nvt-nh' ) ) then
+    if (lcsvr) then
+    io_node WRITE ( kunit, 302)  step , REAL ( step * dt , kind = dp ) , &
+                                 e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
+                                 pressure_tot , pressure_lj , pressure_coul , omega , e_tot, e_tot + csvr_conint
+    else
     io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
                                  e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
                                  pressure_tot , pressure_lj , pressure_coul , omega , e_tot
+    endif
     else
     io_node WRITE ( kunit, 301)  step , REAL ( step * dt , kind = dp ) , &
                                  e_kin_r , temp_r , e_nvt_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
-                                 pressure_tot , pressure_lj , pressure_coul , omega , e_tot
+                                 pressure_tot , pressure_lj , pressure_coul , omega , e_tot , e_tot + e_nvt_r
     endif
   endif
 
@@ -369,8 +377,28 @@ SUBROUTINE write_thermo ( step , kunit , key , dummy )
      &        '  P_coul                = ',E15.8/ &
      &        '  volume                = ',E15.8/ &
      &        '  ---------------------------------------------'/ &
-     &        '  Etot                  = ',E15.8)
+     &        '  Etot                  = ',E15.8/ &
+     &        '  conserved quantity    = ',E15.8)
 
+ !lennard_jones nvt csvr 
+ 302 FORMAT(/ &
+              '  Thermodynamic information '/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  step                  = ',I9/ &
+     &        '  time                  = ',E15.8/ &
+     &        '  Ekin                  = ',E15.8/ &
+     &        '  Temp                  = ',E15.8/ &
+     &        '  Utot                  = ',E15.8/ &
+     &        '  U_lj                  = ',E15.8/ &
+     &        '  U_coul                = ',E15.8/ &
+     &        '  U_morse               = ',E15.8/ &
+     &        '  Pressure              = ',E15.8/ &
+     &        '  P_lj                  = ',E15.8/ &
+     &        '  P_coul                = ',E15.8/ &
+     &        '  volume                = ',E15.8/ &
+     &        '  ---------------------------------------------'/ &
+     &        '  Etot                  = ',E15.8/ &
+     &        '  conserved quantity    = ',E15.8)
 
   return
 
@@ -384,7 +412,7 @@ END SUBROUTINE write_thermo
 SUBROUTINE write_average_thermo ( kunit )
 
   USE md,       ONLY :  dt
-  USE io_file,  ONLY :  ionode
+  USE io,       ONLY :  ionode
 
   implicit none
 

@@ -97,7 +97,7 @@ SUBROUTINE knuth ( G , mean , sigma )
 
   summ = 0.0_dp
   do i = 1, 12
-     CALL RANDOM_SEED(SIZE = iseed)
+      CALL RANDOM_SEED(SIZE = iseed)
      CALL RANDOM_NUMBER(HARVEST = x)
      summ = summ + x
   enddo
@@ -136,17 +136,17 @@ SUBROUTINE boxmuller_polar (G, mean, sigma)
   real(kind=dp) :: G1,U,V,S
   integer :: iseed
   
-  CALL RANDOM_SEED(SIZE = ISEED)
+      CALL RANDOM_SEED(SIZE = iseed)
   CALL RANDOM_NUMBER(HARVEST = U)
-  CALL RANDOM_SEED(SIZE = ISEED)
+      CALL RANDOM_SEED(SIZE = iseed)
   CALL RANDOM_NUMBER(HARVEST = V)
   U = (2.0_dp*U)-1.0_dp
   V = (2.0_dp*V)-1.0_dp
   S = U*U+V*V
   do while ( S .eq. 0 .or. S .ge. 1) 
-    CALL RANDOM_SEED(SIZE = iseed)
+      CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = U)
-    CALL RANDOM_SEED(SIZE = iseed)
+      CALL RANDOM_SEED(SIZE = iseed)
     CALL RANDOM_NUMBER(HARVEST = V)
     U = (2.0_dp*U)-1.0_dp
     V = (2.0_dp*V)-1.0_dp
@@ -195,5 +195,51 @@ SUBROUTINE boxmuller_basic (G, mean, sigma)
   return
 
 END SUBROUTINE boxmuller_basic
+
+! *********************** SUBROUTINE gammadev **********************************
+! adapted from resamplingkin.f90 giovannibussi
+! https://sites.google.com/site/giovannibussi/Research/algorithms#TOC-Stochastic-velocity-rescaling
+! gamma-distributed random number, implemented as described in numerical recipes
+! ******************************************************************************
+SUBROUTINE gammadev(G,n)
+
+  USE constants,         ONLY : dp
+
+  implicit none
+  integer, intent(in) :: n
+  integer j
+  real(kind=dp) :: am,e,s,v1,v2,x,y,U,V,W,G
+  integer :: iseed
+  
+  if(n.lt.1)pause 'bad argument in gamdev'
+  if(n.lt.6)then
+    x=1.
+    do 11 j=1,n
+      CALL RANDOM_SEED(SIZE = iseed)
+      CALL RANDOM_NUMBER(HARVEST = U)
+      x=x*U
+11    continue
+    x=-log(x)
+  else
+1   CALL RANDOM_SEED(SIZE = iseed)
+    CALL RANDOM_NUMBER(HARVEST = U)
+    CALL RANDOM_NUMBER(HARVEST = V)
+    v1=2.*U-1.
+    v2=2.*V-1.
+    if(v1**2+v2**2.gt.1.)goto 1
+    y=v2/v1
+    am=n-1
+    s=sqrt(2.*am+1.)
+    x=s*y+am
+    if(x.le.0.)goto 1
+    e=(1.+y**2)*exp(am*log(x/am)-s*y)
+    CALL RANDOM_NUMBER(HARVEST = W)
+    if(W.gt.e)goto 1
+  endif
+  G=x
+  return
+
+END SUBROUTINE gammadev 
+
 
 ! ===== fmV =====

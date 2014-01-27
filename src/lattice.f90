@@ -33,6 +33,7 @@ MODULE cell
   TYPE celltype
     real(kind=dp) :: A(3,3)               !< direct basis vector  
     real(kind=dp) :: B(3,3)               !< reciprocal basis vectors  
+    real(kind=dp) :: G(3,3)               !< metric tensor (A^T A)  
     real(kind=dp) :: ANORM(3)             !< norm of direct basis vectors
     real(kind=dp) :: BNORM(3)             !< norm of reciprocal basis vectors
     real(kind=dp) :: OMEGA                !< volume ( direct )
@@ -73,6 +74,18 @@ SUBROUTINE lattice ( Mylatt )
   real(kind=dp) :: alph, bet , gamm 
   real(kind=dp) :: ralph, rbet , rgamm 
 
+  ! metric tensor
+  ! A^TA
+  Mylatt%G(1,1) = Mylatt%A(1,1)**2.0d0 + Mylatt%A(2,1)**2.0d0 + Mylatt%A(3,1)**2.0d0
+  Mylatt%G(2,1) = Mylatt%A(2,1)*Mylatt%A(2,2) + Mylatt%A(3,1)*Mylatt%A(3,2)
+  Mylatt%G(3,1) = Mylatt%A(3,1)*Mylatt%A(3,3) 
+  Mylatt%G(1,2) = Mylatt%G(2,1) 
+  Mylatt%G(2,2) = Mylatt%A(2,2)**2.0d0 + Mylatt%A(3,2)**2.0d0
+  Mylatt%G(3,2) = Mylatt%A(3,2)*Mylatt%A(3,3)
+  Mylatt%G(1,3) = Mylatt%G(3,1)
+  Mylatt%G(2,3) = Mylatt%G(3,2)
+  Mylatt%G(3,3) = Mylatt%A(3,3)**2.0d0
+
 
   CALL EXPRO(Mylatt%B(1:3,1),Mylatt%A(1:3,2),Mylatt%A(1:3,3))  ! B x C
   CALL EXPRO(Mylatt%B(1:3,2),Mylatt%A(1:3,3),Mylatt%A(1:3,1))  ! C x A
@@ -110,7 +123,6 @@ SUBROUTINE lattice ( Mylatt )
   Mylatt%RWA=RWA
   Mylatt%RWB=RWB
   Mylatt%RWC=RWC
-
 
   do i=1,3
     Mylatt%ANORM(i)=SQRT(SUM(Mylatt%A(:,i)*Mylatt%A(:,i)))

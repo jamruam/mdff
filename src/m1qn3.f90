@@ -87,17 +87,17 @@
 !> \version
 !! Version 3.3
 
-subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impres,io,imode,omode,niter,nsim,iz,dz,ndz,reverse,indic,izs,rzs,dzs)
+subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impres,iom,imode,omode,niter,nsim,iz,dz,ndz,reverse,indic,izs,rzs,dzs)
 
   USE constants,                ONLY : dp
-  USE io_file,                  ONLY : ionode
+  USE io,                       ONLY : ionode
 
       implicit none
 !c
 !c     arguments
 !c
       character(len=3) normtype
-      integer n,impres,io,imode(3),omode,niter,nsim,iz(5),ndz,indic,reverse,izs(*)
+      integer n,impres,iom,imode(3),omode,niter,nsim,iz(5),ndz,indic,reverse,izs(*)
       real rzs(*)
       real(kind=dp) x(n),f,g(n),dxmin,df1,epsg,dz(ndz),dzs(*)
       external simul,prosca,ctonb,ctcab
@@ -135,7 +135,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c --- stop if reverse < 0 (m1qn3 should not be called with reverse < 0)
 !c
       if (reverse.lt.0) then
-          write (io,'(/a,a,i0,a/)') " >>> m1qn3 should not be called with a negative reverse"," (=", reverse, ")"
+          write (iom,'(/a,a,i0,a/)') " >>> m1qn3 should not be called with a negative reverse"," (=", reverse, ")"
           stop
       endif
 !c
@@ -147,7 +147,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c---- license notice
 !c
       if (ionode .and. impres.ge.5) then
-          write (io,934)
+          write (iom,934)
       endif
   934 format (1x,79("-") /1x,"M1QN3 Copyright (C) 2008, J. Ch. Gilbert, Cl. ","Lemarechal." &
           /1x,79("-")    /1x,"This program comes with ABSOLUTELY NO WARRANTY. This is",     &  
@@ -158,11 +158,11 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c---- impressions initiales et controle des arguments
 !c
       if ( ionode .and. impres.ge.1) then
-          write (io,900) n,dxmin,df1,epsg,normtype,niter,nsim,impres
+          write (iom,900) n,dxmin,df1,epsg,normtype,niter,nsim,impres
           if (reverse.gt.0) then
-              write (io,'(5x,a)') "reverse communication"
+              write (iom,'(5x,a)') "reverse communication"
           else
-              write (io,'(5x,a)') "direct communication"
+              write (iom,'(5x,a)') "direct communication"
           endif
       endif
   900 format (/" M1QN3 (Version 3.3, October 2009): entry point"/ & 
@@ -180,32 +180,32 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       if (n.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: n should be > 0"
+          if (ionode .and. impres.ge.1) write (iom,'(/a)') " >>> m1qn3: n should be > 0"
           return
       endif
       if (niter.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: niter should be > 0"
+          if (ionode .and. impres.ge.1) write (iom,'(/a)') " >>> m1qn3: niter should be > 0"
           return
       endif
       if (nsim.le.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and.impres.ge.1) write (io,'(/a)') " >>> m1qn3: nsim should be > 0"
+          if (ionode .and.impres.ge.1) write (iom,'(/a)') " >>> m1qn3: nsim should be > 0"
           return
       endif
       if (dxmin.le.0.0_dp) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: dxmin should be > 0.0_dp"
+          if (ionode .and. impres.ge.1) write (iom,'(/a)') " >>> m1qn3: dxmin should be > 0.0_dp"
           return
       endif
 !c     if (epsg.le.0.0_dp .or. epsg.gt.1.0_dp) then
       if (epsg.le.0.0_dp) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg should be > 0.0_dp"
+          if (ionode .and. impres.ge.1) write (iom,'(/a)') " >>> m1qn3: epsg should be > 0.0_dp"
           return
       endif
       if (epsg.ge.1.0_dp) then
@@ -214,30 +214,30 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           nsim=0
           epsg=1.0_dp
           if (reverse.gt.0) reverse = -1
-          if (ionode .and. impres.ge.1) write (io,'(/a)') " >>> m1qn3: epsg is >= 1.0_dp, no need to make progress"
+          if (ionode .and. impres.ge.1) write (iom,'(/a)') " >>> m1qn3: epsg is >= 1.0_dp, no need to make progress"
           goto 1000
       endif
       if ((normtype.ne.'two') .and. (normtype.ne.'sup') .and. (normtype.ne.'dfn')) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          write (io,'(/a,a,a/)') " >>> m1qn3: unknown norm type '", normtype, "'"
+          write (iom,'(/a,a,a/)') " >>> m1qn3: unknown norm type '", normtype, "'"
           return
       endif
       if (ionode .and. impres.lt.0) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          write (io,'(/a,i0/)') " >>> m1qn3: impres should be >= 0 and has the value ", impres
+          write (iom,'(/a,i0/)') " >>> m1qn3: impres should be >= 0 and has the value ", impres
           return
       endif
 !c
 !c---- what method
 !c
       if (imode(1).eq.0) then
-          if (ionode .and. impres.ge.1) write (io,920)
+          if (ionode .and. impres.ge.1) write (iom,920)
   920     format (/" m1qn3: Diagonal Initial Scaling mode")
           sscale=.false.
       else
-          if (ionode .and. impres.ge.1) write (io,921)
+          if (ionode .and. impres.ge.1) write (iom,921)
   921     format (/" m1qn3: Scalar Initial Scaling mode")
           sscale=.true.
       endif
@@ -245,7 +245,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       if ((ndz.lt.5*n+1).or.((.not.sscale).and.(ndz.lt.6*n+1))) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and.impres.ge.1) write (io,922)
+          if (ionode .and.impres.ge.1) write (iom,922)
   922     format (/" >>> m1qn3: not enough memory allocated")
           return
       endif
@@ -259,7 +259,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       if (m.lt.1) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and.impres.ge.1) write (io,930)
+          if (ionode .and.impres.ge.1) write (iom,930)
   930     format (/" >>> m1qn3: m is set too small in mupdts")
           return
       endif
@@ -271,20 +271,20 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
       ntravu=2*(2+mmemo)*n+m
       if (sscale) ntravu=ntravu-n
-      if (ionode .and.impres.ge.1) write (io,931) ndz,ntravu,m
+      if (ionode .and.impres.ge.1) write (iom,931) ndz,ntravu,m
   931 format (/5x,"allocated memory (ndz) :",i9/5x,"used memory :           ",i9/5x,"number of updates :     ",i9)
       if (ndz.lt.ntravu) then
           omode=2
           if (reverse.gt.0) reverse = -1
-          if (ionode .and.impres.ge.1) write (io,922)
+          if (ionode .and.impres.ge.1) write (iom,922)
           return
       endif
 !c
       if (ionode .and.impres.ge.1) then
           if (inmemo) then
-              write (io,932)
+              write (iom,932)
           else
-              write (io,933)
+              write (iom,933)
           endif
       endif
   932 format (5x,"(y,s) pairs are stored in core memory")
@@ -295,21 +295,21 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c               iz(3)=m, iz(4)=jmin, iz(5)=jmax
 !c
       if (imode(2).eq.0) then
-          if (ionode .and.impres.ge.1) write (io,940)
+          if (ionode .and.impres.ge.1) write (iom,940)
       else
           if (iz(1).ne.n .or. iz(2).ne.imode(1) .or. iz(3).ne.m .or. iz(4).lt.1 .or. iz(5).lt.0 .or. iz(4).gt.iz(3) .or. iz(5).gt.iz(3)) then
               omode=2
               if (reverse.gt.0) reverse = -1
               if (ionode .and.impres.ge.1) then
-                  write (io,941)
-                  if (iz(1).ne.n) write (io,942)
-                  if (iz(2).ne.imode(1)) write (io,943)
-                  if (iz(3).ne.m) write (io,944)
-                  if (iz(4).lt.1 .or. iz(5).lt.0 .or. iz(4).gt.iz(3) .or. iz(5).gt.iz(3)) write (io,945)
+                  write (iom,941)
+                  if (iz(1).ne.n) write (iom,942)
+                  if (iz(2).ne.imode(1)) write (iom,943)
+                  if (iz(3).ne.m) write (iom,944)
+                  if (iz(4).lt.1 .or. iz(5).lt.0 .or. iz(4).gt.iz(3) .or. iz(5).gt.iz(3)) write (iom,945)
               endif
               return
           endif
-          if (ionode .and.impres.ge.1) write (io,946)
+          if (ionode .and.impres.ge.1) write (iom,946)
       endif
   940 format (/" m1qn3: cold start"/1x)
   941 format (/" >>> m1qn3: inconsistent warm restart ")
@@ -338,7 +338,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
  9999 continue
       call m1qn3a (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg, &
-                   normtype,impres,io,imode,omode,niter,nsim,inmemo, &
+                   normtype,impres,iom,imode,omode,niter,nsim,inmemo, &
                    iz(3),iz(4),iz(5),dz(id),dz(igg),dz(idiag),dz(iaux), &
                    dz(ialpha),dz(iybar),dz(isbar),reverse,reentry,indic, & 
                    izs,rzs,dzs)
@@ -347,7 +347,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c---- impressions finales
 !c
  1000 continue
-      if ( ionode .and. impres.ge.1) write (io,960) omode,niter,nsim,epsg
+      if ( ionode .and. impres.ge.1) write (iom,960) omode,niter,nsim,epsg
   960 format (/1x,79("-")/" m1qn3: output mode is ",i2 /5x,"number of iterations: ",i14 & 
               /5x,"number of simulations: ",i13 &
               /5x,"realized relative precision on g: ",1pd9.2)
@@ -360,7 +360,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           gnorm=sqrt(ps)
       endif
 
-      if (ionode .and.impres.ge.1) write (io,961) f,normtype,gnorm
+      if (ionode .and.impres.ge.1) write (iom,961) f,normtype,gnorm
   961 format (5x,"f             = ",1pd15.8/5x,a3,"-norm of g = ",1pd15.8)
 
       return
@@ -369,7 +369,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c--------0---------0---------0---------0---------0---------0---------0--
 !c
       subroutine m1qn3a (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1, &
-                        epsg,normtype,impres,io,imode,omode,niter,nsim, &
+                        epsg,normtype,impres,iom,imode,omode,niter,nsim, &
                         inmemo,m,jmin,jmax,d,gg,diag,aux,alpha,ybar, &
                         sbar,reverse,reentry,indic,izs,rzs,dzs)
 !c----
@@ -379,14 +379,14 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c----
 !c
   USE constants,  ONLY : dp
-  USE io_file, ONLY : ionode
+  USE io,         ONLY : ionode
       implicit none
 !c
 !c         arguments
 !c
       logical inmemo
       character(len=3) normtype
-      integer n,impres,io,imode(3),omode,niter,nsim,m,jmin,jmax,indic,reverse,reentry,izs(*)
+      integer n,impres,iom,imode(3),omode,niter,nsim,m,jmin,jmax,indic,reverse,reentry,izs(*)
       real rzs(*)
       real(kind=dp) x(n),f,g(n),dxmin,df1,epsg,d(n),gg(n),diag(n),aux(n),alpha(m),ybar(n,1),sbar(n,1),dzs(*)
       external simul,prosca,ctonb,ctcab
@@ -444,11 +444,11 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       elseif (normtype.eq.'dfn') then
           gnorms = gnorm
       endif
-      if (ionode .and.impres.ge.1) write (io,900) f,normtype,gnorms
+      if (ionode .and.impres.ge.1) write (iom,900) f,normtype,gnorms
   900 format (5x,"f             = ",1pd15.8/5x,a3,"-norm of g = ",1pd15.8)
       if (gnorms.lt.rmin) then
           omode=2
-          if (ionode .and.impres.ge.1) write (io,901)
+          if (ionode .and.impres.ge.1) write (iom,901)
           goto 1000
       endif
   901 format (/" >>> m1qn3a: initial gradient is too small")
@@ -473,7 +473,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
               d(i)=-g(i)*precos
               diag(i)=1.0_dp
    10     continue
-          if (ionode .and.impres.ge.5) write(io,902) precos
+          if (ionode .and.impres.ge.5) write(iom,902) precos
   902     format (/" m1qn3a: descent direction -g: precon = ",d10.3)
       else
 !c
@@ -493,8 +493,8 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           endif
       endif
 !c
-      if (ionode .and.impres.eq.3) write(io,903)
-      if (ionode .and.impres.eq.4) write(io,903)
+      if (ionode .and.impres.eq.3) write(iom,903)
+      if (ionode .and.impres.eq.4) write(iom,903)
   903 format (/1x,79("-"))
   904 format (1x)
 !c
@@ -504,7 +504,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       call prosca (n,d,g,hp0,izs,rzs,dzs)
       if (hp0.ge.0.d+0) then
           omode=7
-          if (ionode .and.impres.ge.1) write (io,905) niter,hp0
+          if (ionode .and.impres.ge.1) write (iom,905) niter,hp0
           goto 1000
       endif
   905 format (/" >>> m1qn3 (iteration ",i2,"): "/5x," the search direction d is not a ","descent direction: (g,d) = ",d12.5)
@@ -520,7 +520,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           ps=min1(-ps,1._dp)
           ps=acos(ps)
           d1=ps*180.d+0/pi
-          write (io,906) sngl(d1)
+          write (iom,906) sngl(d1)
       endif
   906 format (/" m1qn3: descent direction d: ","angle(-g,d) = ",f5.1," degrees")
 !c
@@ -531,9 +531,9 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c         Sortie de la boucle: goto 1000.
 !c
 100   niter=niter+1
-      if (ionode .and.impres.ge.5) write(io,903)
-      if (ionode .and.impres.ge.4) write(io,904)
-      if (ionode .and.impres.ge.4) write (io,910) niter,isim,f,hp0
+      if (ionode .and.impres.ge.5) write(iom,903)
+      if (ionode .and.impres.ge.4) write(iom,904)
+      if (ionode .and.impres.ge.4) write(iom,910) niter,isim,f,hp0
   910 format (" m1qn3: iter ",i0,", simul ",i0,", f=",1pd15.8,", h'(0)=",d12.5)
 !c
 !c     --- free simulation if desired
@@ -557,7 +557,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           gg(i)=g(i)
 101   continue
       ff=f
-      if (ionode .and.impres.ge.5) write (io,911)
+      if (ionode .and.impres.ge.5) write(iom,911)
   911 format (/" m1qn3: line search")
 !c
 !c         --- calcul de tmin
@@ -571,7 +571,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       d1=hp0
 !c
  9999 continue
-      call mlis3 (n,simul,prosca,x,f,d1,t,tmin,tmax,d,g,rm2,rm1,impres,io,moderl,isim,nsim,aux,reverse,reentry,indic,izs,rzs,dzs)
+      call mlis3 (n,simul,prosca,x,f,d1,t,tmin,tmax,d,g,rm2,rm1,impres,iom,moderl,isim,nsim,aux,reverse,reentry,indic,izs,rzs,dzs)
       if (reentry.gt.0) return
 !c
 !c         --- mlis3 renvoie les nouvelles valeurs de x, f et g
@@ -628,7 +628,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c     --- mise a jour de la matrice
 !c
       if (skip_update) then
-          if (ionode .and.impres.ge.5) write(io,'(/a)') " m1qn3: matrix update is skipped"
+          if (ionode .and.impres.ge.5) write(iom,'(/a)') " m1qn3: matrix update is skipped"
       elseif (m.gt.0) then
 !c
 !c         --- mise a jour des pointeurs
@@ -650,14 +650,14 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           if (ionode .and.impres.ge.5) then
               call prosca (n,sbar(1,jcour),sbar(1,jcour),ps,izs,rzs,dzs)
               dk1=sqrt(ps)
-              if (niter.gt.1) write (io,930) dk1/dk
+              if (niter.gt.1) write (iom,930) dk1/dk
   930         format (/" m1qn3: convergence rate, s(k)/s(k-1) = ",1pd12.5)
               dk=dk1
           endif
           call prosca (n,ybar(1,jcour),sbar(1,jcour),ys,izs,rzs,dzs)
           if (ys.le.0.d+0) then
               omode=7
-              if (ionode .and.impres.ge.1) write (io,931) niter,ys
+              if (ionode .and.impres.ge.1) write (iom,931) niter,ys
   931         format (/" >>> m1qn3 (iteration ",i2,"): the scalar product (y,s) = ",d12.5/27x,"is not positive")
               goto 1000
           endif
@@ -673,7 +673,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
 !c         --- compute the scalar or diagonal preconditioner
 !c
-          if (ionode .and.impres.ge.5) write(io,932)
+          if (ionode .and.impres.ge.5) write(iom,932)
   932     format (/" m1qn3: matrix update:")
 !c
 !c             --- Here is the Oren-Spedicato factor, for scalar scaling
@@ -682,7 +682,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
               call prosca (n,ybar(1,jcour),ybar(1,jcour),ps,izs,rzs,dzs)
               precos=1.0_dp/ps
 !c
-              if (ionode .and.impres.ge.5) write (io,933) precos
+              if (ionode .and.impres.ge.5) write (iom,933) precos
   933         format (5x,"Oren-Spedicato factor = ",d10.3)
 !c
 !c             --- Scale the diagonal to Rayleigh s ellipsoid.
@@ -698,7 +698,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
   420         continue
               d1=1.0_dp/ps
               if (ionode .and.impres.ge.5) then
-                  write (io,934) d1
+                  write (iom,934) d1
   934             format(5x,"fitting the ellipsoid: factor = ",1pd10.3)
               endif
               do 421 i=1,n
@@ -717,7 +717,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
               do 431 i=1,n
                   diag(i)=1.0_dp/(1.0_dp/diag(i)+aux(i)**2-(gg(i)/diag(i))**2/den)
                   if (diag(i).le.0.0_dp) then
-                      if (ionode .and.impres.ge.5) write (io,935) i,diag(i),rmin
+                      if (ionode .and.impres.ge.5) write (iom,935) i,diag(i),rmin
                       diag(i)=rmin
                   endif
   431         continue
@@ -736,7 +736,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
                       ps2=ps2+(diag(i)-ps)**2
   441             continue
                   ps2=sqrt(ps2/n)
-                  write (io,936) preco,ps2
+                  write (iom,936) preco,ps2
   936             format (5x,"updated diagonal: average value = ",1pd10.3,", sqrt(variance) = ",d10.3)
               endif
           endif
@@ -758,10 +758,10 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       eps1 = gnorm/gnorms
 !c
       if (ionode .and.impres.eq.3) then
-          if (mod(niter-1,50).eq.0) write(io,'(/a,a)') "  iter  simul  stepsize            f                |g|","       |g|/|g0|"
-          write(io,'(1x,i5,2x,i5,2x,1pd9.2,2x,d21.14,2x,d12.5,2x,d11.4)') niter, isim, t, f, gnorm, eps1
+          if (mod(niter-1,50).eq.0) write(iom,'(/a,a)') "  iter  simul  stepsize            f                |g|","       |g|/|g0|"
+          write(iom,'(1x,i5,2x,i5,2x,1pd9.2,2x,d21.14,2x,d12.5,2x,d11.4)') niter, isim, t, f, gnorm, eps1
       endif
-      if (ionode .and.impres.ge.5) write (io,940) eps1
+      if (ionode .and.impres.ge.5) write (iom,940) eps1
   940 format (/" m1qn3: stopping criterion on g: ",1pd12.5)
       if (eps1.lt.epsg) then
           omode=1
@@ -769,13 +769,13 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       endif
       if (niter.eq.itmax) then
           omode=4
-          if (ionode .and.impres.ge.1) write (io,941) niter
+          if (ionode .and.impres.ge.1) write (iom,941) niter
   941     format (/" >>> m1qn3 (iteration ",i0,"): maximal number of iterations")
           goto 1000
       endif
       if (isim.gt.nsim) then
           omode=5
-          if (ionode .and.impres.ge.1) write (io,942) niter,isim
+          if (ionode .and.impres.ge.1) write (iom,942) niter,isim
   942     format (/" >>> m1qn3 (iteration ",i3,"): ",i6," simulations (maximal number reached)")
           goto 1000
       endif
@@ -804,7 +804,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       call prosca (n,d,g,hp0,izs,rzs,dzs)
       if (hp0.ge.0.d+0) then
           omode=7
-          if (ionode .and.impres.ge.1) write (io,905) niter,hp0
+          if (ionode .and.impres.ge.1) write (iom,905) niter,hp0
           goto 1000
       endif
       if (ionode .and.impres.ge.5) then
@@ -817,7 +817,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           ps=acos(ps)
           d1=ps
           d1=d1*180.0_dp/pi
-          write (io,906) sngl(d1)
+          write (iom,906) sngl(d1)
       endif
 !c
 !c---- on poursuit les iterations

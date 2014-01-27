@@ -71,7 +71,7 @@ SUBROUTINE rmc_init
 
   USE config,                   ONLY :  simu_cell
   USE control,                  ONLY :  calc
-  USE io_file,                  ONLY :  stdin , stdout , ionode
+  USE io,                  ONLY :  stdin , stdout , ionode
 
   implicit none
 
@@ -159,7 +159,7 @@ END SUBROUTINE rmc_default_tag
 SUBROUTINE rmc_print_info(kunit)
 
   USe control,                  ONLY :  calc
-  USE io_file,                  ONLY :  ionode 
+  USE io,                  ONLY :  ionode 
 
   implicit none
  
@@ -185,7 +185,7 @@ END SUBROUTINE rmc_print_info
 SUBROUTINE rmc_main
 
   USE constants,                ONLY : pi , dzero
-  USE io_file,                  ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
+  USE io,                  ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
   USE config,                   ONLY : natm, ntype , simu_cell, natmi, atypei, atype, allowedmove, rx, ry , rz, &
                                        config_alloc, coord_format_allowed, write_CONTFF, system , &
                                        vx, vy, vz, fx, fy, fz, rho , config_print_info , itype , atom_dec , write_trajff_xyz
@@ -768,7 +768,7 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
   USE config,           ONLY :  natm, ntype , itype , natmi , rx , ry , rz, simu_cell, rx, ry, rz 
   USE cell,             ONLY :  kardir, dirkar
   USE time,             ONLY :  chisqvartimetot , chisqvartime2 , chisqvartime3 , chisqvartime4 , chisqvartime5 
-  USE io_file,          ONLY :  stdout
+  USE io,          ONLY :  stdout
 
   implicit none
 
@@ -1420,7 +1420,7 @@ SUBROUTINE rmc_gr ( grr_calc )
   USE radial_distrib,           ONLY :  nbins , npairs , gr_main , gr , resg , cutgr
   USE config,                   ONLY :  natm, natmi , ntype , simu_cell
   USE time,                     ONLY :  rmcgrtimetot_comm
-  USE io_file,                  ONLY :  stderr
+  USE io,                  ONLY :  stderr
 
   implicit none
  
@@ -1489,7 +1489,7 @@ SUBROUTINE rmc_efg ( dibU_calc , dibeta_calc , dibvzz_calc )
   USE efg,                      ONLY :  PANU , PANeta, PANvzz , resu , reseta , resvzz , umin , vzzmin , &
                                         read_dtibuff , read_dtvzzff , read_dtetaff , dibUtot , dibetatot , dibvzztot , &
                                         mu , efg_alloc , efg_mesh_alloc , multipole_efg_es , efg_ia , nmr_convention
-  USE io_file,                  ONLY :  ionode , stderr
+  USE io,                       ONLY :  ionode , stderr
 
   implicit none
 

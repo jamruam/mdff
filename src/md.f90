@@ -43,11 +43,15 @@ MODULE md
 
   real(kind=dp) :: dt                   !< time step
   real(kind=dp) :: temp                 !< temperature   
-  real(kind=dp) :: Qnosehoover          !< Nose-Hoover Chain : Q mass 
+  real(kind=dp) :: press                !< pressure
+  real(kind=dp) :: Qmass                !< Nose-Hoover Chain : Q mass 
+  real(kind=dp) :: Wmass                !< Andersen barostat : W mass 
   integer       :: nhc_yosh_order       !< Nose-Hoover Chain : order of the yoshida integrator 
   integer       :: nhc_mults            !< Nose-Hoover Chain : number of multiple timesteps 
   integer       :: nhc_n                !< Nose-Hoover Chain : length of the Nose-Hoover chain
-  real(kind=dp) :: tauberendsen         !< characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt )
+  real(kind=dp) :: tauTberendsen        !< characteristic time in berendsen thermostat (simple rescale if tauTberendsen = dt )
+  real(kind=dp) :: tauPberendsen        !< characteristic time in berendsen barostat   (simple rescale if tauPberendsen = dt )
+  real(kind=dp) :: taucsvr              !< characteristic time in Stochastic velocity rescaling (simple rescale if taucsvr = 0.0 )
   real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat
   real(kind=dp) , dimension ( : ) , allocatable :: vxi, xi              !< general coordinates of the thermostat (Nose-Hoover Chain)
 
@@ -55,8 +59,10 @@ MODULE md
   !     algorithm for dynamic integration
   ! ================================================
   character(len=60) :: integrator               !< integration method   
-  character(len=60) :: integrator_allowed(8)    
-  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nvt-nhcn', 'nve-lfq'/
+  character(len=60) :: integrator_allowed(10)    
+  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nve-lfq',  &
+                                            'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nvt-nhcn', & 
+                                            'npe-vv' , 'npt-nhcpn' /
 
   ! ================================================
   !  velocity distribution (Maxwell-Boltzmann or uniform)
@@ -75,7 +81,7 @@ CONTAINS
 SUBROUTINE md_init
 
   USE control,  ONLY :  lpbc , lstatic , calc
-  USE io_file,  ONLY :  ionode ,stdin, stdout
+  USE io,  ONLY :  ionode ,stdin, stdout
 
   implicit none
 
@@ -92,12 +98,16 @@ SUBROUTINE md_init
                       spas          , & 
                       dt            , &
                       temp          , & 
+                      press         , & 
                       nuandersen    , & 
-                      tauberendsen  , &
+                      taucsvr       , &
+                      tauTberendsen , &
+                      tauPberendsen , &
                       nhc_yosh_order, & 
                       nhc_mults     , & 
-                      nhc_n          , & 
-                      Qnosehoover      
+                      nhc_n         , & 
+                      Wmass         , &
+                      Qmass      
 
   if ( calc .ne. 'md' ) return
   ! ======================
@@ -156,9 +166,13 @@ SUBROUTINE md_default_tag
   spas          = 1000           
   dt            = 0.0_dp
   temp          = 1.0_dp
-  tauberendsen  = 0.0_dp
+  press         = 0.0_dp
+  taucsvr       = 0.0_dp
+  tauTberendsen = 0.0_dp
+  tauPberendsen = 0.0_dp
   nhc_yosh_order= 3 
   nhc_mults     = 2 
+  nhc_n         = 4
 
   return
 
@@ -172,7 +186,7 @@ END SUBROUTINE md_default_tag
 SUBROUTINE md_check_tag
 
   USE control,  ONLY :  lstatic
-  USE io_file,  ONLY :  ionode , stdout
+  USE io,  ONLY :  ionode , stdout
 
   implicit none
 
@@ -187,9 +201,10 @@ SUBROUTINE md_check_tag
 
   ! =========================================
   !  scaling velocities berendsen, 
-  !  if not defined simple velocity rescale 
+  !  if not defined simple velocity/volume rescale 
   ! =========================================
-  if (tauberendsen.eq.0.0_dp ) tauberendsen = dt
+  if (tauTberendsen.eq.0.0_dp ) tauTberendsen = dt
+  if (tauPberendsen.eq.0.0_dp ) tauPberendsen = dt
 
   ! ====================
   !  check integrator
@@ -214,10 +229,10 @@ SUBROUTINE md_check_tag
   endif
 
   ! ===================
-  !  check Qnosehoover
+  !  check Qmass
   ! ===================
-  if ( integrator .eq. 'nvt-nhc2' .and. Qnosehoover .eq. 0.0_dp ) then
-     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" Qnosehoover should be set',Qnosehoover
+  if ( integrator .eq. 'nvt-nhc2' .and. Qmass .eq. 0.0_dp ) then
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" Qmass should be set',Qmass
     STOP
   endif
 
@@ -241,14 +256,15 @@ SUBROUTINE md_check_tag
   ! allocation of thermostat coordinates
   if ( integrator .eq. 'nvt-nhc2' ) then 
     allocate ( vxi(2) , xi(2) )
+    nhc_n=2
   endif 
-  if ( integrator .eq. 'nvt-nhcn' ) then 
+  if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then 
     allocate ( vxi(nhc_n) , xi(nhc_n) )
   endif 
   ! initial conditions
-!   vxi = 1.0_dp
-!   xi = 0.0_dp
-!  vxi(1) = 1.0_dp      
+   !vxi = 1.0_dp
+   !xi = 0.0_dp
+   !vxi(1) = 1.0_dp      
 
   return
 
@@ -262,8 +278,8 @@ END SUBROUTINE md_check_tag
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
-  USE control,          ONLY :  ltraj , lpbc , lstatic , lvnlist , lreduced , lminimg , itraj_start , itraj_period , itraj_format  
-  USE io_file,          ONLY :  ionode 
+  USE control,          ONLY :  ltraj , lpbc , lstatic , lvnlist , lreduced , lminimg , lcsvr , itraj_start , itraj_period , itraj_format  
+  USE io,               ONLY :  ionode 
 
   implicit none
   
@@ -302,7 +318,7 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
         if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
         if ( integrator .eq. 'nvt-nhc2' .or. & 
-             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'Qnosehoover                          = ',Qnosehoover
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'Qmass                          = ',Qmass
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
              ( integrator .ne. 'nvt-nhcn' ) .and. &
@@ -321,13 +337,17 @@ SUBROUTINE md_print_info(kunit)
                                           WRITE ( kunit ,'(a,e12.5)') 'timestep                             = ',dt
                                           WRITE ( kunit ,'(a,e12.5)') 'time range                           = ',dt*npas
                                           WRITE ( kunit ,'(a,f10.5)') 'temperature                          = ',temp
+                                          WRITE ( kunit ,'(a,f10.5)') 'pressure                             = ',press
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
                                           WRITE ( kunit ,'(a,i10)')   'number of equilibration steps        = ',nequil
                                           WRITE ( kunit ,'(a,i10)')   'equilibration period                 = ',nequil_period
       endif 
-      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5)') 'Berendsen thermo time scale          = ',tauberendsen
-      if ( nequil .ne. 0 .and. tauberendsen .eq. dt )   &
-                                          WRITE ( kunit ,'(a)')       'tauberendsen = dt -> simple rescale'
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)') 'Stochastic velocity resc. time scale = ',taucsvr
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)') 'taucsvr = 0.0 -> simple rescale'
+      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5)') 'Berendsen thermostat time scale      = ',tauTberendsen
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5)') 'Berendsen barostat time scale        = ',tauPberendsen
+      if ( nequil .ne. 0 .and. tauTberendsen .eq. dt )   &
+                                          WRITE ( kunit ,'(a)')       'tau[T-P]berendsen = dt -> simple rescale'
                                           WRITE ( kunit ,'(a,i10)')   'print thermo  periodicity            = ',nprint
       if ( ltraj )                   then    
                                           WRITE ( kunit ,'(a,i10)')   'save trajectory from step            = ',itraj_start

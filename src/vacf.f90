@@ -58,7 +58,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE vacf_init
 
-  USE io_file,  ONLY :  stdin , stdout , ionode
+  USE io,  ONLY :  stdin , stdout , ionode
 
   implicit none
 
@@ -135,7 +135,7 @@ END SUBROUTINE vacf_check_tag
 ! ******************************************************************************
 SUBROUTINE vacf_print_info(kunit)
 
-  USE io_file,  ONLY :  ionode 
+  USE io,  ONLY :  ionode 
 
   implicit none
 
@@ -220,7 +220,7 @@ SUBROUTINE vacf_main
   USE control,          ONLY :  cutshortrange 
   USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , rho 
   USE md,               ONLY :  dt
-  USE io_file,          ONLY :  kunit_VACFFF
+  USE io,          ONLY :  kunit_VACFFF
   USE constants,        ONLY :  pi
   USE time,             ONLY :  vacftimetot
 
@@ -279,7 +279,7 @@ END SUBROUTINE vacf_main
 SUBROUTINE vacf_write_output
 
   USE config,   ONLY :  natm 
-  USE io_file,  ONLY :  ionode , stdout , kunit_VACFFF  
+  USE io,       ONLY :  ionode , stdout , kunit_VACFFF  
   USE time,     ONLY :  vacftimetot2
 
   implicit none

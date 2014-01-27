@@ -69,7 +69,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE opt_init
 
-  USE io_file,                  ONLY :  stdin , stdout , ionode
+  USE io,                  ONLY :  stdin , stdout , ionode
 
   implicit none
  
@@ -150,7 +150,7 @@ END SUBROUTINE opt_default_tag
 ! ******************************************************************************
 SUBROUTINE opt_check_tag
 
-  USE io_file,                  ONLY :  ionode , stdout
+  USE io,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -182,7 +182,7 @@ END SUBROUTINE opt_check_tag
 SUBROUTINE opt_print_info(kunit) 
 
   USE control,                  ONLY :  lpbc 
-  USE io_file,                  ONLY :  ionode 
+  USE io,                  ONLY :  ionode 
 
   implicit none
  
@@ -252,7 +252,7 @@ SUBROUTINE opt_main
                                 atype  , rho , config_alloc , list , point , simu_cell , &
                                 atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header 
   USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , itraj_save 
-  USE io_file,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
+  USE io,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
   USE cell,             ONLY :  lattice , dirkar
@@ -445,7 +445,7 @@ END SUBROUTINE opt_main
 SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point , write_trajff_xyz
-  USE io_file,                  ONLY :  ionode , stdout
+  USE io,                  ONLY :  ionode , stdout
   USE thermodynamic,            ONLY :  u_tot      
   USE field,                    ONLY :  engforce_driver 
 
@@ -954,7 +954,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
   USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz , list, point
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver
-  USE io_file,                  ONLY :  ionode , stdout
+  USE io,                  ONLY :  ionode , stdout
 
   implicit none
 
@@ -1172,7 +1172,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
   USE control,                  ONLY :  myrank , numprocs
   USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz, list ,point
-  USE io_file,                  ONLY :  stdout, ionode
+  USE io,                       ONLY :  stdout, ionode
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver
 
@@ -1184,7 +1184,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
   !local
   integer                                   :: ia , n , kl 
-  integer                                   :: imp , io , imode(3) , omode , niter
+  integer                                   :: imp , iom , imode(3) , omode , niter
   integer                                   :: nsim , iz(5) , ndz 
   integer                                   :: izs(1) , indic , reverse
   character(len=3)                          :: normtype
@@ -1245,7 +1245,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   niter    = 6000     
   nsim     = 6000     
   normtype = 'dfn'       
-  io       = stdout    ! io output
+  iom      = stdout    ! io output
   imp      = 0         ! impress  no print
   imode(1) = 0         ! imode(1) = 0 DIS  
                        ! imode(1) = 1 SIS
@@ -1260,7 +1260,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
     icall = icall + 1
 
     call m1qn3 (simul_rc,euclid,ctonbe,ctcabe,n,x,f,g,dxmin,df1, &
-                epsrel,normtype,imp,io,imode,omode,niter,nsim,iz, & 
+                epsrel,normtype,imp,iom,imode,omode,niter,nsim,iz, & 
                 dz,ndz,reverse,indic,izs,rzs,dzs)
 !    if (reverse.lt.0) goto 101
     ! ===============================================

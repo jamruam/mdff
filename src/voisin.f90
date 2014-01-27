@@ -74,7 +74,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE vois1_init
 
-  USE io_file,                  ONLY :  ionode , stdin , stdout , stderr
+  USE io,                       ONLY :  ionode , stdin , stdout , stderr
   USE control,                  ONLY :  calc
 
   implicit none
@@ -140,7 +140,7 @@ END SUBROUTINE vois1_default_tag
 ! ******************************************************************************
 SUBROUTINE vois1_check_tag
 
-  USE io_file,                  ONLY :  ionode , stdout 
+  USE io,                  ONLY :  ionode , stdout 
 
   implicit none
 
@@ -167,7 +167,7 @@ END SUBROUTINE vois1_check_tag
 SUBROUTINE vois1_print_info(kunit)
 
   USE config,                   ONLY :  ntype , atypei
-  USE io_file,                  ONLY :  ionode
+  USE io,                       ONLY :  ionode
 
   implicit none
 
@@ -208,7 +208,7 @@ END SUBROUTINE vois1_print_info
 ! ******************************************************************************
 SUBROUTINE vois1_driver
 
-  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_DTNBFF , kunit_VOIS1FF
+  USE io,                       ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_DTNBFF , kunit_VOIS1FF
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi , rho , simu_cell , config_alloc , &
                                         config_print_info , coord_format_allowed , atom_dec , read_traj_header , read_traj 
@@ -324,7 +324,7 @@ SUBROUTINE fixed_distance
 
   USE config,                   ONLY :  natm , ntype , rx , ry, rz , simu_cell , atype , itype , atypei 
   USE cell,                     ONLY :  kardir , dirkar , dirkar_1
-  USE io_file,                  ONLY :  ionode , stdout , stderr , kunit_VOIS1FF
+  USE io,                       ONLY :  ionode , stdout , stderr , kunit_VOIS1FF
 
   implicit none
 
@@ -516,7 +516,7 @@ SUBROUTINE sann ( iconf )
   USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype , natmi
   USE control,          ONLY :  cutshortrange
   USE cell,             ONLY :  kardir , dirkar, dirkar_1
-  USE io_file,          ONLY :  ionode , stderr , stdout , kunit_VOIS1FF
+  USE io,               ONLY :  ionode , stderr , stdout , kunit_VOIS1FF
   
   implicit none
   
@@ -978,7 +978,7 @@ SUBROUTINE voronoi_construction
   USE config,           ONLY :  natm , simu_cell , rx, ry , rz , itype , ntype 
   USE control,          ONLY :  cutshortrange
   USE cell,             ONLY :  kardir, dirkar
-  USE io_file,          ONLY :  ionode, stdout , stderr , kunit_VOIS1FF
+  USE io,          ONLY :  ionode, stdout , stderr , kunit_VOIS1FF
 
   implicit none
 
@@ -1305,7 +1305,7 @@ END SUBROUTINE voronoi_construction
 ! ******************************************************************************
 SUBROUTINE work_voronoi ( maxcan, nn , nv , ne , nf , px , py , pz , ps , edges , vx , vy , vz , iv , jv , kv )
 
-  USE io_file,          ONLY :  stdout
+  USE io,          ONLY :  stdout
 
   implicit none
 

@@ -36,3 +36,6 @@
 
 ! node condition io_node=if ( ionode )
 #define io_node if ( ionode )
+
+! md print condition io_print=if ( ioprint )
+#define io_print if ( ioprint )

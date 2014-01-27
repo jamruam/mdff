@@ -4,6 +4,6 @@
 &end
 
 &grtag
-        resg = 0.01d0
-        nconf = 5000
+        resg = 0.05d0
+        nconf = 1000 
 &end

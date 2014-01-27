@@ -243,7 +243,7 @@
       SUBROUTINE LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
 
       USE constants , ONLY : dp 
-      USE io_file,      ONLY :  ionode , stdout
+      USE io,      ONLY :  ionode , stdout
 
       IMPLICIT NONE
 !C
@@ -459,7 +459,7 @@
       SUBROUTINE LB1(IPRINT,ITER,NFUN,GNORM,N,M,X,F,G,STP,FINISH)
  
       USE constants , ONLY : dp 
-      USE io_file,    ONLY :    stdout , ionode 
+      USE io,    ONLY :    stdout , ionode 
 
       IMPLICIT NONE
 !C
@@ -654,7 +654,7 @@
       SUBROUTINE MCSRCH(N,X,F,G,S,STP,FTOL,XTOL,MAXFEV,INFO,NFEV,WA)
       
       USE constants , ONLY : dp 
-      USE io_file,      ONLY :  stdout
+      USE io,      ONLY :  stdout
      
       IMPLICIT NONE
       INTEGER N,MAXFEV,INFO,NFEV

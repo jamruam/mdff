@@ -129,7 +129,7 @@ END SUBROUTINE time_init
 ! ******************************************************************************
 SUBROUTINE print_time_info ( kunit )  
 
-  USE io_file,  ONLY :  ionode 
+  USE io,       ONLY :  ionode 
   USE control,  ONLY :  longrange , lcoulomb , calc
 
   implicit none
