@@ -546,7 +546,7 @@ SUBROUTINE calc_temp (T, ekin)
   enddo
   ekin = ekin * 0.5_dp
   T = (2.0_dp/3.0_dp) * ekin
-  T = T / REAL ( natm -1 ,kind = dp ) 
+  T = T / REAL ( natm ,kind = dp ) 
 
   return
 

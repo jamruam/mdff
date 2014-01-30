@@ -11,14 +11,17 @@
 # #-lscalapack -lfblacs -lcblacs -lblacs -lmkl_lapack -lmkl -lguide -lpthread
 #
 ################################################### 
+$(info ==============  MDFF compiling info ===============)
 UNAME := $(shell uname -a)
 HOST  := $(shell hostname -s)
+$(info compiling on : $(HOST) )
 # suffix of preprocessed source file
 SUFFIX=.F90
 
 # The compiler
 FC = mpif90 
 #FC = gfortran 
+$(info FC : $(shell which $(FC) ) )
 FCL=$(FC)
 # the pre-compiler
 CP = cpp
@@ -26,6 +29,7 @@ CPPFLAGS=-P -C -CC -traditional
 
 # installation directory
 INSTALL_DIR=../bin
+$(info instalation dir: : $(shell readlink -f $(INSTALL_DIR)) )
 # List of executable to be built within the package
 EXE= mdff.x 
 
@@ -48,15 +52,15 @@ EXE= mdff.x
 #FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
 
 # =================
-#   on mario / babar
+#   on mario / babar / charrue
 # =================
-FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
-#FCFLAGS = -O3 -ip -static -align all 
+FCFLAGS = -O3 -ip -static -xSSE4_2 -align all 
+FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
 
-
+$(info FCFLAGS :  $(FCFLAGS))
 # =======================================
 #               LIBRARIES 
 # =======================================
@@ -83,15 +87,22 @@ FCFLAGS = -O3 -ip -static -xSSE4.2 -align all
 # =================
 #   on T5600
 # =================
-LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
-INC=-I/opt/intel/composerxe/mkl/include/fftw/
+ifeq ($(HOST),IRAM-CE-004776)
+	LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+	INC=-I/opt/intel/composerxe/mkl/include/fftw/
+endif
 
 # =================
 #   on charrue
 # =================
-#LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/ia32/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
-#INC=-I/opt/intel/composerxe/mkl/include/fftw/
+ifeq ($(HOST),debian-charrue)
+	LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/ia32/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+	INC=-I/opt/intel/composerxe/mkl/include/fftw/
+endif
 
+$(info LDFLAGS:  $(LDFLAGS))
+$(info INC:  $(INC))
+$(info ===================================================)
 # ==================
 #  target files
 # ==================

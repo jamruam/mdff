@@ -263,10 +263,16 @@ SUBROUTINE md_check_tag
   ! allocation of thermostat coordinates
   if ( integrator .eq. 'nvt-nhc2' ) then 
     allocate ( vxi(2) , xi(2) )
+    vxi=0.0_dp
+    xi=0.0_dp
     nhc_n=2
   endif 
   if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then 
     allocate ( vxi(nhc_n) , xi(nhc_n) )
+    vxi=0.0_dp
+    xi=0.0_dp
+    xi=0.925174390084525  
+    vxi=-0.688111534198597
   endif 
   ! initial conditions
    !vxi = 1.0_dp
