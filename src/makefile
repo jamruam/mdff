@@ -50,8 +50,8 @@ EXE= mdff.x
 # =================
 #   on mario / babar
 # =================
-#FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
-FCFLAGS = -O3 -ip -static -align all 
+FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
+#FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
@@ -83,14 +83,14 @@ FCFLAGS = -O3 -ip -static -align all
 # =================
 #   on T5600
 # =================
-#LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
-#INC=-I/opt/intel/composerxe/mkl/include/fftw/
+LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+INC=-I/opt/intel/composerxe/mkl/include/fftw/
 
 # =================
 #   on charrue
 # =================
-LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/ia32/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
-INC=-I/opt/intel/composerxe/mkl/include/fftw/
+#LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/ia32/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/ia32/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+#INC=-I/opt/intel/composerxe/mkl/include/fftw/
 
 # ==================
 #  target files

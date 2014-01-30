@@ -20,14 +20,11 @@ TODO when programming:
 TODO:  
 * add more comments ( in/out of subroutine and some comments)
 * memory usage ?
-* TRAJFF format BINARY 
 * calculate average values (by block) remind use nequil                       
-* implement nvt-nh 
 * add WARNINGS for some tags where default value (???)
 * add default values for secondary tags
 * add some descriptions of gaussian distribution routine 
  -> (basically some refs to be able to find bugs)
-* parallelization of reciprocal part (ewald sum) in efg at least
 * masses   
 * write some manual (with theory, ref teaching oriented)
 

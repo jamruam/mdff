@@ -125,7 +125,7 @@ SUBROUTINE rescale_velocities (quite)
   USE control,                  ONLY :  lcsvr
   USE config,                   ONLY :  natm , vx , ntype, vy , vz, ntypemax, atypei ,center_of_mass
   USE md,                       ONLY :  dt , temp , tauTberendsen, taucsvr
-  USE io,                  ONLY :  ionode , stdout
+  USE io,                       ONLY :  ionode , stdout
   USE thermodynamic,            ONLY :  csvr_conint
 
   implicit none
@@ -419,10 +419,10 @@ END SUBROUTINE uniform_random_velocities
 SUBROUTINE maxwellboltzmann_velocities
 
   USE constants,        ONLY :  dp 
-  USE config,   ONLY :  natm , vx , vy , vz
-  USE md,       ONLY :  dt , temp  
-  USE control,  ONLY :  dgauss
-  USE io,  ONLY :  ionode , stdout 
+  USE config,           ONLY :  natm , vx , vy , vz, massia
+  USE md,               ONLY :  dt , temp  
+  USE control,          ONLY :  dgauss
+  USE io,               ONLY :  ionode , stdout 
   USE mpimdff
 
   implicit none
@@ -468,9 +468,11 @@ SUBROUTINE maxwellboltzmann_velocities
     WRITE ( stdout      ,'(a,a20)') 'normal distribution method = ', dgauss  
   endif      
 
-  RTEMP = SQRT ( temp )
 
   do ia = 1 , natm
+! added 28/01/13
+     RTEMP = SQRT ( temp / massia(ia) )
+! added 28/01/13
      if ( dgauss .eq. 'boxmuller_basic' ) then
        CALL boxmuller_basic(G,0.0_dp,1.0_dp)
        vx ( ia ) = RTEMP * G
@@ -528,7 +530,7 @@ END SUBROUTINE maxwellboltzmann_velocities
 SUBROUTINE calc_temp (T, ekin)
 
   USE constants,        ONLY :  dp 
-  USE config,   ONLY :  natm , vx , vy , vz 
+  USE config,           ONLY :  natm , massia, vx , vy , vz 
 
   implicit none
 
@@ -540,11 +542,11 @@ SUBROUTINE calc_temp (T, ekin)
 
   ekin = 0.0_dp
   do ia = 1 , natm
-    ekin =  ekin + vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2
+    ekin =  ekin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) / massia(ia) 
   enddo
   ekin = ekin * 0.5_dp
   T = (2.0_dp/3.0_dp) * ekin
-  T = T / DBLE (natm) 
+  T = T / REAL ( natm -1 ,kind = dp ) 
 
   return
 

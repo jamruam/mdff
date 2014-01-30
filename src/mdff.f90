@@ -263,7 +263,12 @@ PROGRAM main_MDFF
     ! ==============================================
     !                calc != 'md' 
     ! ==============================================
-    
+
+    if ( calc .eq. 'dist' ) then
+      CALL distance_tab
+      CALL write_CONTFF
+    endif 
+
     ! ==============================================
     ! IF OPT :
     ! - optimisation of structures read in TRAJFF 

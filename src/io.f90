@@ -30,9 +30,8 @@ MODULE io
   implicit none
 
   !> rank for output (if true myrank.eq.0)
-  logical :: ionode 
-  !> global md print condition (nprint)      
-  logical :: ioprint        
+  logical :: ionode        
+  logical :: ioprint
 
   !> standard output
   integer, PARAMETER :: stdout          = 6  
@@ -78,6 +77,8 @@ MODULE io
   !> EFG tensor component distribution Ui  (average)
   integer, PARAMETER :: kunit_DTIBUFF   = 90
   integer, PARAMETER :: kunit_DTIBUFFIT = 91
+  !> EFG tensor distribution  S
+  integer, PARAMETER :: kunit_DTIBSFF   = 95
 
   !> GR radial distribution (average)
   integer, PARAMETER :: kunit_GRTFF     = 100
@@ -155,7 +156,7 @@ CONTAINS
 !! initialize the ionode logical variable
 !
 !> \note
-!! usage : if ( ionode ) WRITE ( unit , * )   (symbol.h)
+!! usage : io_node WRITE ( unit , * )   (symbol.h)
 !
 ! ******************************************************************************
 SUBROUTINE io_init
@@ -201,7 +202,7 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
   OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
 
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
+    io_node WRITE ( stdout, '(a,a,i4)') 'ERROR opening file : ', trim(sweep_blanks( cunit )) , kunit
     STOP
   endif
 
@@ -229,7 +230,7 @@ SUBROUTINE io_close ( kunit )
   CLOSE(UNIT=kunit,IOSTAT=ioerr)
 
   if ( ioerr .lt. 0 )  then
-    if ( ionode ) WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
+    io_node WRITE ( stdout, '(a,i4)') 'ERROR closing file : ', kunit
     STOP
   endif
 

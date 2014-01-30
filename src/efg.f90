@@ -54,6 +54,7 @@ MODULE efg
   integer :: lefg_format                !< format = 0 BINARY > 0 FORMATED
   logical :: lvasp_units               
   logical :: lefg_it_contrib            !< only on kind is contributing too efg (default false)
+  logical :: lmp_correction
   integer :: ncefg                      !< number of configurations READ  for EFG calc (only when calc = 'efg')
   integer :: ntcor                      !< maximum number of steps for the acf calculation (calc = 'efg+acf')
   integer :: it_efg                     !< type which is contributing to efg_ia
@@ -77,15 +78,18 @@ MODULE efg
   integer         , dimension(:,:)  , allocatable :: dibvzztot !< vzz distrib. dim. = (ntype , PAN)
   integer         , dimension(:,:)  , allocatable :: dibetatot !< eta distrib. dim. = (ntype , PAN) 
   integer         , dimension(:,:,:), allocatable :: dibUtot   !< U_i distrib. dim. = ( 1:6 , ntype , PAN ) 
+  integer         , dimension(:,:)  , allocatable :: dibStot   !< S   distrib. dim. = ( ntype , PAN ) 
 
   real(kind=dp)                                   :: reseta    !< resolution in eta distribution
   real(kind=dp)                                   :: resu      !< resolution in Ui ditribution
   real(kind=dp)                                   :: resvzz    !< resolution in vzz distribution
   real(kind=dp)                                   :: vzzmin    !< minimum value for vzz (distrib. in [vzzmin, -vzzmin]
-  real(kind=dp)                                   :: umin      !< minimum value of umin
+  real(kind=dp)                                   :: umin      !< minimum value of U distributions
+  real(kind=dp)                                   :: smax      !< minimum value of S distributions 
   integer                                         :: PANeta    !< nb of bins in eta distrib. (related reseta)
   integer                                         :: PANvzz    !< nb of bins in vzz distrib. (related resvzz)
   integer                                         :: PANU      !< nb of bins in Ui  distrib. (related resu)
+  integer                                         :: PANS      !< nb of bins in S  distrib.  (related resu)
 
 CONTAINS
 
@@ -112,6 +116,7 @@ SUBROUTINE efg_init
                      lefg_old         , &
                      lefg_it_contrib  , &
                      lefg_stat        , &
+                     lmp_correction   , &
                      ncefg            , & 
                      ntcor            , &
                      resvzz           , &
@@ -121,7 +126,8 @@ SUBROUTINE efg_init
                      lvasp_units      , &
                      dt               , & 
                      it_efg           , &
-                     umin           
+                     umin             , & 
+                     smax           
 
   if ( calc .ne. 'efg' .and. calc .ne. 'efg+acf' ) return 
 
@@ -176,12 +182,14 @@ SUBROUTINE efg_default_tag
   lefg_restart       = .false.
   lefg_stat          = .false.
   lvasp_units        = .true.
+  lmp_correction     = .true.
   reseta             =   0.1_dp
   resvzz             =   0.1_dp
   resu               =   0.1_dp 
   ncefg              =   0
-  umin               =  -4.0_dp
-  vzzmin             =  -4.0_dp
+  umin               =  0.0_dp
+  smax               =  0.0_dp
+  vzzmin             =  0.0_dp
   ntcor              =  10
 
   return
@@ -214,19 +222,20 @@ SUBROUTINE efg_check_tag
 
   if ( calc .eq. 'efg+acf' ) return
 
-  ! ==================================
-  !  check vzzmin and Umin .ne. 0
-  ! ==================================
-  if ( vzzmin .eq. 0._dp .or. umin .eq. 0._dp ) then
-    io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: vzzmin or umin should be set',vzzmin,umin
-    STOP
-  endif             
+!  ! ==================================
+!  !  check vzzmin and Umin .ne. 0
+!  ! ==================================
+!  if ( vzzmin .eq. 0._dp .or. umin .eq. 0._dp .or. smin .eq. 0._dp ) then
+!    io_node WRITE ( stderr ,'(a,3f8.3)') 'ERROR efgtag: vzzmin , umin or smin should be set',vzzmin,umin,smin
+!    STOP
+!  endif             
   ! ==========================================
   !  set PAN (nb bins) from resolution values
   ! ==========================================
   PANeta = int ( 1.0_dp/reseta)
   PANvzz = int ((2.0_dp*ABS (vzzmin))/resvzz)
   PANU   = int ((2.0_dp*ABS (umin))/resu) 
+  PANS   = int ( smax / resu) 
  
   if ( ncefg .eq. 0 ) then
     io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: ncefg is zero but calc=efg requested',ncefg
@@ -275,6 +284,7 @@ SUBROUTINE efg_print_info(kunit)
       WRITE ( kunit ,'(a)')                     'eta distrib                      : DTETAFF'
       WRITE ( kunit ,'(a)')                     'Vzz distrib                      : DTVZZFF'
       WRITE ( kunit ,'(a)')                     'Ui components distrib            : DTIBUFF'           
+      WRITE ( kunit ,'(a)')                     'S = sqrt ( sum Ui^2 ) distrib    : DTIBSFF'           
       if ( lefgprintall ) then
         WRITE ( kunit ,'(a)')                   'EFG for all atoms                : EFGALL '
       endif
@@ -286,10 +296,9 @@ SUBROUTINE efg_print_info(kunit)
       endif
       WRITE ( kunit ,'(a)')                     'distributions parameters:'
       WRITE ( kunit ,500)                       'eta between ', dzero,' and ',   done,' with res. ',reseta
-      WRITE ( kunit ,500) &
-                                                'vzz between ',vzzmin,' and ',-vzzmin,' with res. ',resvzz
-      WRITE ( kunit ,500) &
-                                                'Ui  between ',  umin,' and ',  -umin,' with res. ',resu
+      WRITE ( kunit ,500)                       'vzz between ',vzzmin,' and ',-vzzmin,' with res. ',resvzz
+      WRITE ( kunit ,500)                       'Ui  between ',  umin,' and ',  -umin,' with res. ',resu
+      WRITE ( kunit ,500)                       'S   between ',  dzero,' and ',  smax,' with res. ',resu
     endif
     if ( calc .eq. 'efg+acf' ) then
       separator(kunit) 
@@ -317,15 +326,15 @@ END SUBROUTINE efg_print_info
 ! ******************************************************************************
 SUBROUTINE efgcalc 
 
-  USE io,                  ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , &
-                                        kunit_NMRFF , kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF , io_open , io_close
+  USE io,                       ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , &
+                                        kunit_NMRFF , kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF , kunit_DTIBSFF , io_open , io_close
   USE constants,                ONLY :  fpi , e_2 
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
                                         dipia , dipia_ind , dipia_wfc , ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
                                         coord_format_allowed, atom_dec , read_traj_header , read_traj , config_dealloc
   
-  USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , itraj_save
+  USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data
   USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lpolar , lwfc , & 
                                         moment_from_pola , moment_from_wfc , rm_coul , &
                                         km_coul , alphaES , multipole_DS , multipole_ES , field_print_info , ldip_wfc
@@ -403,7 +412,7 @@ SUBROUTINE efgcalc
     do iconf = 1, ncefg
       ttt1 = MPI_WTIME(ierr)
 
-      CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save )
+      CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data )
 
       CALL lattice ( simu_cell )
 
@@ -572,11 +581,14 @@ SUBROUTINE efgcalc
   CALL io_open  ( kunit_DTETAFF , 'DTETAFF' , 'unknown' ) 
   CALL io_open  ( kunit_DTVZZFF , 'DTVZZFF' , 'unknown' ) 
   CALL io_open  ( kunit_DTIBUFF , 'DTIBUFF' , 'unknown' ) 
-  CALL efg_write_output( kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF )
+  CALL io_open  ( kunit_DTIBSFF , 'DTIBSFF' , 'unknown' ) 
+  CALL efg_write_output( kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF , kunit_DTIBSFF )
   CALL io_close ( kunit_DTETAFF )
   CALL io_close ( kunit_DTVZZFF )
   CALL io_close ( kunit_DTIBUFF )
+  CALL io_close ( kunit_DTIBSFF )
   dibUtot   = 0
+  dibStot   = 0
   dibvzztot = 0
   dibetatot = 0
 
@@ -1565,18 +1577,18 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   !  charged systems :
   !  coorection_charged 4/3V * Q ( Q = total charge )
   ! ======================================================
-  correction_charged = 0.0_dp
-  do ia = 1 , natm
-    if ( lefg_it_contrib .and. (itype(ia) .ne. it_efg) ) cycle
-    correction_charged = correction_charged + qia(ia)
-  enddo
-  if ( abs(correction_charged) .gt. 1e-12 ) then
-    print*,'correction_charged',correction_charged*fpi_V / 3.0_dp
+  if ( lmp_correction ) then
+    correction_charged = 0.0_dp
+    do ia = 1 , natm
+      if ( lefg_it_contrib .and. (itype(ia) .ne. it_efg) ) cycle
+      correction_charged = correction_charged + qia(ia)
+    enddo
+    io_node write(stdout,'(a,f16.8)') 'correction_charged',correction_charged*fpi_V / 3.0_dp
+    correction_charged = correction_charged * fpi_V / 3.0_dp
+    efg_ia ( : , 1 , 1 ) = efg_ia ( : , 1 , 1 ) + correction_charged 
+    efg_ia ( : , 2 , 2 ) = efg_ia ( : , 2 , 2 ) + correction_charged
+    efg_ia ( : , 3 , 3 ) = efg_ia ( : , 3 , 3 ) + correction_charged
   endif
-  correction_charged = correction_charged * fpi_V / 3.0_dp
-  efg_ia ( : , 1 , 1 ) = efg_ia ( : , 1 , 1 ) + correction_charged 
-  efg_ia ( : , 2 , 2 ) = efg_ia ( : , 2 , 2 ) + correction_charged
-  efg_ia ( : , 3 , 3 ) = efg_ia ( : , 3 , 3 ) + correction_charged
   
 
 #ifdef debug_es
@@ -1600,7 +1612,7 @@ END SUBROUTINE multipole_efg_ES
 ! write distributions of EFG parameters and components to files
 !
 ! ******************************************************************************
-SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
+SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u  , kunit_s  )
 
   USE io,                  ONLY :  ionode 
   USE config,                   ONLY :  natm, natmi, ntype 
@@ -1610,7 +1622,7 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
   implicit none
  
   ! global
-  integer, intent(in)  :: kunit_eta , kunit_vzz , kunit_u 
+  integer, intent(in)  :: kunit_eta , kunit_vzz , kunit_u , kunit_s  
 
   ! local
   integer :: i , it , saveit0 , totions
@@ -1620,14 +1632,17 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
   real(kind=dp), dimension ( : , :  )     , allocatable :: r_dibetatot 
   real(kind=dp), dimension ( : , :  )     , allocatable :: r_dibvzztot 
   real(kind=dp), dimension ( : , : , :  ) , allocatable :: r_dibUtot 
+  real(kind=dp), dimension ( : , :  )     , allocatable :: r_dibStot 
   real(kind=dp), dimension ( :  )         , allocatable :: r_natmi
   real(kind=dp) :: r_ncefg    
 
   allocate( r_dibUtot(6,0:ntype,0:PANU) )
+  allocate( r_dibStot(0:ntype  ,0:PANS) )
   allocate( r_dibvzztot(0:ntype,0:PANvzz) )
   allocate( r_dibetatot(0:ntype,0:PANeta) )
   allocate( r_natmi(0:ntype) )
   r_dibUtot   = 0.0_dp
+  r_dibStot   = 0.0_dp
   r_dibvzztot = 0.0_dp
   r_dibetatot = 0.0_dp
   r_natmi     = 0.0_dp
@@ -1637,6 +1652,7 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
   r_dibetatot = REAL ( dibetatot , kind = dp ) 
   r_dibvzztot = REAL ( dibvzztot , kind = dp ) 
   r_dibUtot   = REAL ( dibUtot   , kind = dp ) 
+  r_dibStot   = REAL ( dibStot   , kind = dp ) 
   r_natmi     = REAL ( natmi     , kind = dp )
   r_ncefg     = REAL ( ncefg     , kind = dp )
 
@@ -1677,17 +1693,28 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u )
                                              r_dibUtot(5,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
                                              r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
     enddo
+    ! =================================================
+    ! write S distribution 
+    ! =================================================
+    do i = 0 , PANS
+      WRITE (kunit_s ,'(<ntype+2>f15.8)') REAL ( i,kind=dp) * resu , ( r_dibStot(it,i)/ ( resu * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
+      WRITE (100000 ,'(f15.8,3i)') REAL ( i,kind=dp) * resu , ( dibStot(it,i) , it = 0 , ntype )
+    enddo
+
     blankline(kunit_eta) 
     blankline(kunit_eta) 
     blankline(kunit_vzz) 
     blankline(kunit_vzz) 
     blankline(kunit_u) 
     blankline(kunit_u) 
+    blankline(kunit_s) 
+    blankline(kunit_s) 
  
   natmi(0) = saveit0
   endif
 
   deallocate( r_dibUtot )
+  deallocate( r_dibStot )
   deallocate( r_dibvzztot )
   deallocate( r_dibetatot )
   deallocate( r_natmi )
@@ -2023,14 +2050,15 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   integer, parameter :: lwork = 6
   integer            :: ic , ia , it , ui , ui1, ui2
   integer            :: ifail
-  integer            :: kvzz, keta ,ku
+  integer            :: kvzz, keta ,ku , ks 
   integer            :: kunit_input , kunit_nmroutput
 
   real(kind=dp)                                 :: sq3 , sq32
   real(kind=dp)                                 :: w(3) , efgt(3,3) , nmr_conv ( 4 )
   real(kind=dp)                                 :: work(3 * lwork)
-  real(kind=dp)                                 :: vzzk , etak , uk
+  real(kind=dp)                                 :: vzzk , etak , uk , sk
   real(kind=dp), dimension (:,:)   , allocatable :: U
+  real(kind=dp), dimension (:)     , allocatable :: S 
   real(kind=dp), dimension (:,:)   , allocatable :: m_U  ! average
   real(kind=dp), dimension (:,:,:) , allocatable :: m2_U ! correlation
   real(kind=dp), dimension (:,:)   , allocatable :: nmr
@@ -2051,7 +2079,6 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   sq3 = 1.0_dp / sq3
   sq32 = sq3 * 0.5_dp
 
-  efg_t = 0.0_dp
 
 #ifdef debug_efg_stat
   WRITE ( stdout , '(a)' ) 'debug : in efg_stat'
@@ -2089,6 +2116,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   if ( lefg_restart ) CALL config_alloc 
   if ( lefg_restart ) CALL field_init 
   if ( lefg_restart ) CALL efg_alloc
+  efg_t = 0.0_dp
 
   CALL typeinfo_init
 
@@ -2096,6 +2124,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   !   allocation
   !  ================
   allocate ( U        ( natm , 5   ) )                       ! Czjzek U component
+  allocate ( S        ( natm       ) )                       ! S = sqrt ( sum U_i**2 ) 
   allocate ( nmr      ( natm , 4   ) )                       ! 1 = Vxx ; 2 = Vyy ; 3 = Vzz ; 4 = eta
   allocate ( vzzmini  ( 0:ntype  ), vzzmaxi ( 0:ntype ) )    ! max min value of vzz ( used to set vzzmin )
   allocate ( vzzm     ( 0:ntype    ) )                       ! vzz mean value (per type)
@@ -2119,6 +2148,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   vzzma    = 0.0_dp
   vzzsq    = 0.0_dp
   U        = 0.0_dp
+  S        = 0.0_dp
   m_U      = 0.0_dp
   m2_U     = 0.0_dp
 
@@ -2187,6 +2217,12 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
       U ( ia , 3 ) = efg_t ( ia , 2 , 3 ) * sq3
       U ( ia , 4 ) = efg_t ( ia , 1 , 2 ) * sq3
       U ( ia , 5 ) = ( efg_t ( ia , 1 , 1 ) - efg_t ( ia , 2 , 2 ) ) * sq32
+      S ( ia ) = 0.0_dp
+      do ui = 1 , 5 
+        S( ia ) = S( ia ) + U(ia,ui)*U(ia,ui)
+      enddo
+      S(ia) = sqrt ( S ( ia ) ) 
+
 
       m_U(0 ,:)  = m_U(0 ,:) + U(ia,:)
       m_U(it,:)  = m_U(it,:) + U(ia,:)
@@ -2318,7 +2354,20 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
             endif
           enddo
         endif
-       enddo
+      enddo
+      ! ========================
+      !  S = sqrt ( sum Ui**2 ) 
+      ! ========================
+      sk = S(ia) / resu  
+      ks = int(sk) + 1
+      dibStot(0,ks) = dibStot(0,ks) + 1
+      if ( ks .lt. 0 .or. ks .gt. PANS ) then
+        WRITE ( stderr , '(a,2i)' ) 'ERROR: out of bound distrib S ',ks,PANS
+        WRITE ( stderr , '(i,2f)') ia , S(ia) , smax 
+        STOP
+      endif 
+      ! type specific
+      dibStot(itype(ia),ks) = dibStot(itype(ia),ks) + 1
       ! ======================== 
       !  quadrupolar parameters
       ! ======================== 
@@ -2400,8 +2449,6 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   enddo
 
 
-
-
   !  ================
   !   deallocation
   !  ================
@@ -2430,9 +2477,9 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
 310 FORMAT('atom = ',I6,' k = ',I12, 'value = ',F14.8,' min =  ',F10.5,' max =  ',F10.5)
 
 #ifdef debug_efg_stat 
-      lseparator(sdterr) 
+      lseparator(stderr) 
       WRITE(stderr, '(a)' ) 'check distribution counting (sum arrays)'
-      lseparator(sdterr) 
+      lseparator(stderr) 
       do it = 0 , ntype 
         WRITE(stderr, '(a,2i9)' ) 'number of atoms for type (it=0 => ALL) : ',it,natmi(it)
       enddo
@@ -2443,7 +2490,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
         WRITE(stderr, '(a,2i12)' ) 'eta  ' , SUM(dibetatot(it,:)),ncefg*natmi(it)
         WRITE(stderr, '(a,2i12)' ) 'U1   ' , SUM(dibUtot(1,it,:)),ncefg*natmi(it)
         WRITE(stderr, '(a,2i12)' ) 'Uk>1 ' , SUM(dibUtot(6,it,:)),ncefg*natmi(it)*4
-        lseparator(sdterr) 
+        lseparator(stderr) 
       enddo
 #endif
 
@@ -2592,9 +2639,11 @@ SUBROUTINE efg_alloc
   if ( calc .ne. 'efg' .and. calc .ne. 'rmc' .and. calc .ne. 'efg+acf' ) return
 
   allocate( dibUtot(6,0:ntype,0:PANU) )
+  allocate( dibStot(0:ntype,0:PANS) )
   allocate( dibvzztot(0:ntype,0:PANvzz) )
   allocate( dibetatot(0:ntype,0:PANeta) )
   dibUtot = 0
+  dibStot = 0
   dibvzztot = 0
   dibetatot = 0
 #ifdef fix_grid
@@ -2625,6 +2674,7 @@ SUBROUTINE efg_dealloc
   if ( calc .ne. 'efg' ) return
 
   deallocate( dibUtot )
+  deallocate( dibStot )
   deallocate( dibvzztot )
   deallocate( dibetatot )
 #ifdef fix_grid

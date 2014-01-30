@@ -35,7 +35,7 @@
 SUBROUTINE read_pos 
  
   USE constants,                ONLY :  dp 
-  USE control,                  ONLY :  calc , lrestart
+  USE control,                  ONLY :  calc , lrestart, restart_data
   USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
                                         natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
                                         simu_cell , config_print_info , coord_format_allowed 
@@ -46,13 +46,12 @@ SUBROUTINE read_pos
   implicit none
 
   ! local
-  integer           :: it , ia , i, j, ndata, error
+  integer           :: it , ia , i, j, ndata, iostatus, begi, prev, indx
   logical           :: allowed
   character(len=60) :: cpos
-  character, dimension (4096) :: xxxx
-  integer           :: buffersize, status
   character(len=2)  :: xx
-  real(kind=dp)     :: value
+  character(len=4096)  :: buffer
+  real(kind=dp)        :: value
 
 
   separator(stdout) 
@@ -104,46 +103,15 @@ SUBROUTINE read_pos
   ! ===============================
   CALL field_init
 
-  ! ==============================================
-  !  number of columns in POSFF (pos,vel,for ??)
-  ! ==============================================
-  READ (kunit_POSFF , '(4096a)' ,ADVANCE='no' , SIZE=buffersize, IOSTAT=status) xxxx
-  READ (kunit_POSFF , '(4096a)' ,SIZE=buffersize, IOSTAT=status) xxxx
-  !do i =1,190   ! The very maximum that the string can contain
-  !  read( xxxx, *, iostat=error ) xx, ( value, j=1,i )
-  !  if ( error .ne. 0 ) then
-  !      ndata = i - 1
-  !      exit
-  !  endif
-  !enddo
-#ifdef debug_readpos
-  print*,status
-  print*,buffersize
-  !stop
-#endif
   ! =========================================      
   ! read positions, velocities, forces from disk 
   ! =========================================      
-  if ( buffersize .le. 64 ) then
-    ndata=3
-    print*,'number of columns',ndata
-    
+  if ( restart_data == "rnn" ) then
     READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , ia = 1 , natm )
-  else if ( buffersize .gt. 64 .and. buffersize .le. 124 ) then
-    ndata=6
-    print*,'number of columns',ndata
-    !READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-    !                                           vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm ) 
-    do ia=1, natm  
-    READ  ( kunit_POSFF , * ) atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                               vx ( ia ) , vy ( ia ) , vz ( ia ) 
-    print*,ia,atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
-                                               vx ( ia ) , vy ( ia ) , vz ( ia )
-    enddo
-    
-  else if ( buffersize .gt. 124 ) then
-    ndata=9
-    print*,'number of columns',ndata
+  else if ( restart_data == "rvn" ) then
+    READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                               vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm ) 
+  else if ( restart_data == "rvf" ) then  
     READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
                                                vx ( ia ) , vy ( ia ) , vz ( ia ) , &
                                                fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
@@ -175,7 +143,7 @@ SUBROUTINE read_pos
 
   CALL typeinfo_init
 
-!  CALL distance_tab 
+  !CALL distance_tab 
 
   !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 

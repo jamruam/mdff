@@ -99,7 +99,7 @@ SUBROUTINE config_init
 
   implicit none
 
-  if ( calc .ne. 'md' ) return 
+  if ( calc .ne. 'md' .and. calc .ne. 'dist' ) return 
   ! ===========================================================
   ! read initial configuration only for calc = md
   ! for opt, vib and efg configuations are read in other routines 
@@ -283,7 +283,7 @@ SUBROUTINE config_alloc
   list      = 0
   point     = 0
   qia       = 0.0_dp
-  massia    = 0.0_dp
+  massia    = 1.0_dp
   quadia    = 0.0_dp
   dipia     = 0.0_dp
   dipia_ind = 0.0_dp
@@ -513,8 +513,8 @@ END SUBROUTINE ions_displacement
 ! ******************************************************************************
 SUBROUTINE write_trajff_xyz
 
-  USE control,                  ONLY :  itraj_format , itraj_save
-  USE io,                  ONLY :  ionode , kunit_TRAJFF , stdout
+  USE control,                  ONLY :  itraj_format , trajff_data
+  USE io,                       ONLY :  ionode , kunit_TRAJFF , stdout
   USE cell,                     ONLY :  periodicbc , kardir , dirkar
 
   implicit none
@@ -552,22 +552,22 @@ SUBROUTINE write_trajff_xyz
      WRITE ( kunit_TRAJFF , * ) ( atypei ( it ) , it = 1 , ntype )
      WRITE ( kunit_TRAJFF , * ) ( natmi  ( it ) , it = 1 , ntype )
      WRITE ( kunit_TRAJFF,'(A)') 'Cartesian'
-    if ( itraj_save .eq. 'rvf' ) then  
+    if ( trajff_data .eq. 'rvf' ) then  
       do ia = 1 , natm
         WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , vx( ia ) , vy( ia ) , vz( ia ) , fx( ia ) , fy( ia ) , fz( ia )
       enddo
     endif
-    if ( itraj_save .eq. 'rvn' ) then
+    if ( trajff_data .eq. 'rvn' ) then
       do ia = 1 , natm
         WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , vx( ia ) , vy( ia ) , vz( ia )
       enddo
     endif
-    if ( itraj_save .eq. 'rnf' ) then
+    if ( trajff_data .eq. 'rnf' ) then
       do ia = 1 , natm
         WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , fx( ia ) , fy( ia ) , fz( ia )
       enddo
     endif
-    if ( itraj_save .eq. 'rnn' ) then
+    if ( trajff_data .eq. 'rnn' ) then
       do ia = 1 , natm
         WRITE ( kunit_TRAJFF ,'(a,9e20.12)' ) atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia )
       enddo
@@ -583,16 +583,16 @@ SUBROUTINE write_trajff_xyz
      WRITE ( kunit_TRAJFF ) ( atypei ( it ) , it = 1 , ntype )
      WRITE ( kunit_TRAJFF ) ( natmi  ( it ) , it = 1 , ntype )
      WRITE ( kunit_TRAJFF ) 'C'
-    if ( itraj_save .eq. 'rvf' ) then  
+    if ( trajff_data .eq. 'rvf' ) then  
       WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , vx , vy , vz , fx , fy , fz
     endif
-    if ( itraj_save .eq. 'rvn' ) then
+    if ( trajff_data .eq. 'rvn' ) then
       WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , vx , vy , vz
     endif
-    if ( itraj_save .eq. 'rnf' ) then
+    if ( trajff_data .eq. 'rnf' ) then
       WRITE ( kunit_TRAJFF ) xxx , yyy , zzz , fx , fy , fz
     endif
-    if ( itraj_save .eq. 'rnn' ) then
+    if ( trajff_data .eq. 'rnn' ) then
       WRITE ( kunit_TRAJFF ) xxx , yyy , zzz 
     endif
    endif

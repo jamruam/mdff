@@ -20,6 +20,7 @@
 #include "symbol.h"
 !#define debug
 !#define intermediate_config
+!#define debug_m1qn3
 ! ======= Hardware =======
 
 ! *********************** MODULE opt *******************************************
@@ -251,8 +252,8 @@ SUBROUTINE opt_main
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , vx , vy ,vz , fx , fy , fz , &
                                 atype  , rho , config_alloc , list , point , simu_cell , &
                                 atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header 
-  USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , itraj_save 
-  USE io,          ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
+  USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , trajff_data 
+  USE io,               ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
   USE cell,             ONLY :  lattice , dirkar
@@ -308,7 +309,7 @@ SUBROUTINE opt_main
     ! ===================================
     !  read config from trajectory file
     ! ===================================
-    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save ) 
+    CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data ) 
 
     CALL lattice (simu_cell)
     rho = DBLE ( natm )  / simu_cell%omega
@@ -1205,6 +1206,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   ALLOCATE ( x (N) )
   ALLOCATE ( g (N) )
   ALLOCATE ( dz (ndz) )
+  print*,'here'
 
   ! ========================================
   !  set X ( 3 *natm ) to rx , ry , rz
@@ -1218,9 +1220,9 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   CALL engforce_driver 
   CALL calc_thermo
 
-!#ifdef debug
-!     call print_config_sample(0,0)
-!#endif
+#ifdef debug
+     call print_config_sample(0,0)
+#endif
 
   f=u_tot
 
@@ -1255,14 +1257,14 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   reverse=1            ! reverse
 
   do while ( reverse .ge. 0 ) 
-!  100 continue
 
     icall = icall + 1
-
+#ifdef debug_m1qn3
+    print*,'call m1qn3'
+#endif
     call m1qn3 (simul_rc,euclid,ctonbe,ctcabe,n,x,f,g,dxmin,df1, &
                 epsrel,normtype,imp,iom,imode,omode,niter,nsim,iz, & 
                 dz,ndz,reverse,indic,izs,rzs,dzs)
-!    if (reverse.lt.0) goto 101
     ! ===============================================
     !  reset positions for energy/forces calculation
     ! ==============================================
@@ -1277,9 +1279,9 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
     f=u_tot
 
-!#ifdef debug
-!     call print_config_sample(icall,0)
-!#endif
+#ifdef debug
+     call print_config_sample(icall,0)
+#endif
  
     ! ===============================
     !  set the gradient to fx,fy,fz

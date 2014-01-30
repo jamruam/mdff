@@ -419,7 +419,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
 !c---- initialisation
 !c
-      rmin=1.0e-20
+      rmin=1.d-20
 !c
       sscale=.true.
       if (imode(1).eq.0) sscale=.false.
@@ -433,7 +433,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       itmax=niter
       niter=0
       isim=1
-      eps1=1._dp
+      eps1=1.d+0
 !c
       call prosca (n,g,g,ps,izs,rzs,dzs)
       gnorm = sqrt(ps)
@@ -471,7 +471,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           precos=2.d+0*df1/gnorm**2
           do 10 i=1,n
               d(i)=-g(i)*precos
-              diag(i)=1.0_dp
+              diag(i)=1.d+0
    10     continue
           if (ionode .and.impres.ge.5) write(iom,902) precos
   902     format (/" m1qn3a: descent direction -g: precon = ",d10.3)
@@ -513,12 +513,12 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
       if (ionode .and. warm.and.impres.ge.5) then
           call prosca (n,g,g,ps,izs,rzs,dzs)
-          ps=sqrt(ps)
+          ps=dsqrt(ps)
           call prosca (n,d,d,ps2,izs,rzs,dzs)
-          ps2=sqrt(ps2)
+          ps2=dsqrt(ps2)
           ps=hp0/ps/ps2
-          ps=min1(-ps,1._dp)
-          ps=acos(ps)
+          ps=dmin1(-ps,1.d+0)
+          ps=dacos(ps)
           d1=ps*180.d+0/pi
           write (iom,906) sngl(d1)
       endif
@@ -564,10 +564,10 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
       tmin=0.d+0
       do 200 i=1,n
-          tmin=max1(tmin,abs(d(i)))
+          tmin=dmax1(tmin,dabs(d(i)))
 200   continue
       tmin=dxmin/tmin
-      t=1.0_dp
+      t=1.d+0
       d1=hp0
 !c
  9999 continue
@@ -649,7 +649,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 400       continue
           if (ionode .and.impres.ge.5) then
               call prosca (n,sbar(1,jcour),sbar(1,jcour),ps,izs,rzs,dzs)
-              dk1=sqrt(ps)
+              dk1=dsqrt(ps)
               if (niter.gt.1) write (iom,930) dk1/dk
   930         format (/" m1qn3: convergence rate, s(k)/s(k-1) = ",1pd12.5)
               dk=dk1
@@ -664,7 +664,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
 !c         --- ybar et sbar
 !c
-          d1=sqrt(1.0_dp/ys)
+          d1=dsqrt(1.d+0/ys)
           do 410 i=1,n
               sbar(i,jcour)=d1*sbar(i,jcour)
               ybar(i,jcour)=d1*ybar(i,jcour)
@@ -680,7 +680,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
           if (sscale) then
               call prosca (n,ybar(1,jcour),ybar(1,jcour),ps,izs,rzs,dzs)
-              precos=1.0_dp/ps
+              precos=1.d+0/ps
 !c
               if (ionode .and.impres.ge.5) write (iom,933) precos
   933         format (5x,"Oren-Spedicato factor = ",d10.3)
@@ -735,7 +735,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
                   do 441 i=1,n
                       ps2=ps2+(diag(i)-ps)**2
   441             continue
-                  ps2=sqrt(ps2/n)
+                  ps2=dsqrt(ps2/n)
                   write (iom,936) preco,ps2
   936             format (5x,"updated diagonal: average value = ",1pd10.3,", sqrt(variance) = ",d10.3)
               endif
@@ -753,7 +753,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       elseif (normtype.eq.'sup') then
           gnorm = dnrmi(n,g)
       elseif (normtype.eq.'dfn') then
-          gnorm = sqrt(ps)
+          gnorm = dsqrt(ps)
       endif
       eps1 = gnorm/gnorms
 !c
@@ -809,12 +809,12 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       endif
       if (ionode .and.impres.ge.5) then
           call prosca (n,g,g,ps,izs,rzs,dzs)
-          ps=sqrt(ps)
+          ps=dsqrt(ps)
           call prosca (n,d,d,ps2,izs,rzs,dzs)
-          ps2=sqrt(ps2)
+          ps2=dsqrt(ps2)
           ps=hp0/ps/ps2
-          ps=min1(-ps,1.0_dp)
-          ps=acos(ps)
+          ps=dmin1(-ps,1.d+0)
+          ps=dacos(ps)
           d1=ps
           d1=d1*180.0_dp/pi
           write (iom,906) sngl(d1)
@@ -1253,10 +1253,10 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
       call ecube (t,f,fp,ta,fa,fpa,gauche,droite)
       ta=taa
       if (t.gt.gauche .and. t.lt.droite) then
-          barr=max1(barmin,barr/barmul)
+          barr=dmax1(barmin,barr/barmul)
 !c         barr=barmin
         else
-          barr=min1(barmul*barr,barmax)
+          barr=dmin1(barmul*barr,barmax)
       endif
 !c
 !c --- fin de boucle
@@ -1336,18 +1336,18 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
 !c              first compute the discriminant (without overflow)
 !c
-      if (abs(z1).le.1.0_dp) then
+      if (dabs(z1).le.1.0_dp) then
           discri=z1*z1-fp*fpa
         else
           discri=fp/z1
           discri=discri*fpa
           discri=z1-discri
           if (z1.ge.0.0_dp .and. discri.ge.0.0_dp) then
-              discri=sqrt(z1)*sqrt(discri)
+              discri=dsqrt(z1)*dsqrt(discri)
               go to 120
           endif
           if (z1.le.0.0_dp .and. discri.le.0.0_dp) then
-              discri=sqrt(-z1)*sqrt(-discri)
+              discri=dsqrt(-z1)*dsqrt(-discri)
               go to 120
           endif
           discri=-1.0_dp
@@ -1360,22 +1360,22 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
 !c
 !c  discriminant nonnegative, compute solution (without overflow)
 !c
-      discri=sqrt(discri)
+      discri=dsqrt(discri)
   120 if (t-ta.lt.0.0_dp) discri=-discri
-      sign=(t-ta)/abs(t-ta)
+      sign=(t-ta)/dabs(t-ta)
       if (b*sign.gt.0.d+0) then
           t=t+fp*(ta-t)/(b+discri)
         else
           den=z1+b+fpa
           anum=b-discri
-          if (abs((t-ta)*anum).lt.(tupper-tlower)*abs(den)) then
+          if (dabs((t-ta)*anum).lt.(tupper-tlower)*dabs(den)) then
               t=t+anum*(ta-t)/den
             else
               t=tupper
           endif
       endif
-  900 t=max1(t,tlower)
-      t=min1(t,tupper)
+  900 t=dmax1(t,tlower)
+      t=dmin1(t,tupper)
       return
       end
 !c

@@ -210,11 +210,11 @@ END SUBROUTINE gr_print_info
 ! ******************************************************************************
 SUBROUTINE grcalc
 
-  USE control,                  ONLY :  itraj_format , itraj_save
+  USE control,                  ONLY :  itraj_format , trajff_data
   USE config,                   ONLY :  system , natm , ntype , rx , ry , rz , atype , &
                                         rho , config_alloc , simu_cell , atypei , itype, natmi, &
                                         coord_format_allowed , atom_dec , read_traj , read_traj_header
-  USE io,                  ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
+  USE io,                       ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
   USE cell,                     ONLY :  lattice , dirkar
   USE time,                     ONLY :  grtimetot_comm
@@ -294,7 +294,7 @@ SUBROUTINE grcalc
   do ic = 1, nconf
     io_node WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nconf,' ] '
 
-    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save ) 
+    CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data ) 
 
     CALL lattice ( simu_cell )
     rho = DBLE ( natm )  / simu_cell%omega

@@ -67,10 +67,10 @@ MODULE control
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc             !< type of calculation : md, opt, vib, efg ...  
-  character(len=60), SAVE :: calc_allowed(12)    
+  character(len=60), SAVE :: calc_allowed(13)    
   data calc_allowed / 'md'       , 'opt'     , 'vib'        , 'vib+fvib'       , 'vib+gmod' , &
                       'vib+band' , 'vib+dos' , 'efg'        , 'efg+acf'        , 'gr'       , &
-                      'vois1'    , 'rmc'     /
+                      'vois1'    , 'rmc'     , 'dist' /
 
   ! =====================================================
   ! algorithm for long-range calculation
@@ -90,10 +90,11 @@ MODULE control
   ! =====================================================
   !  format of TRAJFF allowed  
   ! =====================================================
-  character(len=3), SAVE :: itraj_save
-  character(len=3), SAVE :: iscff_save
-  character(len=3), SAVE :: itraj_save_allowed(4)
-  data itraj_save_allowed / 'rvf' , 'rnn' , 'rnf' , 'rvn' /
+  character(len=3), SAVE :: trajff_data
+  character(len=3), SAVE :: restart_data
+  character(len=3), SAVE :: iscff_data
+  character(len=3), SAVE :: data_allowed(4)
+  data data_allowed / 'rvf' , 'rnn' , 'rnf' , 'rvn' /
   
 CONTAINS
 
@@ -138,8 +139,10 @@ SUBROUTINE control_init ( MDFF )
                          itraj_start  , & 
                          itraj_period , & 
                          itraj_format , & 
-                         itraj_save   , & 
+                         trajff_data  , & 
                          iscff_format , & 
+                         iscff_data   , & 
+                         restart_data , & 
                          skindiff     
                
   ! ======================
@@ -212,8 +215,10 @@ SUBROUTINE control_default_tag
   itraj_start   = 1          
   itraj_period  = 10000
   itraj_format  = 1
-  itraj_save    = 'rnn'
   iscff_format  = 1
+  trajff_data   = 'rnn'
+  iscff_data    = 'rnn'
+  restart_data  = 'rnn'
 
   return 
  
@@ -266,20 +271,30 @@ SUBROUTINE control_check_tag
     io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: dgauss should be ', dgauss_allowed
   endif
   ! =========
-  ! traj_save  
+  ! trajff_data  
   ! =========
-  do i = 1 , size( itraj_save_allowed )
-   if ( trim(itraj_save) .eq. itraj_save_allowed(i))  allowed = .true.
+  allowed = .false.
+  do i = 1 , size( data_allowed )
+   if ( trim(trajff_data) .eq. data_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: itraj_save should be ', itraj_save_allowed
+    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: trajf_data should be ', data_allowed
   endif
-  do i = 1 , size( itraj_save_allowed )
-   if ( trim(iscff_save) .eq. itraj_save_allowed(i))  allowed = .true.
+  allowed = .false.
+  do i = 1 , size( data_allowed )
+   if ( trim(iscff_data) .eq. data_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: iscff_save should be ', itraj_save_allowed
+    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: iscff_data should be ', data_allowed
   endif
+  allowed = .false.
+  do i = 1 , size( data_allowed )
+   if ( trim(restart_data) .eq. data_allowed(i))  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: restart_data should be ', data_allowed
+  endif
+
 
 
   if ( calc .ne. 'md' ) return 

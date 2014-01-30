@@ -140,6 +140,7 @@ END SUBROUTINE accur_ES_frenkel_smit
 ! ******************************************************************************
 SUBROUTINE distance_tab 
 
+  USE control,                  ONLY :  calc
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype 
   USE field,                    ONLY :  sigmalj , lwfc
@@ -149,7 +150,7 @@ SUBROUTINE distance_tab
   implicit none
   
   ! local
-  integer                             :: ia , ja , PANdis, kdis , it , jt 
+  integer                             :: ia , ja , PANdis, kdis , it , jt , bin
   real(kind=dp)                       :: rxi, ryi, rzi
   real(kind=dp)                       :: sxij, syij, szij
   real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm, d
@@ -157,7 +158,7 @@ SUBROUTINE distance_tab
   integer, dimension (:) ,allocatable :: dist
   integer :: indxmin(2)
 
-  resdis = 0.5_dp ! should be keep hardware no need to be controled
+  resdis = 0.01_dp ! should be keep hardware no need to be controled
 
   PANdis = MAX(simu_cell%WA,simu_cell%WB,simu_cell%WC) / resdis
 
@@ -223,6 +224,13 @@ SUBROUTINE distance_tab
     endif
     blankline(stderr)
   endif
+
+  if ( calc .eq. 'dist' ) then
+    do bin=0,PANdis
+      write(10000,'(f16.8,i)') REAL(bin,kind=dp)*resdis,dist(bin)
+    enddo
+  endif
+
   
   deallocate(dist)
 

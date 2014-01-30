@@ -104,7 +104,7 @@ MODULE field
   ! ============================================================  
 
   ! type dependent properties
-  real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet )
+  real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet tested one everywhere )
   real(kind=dp)    :: qch      ( ntypemax )            !< charges 
   real(kind=dp)    :: quad_efg ( ntypemax )            !< quadrupolar moment
   real(kind=dp)    :: dip      ( ntypemax , 3 )        !< dipoles 

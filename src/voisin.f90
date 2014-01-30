@@ -213,7 +213,7 @@ SUBROUTINE vois1_driver
                                         atypei , natmi , rho , simu_cell , config_alloc , &
                                         config_print_info , coord_format_allowed , atom_dec , read_traj_header , read_traj 
   USE cell,                     ONLY :  lattice, dirkar
-  USE control,                  ONLY :  itraj_format , itraj_save
+  USE control,                  ONLY :  itraj_format , trajff_data
 
   implicit none
 
@@ -262,7 +262,7 @@ SUBROUTINE vois1_driver
     ! ====================
     !  read config iconf
     ! ====================
-    CALL read_traj ( kunit_TRAJFF , itraj_format , itraj_save )
+    CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data )
 
     CALL lattice ( simu_cell )
 
