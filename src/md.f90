@@ -271,8 +271,8 @@ SUBROUTINE md_check_tag
     allocate ( vxi(nhc_n) , xi(nhc_n) )
     vxi=0.0_dp
     xi=0.0_dp
-    xi=0.925174390084525  
-    vxi=-0.688111534198597
+  !  xi=0.925174390084525  
+  !  vxi=-0.688111534198597
   endif 
   ! initial conditions
    !vxi = 1.0_dp

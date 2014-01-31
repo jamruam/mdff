@@ -297,7 +297,7 @@ SUBROUTINE write_thermo ( step , kunit , key )
 
   USE control,  ONLY :  lcsvr
   USE config,   ONLY :  simu_cell 
-  USE md,       ONLY :  dt , integrator
+  USE md,       ONLY :  dt , integrator,xi,vxi,nhc_n
   USE io,  ONLY :  ionode
 
   implicit none
@@ -313,6 +313,7 @@ SUBROUTINE write_thermo ( step , kunit , key )
 
   call calc_thermo
 
+  !write(*,'(a,<5+nhc_n*2>e16.8)') 'fmv',e_tot,u_lj_r,e_kin_r,h_tot,xi,vxi,e_nvt
   if ( key .eq. 'osz' ) then
     if ( ionode ) then
         WRITE ( kunit , 200 ) &
