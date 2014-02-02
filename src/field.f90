@@ -40,7 +40,7 @@ MODULE field
   USE config,                           ONLY :  ntypemax 
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
-  USE io,                          ONLY :  ionode
+  USE io,                               ONLY :  ionode
   USE mpimdff
 
   implicit none
@@ -640,14 +640,14 @@ SUBROUTINE define_units
   implicit none
 
     engunit = 1.0_dp
-!   eV => internal 
+!  eV => internal 
    if ( units.eq.'eV')   engunit = 9648.530821_dp
 !  kcal ==> internal
    if ( units.eq.'kcal') engunit = 418.4_dp
 !  kJ ==> internal
    if ( units.eq.'kJ')   engunit = 100.0_dp
 !  K ==> internal
-   if ( units.eq.'kJ')   engunit = boltz
+   if ( units.eq.'K')   engunit = boltz
 
    epslj  = epslj  * engunit
    epsmor = epsmor * engunit

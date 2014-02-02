@@ -59,9 +59,9 @@ SUBROUTINE md_run ( offset )
   USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
   USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
-                                        fprint, spas , dt,  temp , updatevnl , integrator , itime
+                                        fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n
 
-  USE thermodynamic,            ONLY :  e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
+  USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver 
   USE mpimdff
@@ -187,6 +187,7 @@ SUBROUTINE md_run ( offset )
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 
+  write(*,'(a,<4+nhc_n*2>e16.8)') 'fmv en',e_tot,u_lj_r,kin,h_tot,xi,vxi
   ! =========================
   !   MAIN LOOP ( TIME )
   ! =========================
