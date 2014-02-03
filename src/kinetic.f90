@@ -212,9 +212,9 @@ SUBROUTINE rescale_volume (quite)
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx, ry, rz , simu_cell
   USE md,                       ONLY :  dt , press , tauPberendsen
-  USE io,                  ONLY :  ionode , stdout
+  USE io,                       ONLY :  ionode , stdout
   USE cell,                     ONLY :  lattice, dirkar, kardir
-  USE thermodynamic,            ONLY :  pressure_tot, calc_thermo
+  USE thermodynamic,            ONLY :  pressure_tot!, calc_thermo
 
   implicit none
 
@@ -225,7 +225,7 @@ SUBROUTINE rescale_volume (quite)
   integer :: ia
   real(kind=dp) :: P, lambda, lambda3
 
-  CALL calc_thermo()
+  !CALL calc_thermo()
   P = pressure_tot
 
   lambda  = ( 1.0_dp - (dt / tauPberendsen) * ( press - P ) ) 

@@ -20,8 +20,9 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug_nvt_nhc2
-#define debug_nvt_nhcn
+!#define debug_nvt_nhcn
 !#define debug_nvt_nhcpn
+#define debug_nvt_nhcpn2
 ! ======= Hardware =======
 
 !================================================================================
@@ -209,7 +210,7 @@ SUBROUTINE nhc2
   USE io,                       ONLY :  ioprint
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz , center_of_mass, ntypemax
-  USE md,                       ONLY :  dt, vxi, xi , timesca, nhc_n,temp
+  USE md,                       ONLY :  dt, vxi, xi , timesca_thermo, nhc_n,temp
   USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt , e_tot,u_lj_r,h_tot, calc_thermo
 
   implicit none
@@ -223,8 +224,8 @@ SUBROUTINE nhc2
   L = 3.0_dp * ( REAL ( natm, kind=dp) - 1.0_dp )
 
   ! thermostat mass
-  Q(1) = timesca**2.0_dp * temp * L 
-  Q(2) = timesca**2.0_dp * temp
+  Q(1) = timesca_thermo**2.0_dp * temp * L 
+  Q(2) = timesca_thermo**2.0_dp * temp
  
   CALL calc_temp ( tempi , kin )
   CALL chain_nhc2 ( kin , vxi , xi , Q , L )
@@ -288,7 +289,6 @@ SUBROUTINE chain_nhc2 ( kin, vxi, xi , Q , L )
   real(kind=dp) :: G1, G2  
   real(kind=dp) :: dt2, dt4, dt8
   real(kind=dp) :: s
-
  
   ! some constants related integrator step dt
   s = 1._dp
@@ -494,7 +494,7 @@ SUBROUTINE nhcn
   USE io,                       ONLY :  ioprint
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz , center_of_mass, ntypemax
-  USE md,                       ONLY :  dt, vxi, xi , timesca, nhc_n,temp
+  USE md,                       ONLY :  dt, vxi, xi , timesca_thermo, nhc_n,temp
   USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt , e_tot,u_lj_r,h_tot, calc_thermo
 
   implicit none
@@ -509,7 +509,7 @@ SUBROUTINE nhcn
 
   ! thermostat mass
   allocate( Q (nhc_n) )
-  Q = timesca**2.0_dp * temp 
+  Q = timesca_thermo**2.0_dp * temp 
   Q(1) = Q(1) * L 
 
   CALL calc_temp ( tempi , kin )
@@ -605,6 +605,7 @@ SUBROUTINE chain_nhcn ( kin , vxi , xi , Q , L )
   dt_yosh =  yosh_w * dt
 
   s = 1.0_dp ! scale
+  G ( 1 )   = ( 2.0_dp*kin - L * temp) / Q ( 1 )
 !  G(1) = ( 2.0_dp*kin*s - L * temp) / Q ( 1 )
 !  do inh=1,nhc_n-1
 !    G ( inh + 1 ) = ( Q(inh) * vxi(inh) * vxi(inh) - temp) / Q ( inh + 1 )
@@ -624,19 +625,14 @@ do k=1,nhc_mults
     io_print write(*,'(a,<nhc_n>e16.8)') "vxi(nhc_n)",vxi
     io_print write(*,'(a,e16.8)') "Gn",G(nhc_n)
 #endif
-    do inh=nhc_n-1,2,-1
+    do inh=nhc_n-1,1,-1
       vxi ( inh )= vxi ( inh  ) * EXP ( - vxi ( inh + 1 ) * dts8 )
       vxi ( inh )= vxi ( inh ) + G ( inh ) * dts4 
       vxi ( inh )= vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 )
     enddo
-    G ( 1 )   = ( 2.0_dp*kin - L * temp) / Q ( 1 )
 #ifdef debug_nvt_nhcn
     io_print write(*,'(a,3e16.8)') "G1",G(1),Q(1),L
 #endif
-    vxi ( 1 ) = vxi ( 1 ) * EXP ( - vxi ( 2 ) * dts8 )
-    vxi ( 1 ) = vxi ( 1 ) + G ( 1 ) * dts4
-    vxi ( 1 ) = vxi ( 1 ) * EXP ( - vxi ( 2 ) * dts8 )
-
     s = s * EXP ( - vxi(1) * dts2 ) ! typo in instructions (35) [1] ?
     kin = kin * s * s 
 #ifdef debug_nvt_nhcn
@@ -644,25 +640,6 @@ do k=1,nhc_mults
 #endif
     ! propagating xi 
     xi = xi + vxi * dts2
-!====================================================================================================
-!====================================================================================================
-!  G1     = ( 2.0_dp*kin - L * temp) / Q(1)
-!  G2     = ( Q(1) * vxi(1) * vxi(1) - temp) / Q(2)
-!  vxi(2) = vxi(2) + G2 * dt4
-!  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
-!  vxi(1) = vxi(1) + G1 * dt4
-!  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
-!  s   = s * EXP ( - vxi(1) * dt2 )
-!  kin = s * s * kin
-!  xi  = xi + vxi * dt2
-!  G1     = ( 2.0_dp*kin - L * temp) / Q(1)
-!  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
-!  vxi(1) = vxi(1) + G1 * dt4
-!  vxi(1) = vxi(1) * EXP ( - vxi(2) * dt8 )
-!  G2     = ( Q(1) * vxi(1) * vxi(1) - temp) / Q(2)
-!  vxi(2) = vxi(2) + G2 * dt4
-!====================================================================================================
-!====================================================================================================
 #ifdef debug_nvt_nhcn
     io_print write(*,'(a,<nhc_n+1>e16.8)') "xi(nhc_n) ",xi,kin
 #endif
@@ -702,12 +679,13 @@ END SUBROUTINE chain_nhcn
 ! [2] Phys Lett. A, (1190), v150 n5,6,7, p262, Yoshida
 !
 ! ******************************************************************************
-SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
+SUBROUTINE chain_nhcpn ( kin , vxi , xi , ve , Q , W , L )
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  simu_cell, natm , vx , vy , vz
-  USE md,                       ONLY :  temp , press, dt , nhc_n , nhc_yosh_order
-  USE thermodynamic,            ONLY :  pressure_tot, calc_thermo
+  USE config,                   ONLY :  simu_cell, massia , natm , vx , vy , vz
+  USE md,                       ONLY :  temp , press, dt , nhc_n , nhc_yosh_order, nhc_mults
+  USE thermodynamic,            ONLY :  pint_tot, calc_thermo
+  USE io,                       ONLY :  ioprint
 
   implicit none
 
@@ -716,7 +694,7 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
   real(kind=dp), intent (inout) :: vxi(nhc_n), xi(nhc_n) , Q(nhc_n)
 
   ! local
-  integer :: ia , j , inh
+  integer :: ia , j , inh, k , odnf
   real(kind=dp), dimension ( : ) , allocatable :: G
   real(kind=dp) :: s , dts , dts2 , dts4 , dts8 , L, Ge , ve , P, coeff
 
@@ -752,15 +730,24 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
 
   !print*,'in 2'
   CALL calc_thermo
-  P = pressure_tot
-  kin = kin * 2.0_dp
+  P = pint_tot
+  odnf = 1.0_dp + (3.0_dp / L )
+  !stop
   allocate ( G ( nhc_n) )
   ! thermostat mass
   dt_yosh =  yosh_w * dt
+  !print*,Q
+  !print*,W
+  !stop
 
   s = 1.0_dp ! scale
   !print*,'in 3',dt_yosh( 1 )
+  G(1) = (2.0_dp * kin        + W * ve * ve - (L+1.0_dp)* temp ) / Q(1)
+  Ge   = (2.0_dp * odnf * kin + 3.0_dp * ( P - press ) * simu_cell%omega ) / W  
+  !print*,G(1),Ge,P
+  !stop
 
+do k=1 , nhc_mults
   do j=1, nhc_yosh_order
 
     !write(*,*) j
@@ -771,28 +758,33 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
 
     vxi ( nhc_n )  = vxi ( nhc_n ) + G ( nhc_n ) * dts4
     !write(*,'(a,<nhc_n>e16.8)') "vxi(nhc_n)",vxi
-    do inh=nhc_n-1,1,-1
-      vxi ( inh )= vxi ( inh  ) * EXP ( - vxi ( inh + 1) * dts8 )
-      vxi ( inh )= vxi ( inh ) + G ( inh ) * dts4
-      vxi ( inh )= vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 )
+    do inh=1,nhc_n-1
+      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) * EXP ( - vxi ( nhc_n+1 - inh ) * dts8 )
+      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) + G ( nhc_n - inh  ) * dts4
+      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) * EXP ( - vxi ( nhc_n+1 - inh ) * dts8 )
     enddo
-
-    ve = ve * EXP ( - vxi ( 1) * dts8 )
+    ve = ve * EXP ( - vxi (1) * dts8 )
     ve = ve + Ge * dts4
-    ve = ve * EXP ( - vxi ( 1) * dts8 )
+    ve = ve * EXP ( - vxi (1) * dts8 )
+    !stop
       
+    s   = s * EXP ( - (vxi(1)+odnf*ve) * dts2 ) ! typo in instructions (35) [1] ?
+    kin = kin * s * s 
+#ifdef debug_nvt_nhcpn
+    io_print write(*,'(a,2e16.8)') 'scaling s =',s,ve
+#endif
+    Ge  = ( 2.0_dp * odnf * kin + 3.0_dp * ( P - press ) * simu_cell%omega ) / W
+#ifdef debug_nvt_nhcpn2
+    io_print write(*,'(a,4e16.8)') 've vxi Ge P-press',ve,vxi(1),Ge,P-press
+#endif
     ! propagating xi 
     xi = xi + vxi * dts2
 
-    s = s * EXP ( - vxi(1) * dts2 ) ! typo in instructions (35) [1] ?
-
-    G ( 1 )   = ( kin*s - L * temp + W * ve ** 2 ) / Q ( 1 )
-    Ge        = ( coeff * kin + 3.0_dp * ( P - press ) * simu_cell%omega ) / W
-
-
-    ve = ve * EXP ( - vxi ( 1) * dts8 )
+    ve = ve * EXP ( - vxi (1) * dts8 )
     ve = ve + Ge * dts4
-    ve = ve * EXP ( - vxi ( 1) * dts8 )
+    ve = ve * EXP ( - vxi (1) * dts8 )
+
+    G ( 1 )   = ( 2.0_dp*kin - (L+1.0_dp) * temp + W * ve ** 2 ) / Q ( 1 )
 
     do inh = 1 , nhc_n - 1
       vxi ( inh )     = vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 )
@@ -804,13 +796,18 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
      vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
 
   enddo
+enddo
 
+  kin=0.0_dp
   do ia = 1, natm
     vx ( ia ) = s * vx ( ia )
     vy ( ia ) = s * vy ( ia )
     vz ( ia ) = s * vz ( ia )
+    kin =  kin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) / massia(ia)
   enddo
+  kin = kin * 0.5_dp
 
+  io_print CALL print_config_sample(0,0)
 !  print*,'end'
 
   deallocate ( G )
@@ -829,9 +826,9 @@ END SUBROUTINE chain_nhcpn
 SUBROUTINE nhcpn
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz
-  USE md,                       ONLY :  dt, vxi, xi , timesca , Wmass, nhc_n,temp
-  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pressure_tot, calc_thermo
+  USE config,                   ONLY :  natm , simu_cell, rx , ry , rz , vx , vy , vz , fx , fy , fz
+  USE md,                       ONLY :  dt, vxi, xi , xe , ve , xe0, timesca_thermo , timesca_baro, nhc_n,temp , press
+  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pint_tot, calc_thermo
 
   implicit none
 
@@ -843,36 +840,43 @@ SUBROUTINE nhcpn
   ! thermostat mass
   L = 3.0_dp * REAL(natm, kind=dp) 
   allocate ( Q(nhc_n) )
-  Q=timesca**2.0_dp
+  Q=timesca_thermo**2.0_dp * temp
   Q(1) = Q(1) * L 
-  W = Wmass
+  W = L * temp * timesca_baro**2.0_dp
 
   CALL calc_temp ( tempi , kin )
 
-  CALL chain_nhcpn( kin , vxi , xi , Q , W , L )
+  CALL chain_nhcpn( kin , vxi , xi , ve , Q , W , L )
 
-  CALL prop_velocity_verlet
+  CALL prop_pos_vel_verlet_npt ( kin , xe , ve ) 
 
-  CALL chain_nhcpn( kin, vxi, xi , Q , W , L )
+  CALL chain_nhcpn( kin, vxi, xi , ve , Q , W , L )
   kin = kin * 0.5_dp
 
   tempi = (2.0_dp/3.0_dp) * kin
   tempi = tempi / DBLE (natm)
   temp_r = tempi
+  e_kin = kin
 
   e_npt = 0.0_dp
-  do inhc = 1 , nhc_n
-    e_npt = e_npt + vxi(inhc) * vxi(inhc) * 0.5_dp * Q(inhc)
+  e_npt = e_npt + ( L + 1.0_dp )  * temp * xi(1)
+  e_npt = e_npt + vxi(1) * vxi(1) * 0.5_dp / Q(1)
+  do inhc = 2 , nhc_n
+    e_npt = e_npt + vxi(inhc) * vxi(inhc) * 0.5_dp / Q(inhc)
+    e_npt = e_npt + temp * xi(inhc)
   enddo
-  e_npt = e_npt + 3.0_dp * natm * temp * xi(1)
-  e_npt = e_npt + temp * xi(2)
+  e_npt = e_npt + ve * ve * 0.5_dp * W
+  e_npt = e_npt + press * simu_cell%omega 
+
 
   CALL calc_thermo
-  pressi=pressure_tot
+  pressi=pint_tot
 
 #ifdef debug_nvt_nhcpn
   print*,'vxi',vxi
   print*,'xi',xi
+  print*,'ve',ve
+  print*,'xe',xe
   print*,'Q',Q
   print*,'W',W
   print*,'temp',temp
@@ -887,6 +891,103 @@ SUBROUTINE nhcpn
   return
 
 END SUBROUTINE nhcpn
+
+! *********************** SUBROUTINE prop_pos_vel_verlet ***********************
+!
+!> \brief
+!! propagates position and position in the velet algorithm
+!
+! ******************************************************************************
+SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve )
+
+  USE constants,                ONLY :  dp
+  USE config,                   ONLY :  natm , massia , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz, simu_cell, rho
+  USE md,                       ONLY :  dt
+  USE control,                  ONLY :  lpbc
+  USE field,                    ONLY :  engforce_driver
+  USE cell,                     ONLY :  lattice , kardir, dirkar
+  USE io,                       ONLY :  ioprint
+
+  implicit none
+
+  ! global
+  real(kind=dp) :: kin, xe, ve
+
+  ! local
+  integer :: ia
+  real(kind=dp) :: dt2 , e2,e4,e6,e8, AA , AA2 , BB , poly , arg2 , vol ,sxe
+
+  dt2 = dt * 0.5_dp
+  e2 = 1.0_dp / 6.0_dp
+  e4 = e2     / 20.0_dp
+  e6 = e4     / 42.0_dp
+  e8 = e6     / 72.0_dp
+
+  ! =========================================
+  !  v(t+dt2) = v(t) + f(t) * dt2
+  !  r(t+dt)  = r(t) + v(t+dt2) * dt / m 
+  ! note : dt2 = dt / 2
+  ! =========================================
+  do ia = 1 , natm
+    vx ( ia ) = vx ( ia ) + fx ( ia ) * dt2 / massia(ia)
+    vy ( ia ) = vy ( ia ) + fy ( ia ) * dt2 / massia(ia)
+    vz ( ia ) = vz ( ia ) + fz ( ia ) * dt2 / massia(ia)
+!    rx ( ia ) = rx ( ia ) + vx ( ia ) * dt
+!    ry ( ia ) = ry ( ia ) + vy ( ia ) * dt
+!    rz ( ia ) = rz ( ia ) + vz ( ia ) * dt
+  enddo
+  AA  = EXP ( dt2 * ve ) 
+  AA2 = AA * AA
+  ARG2 = ve*dt2*ve*dt2
+  poly = ( ( (e8*ARG2+E6)*ARG2 + E4) *ARG2 + E2 ) * ARG2 + 1.0_dp
+  BB = AA * poly * dt
+  !CALL kardir(natm,rx,ry,rz,simu_cell%B)
+  do ia = 1,natm
+    rx ( ia ) = rx ( ia ) * AA2 + vx (ia ) * BB 
+    ry ( ia ) = ry ( ia ) * AA2 + vy (ia ) * BB 
+    rz ( ia ) = rz ( ia ) * AA2 + vz (ia ) * BB 
+  enddo
+  xe = xe + ve*dt
+  !vol = simu_cell%omega*EXP(3.0_dp*dt*ve)
+!  CALL kardir(natm,rx,ry,rz,simu_cell%B)
+  !sxe = ( vol/simu_cell%omega ) ** (1.0_dp/3.0_dp)
+  simu_cell%A(1,:) = simu_cell%A(1,:) * EXP ( xe )
+  simu_cell%A(2,:) = simu_cell%A(2,:) * EXP ( xe )
+  simu_cell%A(3,:) = simu_cell%A(3,:) * EXP ( xe )
+  CALL lattice ( simu_cell )
+  rho = DBLE ( natm ) / simu_cell%omega
+!  CALL dirkar(natm,rx,ry,rz,simu_cell%A)
+#ifdef debug_nvt_nhcpn2
+  if ( ioprint ) then
+    write(*,'(a,4e16.8)') 'volume scaling =',EXP(xe),xe,ve,simu_cell%omega
+    write(*,'(a,3e16.8)') 'fmv acell',simu_cell%A(1,:)
+    write(*,'(a,3e16.8)') 'fmv bcell',simu_cell%A(2,:)
+    write(*,'(a,3e16.8)') 'fmv ccell',simu_cell%A(3,:)
+  endif
+#endif
+  ! ==========================
+  ! f(t+dt)
+  ! ==========================
+  CALL engforce_driver
+
+  ! =========================================
+  !   v(t) = v(t+dt2) + f(t+dt) * dt2
+  !   v(t) = v(t) + dt2 * ( f(t) + f(t+ft) ) 
+  ! =========================================
+  kin  = 0.0_dp
+  do ia = 1 , natm
+    vx ( ia ) = vx ( ia ) + fx ( ia ) * dt2 / massia(ia)
+    vy ( ia ) = vy ( ia ) + fy ( ia ) * dt2 / massia(ia)
+    vz ( ia ) = vz ( ia ) + fz ( ia ) * dt2 / massia(ia)
+    kin = kin + ( vx ( ia ) * vx ( ia ) +  vy ( ia ) * vy ( ia ) + vz ( ia ) * vz ( ia ) ) * massia (ia)
+  enddo
+  kin = kin * 0.5_dp
+
+
+  return
+
+END SUBROUTINE prop_pos_vel_verlet_npt
+
 
 
 ! ===== fmV =====

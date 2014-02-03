@@ -149,16 +149,16 @@ PROGRAM main_MDFF
   ! =====================================
   if ( .not. ltest )  then
 
-    ! =============================
-    ! md initialization
-    ! =============================
-    CALL md_init
- 
     ! =============================================
     ! configuration initialization + force_field
     ! =============================================
     CALL config_init 
 
+    ! =============================
+    ! md initialization
+    ! =============================
+    CALL md_init
+ 
     ! =============================
     ! properties initialization	 
     ! ( removed feb 2013)

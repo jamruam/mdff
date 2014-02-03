@@ -28,7 +28,7 @@ MODULE thermodynamic
 
   USE constants,                ONLY :  dp
   USE block,                    ONLY :  accu
-  USE md,                       ONLY :  nve_ensemble , nvt_ensemble
+  USE md,                       ONLY :  nve_ensemble , nvt_ensemble , npt_ensemble , npe_ensemble
 
   implicit none
 
@@ -58,6 +58,7 @@ MODULE thermodynamic
   real(kind=dp) :: u_morse_r      !< potential energy from morse interaction
   real(kind=dp) :: u_coul_r       !< potential energy from coulombic interaction 
   real(kind=dp) :: e_nvt_r        !< further Nose Hoover energy for the conserved quantity 
+  real(kind=dp) :: e_npt_r        !< further Nose Hoover energy for the conserved quantity 
   real(kind=dp) :: csvr_conint_r  !< CSVR Stochastic velocity rescaling (conserved quantity) 
 
 
@@ -74,6 +75,7 @@ MODULE thermodynamic
   real(kind=dp) :: pvirial_coul   !< virial correction to the pressure
 
   real(kind=dp) :: pressure_tot   !< total pressure
+  real(kind=dp) :: pint_tot   !< pressure minus velocity-dependent part 
   real(kind=dp) :: pressure_lj    !< pressure from lj interactions
   real(kind=dp) :: pressure_coul  !< pressure from coulombic interactions
 
@@ -103,10 +105,11 @@ SUBROUTINE calc_thermo
 
   USE control,                  ONLY :  lreduced , lcsvr
   USE config,                   ONLY :  natm , rho , simu_cell 
-  USE md,                       ONLY :  integrator
+  USE md,                       ONLY :  integrator, press
+  USE io,                       ONLY :  ioprint
 
   implicit none
-  real(kind=dp) :: omega
+  real(kind=dp) :: omega, pv
 
   omega = simu_cell%omega
  !!!! WARNING virials are wrong
@@ -117,6 +120,7 @@ SUBROUTINE calc_thermo
     u_coul_r = u_coul_tot   / REAL ( natm , kind = dp ) / engunit
     e_kin_r  = e_kin        / REAL ( natm , kind = dp ) / engunit
     e_nvt_r  = e_nvt        / REAL ( natm , kind = dp ) / engunit 
+    e_npt_r  = e_npt        / REAL ( natm , kind = dp ) / engunit 
     csvr_conint_r = csvr_conint / REAL ( natm , kind = dp ) / engunit
   else
     u_lj_r   = u_lj         / engunit
@@ -124,6 +128,7 @@ SUBROUTINE calc_thermo
     u_coul_r = u_coul_tot   / engunit
     e_kin_r  = e_kin        / engunit
     e_nvt_r  = e_nvt        / engunit 
+    e_npt_r  = e_npt        / engunit 
     csvr_conint_r = csvr_conint / engunit
   endif
  
@@ -138,6 +143,7 @@ SUBROUTINE calc_thermo
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + temp_r / omega
+    pint_tot      = pvirial_tot
     pressure_lj   = pvirial_lj   
     pressure_coul = pvirial_coul 
   else
@@ -146,6 +152,7 @@ SUBROUTINE calc_thermo
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + rho * temp_r 
+    pint_tot      = pvirial_tot
     pressure_lj   = pvirial_lj   
     pressure_coul = pvirial_coul 
   endif
@@ -155,10 +162,19 @@ SUBROUTINE calc_thermo
     h_tot = e_tot
     if ( lcsvr ) h_tot = e_tot + csvr_conint_r  ! special case of stochastic velocity rescaling with a specific conserved quantity 
   endif
+  if ( any ( integrator .eq. npe_ensemble )) then
+    pv = press * omega 
+    h_tot = e_tot + pv
+    io_print print*,'PV',pv
+  endif
   if ( any ( integrator .eq. nvt_ensemble )) then
     !print*,'NVT ensemble'
     if ( integrator .eq. 'nvt-and' ) continue ! no conserved quantity for andersen thermostat
     h_tot = e_tot + e_nvt_r
+  endif
+  if ( any ( integrator .eq. npt_ensemble )) then
+    !print*,'NPT ensemble'
+    h_tot = e_tot + e_npt_r
   endif
 
 
@@ -310,8 +326,6 @@ SUBROUTINE write_thermo ( step , kunit , key )
   real(kind=dp) :: omega
   
   omega = simu_cell%omega
-
-  call calc_thermo
 
   !write(*,'(a,<5+nhc_n*2>e16.8)') 'fmv',e_tot,u_lj_r,e_kin_r,h_tot,xi,vxi,e_nvt
   if ( key .eq. 'osz' ) then

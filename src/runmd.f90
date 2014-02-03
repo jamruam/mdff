@@ -61,7 +61,7 @@ SUBROUTINE md_run ( offset )
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n
 
-  USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo
+  USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver 
   USE mpimdff
@@ -143,6 +143,7 @@ SUBROUTINE md_run ( offset )
     ! ==================================================
     ! write thermodynamic information of config at t=0
     ! ==================================================
+    CALL calc_thermo
     CALL write_thermo( offset-1 , stdout , 'std' )
     CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
 
@@ -168,6 +169,7 @@ SUBROUTINE md_run ( offset )
     ! =======================================================
     ! write thermodynamic information of the starting point
     ! =======================================================
+    CALL calc_thermo
     CALL write_thermo( offset-1 , stdout , 'std')
     CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
      rx = xtmp
@@ -352,6 +354,10 @@ MAIN:  do itime = offset , npas + (offset-1)
 
 !         endif 
         ! ----------------------------------------------------------------------------------
+        ! =============================================
+        !  compute main thermodynamic quantities
+        ! =============================================
+        CALL calc_thermo
 
         ! =============================================
         !  write instanteanous thermodynamic properties

@@ -44,16 +44,17 @@ MODULE md
   real(kind=dp) :: dt                   !< time step
   real(kind=dp) :: temp                 !< temperature   
   real(kind=dp) :: press                !< pressure
-  real(kind=dp) :: timesca              !< Nose-Hoover Chain : time scale of thermostat 
-  real(kind=dp) :: Wmass                !< Andersen barostat : W mass 
+  real(kind=dp) :: timesca_thermo       !< Nose-Hoover Chain : time scale of thermostat 
+  real(kind=dp) :: timesca_baro         !< Nose-Hoover Chain : time scale of barostat 
   integer       :: nhc_yosh_order       !< Nose-Hoover Chain : order of the yoshida integrator 
   integer       :: nhc_mults            !< Nose-Hoover Chain : number of multiple timesteps 
   integer       :: nhc_n                !< Nose-Hoover Chain : length of the Nose-Hoover chain
   real(kind=dp) :: tauTberendsen        !< characteristic time in berendsen thermostat (simple rescale if tauTberendsen = dt )
   real(kind=dp) :: tauPberendsen        !< characteristic time in berendsen barostat   (simple rescale if tauPberendsen = dt )
   real(kind=dp) :: taucsvr              !< characteristic time in Stochastic velocity rescaling (simple rescale if taucsvr = 0.0 )
-  real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat
+  real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat ( to be merged with timesca_thermo )
   real(kind=dp) , dimension ( : ) , allocatable :: vxi, xi              !< general coordinates of the thermostat (Nose-Hoover Chain)
+  real(kind=dp) :: ve, xe,xe0               !< general coordinates of the barostat (Andersen) 
 
   ! ================================================
   !     algorithm for dynamic integration
@@ -68,6 +69,8 @@ MODULE md
   data                 nve_ensemble / 'nve-vv' , 'nve-lf', 'nve-be' , 'nve-lfq' /
   character(len=60) :: nvt_ensemble(4)
   data                 nvt_ensemble / 'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nvt-nhcn' /
+  character(len=60) :: npe_ensemble(1) 
+  data                 npe_ensemble / 'npe-vv' /
   character(len=60) :: npt_ensemble(1) 
   data                 npt_ensemble / 'npt-nhcpn' /
 
@@ -113,8 +116,8 @@ SUBROUTINE md_init
                       nhc_yosh_order, & 
                       nhc_mults     , & 
                       nhc_n         , & 
-                      Wmass         , &
-                      timesca      
+                      timesca_thermo, &      
+                      timesca_baro        
 
   if ( calc .ne. 'md' ) return
   ! ======================
@@ -193,7 +196,8 @@ END SUBROUTINE md_default_tag
 SUBROUTINE md_check_tag
 
   USE control,  ONLY :  lstatic
-  USE io,  ONLY :  ionode , stdout
+  USE config,   ONLY :  simu_cell
+  USE io,       ONLY :  ionode , stdout
 
   implicit none
 
@@ -236,12 +240,17 @@ SUBROUTINE md_check_tag
   endif
 
   ! ===================
-  !  check timesca 
+  !  check timesca_thermo/baro 
   ! ===================
-  if ( integrator .eq. 'nvt-nhc2' .and. timesca .eq. 0.0_dp ) then
-     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator = "nvt-nhc2" timesca should be set',timesca
+  if ( any ( integrator .eq. nvt_ensemble ) .and. timesca_thermo .eq. 0.0_dp ) then
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in nvt_ensemble timesca_thermo should be set',timesca_thermo
     STOP
   endif
+  if ( any ( integrator .eq. npt_ensemble ) .and. timesca_baro .eq. 0.0_dp ) then
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in nvt_ensemble timesca_thermo should be set',timesca_thermo
+    STOP
+  endif
+
 
   if (integrator.eq.'nvt-nh' ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: integrator = "nvt-nh" not yet implemented try nvt-nhc2 '
@@ -271,8 +280,9 @@ SUBROUTINE md_check_tag
     allocate ( vxi(nhc_n) , xi(nhc_n) )
     vxi=0.0_dp
     xi=0.0_dp
-  !  xi=0.925174390084525  
-  !  vxi=-0.688111534198597
+    xe = LOG ( simu_cell%omega ) / 3.0_dp 
+    !xe  = 0.0d0
+    ve = 0.0_dp
   endif 
   ! initial conditions
    !vxi = 1.0_dp
@@ -331,7 +341,8 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
         if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
         if ( integrator .eq. 'nvt-nhc2' .or. & 
-             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'time scale thermostat: timesca       = ',timesca
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'time scale thermostat: timesca_thermo = ',timesca_thermo
+        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f10.5)') 'time scale barostat  : timesca_baro   = ',timesca_baro
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
              ( integrator .ne. 'nvt-nhcn' ) .and. &
