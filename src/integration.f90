@@ -20,7 +20,7 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug_nvt_nhc2
-!#define debug_nvt_nhcn
+#define debug_nvt_nhcn
 !#define debug_nvt_nhcpn
 ! ======= Hardware =======
 
@@ -502,14 +502,15 @@ SUBROUTINE nhcn
   ! local
   integer                :: inhc
   real(kind=dp)          :: kin , tempi, L , com( 0 : ntypemax , 3 )
-  real(kind=dp)          :: Q(2)
+  real(kind=dp), dimension(:), allocatable :: Q
 
   ! degrees of freedom
   L = 3.0_dp * ( REAL ( natm, kind=dp) - 1.0_dp )
 
   ! thermostat mass
-  Q(1) = timesca**2.0_dp * temp * L
-  Q(2) = timesca**2.0_dp * temp
+  allocate( Q (nhc_n) )
+  Q = timesca**2.0_dp * temp 
+  Q(1) = Q(1) * L 
 
   CALL calc_temp ( tempi , kin )
   CALL chain_nhcn ( kin , vxi , xi , Q , L )
@@ -534,11 +535,12 @@ SUBROUTINE nhcn
     e_nvt = e_nvt + temp * xi(inhc)
   enddo
 #ifdef debug_nvt_nhcn 
-  io_print write(*,'(a,4e16.8)') 'fmv xi vxi',xi,vxi
+  io_print write(*,'(a,<2*nhc_n>e16.8)') 'fmv xi vxi',xi,vxi
   CALL calc_thermo
-  write(*,'(a,<4+nhc_n*2>e16.8)') 'fmv en',e_tot,u_lj_r,kin,h_tot,xi,vxi
+  io_print write(*,'(a,<4+nhc_n*2>e16.8)') 'fmv en',e_tot,u_lj_r,kin,h_tot,xi,vxi
 #endif
 
+  deallocate( Q ) 
 
   return
 
@@ -620,18 +622,16 @@ do k=1,nhc_mults
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4 
 #ifdef debug_nvt_nhcn
     io_print write(*,'(a,<nhc_n>e16.8)') "vxi(nhc_n)",vxi
-    write(*,'(a,e16.8)') "G2",G(2)
+    io_print write(*,'(a,e16.8)') "Gn",G(nhc_n)
 #endif
-    do inh=1,nhc_n-1
-      !print*,'get in 1',inh
-      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) * EXP ( - vxi ( nhc_n + 1 - inh ) * dts8 )
-      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) + G ( nhc_n - inh ) * dts4 
-      vxi ( nhc_n - inh ) = vxi ( nhc_n - inh ) * EXP ( - vxi ( nhc_n + 1 - inh ) * dts8 )
-!      G   ( inh - 1 ) = ( Q(inh) * vxi(inh) * vxi(inh) - temp) / Q ( inh - 1 )
+    do inh=nhc_n-1,2,-1
+      vxi ( inh )= vxi ( inh  ) * EXP ( - vxi ( inh + 1 ) * dts8 )
+      vxi ( inh )= vxi ( inh ) + G ( inh ) * dts4 
+      vxi ( inh )= vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 )
     enddo
     G ( 1 )   = ( 2.0_dp*kin - L * temp) / Q ( 1 )
 #ifdef debug_nvt_nhcn
-    write(*,'(a,3e16.8)') "G1",G(1),Q(1),L
+    io_print write(*,'(a,3e16.8)') "G1",G(1),Q(1),L
 #endif
     vxi ( 1 ) = vxi ( 1 ) * EXP ( - vxi ( 2 ) * dts8 )
     vxi ( 1 ) = vxi ( 1 ) + G ( 1 ) * dts4
@@ -702,7 +702,7 @@ END SUBROUTINE chain_nhcn
 ! [2] Phys Lett. A, (1190), v150 n5,6,7, p262, Yoshida
 !
 ! ******************************************************************************
-SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W )
+SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W , L )
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  simu_cell, natm , vx , vy , vz
@@ -723,7 +723,7 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W )
   real(kind=dp) , dimension ( : ), allocatable :: yosh_w  ! integrator order as in [2] YOSHIDA 
   real(kind=dp) , dimension ( : ), allocatable :: dt_yosh ! yoshida time 
 
-  print*,'in'
+  !print*,'in'
   allocate ( yosh_w  ( nhc_yosh_order) )
   allocate ( dt_yosh ( nhc_yosh_order) )
 
@@ -750,28 +750,27 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W )
      yosh_w(7) = yosh_w(1)
   END SELECT
 
-  print*,'in 2'
+  !print*,'in 2'
   CALL calc_thermo
   P = pressure_tot
   kin = kin * 2.0_dp
   allocate ( G ( nhc_n) )
   ! thermostat mass
-  L  = DBLE (3 * natm)
   dt_yosh =  yosh_w * dt
 
   s = 1.0_dp ! scale
-  print*,'in 3',dt_yosh( 1 )
+  !print*,'in 3',dt_yosh( 1 )
 
   do j=1, nhc_yosh_order
 
-    write(*,*) j
+    !write(*,*) j
     dts = dt_yosh( j )
     dts2 = dts  * 0.5d0
     dts4 = dts2 * 0.5d0
     dts8 = dts4 * 0.5d0
 
     vxi ( nhc_n )  = vxi ( nhc_n ) + G ( nhc_n ) * dts4
-    write(*,'(a,<nhc_n>e16.8)') "vxi(nhc_n)",vxi
+    !write(*,'(a,<nhc_n>e16.8)') "vxi(nhc_n)",vxi
     do inh=nhc_n-1,1,-1
       vxi ( inh )= vxi ( inh  ) * EXP ( - vxi ( inh + 1) * dts8 )
       vxi ( inh )= vxi ( inh ) + G ( inh ) * dts4
@@ -812,7 +811,7 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , Q , W )
     vz ( ia ) = s * vz ( ia )
   enddo
 
-  print*,'end'
+!  print*,'end'
 
   deallocate ( G )
   deallocate ( yosh_w  )
@@ -838,22 +837,23 @@ SUBROUTINE nhcpn
 
   ! local
   integer                :: inhc
-  real(kind=dp)          :: kin , tempi , pressi, W
+  real(kind=dp)          :: kin , tempi , pressi, W, L 
   real(kind=dp), dimension ( : ) , allocatable :: Q
 
   ! thermostat mass
+  L = 3.0_dp * REAL(natm, kind=dp) 
   allocate ( Q(nhc_n) )
   Q=timesca**2.0_dp
-  Q(1) = Q(1) * natm
+  Q(1) = Q(1) * L 
   W = Wmass
 
   CALL calc_temp ( tempi , kin )
 
-  CALL chain_nhcpn( kin , vxi , xi , Q , W )
+  CALL chain_nhcpn( kin , vxi , xi , Q , W , L )
 
   CALL prop_velocity_verlet
 
-  CALL chain_nhcpn( kin, vxi, xi , Q , W )
+  CALL chain_nhcpn( kin, vxi, xi , Q , W , L )
   kin = kin * 0.5_dp
 
   tempi = (2.0_dp/3.0_dp) * kin
