@@ -1,7 +1,7 @@
 #!/bin/bash
 
 EXEDLPOLY=/home/filipe/recherche/dl_class_1.9/execute/DLPOLY.Y
-EXEMDFF=/home/filipe/recherche/mdff/src/mdff.x
+EXEMDFF=/home/filipe/recherche/mdff/bin/mdff.x
 EXEMOLDY=/home/filipe/recherche/moldy/moldy
 
 dlpoly=false

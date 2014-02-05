@@ -2,7 +2,7 @@
 # ===============================================================
 # date       : 21 maio 2013 15h53
 # author     : fmv
-# decription : convert POSCAR (vasp) to POSFF (mdff)
+# decription : This script generate gnuplot plots from input OSZIFF file 
 # ===============================================================
 separetor="=========================================================="
 echo $separetor
