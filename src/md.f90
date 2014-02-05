@@ -53,12 +53,16 @@ MODULE md
   real(kind=dp) :: tauPberendsen        !< characteristic time in berendsen barostat   (simple rescale if tauPberendsen = dt )
   real(kind=dp) :: taucsvr              !< characteristic time in Stochastic velocity rescaling (simple rescale if taucsvr = 0.0 )
   real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat ( to be merged with timesca_thermo )
-  real(kind=dp) , dimension ( : ) , allocatable :: vxi, xi              !< general coordinates of the thermostat (Nose-Hoover Chain)
-  real(kind=dp) :: ve, xe,xe0               !< general coordinates of the barostat (Andersen) 
+  real(kind=dp) , dimension ( : ) , allocatable :: vxi , xi              !< general coordinates of the thermostat coupled to the particules (Nose-Hoover Chain : nhcn )
+  real(kind=dp) , dimension ( : ) , allocatable :: vxib, xib             !< general coordinates of the thermostat coupled to the volume (Nose-Hoover Chain : nhcnp )
+  real(kind=dp) :: ve, xe, xe0              !< general coordinates of the barostat (Andersen) 
 
   ! ================================================
   !     algorithm for dynamic integration
   ! ================================================
+  integer           :: yosh_allowed(5)
+  data                 yosh_allowed / 1, 3 , 5 , 7 , 9 / 
+
   character(len=60) :: integrator               !< integration method   
   character(len=60) :: integrator_allowed(10)    
   data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nve-lfq',  &
@@ -272,22 +276,23 @@ SUBROUTINE md_check_tag
   ! allocation of thermostat coordinates
   if ( integrator .eq. 'nvt-nhc2' ) then 
     allocate ( vxi(2) , xi(2) )
-    vxi=0.0_dp
-    xi=0.0_dp
-    nhc_n=2
+    vxi  = 0.0_dp
+    xi   = 0.0_dp
+    nhc_n= 2
   endif 
   if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then 
     allocate ( vxi(nhc_n) , xi(nhc_n) )
-    vxi=0.0_dp
-    xi=0.0_dp
-    xe = LOG ( simu_cell%omega ) / 3.0_dp 
-    !xe  = 0.0d0
-    ve = 0.0_dp
+    vxi = 0.0_dp
+    xi  = 0.0_dp
+    if ( integrator .eq. 'npt-nhcpn' ) then
+      allocate ( vxib(nhc_n) , xib(nhc_n) )
+      vxib = 0.0_dp
+      xib  = 0.0_dp
+      ve   = 0.0_dp
+      xe   = 0.0_dp
+      xe0   = 0.0_dp
+    endif
   endif 
-  ! initial conditions
-   !vxi = 1.0_dp
-   !xi = 0.0_dp
-   !vxi(1) = 1.0_dp      
 
   return
 
@@ -301,6 +306,7 @@ END SUBROUTINE md_check_tag
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
+  USE constants,        ONLY :  boltz
   USE control,          ONLY :  ltraj , lpbc , lstatic , lvnlist , lreduced , lminimg , lcsvr , itraj_start , itraj_period , itraj_format  
   USE io,               ONLY :  ionode 
 
@@ -381,6 +387,17 @@ SUBROUTINE md_print_info(kunit)
       endif       
                                           blankline(kunit)    
   endif !ionode
+
+  
+
+  ! ================================================
+  !               UNITS
+  ! ================================================
+    !temp = temp * boltz 
+  ! ================================================
+  ! ================================================
+
+
 
 
   return

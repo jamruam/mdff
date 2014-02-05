@@ -54,8 +54,8 @@ EXE= mdff.x
 # =================
 #   on mario / babar / charrue
 # =================
-FCFLAGS = -O3 -ip -static -xSSE4_2 -align all 
-FCFLAGS = -O3 -ip -static -align all 
+FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
+#FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 

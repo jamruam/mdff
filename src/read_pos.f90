@@ -42,16 +42,14 @@ SUBROUTINE read_pos
   USE field,                    ONLY :  qch , dip , lpolar , field_init
   USE io,                       ONLY :  ionode , stdout , kunit_POSFF
   USE cell,                     ONLY :  lattice, periodicbc , dirkar
+  USE thermodynamic,            ONLY :  vol0
 
   implicit none
 
   ! local
-  integer           :: it , ia , i, j, ndata, iostatus, begi, prev, indx
+  integer           :: it , ia , i
   logical           :: allowed
   character(len=60) :: cpos
-  character(len=2)  :: xx
-  character(len=4096)  :: buffer
-  real(kind=dp)        :: value
 
 
   separator(stdout) 
@@ -91,6 +89,7 @@ SUBROUTINE read_pos
  
   CALL lattice ( simu_cell )
   rho = DBLE ( natm ) / simu_cell%omega
+  vol0 = simu_cell%omega ! volume de reference (thermo)
 
   CALL config_alloc 
 
@@ -117,7 +116,7 @@ SUBROUTINE read_pos
                                                fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
   endif
   if ( .not. lrestart ) then  
-    if ( ionode .and. ndata .ne. 3 ) WRITE ( stdout ,'(A,20A3)' ) &
+    if ( ionode .and. (( restart_data == "rvn" ) .or. ( restart_data == "rvf" )) ) WRITE ( stdout ,'(A,20A3)' ) &
     'WARNING in non restart mode velocities and forces are not considered even present in the input file POSFF'
     vx=0.0_dp
     vy=0.0_dp

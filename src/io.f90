@@ -32,6 +32,7 @@ MODULE io
   !> rank for output (if true myrank.eq.0)
   logical :: ionode        
   logical :: ioprint
+  logical :: ioprintnode        
 
   !> standard output
   integer, PARAMETER :: stdout          = 6  

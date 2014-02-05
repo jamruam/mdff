@@ -75,9 +75,10 @@ MODULE thermodynamic
   real(kind=dp) :: pvirial_coul   !< virial correction to the pressure
 
   real(kind=dp) :: pressure_tot   !< total pressure
-  real(kind=dp) :: pint_tot   !< pressure minus velocity-dependent part 
   real(kind=dp) :: pressure_lj    !< pressure from lj interactions
   real(kind=dp) :: pressure_coul  !< pressure from coulombic interactions
+
+  real(kind=dp) :: vol0           !< volume de reference
 
   TYPE (accu) acc_e_tot          !< total energy  ( potential + kinetic ) 
   TYPE (accu) acc_u_tot          !< total potential energy 
@@ -103,6 +104,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE calc_thermo
 
+  USE constants,                ONLY :  boltz
   USE control,                  ONLY :  lreduced , lcsvr
   USE config,                   ONLY :  natm , rho , simu_cell 
   USE md,                       ONLY :  integrator, press
@@ -143,7 +145,6 @@ SUBROUTINE calc_thermo
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + temp_r / omega
-    pint_tot      = pvirial_tot
     pressure_lj   = pvirial_lj   
     pressure_coul = pvirial_coul 
   else
@@ -152,7 +153,6 @@ SUBROUTINE calc_thermo
     pvirial_tot   = pvirial_lj + pvirial_coul  
 
     pressure_tot  = pvirial_tot + rho * temp_r 
-    pint_tot      = pvirial_tot
     pressure_lj   = pvirial_lj   
     pressure_coul = pvirial_coul 
   endif
@@ -176,6 +176,14 @@ SUBROUTINE calc_thermo
     !print*,'NPT ensemble'
     h_tot = e_tot + e_npt_r
   endif
+
+
+  ! =============================================== 
+  !                UNITS
+  ! =============================================== 
+  !print*,'temp_r',temp_r
+  !temp_r = temp_r / boltz
+
 
 
   return
@@ -313,8 +321,9 @@ SUBROUTINE write_thermo ( step , kunit , key )
 
   USE control,  ONLY :  lcsvr
   USE config,   ONLY :  simu_cell 
-  USE md,       ONLY :  dt , integrator,xi,vxi,nhc_n
-  USE io,  ONLY :  ionode
+  USE md,       ONLY :  dt , integrator,xi,vxi,xib,vxib,xe,ve,nhc_n
+  USE io,       ONLY :  ionode
+  USE md,       ONLY :  nve_ensemble , nvt_ensemble , npt_ensemble , npe_ensemble , dt , integrator, xi, vxi, xib, vxib, xe, ve, nhc_n
 
   implicit none
 
@@ -327,7 +336,7 @@ SUBROUTINE write_thermo ( step , kunit , key )
   
   omega = simu_cell%omega
 
-  !write(*,'(a,<5+nhc_n*2>e16.8)') 'fmv',e_tot,u_lj_r,e_kin_r,h_tot,xi,vxi,e_nvt
+
   if ( key .eq. 'osz' ) then
     if ( ionode ) then
         WRITE ( kunit , 200 ) &
@@ -337,6 +346,10 @@ SUBROUTINE write_thermo ( step , kunit , key )
     endif
   endif
   if ( key .eq. 'std' ) then
+#ifdef debug_nhc
+        if ( any ( integrator .eq. nvt_ensemble ) ) write(kunit, 1000) xi,vxi
+        if ( any ( integrator .eq. npt_ensemble ) ) write(kunit, 1001) xi,vxi,xib,vxib,xe,ve
+#endif
         io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
                                      e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
                                      pressure_tot , pressure_lj , pressure_coul , omega , e_tot, h_tot
@@ -369,6 +382,9 @@ SUBROUTINE write_thermo ( step , kunit , key )
      &        '  ---------------------------------------------'/ &
      &        '  Etot                  = ',E15.8/ &
      &        '  Htot                  = ',E15.8)
+
+ 1000 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8) 
+ 1001 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8,'  xib = ',<nhc_n>e16.8,'  vxib = ', <nhc_n>e16.8 ,'  xe = ',e16.8  ,'  ve = ',e16.8 ) 
 
   return
 

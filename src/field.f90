@@ -254,7 +254,7 @@ END SUBROUTINE field_check_tag
 SUBROUTINE field_init
 
   USE control,                  ONLY :  calc , lbmlj , lcoulomb , lmorse , longrange
-  USE io,                  ONLY :  ionode, stdin, stdout 
+  USE io,                       ONLY :  ionode, stdin, stdout 
   USE config,                   ONLY :  dipia
 
   implicit none
@@ -393,7 +393,8 @@ SUBROUTINE field_print_info ( kunit , quiet )
     blankline(kunit)
     WRITE ( kunit ,'(a)')               'FIELD MODULE ... WELCOME'
     blankline(kunit)
-    WRITE ( kunit ,'(a)')               'energy units in input/output ',units 
+    WRITE ( kunit ,'(a)')               'energy units in input  :',units 
+    WRITE ( kunit ,'(a)')               'energy units in output : kJ/mol'
     blankline(kunit)
     lseparator(kunit) 
     WRITE ( kunit ,'(a)')               'point charges: '
@@ -640,14 +641,14 @@ SUBROUTINE define_units
   implicit none
 
     engunit = 1.0_dp
-!  eV => internal 
-   if ( units.eq.'eV')   engunit = 9648.530821_dp
-!  kcal ==> internal
-   if ( units.eq.'kcal') engunit = 418.4_dp
-!  kJ ==> internal
-   if ( units.eq.'kJ')   engunit = 100.0_dp
-!  K ==> internal
-   if ( units.eq.'K')   engunit = boltz
+!  eV => kJ/mol 
+   if ( units.eq.'eV')       engunit = 96.48530821_dp
+!  kcal ==> kJ/mol
+   if ( units.eq.'kcal')     engunit = 4.184_dp
+!  kJ ==> kJ/mol
+   if ( units.eq.'internal') engunit = 1.0_dp
+!  K ==> kJ/mol
+   if ( units.eq.'K')        engunit = boltz
 
    epslj  = epslj  * engunit
    epsmor = epsmor * engunit
@@ -1162,6 +1163,10 @@ SUBROUTINE engforce_bmlj_pbc
 
   u_lj = u
   vir_lj = vir
+  
+  !fx = fx * 0.0284223706 
+  !fy = fy * 0.0284223706 
+  !fz = fz * 0.0284223706 
 
   ! ======================================
   !         direct to cartesian

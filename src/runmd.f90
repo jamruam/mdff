@@ -57,7 +57,7 @@ SUBROUTINE md_run ( offset )
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
                                         write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz
   USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
-  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint
+  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint , ioprintnode
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n
 
@@ -189,7 +189,6 @@ SUBROUTINE md_run ( offset )
   if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
 
-  write(*,'(a,<4+nhc_n*2>e16.8)') 'fmv en',e_tot,u_lj_r,kin,h_tot,xi,vxi
   ! =========================
   !   MAIN LOOP ( TIME )
   ! =========================
@@ -210,6 +209,11 @@ MAIN:  do itime = offset , npas + (offset-1)
     ioprint = .true.
   else
     ioprint = .false.
+  endif
+  if ( ionode .and. ioprint ) then
+    ioprintnode = .true.
+  else
+    ioprintnode = .false.
   endif
 
 
@@ -254,6 +258,9 @@ MAIN:  do itime = offset , npas + (offset-1)
         endif
 #endif
 
+#ifdef debug
+         CALL print_config_sample(0,0)
+#endif
 
          ! ================================
          !  rescale velocities (NVE equil)

@@ -45,7 +45,7 @@ MODULE constants
   real(kind=dp),      PARAMETER :: hart        = rytoev*2.0_dp                         !< Hartree energy 
   real(kind=dp),      PARAMETER :: bohr        = 0.529177249_dp                        !< a.u in angstrom  
   real(kind=dp),      PARAMETER :: coul_factor = 138935.4835_dp                        !< for DL_POLY comparison 
-  real(kind=dp),      PARAMETER :: boltz       = 0.831451115_dp                        !< boltzmann constant
+  real(kind=dp),      PARAMETER :: boltz       = 0.0083144621_dp                        !< boltzmann constant
   real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< lenght of angstom and energy in eV 
   real(kind=dp),      PARAMETER :: evtoj       = 1.602176487e-19_dp                    !< eV to J 
   real(kind=dp),      PARAMETER :: hplanck     = 6.62617636e-34_dp                     !< Planck constant 
