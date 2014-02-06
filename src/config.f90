@@ -205,7 +205,7 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
   !CALL print_config_sample(0,0)
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  !CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
   !CALL print_config_sample(0,0)
   
   if ( ionode ) then

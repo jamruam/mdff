@@ -140,9 +140,9 @@ SUBROUTINE read_pos
 
   CALL typeinfo_init
 
-  !CALL distance_tab 
+  CALL distance_tab 
 
-  !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   return
 

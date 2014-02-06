@@ -230,6 +230,7 @@ SUBROUTINE rescale_volume (quite)
 
   lambda  = ( 1.0_dp - (dt / tauPberendsen) * ( press - P ) ) 
   lambda3 = lambda ** ( 1.0d0 / 3.0d0 )
+  !print*,lambda3,P,press
 
   simu_cell%A(:,1) = simu_cell%A(:,1) * lambda3 ! A
   simu_cell%A(:,2) = simu_cell%A(:,2) * lambda3 ! B

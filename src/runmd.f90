@@ -55,7 +55,7 @@ SUBROUTINE md_run ( offset )
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
-                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz
+                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell
   USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
   USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint , ioprintnode
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
@@ -64,6 +64,7 @@ SUBROUTINE md_run ( offset )
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver 
+  USE cell,                     ONLY :  periodicbc
   USE mpimdff
 
   implicit none
@@ -388,12 +389,14 @@ MAIN:  do itime = offset , npas + (offset-1)
             CALL write_thermo( itime , kunit_OSZIFF, 'osz' )
         endif
   
+        CALL periodicbc( natm , rx , ry , rz , simu_cell )
         ! =====================
         !  save configuration 
         ! =====================
         if ( MOD ( itime , spas ) .eq. 0 ) then
           CALL write_CONTFF
         endif 
+        
   enddo MAIN
  
   separator(stdout) 

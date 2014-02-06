@@ -417,11 +417,12 @@ END SUBROUTINE vnlist_nopbc
 SUBROUTINE vnlistcheck 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point , atom_dec
+  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point , atom_dec , simu_cell
   USE control,                  ONLY :  lpbc , lminimg , skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
-  USE io,                  ONLY :  stdout , ionode
+  USE io,                       ONLY :  stdout , ionode
+  USE cell,                     ONLY :  kardir , dirkar
   USE mpimdff
 
   implicit none
@@ -430,10 +431,15 @@ SUBROUTINE vnlistcheck
   integer :: ia , ierr
   real(kind=dp) :: drneimax , drneimax2 , drnei
   real(kind=dp) :: rxsi,rysi,rzsi
+  real(kind=dp) :: sxij,syij,szij
   real(kind=dp) :: ttt1 , ttt2
 
-
   ttt1 = MPI_WTIME(ierr)
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
 
   drneimax = 0.0_dp
   drneimax2 = 0.0_dp
@@ -441,6 +447,12 @@ SUBROUTINE vnlistcheck
     rxsi = rx ( ia ) - xs ( ia ) 
     rysi = ry ( ia ) - ys ( ia ) 
     rzsi = rz ( ia ) - zs ( ia ) 
+    sxij = rxsi - nint ( rxsi )
+    syij = rysi - nint ( rysi )
+    szij = rzsi - nint ( rzsi )
+    rxsi = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+    rysi = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+    rzsi = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
     drnei = SQRT ( rxsi * rxsi + rysi * rysi + rzsi * rzsi ) 
     if ( drnei .gt. drneimax ) then
       drneimax2 = drneimax
@@ -476,6 +488,7 @@ SUBROUTINE vnlistcheck
     END do
      
   endif
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ttt2 = MPI_WTIME(ierr)
   vnlisttimetot = vnlisttimetot + ( ttt2 - ttt1 ) 

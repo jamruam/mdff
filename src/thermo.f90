@@ -147,6 +147,9 @@ SUBROUTINE calc_thermo
   pvirial_lj    = vir_lj       / omega 
   pvirial_coul  = vir_coul_tot / omega 
   pvirial_tot   = pvirial_lj + pvirial_coul
+  pressure_tot  = pvirial_tot + temp_r / omega
+  pressure_lj   = pvirial_lj   
+  pressure_coul = pvirial_coul 
   if (lreduced) then
     pvirial_lj_r    = pvirial_lj   / REAL ( natm , kind = dp ) 
     pvirial_coul_r  = pvirial_coul / REAL ( natm , kind = dp ) 
@@ -334,9 +337,12 @@ SUBROUTINE write_thermo ( step , kunit , key )
   character(len=3) , intent (in)          :: key 
 
   ! local 
-  real(kind=dp) :: omega
+  real(kind=dp) :: omega , acell ,bcell , ccell
   
   omega = simu_cell%omega
+  acell = simu_cell%ANORM(1)
+  bcell = simu_cell%ANORM(2)
+  ccell = simu_cell%ANORM(3)
 
 
   if ( key .eq. 'osz' ) then
@@ -354,7 +360,8 @@ SUBROUTINE write_thermo ( step , kunit , key )
 #endif
         io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
                                      e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
-                                     pressure_tot_r , pressure_lj_r , pressure_coul_r , omega , e_tot, h_tot
+                                     pressure_tot_r , pressure_lj_r , pressure_coul_r , omega ,    &
+                                     acell , bcell, ccell , e_tot, h_tot
   endif
 
 ! 100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
@@ -381,6 +388,9 @@ SUBROUTINE write_thermo ( step , kunit , key )
      &        '  P_lj                  = ',E15.8/ &
      &        '  P_coul                = ',E15.8/ &
      &        '  volume                = ',E15.8/ &
+     &        '  a cell                = ',E15.8/ &
+     &        '  b cell                = ',E15.8/ &
+     &        '  c cell                = ',E15.8/ &
      &        '  ---------------------------------------------'/ &
      &        '  Etot                  = ',E15.8/ &
      &        '  Htot                  = ',E15.8)

@@ -884,6 +884,7 @@ SUBROUTINE nhcpn
     e_npt = e_npt + temp * xi(inhc)
     e_npt = e_npt + temp * xib(inhc)
   enddo
+#ifdef debug
   io_print write(stdout,'(a,7e16.8)') 'npt', press    * simu_cell%omega          , &
                                              ve * ve  * 0.5_dp / W               , &
                                              L * temp * xi(1)                    , &
@@ -895,6 +896,8 @@ SUBROUTINE nhcpn
                                                         vxib(inhc) * vxib(inhc) * 0.5_dp / Qb(inhc) , &
                                                         temp * xi(inhc)                             , & 
                                                         temp * xib(inhc)                            , inhc=2,nhc_n)
+#endif
+
   deallocate(Q , Qb )
 
   return
