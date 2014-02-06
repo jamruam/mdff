@@ -717,7 +717,7 @@ SUBROUTINE print_config_sample ( time , rank )
 
   USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
   USE mpimdff,  ONLY :  myrank
-  USE io,  ONLY :  stdout
+  USE io,       ONLY :  stdout
 
   implicit none
 

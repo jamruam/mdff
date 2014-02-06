@@ -204,8 +204,9 @@ SUBROUTINE write_CONTFF
   xxx = rx
   yyy = ry
   zzz = rz
-
+  !CALL print_config_sample(0,0)
   CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  !CALL print_config_sample(0,0)
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -223,6 +224,7 @@ SUBROUTINE write_CONTFF
                                                            fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
   CLOSE (kunit_CONTFF)
   endif
+  !CALL print_config_sample(0,0)
 
   deallocate ( xxx , yyy , zzz ) 
 

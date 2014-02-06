@@ -207,12 +207,9 @@ MAIN:  do itime = offset , npas + (offset-1)
   ! ioprint condition
   if ( MOD ( itime , nprint ) .eq. 0 ) then
     ioprint = .true.
+    if ( ionode ) ioprintnode = .true.
   else
     ioprint = .false.
-  endif
-  if ( ionode .and. ioprint ) then
-    ioprintnode = .true.
-  else
     ioprintnode = .false.
   endif
 

@@ -59,7 +59,9 @@ FCFLAGS = -O3 -ip -static -xSSE4.2 -align all
 #FCFLAGS = -O3 -pg
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
-
+ifeq ($(HOST),debian-charrue)
+FCFLAGS = -O3 -ip -align all
+endif
 $(info FCFLAGS :  $(FCFLAGS))
 # =======================================
 #               LIBRARIES 

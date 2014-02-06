@@ -2855,6 +2855,39 @@ SUBROUTINE multipole_ES ( ef , efg , mu , u_coul , vir_coul , phi_coul )
 
 END SUBROUTINE multipole_ES
 
+SUBROUTINE engforce_bmhftd_pbc
+
+  implicit none
+
+  ! local
+  integer          :: ia , ja , j1 , je , jb , ierr
+  integer          :: p1 , p2
+  real(kind=dp) :: rxi , ryi , rzi
+  real(kind=dp) :: rxij , ryij , rzij
+  real(kind=dp) :: sxij , syij , szij
+  real(kind=dp) :: rijsq , rij , erh , erh2
+  real(kind=dp) :: wij , fxij , fyij , fzij
+  real(kind=dp) :: forcetime1 , forcetime2
+  real(kind=dp) :: u , vir , u2
+  real(kind=dp) :: expon
+
+  
+
+
+   if ( lvnlist ) CALL vnlistcheck
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+
+  do ia = atom_dec%istart , atom_dec%iend
+
+  enddo
+
+  rerurn
+
+END SUBROUTINE engforce_bmhftd_pbc
+
 ! *********************** SUBROUTINE engforce_morse_pbc ************************
 !
 !> \brief
@@ -2872,7 +2905,7 @@ SUBROUTINE engforce_morse_pbc
   USE control,                  ONLY :  lvnlist  
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
-  USE io,                  ONLY :  stdout , ionode
+  USE io,                       ONLY :  stdout , ionode
   USE cell,                     ONLY :  kardir , dirkar
 
   implicit none

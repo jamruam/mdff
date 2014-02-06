@@ -290,7 +290,7 @@ SUBROUTINE md_check_tag
       xib  = 0.0_dp
       ve   = 0.0_dp
       xe   = 0.0_dp
-      xe0   = 0.0_dp
+      xe0  = 0.0_dp
     endif
   endif 
 

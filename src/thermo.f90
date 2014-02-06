@@ -18,6 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
+!#define debug_nhcn
 ! ======= Hardware =======
 
 ! *********************** MODULE calc_thermo ***********************************
@@ -73,12 +74,16 @@ MODULE thermodynamic
   real(kind=dp) :: pvirial_tot    !< virial correction to the pressure
   real(kind=dp) :: pvirial_lj     !< virial correction to the pressure
   real(kind=dp) :: pvirial_coul   !< virial correction to the pressure
+  real(kind=dp) :: pvirial_tot_r  !< virial correction to the pressure
+  real(kind=dp) :: pvirial_lj_r   !< virial correction to the pressure
+  real(kind=dp) :: pvirial_coul_r !< virial correction to the pressure
 
   real(kind=dp) :: pressure_tot   !< total pressure
   real(kind=dp) :: pressure_lj    !< pressure from lj interactions
   real(kind=dp) :: pressure_coul  !< pressure from coulombic interactions
-
-  real(kind=dp) :: vol0           !< volume de reference
+  real(kind=dp) :: pressure_tot_r !< total pressure
+  real(kind=dp) :: pressure_lj_r  !< pressure from lj interactions
+  real(kind=dp) :: pressure_coul_r!< pressure from coulombic interactions
 
   TYPE (accu) acc_e_tot          !< total energy  ( potential + kinetic ) 
   TYPE (accu) acc_u_tot          !< total potential energy 
@@ -139,23 +144,20 @@ SUBROUTINE calc_thermo
 
   vir_tot  = vir_lj + vir_coul_tot + vir_morse
 
+  pvirial_lj    = vir_lj       / omega 
+  pvirial_coul  = vir_coul_tot / omega 
+  pvirial_tot   = pvirial_lj + pvirial_coul
   if (lreduced) then
-    pvirial_lj    = vir_lj / omega / REAL ( natm , kind = dp ) 
-    pvirial_coul  = ( vir_coul_tot ) / omega / REAL ( natm , kind = dp ) 
-    pvirial_tot   = pvirial_lj + pvirial_coul  
-
-    pressure_tot  = pvirial_tot + temp_r / omega
-    pressure_lj   = pvirial_lj   
-    pressure_coul = pvirial_coul 
+    pvirial_lj_r    = pvirial_lj   / REAL ( natm , kind = dp ) 
+    pvirial_coul_r  = pvirial_coul / REAL ( natm , kind = dp ) 
   else
-    pvirial_lj    = vir_lj   / omega 
-    pvirial_coul  = ( vir_coul_tot )  / omega 
-    pvirial_tot   = pvirial_lj + pvirial_coul  
-
-    pressure_tot  = pvirial_tot + rho * temp_r 
-    pressure_lj   = pvirial_lj   
-    pressure_coul = pvirial_coul 
+    pvirial_lj_r    = pvirial_lj
+    pvirial_coul_r  = pvirial_coul 
   endif
+  pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r  
+  pressure_tot_r  = pvirial_tot_r + temp_r / omega
+  pressure_lj_r   = pvirial_lj_r   
+  pressure_coul_r = pvirial_coul_r 
 
   ! conserved quantity extended Hamiltonian
   if ( any ( integrator .eq. nve_ensemble )) then 
@@ -342,17 +344,17 @@ SUBROUTINE write_thermo ( step , kunit , key )
         WRITE ( kunit , 200 ) &
         step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r 
         WRITE ( kunit , 201 ) &
-        step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot , pressure_lj , pressure_coul , omega , h_tot  
+        step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot_r , pressure_lj_r , pressure_coul_r , omega , h_tot  
     endif
   endif
   if ( key .eq. 'std' ) then
-#ifdef debug_nhc
+#ifdef debug_nhcn
         if ( any ( integrator .eq. nvt_ensemble ) ) write(kunit, 1000) xi,vxi
         if ( any ( integrator .eq. npt_ensemble ) ) write(kunit, 1001) xi,vxi,xib,vxib,xe,ve
 #endif
         io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
                                      e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
-                                     pressure_tot , pressure_lj , pressure_coul , omega , e_tot, h_tot
+                                     pressure_tot_r , pressure_lj_r , pressure_coul_r , omega , e_tot, h_tot
   endif
 
 ! 100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&

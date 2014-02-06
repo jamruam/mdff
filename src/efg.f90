@@ -346,16 +346,10 @@ SUBROUTINE efgcalc
 
   ! local
   logical                                               :: lwannier
-  logical                                               :: allowed
-  integer                                               :: i
-  integer                                               :: ia , iconf , it 
-  integer                                               :: iiii , ierr
-  character(len=60)                                     :: cccc 
-  real(kind=dp)                                         :: aaaa , rho_new
+  integer                                               :: ia , iconf , it , ierr
   real(kind=dp)                                         :: ttt1 , ttt2
   real(kind=dp) , dimension ( : , : )     , allocatable :: ef_tmp
   real(kind=dp) , dimension ( : , : , : ) , allocatable :: efg_tmp
-  character(len=60)                                     :: cpos
 #ifdef fix_grid
   real(kind=dp) , dimension ( : , : )     , allocatable :: rave !average positions
 #endif
@@ -1291,13 +1285,12 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   real(kind=dp) :: kx   , ky   , kz 
   real(kind=dp) :: rxij , ryij , rzij
   real(kind=dp) :: sxij , syij , szij
-  real(kind=dp) :: kri  , Ak 
+!  real(kind=dp) :: kri  , Ak 
   real(kind=dp) :: qj  
   real(kind=dp) :: mujx , mujy , mujz
-  complex(kind=dp)   :: carg 
   real(kind=dp) :: recarg 
   real(kind=dp) :: expon , F1 , F2 , F3 
-  real(kind=dp) :: k_dot_mu
+  !real(kind=dp) :: k_dot_mu
   real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
   real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
   real(kind=dp) :: d , d2 , d3  , d5 
@@ -2054,7 +2047,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   integer            :: kunit_input , kunit_nmroutput
 
   real(kind=dp)                                 :: sq3 , sq32
-  real(kind=dp)                                 :: w(3) , efgt(3,3) , nmr_conv ( 4 )
+  real(kind=dp)                                 :: w(3) , nmr_conv ( 4 )
   real(kind=dp)                                 :: work(3 * lwork)
   real(kind=dp)                                 :: vzzk , etak , uk , sk
   real(kind=dp), dimension (:,:)   , allocatable :: U

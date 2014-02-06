@@ -42,7 +42,6 @@ SUBROUTINE read_pos
   USE field,                    ONLY :  qch , dip , lpolar , field_init
   USE io,                       ONLY :  ionode , stdout , kunit_POSFF
   USE cell,                     ONLY :  lattice, periodicbc , dirkar
-  USE thermodynamic,            ONLY :  vol0
 
   implicit none
 
@@ -89,7 +88,6 @@ SUBROUTINE read_pos
  
   CALL lattice ( simu_cell )
   rho = DBLE ( natm ) / simu_cell%omega
-  vol0 = simu_cell%omega ! volume de reference (thermo)
 
   CALL config_alloc 
 

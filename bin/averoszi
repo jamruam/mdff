@@ -65,7 +65,7 @@ awk -v np=$last     'BEGIN  { sum_etot=0        ; sum_ekin=0          ; sum_utot
                               sum_etot_2=0      ; sum_ekin_2=0        ; sum_utot_2=0        ; sum_ulj_2=0         ; sum_ucoul_2=0        ; sum_umorse_2=0  } 
                             { sum_etot+=$9      ; sum_ekin+=$12       ; sum_utot+=$15       ; sum_ulj+=$18        ; sum_ucoul+=$21       ; sum_umorse+=$24 ; 
                               sum_etot_2+=$9*$9 ; sum_ekin_2+=$12*$12 ; sum_utot_2+=$15*$15 ; sum_ulj_2+=$18*$18  ; sum_ucoul_2+=$21*$21 ; sum_umorse_2+=$24*$24 } 
-                      END   { printf(" %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n",     
+                      END   { printf(" %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n",     
                              "<Etot>   =" ,sum_etot/np   ,"<Etot^2>   =" ,sum_etot_2/np  ,"std dev.=",sqrt((sum_etot_2/np)-(sum_etot/np)^2),
                              "<Ekin>   =" ,sum_ekin/np   ,"<Ekin^2>   =" ,sum_ekin_2/np  ,"std dev.=",sqrt((sum_ekin_2/np)-(sum_ekin/np)^2),
                              "<Upot>   =" ,sum_utot/np   ,"<Upot^2>   =" ,sum_utot_2/np  ,"std dev.=",sqrt((sum_utot_2/np)-(sum_utot/np)^2),
@@ -77,7 +77,7 @@ awk -v np=$last     'BEGIN  { sum_temp=0        ; sum_press=0          ; sum_Plj
                               sum_temp_2=0      ; sum_press_2=0        ; sum_Plj_2=0        ; sum_Pcoul_2=0        ; sum_volume_2=0        ; sum_htot_2=0        } 
                             { sum_temp+=$9      ; sum_press+=$12       ; sum_Plj+=$15       ; sum_Pcoul+=$18       ; sum_volume+=$21       ; sum_htot+=$24       ;
                               sum_temp_2+=$9*$9 ; sum_press_2+=$12*$12 ; sum_Plj_2+=$15*$15 ; sum_Pcoul_2+=$18*$18 ; sum_volume_2+=$21*$21 ; sum_htot_2+=$24*$24 } 
-                      END   { printf(" %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f \n %15s %12.5f %15s %12.5e %15s %12.5f\n", 
+                      END   { printf(" %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e \n %15s %16.8e %15s %12.5e %15s %16.8e\n", 
                              "<Temp>   =" ,sum_temp/np   ,"<Temp^2>   =",sum_temp_2/np     ,"std dev.=",sqrt((sum_temp_2/np)-(sum_temp/np)^2),
                              "<Press>  =" ,sum_press/np  ,"<Press^2>  =",sum_press_2/np    ,"std dev.=",sqrt((sum_Press_2/np)-(sum_Press/np)^2),
                              "<Plj>    =" ,sum_Plj/np    ,"<Plj^2>    =",sum_Plj_2/np      ,"std dev.=",sqrt((sum_Plj_2/np)-(sum_Plj/np)^2),

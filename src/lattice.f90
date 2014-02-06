@@ -281,9 +281,9 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
   CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
 
   do ia = 1 , natm
-     xxx ( ia ) = xxx ( ia ) - NINT ( xxx ( ia ) ) 
-     yyy ( ia ) = yyy ( ia ) - NINT ( yyy ( ia ) ) 
-     zzz ( ia ) = zzz ( ia ) - NINT ( zzz ( ia ) )  
+     xxx ( ia ) = xxx ( ia ) - INT ( xxx ( ia ) - 1.0d0 ) 
+     yyy ( ia ) = yyy ( ia ) - INT ( yyy ( ia ) - 1.0d0 ) 
+     zzz ( ia ) = zzz ( ia ) - INT ( zzz ( ia ) - 1.0d0 )  
   enddo
 
   CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 

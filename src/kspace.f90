@@ -133,7 +133,7 @@ END SUBROUTINE get_kpath
 SUBROUTINE kpoint_sum_init( km , alpha ) 
 
   USE config,           ONLY :  simu_cell 
-  USE io,          ONLY :  ionode , stdout
+  USE io,               ONLY :  ionode , stdout
   USE constants,        ONLY :  tpi
 
   implicit none
@@ -203,7 +203,7 @@ END SUBROUTINE kpoint_sum_init
 SUBROUTINE kpoint_sum_init_BZ ( km )
 
   USE config,           ONLY :  simu_cell 
-  USE io,          ONLY :  ionode , stdout
+  USE io,               ONLY :  ionode , stdout
   USE constants,        ONLY :  tpi
 
   implicit none
@@ -213,7 +213,7 @@ SUBROUTINE kpoint_sum_init_BZ ( km )
   
   ! local
   integer       :: nx , ny , nz , nk 
-  real(kind=dp) :: kx, ky, kz, kk
+  real(kind=dp) :: kx, ky, kz
   real(kind=dp) :: kxi , kyi , kzi
 
   io_node WRITE ( stdout      ,'(a,a,a)') 'generate k-points arrays (half) ',km%meshlabel,' mesh'
@@ -329,7 +329,7 @@ END SUBROUTINE reorder_kpt
 SUBROUTINE struc_fact ( km ) 
   
   USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
-  USE io,          ONLY :  ionode , kunit_STRFACFF
+  USE io,               ONLY :  ionode , kunit_STRFACFF
   USE constants,        ONLY :  imag , mimag
 
   implicit none
