@@ -18,10 +18,10 @@ SUBROUTINE get_TT_damp
   E_TT(0) = 1.0_dp
   do k = 1 , maximum_of_TT_expansion
     E_TT(k) = E_TT(k-1) / REAL ( k ,kind=dp )
-  enddo
 #ifdef debug_TT  
-  write( stdout , '(<maximum_of_TT_expansion>e16.8)') E_TT
+    write( stdout , '(a,i,e20.12)') 'TT_damp coeff =',k,E_TT(k)
 #endif
+  enddo
 
   return
 
