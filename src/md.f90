@@ -42,7 +42,7 @@ MODULE md
   integer :: itime
 
   real(kind=dp) :: dt                   !< time step
-  real(kind=dp) :: temp                 !< temperature   
+  real(kind=dp) :: temp                 !< temperature in input in Kelvin but it's kBT everywhere else
   real(kind=dp) :: press                !< pressure
   real(kind=dp) :: timesca_thermo       !< Nose-Hoover Chain : time scale of thermostat 
   real(kind=dp) :: timesca_baro         !< Nose-Hoover Chain : time scale of barostat 
@@ -94,8 +94,8 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE md_init
 
-  USE control,  ONLY :  lpbc , lstatic , calc
-  USE io,  ONLY :  ionode ,stdin, stdout
+  USE control,  ONLY :  lstatic , calc
+  USE io,       ONLY :  ionode ,stdin, stdout
 
   implicit none
 
@@ -199,9 +199,10 @@ END SUBROUTINE md_default_tag
 ! ******************************************************************************
 SUBROUTINE md_check_tag
 
-  USE control,  ONLY :  lstatic
-  USE config,   ONLY :  simu_cell
-  USE io,       ONLY :  ionode , stdout
+  USE constants,        ONLY :  boltz , time_unit
+  USE control,          ONLY :  lstatic
+  USE config,           ONLY :  simu_cell
+  USE io,               ONLY :  ionode , stdout
 
   implicit none
 
@@ -247,14 +248,13 @@ SUBROUTINE md_check_tag
   !  check timesca_thermo/baro 
   ! ===================
   if ( any ( integrator .eq. nvt_ensemble ) .and. timesca_thermo .eq. 0.0_dp ) then
-     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in nvt_ensemble timesca_thermo should be set',timesca_thermo
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in nvt_ensemble timesca_thermo should be set : ',timesca_thermo
     STOP
   endif
   if ( any ( integrator .eq. npt_ensemble ) .and. timesca_baro .eq. 0.0_dp ) then
-     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in nvt_ensemble timesca_thermo should be set',timesca_thermo
+     if ( ionode )  WRITE ( stdout ,'(a,f10.5)') 'ERROR mdtag: with integrator in npt_ensemble timesca_baro should be set : ',timesca_baro
     STOP
   endif
-
 
   if (integrator.eq.'nvt-nh' ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: integrator = "nvt-nh" not yet implemented try nvt-nhc2 '
@@ -281,6 +281,10 @@ SUBROUTINE md_check_tag
     nhc_n= 2
   endif 
   if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then 
+    if ( nhc_n == 1 ) then
+      write(stdout,'(a)') 'ERROR : nhc_n = 1 is not allowed with Nose Hoover chains thermostats'
+      stop
+    endif
     allocate ( vxi(nhc_n) , xi(nhc_n) )
     vxi = 0.0_dp
     xi  = 0.0_dp
@@ -294,6 +298,17 @@ SUBROUTINE md_check_tag
     endif
   endif 
 
+  ! units
+  temp           = temp * boltz ! kB * T
+  ! angstrom*(atomicmassunit/eV)** 0.5  <= ps
+  dt             = dt             * time_unit 
+  timesca_thermo = timesca_thermo * time_unit
+  timesca_baro   = timesca_baro   * time_unit
+  tauTberendsen  = tauTberendsen  * time_unit
+  tauPberendsen  = tauPberendsen  * time_unit
+
+
+
   return
 
 
@@ -306,8 +321,8 @@ END SUBROUTINE md_check_tag
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
-  USE constants,        ONLY :  boltz
-  USE control,          ONLY :  ltraj , lpbc , lstatic , lvnlist , lreduced , lminimg , lcsvr , itraj_start , itraj_period , itraj_format  
+  USE constants,        ONLY :  boltz,time_unit
+  USE control,          ONLY :  ltraj , lstatic , lvnlist , lreduced , lcsvr , itraj_start , itraj_period , itraj_format  
   USE io,               ONLY :  ionode 
 
   implicit none
@@ -323,10 +338,8 @@ SUBROUTINE md_print_info(kunit)
       if (lstatic) then
                                           WRITE ( kunit ,'(a)')       'static  calculation ....boring                 '
       else
-        if ( .not. lpbc )                 WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic md_cell)'
-        if ( lpbc )                       WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell     '  
-        if ( lminimg )                    WRITE ( kunit ,'(a)')       'using minimum image convention                 '  
-        if ( .not. lminimg )              WRITE ( kunit ,'(a)')       'no minimum image convention                    '  
+                                          WRITE ( kunit ,'(a)')       'periodic boundary conditions  '  
+                                          WRITE ( kunit ,'(a)')       'using minimum image convention                 '  
         if ( lvnlist )                    WRITE ( kunit ,'(a)')       'verlet list used '  
         if ( lreduced )                   WRITE ( kunit ,'(a)')       'units reduced by the number of atom'
         if ( .not.lstatic)                WRITE ( kunit ,'(a)')       'dynamic calculation'
@@ -347,8 +360,8 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
         if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
         if ( integrator .eq. 'nvt-nhc2' .or. & 
-             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5)') 'time scale thermostat: timesca_thermo = ',timesca_thermo
-        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f10.5)') 'time scale barostat  : timesca_baro   = ',timesca_baro
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5,a)') 'time scale thermostat: timesca_thermo = ',timesca_thermo/time_unit,' ps'
+        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f10.5,a)') 'time scale barostat  : timesca_baro   = ',timesca_baro/time_unit  ,' ps'
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
              ( integrator .ne. 'nvt-nhcn' ) .and. &
@@ -363,42 +376,30 @@ SUBROUTINE md_print_info(kunit)
               endif !nequil
         endif !integrator
       endif !static
-                                          WRITE ( kunit ,'(a,i10)')   'number of steps                      = ',npas
-                                          WRITE ( kunit ,'(a,e12.5)') 'timestep                             = ',dt
-                                          WRITE ( kunit ,'(a,e12.5)') 'time range                           = ',dt*npas
-                                          WRITE ( kunit ,'(a,f10.5)') 'temperature                          = ',temp
-                                          WRITE ( kunit ,'(a,f10.5)') 'pressure                             = ',press
+                                          WRITE ( kunit ,'(a,i10)')     'number of steps                      = ',npas
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                             = ',dt/time_unit           ,' ps'
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                           = ',dt*npas/time_unit      ,' ps'
+                                          WRITE ( kunit ,'(a,f10.5,a)') 'temperature                          = ',temp/boltz             ,' K'
+                                          WRITE ( kunit ,'(a,f10.5)')   'pressure                             = ',press
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
-                                          WRITE ( kunit ,'(a,i10)')   'number of equilibration steps        = ',nequil
-                                          WRITE ( kunit ,'(a,i10)')   'equilibration period                 = ',nequil_period
+                                          WRITE ( kunit ,'(a,i10)')     'number of equilibration steps        = ',nequil
+                                          WRITE ( kunit ,'(a,i10)')     'equilibration period                 = ',nequil_period
       endif 
-      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)') 'Stochastic velocity resc. time scale = ',taucsvr
-      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)') 'taucsvr = 0.0 -> simple rescale'
-      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5)') 'Berendsen thermostat time scale      = ',tauTberendsen
-      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5)') 'Berendsen barostat time scale        = ',tauPberendsen
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Stochastic velocity resc. time scale = ',taucsvr/time_unit      ,' ps'
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)')   'taucsvr = 0.0 -> simple rescale'
+      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen thermostat time scale      = ',tauTberendsen/time_unit,' ps'
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen barostat time scale        = ',tauPberendsen/time_unit,' ps'
       if ( nequil .ne. 0 .and. tauTberendsen .eq. dt )   &
-                                          WRITE ( kunit ,'(a)')       'tau[T-P]berendsen = dt -> simple rescale'
-                                          WRITE ( kunit ,'(a,i10)')   'print thermo  periodicity            = ',nprint
+                                          WRITE ( kunit ,'(a)')         'tau[T-P]berendsen = dt -> simple rescale'
+                                          WRITE ( kunit ,'(a,i10)')     'print thermo  periodicity            = ',nprint
       if ( ltraj )                   then    
-                                          WRITE ( kunit ,'(a,i10)')   'save trajectory from step            = ',itraj_start
-                                          WRITE ( kunit ,'(a,i10)')   'saved trajectory periodicity         = ',itraj_period
-      if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : BINARY'
-      if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')    'trajectory format                    : FORMATTED'
+                                          WRITE ( kunit ,'(a,i10)')     'save trajectory from step            = ',itraj_start
+                                          WRITE ( kunit ,'(a,i10)')     'saved trajectory periodicity         = ',itraj_period
+      if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                    : BINARY'
+      if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                    : FORMATTED'
       endif       
                                           blankline(kunit)    
   endif !ionode
-
-  
-
-  ! ================================================
-  !               UNITS
-  ! ================================================
-    !temp = temp * boltz 
-  ! ================================================
-  ! ================================================
-
-
-
 
   return
 

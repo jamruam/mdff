@@ -48,7 +48,6 @@
 SUBROUTINE prop_leap_frog 
 
   USE constants,                ONLY :  dp 
-  USE control,                  ONLY :  lpbc
   USE md,                       ONLY :  dt
   USE config,                   ONLY :  natm , massia , rx , ry , rz , fx , fy , fz , vx , vy , vz , rxs , rys , rzs
   USE thermodynamic,            ONLY :  temp_r , e_kin
@@ -133,7 +132,6 @@ SUBROUTINE prop_velocity_verlet
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm, massia, rx, ry, rz, vx, vy, vz, fx, fy, fz
   USE md,                       ONLY :  dt, integrator
-  USE control,                  ONLY :  lpbc , lshiftpot
   USE thermodynamic,            ONLY :  temp_r , e_kin
   USE io,                       ONLY :  ionode
   USE field,                    ONLY :  engforce_driver
@@ -335,7 +333,6 @@ SUBROUTINE prop_pos_vel_verlet ( kin )
   USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , massia , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz 
   USE md,                       ONLY :  dt
-  USE control,                  ONLY :  lpbc
   USE field,                    ONLY :  engforce_driver
 
   implicit none
@@ -401,7 +398,6 @@ SUBROUTINE beeman
   USE config,                   ONLY :  natm , massia , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz , fxs , fys , fzs 
   USE thermodynamic,            ONLY :  temp_r , e_kin
   USE md,                       ONLY :  dt
-  USE control,                  ONLY :  lpbc
   USE field,                    ONLY :  engforce_driver
 
   implicit none
@@ -479,17 +475,20 @@ END SUBROUTINE beeman
 SUBROUTINE nhcn
 
   USE io,                       ONLY :  ioprint
-  USE constants,                ONLY :  dp
+  USE constants,                ONLY :  dp , boltz
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz , center_of_mass, ntypemax
   USE md,                       ONLY :  dt, vxi, xi , timesca_thermo, nhc_n,temp
   USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt , e_tot,u_lj_r,h_tot
+  USE time,                     ONLY :  integratimetot
+  USE mpimdff
 
   implicit none
 
   ! local
-  integer                :: inhc
+  integer                :: inhc , ierr
   real(kind=dp)          :: kin , tempi, L 
   real(kind=dp), dimension(:), allocatable :: Q
+  real(kind=dp)          :: ttt1
 
   ! degrees of freedom
   !L = 3.0_dp * ( REAL ( natm, kind=dp) - 1.0_dp )
@@ -501,15 +500,19 @@ SUBROUTINE nhcn
   Q(1) = Q(1) * L 
 
   CALL calc_temp ( tempi , kin )
+  ttt1 = MPI_WTIME(ierr) 
   CALL chain_nhcn ( kin , vxi , xi , Q , L )
+  integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
   CALL prop_pos_vel_verlet ( kin )
-
-  CALL chain_nhcn( kin, vxi, xi , Q , L )
 
   CALL calc_temp ( tempi , kin )
   e_kin = kin
   temp_r = tempi
+
+  ttt1 = MPI_WTIME(ierr) 
+  CALL chain_nhcn( kin, vxi, xi , Q , L )
+  integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
   e_nvt = 0.0_dp
   e_nvt = e_nvt + L * temp * xi(1)
@@ -598,7 +601,7 @@ SUBROUTINE chain_nhcn ( kin , vxi , xi , Q , L )
   dt_yosh =  yosh_w * dt
 
   s = 1.0_dp ! scale
-  G(1) =  2.0_dp*kin - L * temp
+  G(1) =  2.0_dp*kin - L * temp 
   
 
   msloop : do k=1,nhc_mults
@@ -647,7 +650,7 @@ enddo msloop
     vx ( ia ) = s * vx ( ia )
     vy ( ia ) = s * vy ( ia )
     vz ( ia ) = s * vz ( ia )
-    kin =  kin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) / massia(ia)
+    kin =  kin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) * massia(ia)
   enddo
   kin = kin * 0.5_dp
 
@@ -667,7 +670,7 @@ END SUBROUTINE chain_nhcn
 ! [2] Phys Lett. A, (1190), v150 n5,6,7, p262, Yoshida
 !
 ! ******************************************************************************
-SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L )
+SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , trotter_order )
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  simu_cell, massia , natm , vx , vy , vz
@@ -678,8 +681,9 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L 
   implicit none
 
   ! global
+  integer :: trotter_order
   real(kind=dp), intent (inout) :: kin , W , L 
-  real(kind=dp), intent (inout) :: vxi(nhc_n), xi(nhc_n) , Q(nhc_n) , vxib(nhc_n), xib(nhc_n) , Qb(nhc_n) , ve , xe
+  real(kind=dp), intent (inout) :: vxi(nhc_n), xi(nhc_n) , Q(nhc_n) , vxib(nhc_n), xib(nhc_n) , Qb(nhc_n) , ve 
 
   ! local
   integer :: ia , j , inh, k , odnf
@@ -733,29 +737,32 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L 
 
   allocate ( G ( nhc_n) , Gb ( nhc_n) )
   dt_yosh =  yosh_w * dt
+  dt2 = dt * 0.5d0
 
   s     = 1.0_dp ! scale particule velocities
   sb    = 1.0_dp ! scale "piston" velocity
+  Ge    = odnf * kin + 3.0_dp * simu_cell%omega * ( pvirial_tot - press ) 
+  ve = ve + Ge * dt2 ! pe 
   G(1)  = 2.0_dp*kin - L * temp
   Gb(1) = 0.5_dp * ve * ve / W - temp
-  Ge    = odnf * kin + 3.0_dp * simu_cell%omega * ( pvirial_tot - press ) 
+  ! barostat
 
-  dt2 = dt * 0.5d0
 
   msloop : do k=1,nhc_mults
 
     yoshloop:  do j=1, nhc_yosh_order
 
-    !write(stdout, 1002) k,j,xi,vxi,xib,vxib,xe,ve
     dts = dt_yosh( j ) / REAL(nhc_mults,kind=dp)
     dts2 = dts  * 0.5d0
     dts4 = dts2 * 0.5d0
     dts8 = dts4 * 0.5d0
 
+! test order of trotter expansion
+if ( trotter_order == 1 ) then
     ! ==============
     !  thermo-baro
     ! ==============
-    Gb(nhc_n) = ( vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
+    Gb(nhc_n) = ( 0.5_dp * vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
     vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
     do inh=nhc_n-1,1,-1
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
@@ -763,8 +770,9 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L 
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
     enddo
     sb = sb * EXP ( - vxib(1) * dts2 / Qb ( 1 ) )
+    ve = ve * sb
     xib = xib + vxib * dts2 / Qb 
-    Gb(1) = 0.5_dp * ve * ve * sb * sb / W - temp
+    Gb(1) = 0.5_dp * ve * ve / W - temp
     do inh = 1 , nhc_n - 1
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
       vxib ( inh )     =   vxib ( inh ) + Gb(inh) * dts4
@@ -784,7 +792,7 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L 
     enddo
     s = s * EXP ( - vxi(1) * dts2 / Q ( 1 ) )
     xi = xi + vxi * dts2 / Q 
-    kin = kin * s * s
+    kin = kin * s * s 
     G(1) = 2.0_dp*kin - L * temp
     do inh = 1 , nhc_n - 1
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
@@ -793,13 +801,55 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L 
       G   ( inh + 1 ) = ( 0.5_dp * vxi ( inh ) * vxi(inh) / Q(inh) - temp)
     enddo
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
+else
+    ! ===================
+    !  thermo-particules
+    ! ===================
+    G(nhc_n) = ( 0.5_dp * vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp)
+    vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
+    do inh=nhc_n-1,1,-1
+      vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
+      vxi ( inh ) = vxi ( inh ) + G ( inh ) * dts4
+      vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
+    enddo
+    s = s * EXP ( - vxi(1) * dts2 / Q ( 1 ) )
+    xi = xi + vxi * dts2 / Q 
+    kin = kin * s * s 
+    G(1) = 2.0_dp*kin - L * temp
+    do inh = 1 , nhc_n - 1
+      vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
+      vxi ( inh )     =   vxi ( inh ) + G(inh) * dts4
+      vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
+      G   ( inh + 1 ) = ( 0.5_dp * vxi ( inh ) * vxi(inh) / Q(inh) - temp)
+    enddo
+    vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
+    ! ==============
+    !  thermo-baro
+    ! ==============
+    Gb(nhc_n) = ( 0.5_dp * vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
+    vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
+    do inh=nhc_n-1,1,-1
+      vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
+      vxib ( inh ) = vxib ( inh ) + Gb ( inh ) * dts4
+      vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
+    enddo
+    sb = sb * EXP ( - vxib(1) * dts2 / Qb ( 1 ) )
+    ve = ve * sb
+    xib = xib + vxib * dts2 / Qb 
+    Gb(1) = 0.5_dp * ve * ve / W - temp
+    do inh = 1 , nhc_n - 1
+      vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
+      vxib ( inh )     =   vxib ( inh ) + Gb(inh) * dts4
+      vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
+      Gb   ( inh + 1 ) = ( 0.5_dp * vxib ( inh ) * vxib(inh) / Qb(inh) - temp)
+    enddo
+    vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
+
+endif
     ! 
   enddo yoshloop
 
 enddo msloop
-
-  ! barostat
-  ve = ve * sb
 
   ! thermostat
   kin = 0.0_dp
@@ -807,7 +857,7 @@ enddo msloop
     vx ( ia ) = s * vx ( ia )
     vy ( ia ) = s * vy ( ia )
     vz ( ia ) = s * vz ( ia )
-    kin =  kin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) / massia(ia)
+    kin =  kin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) * massia(ia)
   enddo
   kin = kin * 0.5_dp
 
@@ -822,7 +872,6 @@ enddo msloop
   deallocate ( dt_yosh )
 
   return
- !1002 FORMAT(2i,'xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8,'  xib = ',<nhc_n>e16.8,'  vxib = ', <nhc_n>e16.8 ,'  xe = ',e16.8  ,'  ve = ',e16.8 ) 
 
 END SUBROUTINE chain_nhcpn
 
@@ -837,7 +886,7 @@ SUBROUTINE nhcpn
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , simu_cell, rx , ry , rz , vx , vy , vz , fx , fy , fz
   USE md,                       ONLY :  dt, vxi, xi , vxib, xib , xe , ve , xe0, timesca_thermo , timesca_baro, nhc_n,temp , press
-  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pvirial_tot , h_tot 
+  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pvirial_tot , h_tot , pressure_tot
 
   implicit none
 
@@ -846,34 +895,33 @@ SUBROUTINE nhcpn
   real(kind=dp)          :: kin , tempi , W, L 
   real(kind=dp), dimension ( : ) , allocatable :: Q, Qb
 
-  L = 3.0_dp * REAL(natm-1, kind=dp) 
+  L = 3.0_dp * REAL(natm, kind=dp) 
   allocate ( Q(nhc_n) , Qb (nhc_n) )
   ! thermostat/particules mass coupled to velocities (vx...)
   Q    = timesca_thermo**2.0_dp * temp
-  Q(1) = Q(1) * L 
+  !print*,Q
+  !stop
+  Q(1) = Q(1) * L  
   ! thermostat/barostat mass coupled to ve
   Qb   = timesca_baro**2.0_dp * temp
   ! barostat "mass"
-  W    = (L + 3.0_dp) * temp * timesca_baro**2.0_dp
+  W    = (L + 3.0_dp) * timesca_baro**2.0_dp * temp
 
-  !write(stdout, 1001) xi,vxi,xib,vxib,xe,ve
   CALL calc_temp ( tempi , kin )
-
-  CALL chain_nhcpn( kin , vxi , xi , vxib , xib , ve , xe , Q , Qb , W , L )
-  
+  CALL chain_nhcpn( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , 1 )
   CALL prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W ) 
-
-  CALL chain_nhcpn( kin, vxi, xi , vxib , xib , ve , xe,  Q , Qb , W , L )
-
   CALL calc_temp ( tempi , kin )
   e_kin = kin
   temp_r = tempi
+
+  CALL chain_nhcpn( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 1 )
+
   ! ==============================================
   !  conserved quantity of NPT ensemble
   ! ==============================================
   e_npt = 0.0_dp
   e_npt = e_npt + press    * simu_cell%omega                     ! PV 
-  e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! ve^2 / 2W
+  e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! pe^2 / 2W
   e_npt = e_npt + L * temp * xi(1)                               ! Nf kB T xi
   e_npt = e_npt +     temp * xib(1)                              !    kB T xib
   e_npt = e_npt + vxi(1)   * vxi(1)  * 0.5_dp / Q (1)            ! pxi^2  / 2 Q
@@ -902,7 +950,6 @@ SUBROUTINE nhcpn
 
   return
 
- !1001 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8,'  xib = ',<nhc_n>e16.8,'  vxib = ', <nhc_n>e16.8 ,'  xe = ',e16.8  ,'  ve = ',e16.8 ) 
 END SUBROUTINE nhcpn
 
 ! *********************** SUBROUTINE prop_pos_vel_verlet ***********************
@@ -916,9 +963,9 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , massia , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz, simu_cell, rho
   USE md,                       ONLY :  dt
-  USE control,                  ONLY :  lpbc
   USE field,                    ONLY :  engforce_driver
   USE cell,                     ONLY :  lattice , kardir, dirkar, periodicbc
+  USE thermodynamic,            ONLY :  calc_thermo, pvirial_tot
   USE io,                       ONLY :  stdout, ioprintnode
 
   implicit none
@@ -956,10 +1003,8 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
     vx ( ia ) = vx ( ia ) * AA2 + fx ( ia ) / massia(ia) * BB
     vy ( ia ) = vy ( ia ) * AA2 + fy ( ia ) / massia(ia) * BB
     vz ( ia ) = vz ( ia ) * AA2 + fz ( ia ) / massia(ia) * BB
-  !  vx ( ia ) = vx ( ia ) * AA2 + fx ( ia ) / massia(ia) * AA * SINHA * dt2
-  !  vy ( ia ) = vy ( ia ) * AA2 + fy ( ia ) / massia(ia) * AA * SINHA * dt2
-  !  vz ( ia ) = vz ( ia ) * AA2 + fz ( ia ) / massia(ia) * AA * SINHA * dt2
   enddo
+
   AA  = EXP ( dt2 * ve / W ) 
   AA2 = AA * AA
   ARG = ve*dt2 / W
@@ -972,27 +1017,15 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
   simu_cell%A(2,:) = simu_cell%A(2,:) * EXP(xe- xe0)
   simu_cell%A(3,:) = simu_cell%A(3,:) * EXP(xe- xe0)
   xe0 = xe
+
   CALL lattice ( simu_cell )
   rho = DBLE ( natm ) / simu_cell%omega
   do ia = 1,natm
     rx ( ia ) = rx ( ia ) * AA2 + vx (ia ) * BB
     ry ( ia ) = ry ( ia ) * AA2 + vy (ia ) * BB
     rz ( ia ) = rz ( ia ) * AA2 + vz (ia ) * BB
-    !rx ( ia ) = rx ( ia ) * AA2 + vx (ia ) * AA * SINHA * dt
-    !ry ( ia ) = ry ( ia ) * AA2 + vy (ia ) * AA * SINHA * dt
-    !rz ( ia ) = rz ( ia ) * AA2 + vz (ia ) * AA * SINHA * dt  
   enddo
-!  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
-!#ifdef debug_nvt_nhcpn
-  if ( ioprintnode ) then
-    write(*,'(a,6e16.8)') 'volume scaling =',EXP(xe),xe,ve/W,simu_cell%omega
-!    write(*,'(a,3e16.8)') 'fmv acell',simu_cell%A(1,:)
-!    write(*,'(a,3e16.8)') 'fmv bcell',simu_cell%A(2,:)
-!    write(*,'(a,3e16.8)') 'fmv ccell',simu_cell%A(3,:)
-!    write(*,'(a,5e16.8)') 'pos propa',AA2,AA*SINHA,rx(1),vx(1),ve/W
-  endif
-!#endif
-!    CALL print_config_sample(0,0) 
+
   ! ==========================
   ! f(t+dt)
   ! ==========================
@@ -1014,13 +1047,11 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
     vx ( ia ) = vx ( ia ) * AA2 + fx ( ia ) / massia(ia) * BB
     vy ( ia ) = vy ( ia ) * AA2 + fy ( ia ) / massia(ia) * BB
     vz ( ia ) = vz ( ia ) * AA2 + fz ( ia ) / massia(ia) * BB
-    !vx ( ia ) = vx ( ia ) * AA2 + fx ( ia ) / massia(ia) * AA * SINHA * dt2
-    !vy ( ia ) = vy ( ia ) * AA2 + fy ( ia ) / massia(ia) * AA * SINHA * dt2
-    !vz ( ia ) = vz ( ia ) * AA2 + fz ( ia ) / massia(ia) * AA * SINHA * dt2
     kin = kin + ( vx ( ia ) * vx ( ia ) +  vy ( ia ) * vy ( ia ) + vz ( ia ) * vz ( ia ) ) * massia (ia)
   enddo
   kin = kin * 0.5_dp
-  
+       
+  CALL calc_thermo  
 
   return
 

@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug
+#define debug
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE init_velocities ***************************
@@ -121,7 +121,7 @@ END SUBROUTINE init_velocities
 ! ******************************************************************************
 SUBROUTINE rescale_velocities (quite)
 
-  USE constants,                ONLY :  dp 
+  USE constants,                ONLY :  dp , boltz
   USE control,                  ONLY :  lcsvr
   USE config,                   ONLY :  natm , vx , ntype, vy , vz, ntypemax, atypei ,center_of_mass
   USE md,                       ONLY :  dt , temp , tauTberendsen, taucsvr
@@ -134,13 +134,13 @@ SUBROUTINE rescale_velocities (quite)
   integer, intent(in) :: quite
 
   ! local
-  integer :: ia ,it , ndeg
-  real(kind=dp) :: T, lambda, ekin , sigma , com( 0 : ntypemax , 3  ), SUMX,SUMY,SUMZ
+  integer :: ia , ndeg
+  real(kind=dp) :: T, lambda, ekin , sigma , SUMX,SUMY,SUMZ
   real(kind=dp) , external :: resamplekin
 
   CALL calc_temp(T,ekin)
 
-  lambda = ( 1.0_dp + (dt / tauTberendsen) * (  (temp / T) - 1.0_dp) ) ** 0.5_dp
+  lambda = ( 1.0_dp + (dt / tauTberendsen) * (  (temp / T / boltz) - 1.0_dp) ) ** 0.5_dp
   
   if ( lcsvr ) then 
     ndeg = 3 * natm - 3 
@@ -152,8 +152,6 @@ SUBROUTINE rescale_velocities (quite)
     write(*,'(a,3e20.8)') 'resamplekin',ekin,sigma,lambda
 #endif
   endif
-
-  !CALL print_config_sample(0,0)
 
   do ia = 1 , natm
      vx ( ia ) = vx ( ia ) * lambda
@@ -174,19 +172,16 @@ SUBROUTINE rescale_velocities (quite)
     SUMX = SUMX / DBLE ( natm )
     SUMY = SUMY / DBLE ( natm )
     SUMZ = SUMZ / DBLE ( natm )
-   ! print*,'sum',SUMX,SUMY,SUMZ
     do ia = 1 , natm
        vx ( ia ) = vx ( ia ) - SUMX
        vy ( ia ) = vy ( ia ) - SUMY
        vz ( ia ) = vz ( ia ) - SUMZ
     enddo
-   ! CALL print_config_sample(0,0)
   endif
 
   if ( ionode .and. quite .eq. 1) then
-    WRITE ( stdout ,'(a,f10.4)') 'Berendsen thermostat'
     WRITE ( stdout ,'(a,f10.4)') 'effective temperature      T        = ',T
-    WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp
+    WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp/boltz
     WRITE ( stdout ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
 #ifdef debug    
     CALL calc_temp(T,ekin)
@@ -419,7 +414,7 @@ END SUBROUTINE uniform_random_velocities
 ! ******************************************************************************
 SUBROUTINE maxwellboltzmann_velocities
 
-  USE constants,        ONLY :  dp 
+  USE constants,        ONLY :  dp , boltz
   USE config,           ONLY :  natm , vx , vy , vz, massia
   USE md,               ONLY :  dt , temp  
   USE control,          ONLY :  dgauss
@@ -530,7 +525,7 @@ END SUBROUTINE maxwellboltzmann_velocities
 ! ******************************************************************************
 SUBROUTINE calc_temp (T, ekin)
 
-  USE constants,        ONLY :  dp 
+  USE constants,        ONLY :  dp, boltz
   USE config,           ONLY :  natm , massia, vx , vy , vz 
 
   implicit none
@@ -539,15 +534,17 @@ SUBROUTINE calc_temp (T, ekin)
   real(kind=dp), intent(out) :: ekin , T
 
   ! local
-  integer :: ia
+  integer :: ia, L
+
+  L = 3.0_dp * REAL(natm, kind=dp) 
 
   ekin = 0.0_dp
   do ia = 1 , natm
-    ekin =  ekin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) / massia(ia) 
+    ekin =  ekin + ( vx ( ia ) ** 2 + vy ( ia ) ** 2 + vz ( ia ) ** 2 ) * massia(ia) 
   enddo
   ekin = ekin * 0.5_dp
-  T = (2.0_dp/3.0_dp) * ekin
-  T = T / REAL ( natm ,kind = dp ) 
+  T = 2.0_dp * ekin / boltz
+  T = T / REAL ( L ,kind = dp ) 
 
   return
 

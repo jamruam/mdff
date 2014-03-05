@@ -56,7 +56,8 @@ SUBROUTINE md_run ( offset )
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
                                         write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell
-  USE control,                  ONLY :  ltraj , lpbc , longrange , calc , lstatic , lvnlist , lbmlj , lcoulomb , lmorse , numprocs, myrank , itraj_period , itraj_start , itraj_format
+  USE control,                  ONLY :  ltraj , longrange , calc , lstatic , lvnlist , lnmlj , lcoulomb , lmorse , &
+                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format
   USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint , ioprintnode
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n
@@ -73,7 +74,10 @@ SUBROUTINE md_run ( offset )
   integer, intent(in)                      :: offset
 
   ! local
-  integer                                  :: ia , ip
+  integer                                  :: ia 
+#ifdef debug_para
+  integer                                  :: ip
+#endif
   integer                                  :: nefg , ngr , nmsd , ntau 
   real(kind=dp)                            :: tempi , kin 
   real(kind=dp), dimension(:), allocatable :: xtmp , ytmp , ztmp
@@ -103,6 +107,15 @@ SUBROUTINE md_run ( offset )
   ngr  = 0
   nmsd = 0
   ntau = 0
+
+  ! ioprint condition
+  if ( lstatic ) then
+    ioprint = .true.
+    if ( ionode ) ioprintnode = .true.
+  else
+    ioprint = .false.
+    ioprintnode = .false.
+  endif
   
   CALL init_general_accumulator
 
@@ -187,8 +200,9 @@ SUBROUTINE md_run ( offset )
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
 
-  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
-  if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+  if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
+  if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' )
 
   ! =========================
   !   MAIN LOOP ( TIME )
@@ -200,20 +214,19 @@ SUBROUTINE md_run ( offset )
   ! ===========
   !  time info
   ! ===========
-   statime 
+   statime
 
 ! WARNING offset !!!!
 MAIN:  do itime = offset , npas + (offset-1)        
 
   ! ioprint condition
-  if ( MOD ( itime , nprint ) .eq. 0 ) then
+  if ( MOD ( itime , nprint ) .eq. 0.0_dp ) then
     ioprint = .true.
     if ( ionode ) ioprintnode = .true.
   else
     ioprint = .false.
     ioprintnode = .false.
   endif
-
 
 
 #ifdef block
@@ -298,8 +311,9 @@ MAIN:  do itime = offset , npas + (offset-1)
 #ifdef stress_t
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
-  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
-  if ( lcoulomb )          CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+  if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
+  if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' ) 
 #endif
        
 #ifdef com_t
@@ -405,9 +419,10 @@ MAIN:  do itime = offset , npas + (offset-1)
   io_node blankline(stdout)
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
-  if ( lbmlj .or. lmorse ) CALL print_tensor ( tau_nonb , 'TAU_NONB' ) 
-  if ( lcoulomb )          CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
-  if ( ionode .and. lvnlist ) WRITE ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,DBLE(npas)/DBLE(updatevnl)
+  if ( non_bonded ) CALL print_tensor ( tau_nonb , 'TAU_NONB' ) 
+  if ( lcoulomb )   CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
+                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' )
+  if ( ionode .and. lvnlist .and. updatevnl .ne. 0 ) WRITE ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,REAL(npas,kind=dp)/REAL(updatevnl,kind=dp)
 
   CALL  write_average_thermo ( stdout ) 
 

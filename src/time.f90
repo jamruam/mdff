@@ -41,7 +41,7 @@ MODULE time
   real(kind=dp) :: efgtimetot1    !< EFG direct space wall time          
   real(kind=dp) :: efgtimetot2    !< EFG fourier space wall time        
   real(kind=dp) :: efgtimetot3    !< communication only wall time         
-  real(kind=dp) :: strftimetot    !< facteur de structure wall time
+  real(kind=dp) :: rhoktimetot    !< facteur de structure wall time
   real(kind=dp) :: mdsteptimetot  !<                            
   real(kind=dp) :: vacftimetot    !<                            
   real(kind=dp) :: vacftimetot2   !<                            
@@ -68,6 +68,8 @@ MODULE time
   real(kind=dp) :: chisqvartime5
   real(kind=dp) :: kardirtottime 
   real(kind=dp) :: dirkartottime 
+  real(kind=dp) :: time_moment_from_pola
+  real(kind=dp) :: integratimetot
   real(kind=dp) :: timetmp        !< use in opt               
 
 CONTAINS
@@ -86,7 +88,7 @@ SUBROUTINE time_init
   efgtimetot1   = 0.0_dp
   efgtimetot2   = 0.0_dp
   efgtimetot3   = 0.0_dp
-  strftimetot   = 0.0_dp 
+  rhoktimetot   = 0.0_dp 
   mdsteptimetot = 0.0_dp
   vnlisttimetot = 0.0_dp
   msdtimetot    = 0.0_dp
@@ -116,6 +118,8 @@ SUBROUTINE time_init
   chisqvartime5 = 0.0_dp
   kardirtottime = 0.0_dp
   dirkartottime = 0.0_dp
+  time_moment_from_pola = 0.0_dp
+  integratimetot = 0.0_dp
 
   return 
  
@@ -131,6 +135,7 @@ SUBROUTINE print_time_info ( kunit )
 
   USE io,       ONLY :  ionode 
   USE control,  ONLY :  longrange , lcoulomb , calc
+  USE dumb
 
   implicit none
 
@@ -142,8 +147,8 @@ SUBROUTINE print_time_info ( kunit )
   real(kind=dp) :: fcoultime_es , fcoultime_ds
 
   dstime = efgtimetot1 + efgtimetot3               ! direct
-  estime = strftimetot + efgtimetot1 + efgtimetot2 + efgtimetot3 ! ewald
-  fcoultime_es = fcoultimetot1 + fcoultimetot2 + fcoultimetot3
+  estime = rhoktimetot + efgtimetot1 + efgtimetot2 + efgtimetot3 ! ewald
+  fcoultime_es = fcoultimetot1 + fcoultimetot2 + fcoultimetot3 + rhoktimetot
   fcoultime_ds = fcoultimetot1 + fcoultimetot3 
 
   !timing information at the end
@@ -187,8 +192,9 @@ SUBROUTINE print_time_info ( kunit )
     if ( calc .eq. 'md' ) then
                                         WRITE ( kunit ,'(a)')           'MD:'
                                         lseparator_noionode(kunit) 
-      if ( forcetimetot  .ne. 0.0_dp )  WRITE ( kunit ,110)             'engforce_bmlj      ' , forcetimetot        
-      if ( vnlisttimetot .ne. 0.0_dp )  WRITE ( kunit ,110)             'vnlistcheck        ' , vnlisttimetot
+      if ( forcetimetot   .ne. 0.0_dp )  WRITE ( kunit ,110)             'engforce_nmlj      ' , forcetimetot        
+      if ( vnlisttimetot  .ne. 0.0_dp )  WRITE ( kunit ,110)             'vnlistcheck        ' , vnlisttimetot
+      if ( integratimetot .ne. 0.0_dp )  WRITE ( kunit ,110)             'integrator         ' , integratimetot
                                         lseparator_noionode(kunit) 
     endif
     
@@ -204,7 +210,7 @@ SUBROUTINE print_time_info ( kunit )
       if ( calc .eq. 'efg' ) then
         if ( estime        .ne. 0.0_dp )  WRITE ( kunit ,'(a)')           'EFG:'
         if ( estime        .ne. 0.0_dp )  lseparator_noionode(kunit) 
-        if ( strftimetot   .ne. 0.0_dp )  WRITE ( kunit ,110)             'struct fact             ', strftimetot
+        if ( rhoktimetot   .ne. 0.0_dp )  WRITE ( kunit ,110)             'struct fact             ', rhoktimetot
         if ( efgtimetot1   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(real  part)      ', efgtimetot1
         if ( efgtimetot2   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(recip part)      ', efgtimetot2 
         if ( efgtimetot3   .ne. 0.0_dp )  WRITE ( kunit ,110)             'efg_ES(comm  only)      ', efgtimetot3
@@ -214,8 +220,9 @@ SUBROUTINE print_time_info ( kunit )
       if ( fcoultime_es  .ne. 0.0_dp )  lseparator_noionode(kunit) 
       if ( fcoultimetot1 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(real  part)', fcoultimetot1
       if ( fcoultimetot2 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(recip part)', fcoultimetot2 
-      if ( fcoultimetot2_2 .ne. 0.0_dp )  WRITE ( kunit ,110)           'multipole_ES(recip part per k )', fcoultimetot2_2 
       if ( fcoultimetot3 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(comm only) ', fcoultimetot3
+      if ( rhoktimetot .ne. 0.0_dp )    WRITE ( kunit ,110)             'charge_density_k        ',rhoktimetot
+      if ( time_moment_from_pola .ne. 0.0_dp )  WRITE ( kunit ,110)     'moment_from_pola        ', time_moment_from_pola
     endif
     if ( vibtimetot.ne.0.0_dp )         lseparator_noionode(kunit) 
     if ( vibtimetot.ne.0.0_dp )         WRITE ( kunit ,'(a)')           'VIB:'
@@ -226,6 +233,7 @@ SUBROUTINE print_time_info ( kunit )
     if ( doskpttimetot.ne.0.0_dp )      WRITE ( kunit ,110)             'doskpttimetot          ', doskpttimetot
 
   endif
+  CALL print_dumb
   separator(kunit)
 
 110   FORMAT(2X,A30,' :  cpu time',F9.2)

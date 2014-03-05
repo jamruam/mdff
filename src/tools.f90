@@ -418,7 +418,7 @@ SUBROUTINE vnlistcheck
 
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point , atom_dec , simu_cell
-  USE control,                  ONLY :  lpbc , lminimg , skindiff
+  USE control,                  ONLY :  skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
   USE io,                       ONLY :  stdout , ionode
@@ -476,11 +476,7 @@ SUBROUTINE vnlistcheck
   if ( ionode .and. itime .ne. 0 ) write ( stdout , '(a,2i6,2f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl)
   if ( ionode ) write ( stdout , '(a,2i6,5f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl),skindiff, drneimax,drneimax2
 #endif
-    if ( lpbc ) then
-        CALL vnlist_pbc 
-    else
-      CALL vnlist_nopbc 
-    endif
+    CALL vnlist_pbc 
     do ia = 1, natm 
       xs ( ia ) = rx ( ia )
       ys ( ia ) = ry ( ia )
@@ -728,7 +724,7 @@ END SUBROUTINE
 ! ******************************************************************************
 SUBROUTINE print_config_sample ( time , rank )
 
-  USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar
+  USE config,   ONLY :  natm , atype , itype , rx , vx , fx , qia , dipia , ipolar , massia
   USE mpimdff,  ONLY :  myrank
   USE io,       ONLY :  stdout
 
@@ -745,18 +741,18 @@ SUBROUTINE print_config_sample ( time , rank )
        WRITE ( stdout ,'(a)') 'debug :  SAMPLE OF THE CONFIGIURATION '
        WRITE ( stdout ,'(a5,i10)') 'time = ',time
        WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
-       WRITE ( stdout ,'(a)') '     i    atype       itype      ipolar      q      mu_x    mu_y    mu_z             rx                 vx                  fx'
+       WRITE ( stdout ,'(a)') '     i    atype       itype      ipolar      q      mass    mu_x    mu_y    mu_z             rx                 vx                  fx'
     if ( natm .ge. 8)   &
-       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
-       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
         rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 4 )
     if ( natm .ge. 8)   &
-       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
-       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
         rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 4  , natm )
     if ( natm .lt. 8)   &
-       WRITE ( stdout ,'(i6,a10,2i10,4x,4f8.3,3f20.10)') &
-       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
+       WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
+       ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
         rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm )
        blankline(stdout) 
        bigseparator_noionode(stdout) 

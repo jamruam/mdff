@@ -331,21 +331,19 @@ SUBROUTINE efgcalc
   USE constants,                ONLY :  fpi , e_2 
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
-                                        dipia , dipia_ind , dipia_wfc , ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
+                                        ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
                                         coord_format_allowed, atom_dec , read_traj_header , read_traj , config_dealloc
   
   USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data
   USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lpolar , lwfc , & 
                                         moment_from_pola , moment_from_wfc , rm_coul , &
-                                        km_coul , alphaES , multipole_DS , multipole_ES , field_print_info , ldip_wfc
-  USE thermodynamic,            ONLY :  u_coul_tot , vir_coul_tot , u_pol
+                                        km_coul , alphaES , multipole_ES , field_print_info , ldip_wfc, get_dipole_moments
   USE cell,                     ONLY :  lattice , dirkar , periodicbc
 
   implicit none
 
 
   ! local
-  logical                                               :: lwannier
   integer                                               :: ia , iconf , it , ierr
   real(kind=dp)                                         :: ttt1 , ttt2
   real(kind=dp) , dimension ( : , : )     , allocatable :: ef_tmp
@@ -424,55 +422,22 @@ SUBROUTINE efgcalc
       ! =======================
       efg_t    = 0.0_dp
 
-      ! ======================================
-      !     induced moment from polarisation 
-      ! ======================================
-      CALL moment_from_pola ( dipia_ind )
+      CALL get_dipole_moments ( mu )
 
-      ! =========================================================
-      !  Is there any Wannier center ? if yes lwannier = .TRUE.
-      ! =========================================================
-      lwannier = .false.
-      do it = 1 , ntype
-        if ( lwfc ( it ) .gt. 0 ) lwannier = .true.
-      enddo
-
-      if ( lwannier ) then
-        ! ======================================
-        !     induced moment from wannier center  
-        ! ======================================
-        CALL moment_from_WFc ( dipia_wfc ) 
-
-        if ( ldip_wfc ) then
-          if ( ionode ) write( stdout , '(A)' ) 'dipole contribution to EFG from wannier centers '
-          ! ======================================
-          !  total dipole mu :
-          !   static +  induced  + "wannier"
-          ! ======================================
-          mu = dipia + dipia_ind + dipia_wfc
-        else
-          if ( ionode ) write( stdout , '(A)' ) 'no dipole contribution to EFG from wannier centers '
-          mu = dipia + dipia_ind
-        endif
-      else
-        mu = dipia + dipia_ind  
-      endif
-
-#if defined(debug_multipole) || defined(debug)
-      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
-      if ( longrange .eq. 'direct' ) CALL multipole_DS ( ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
-
-      WRITE ( 10000, * ) '#electric field'
-      WRITE ( 10001, * ) '#dipoles'
-      WRITE ( 10002, * ) '#forces'
-      WRITE ( 10003, * ) '#efg'
-      do ia = 1 , natm
-        WRITE (10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
-        WRITE (10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
-        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
-        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
-      enddo
-#endif
+!#if defined(debug_multipole) || defined(debug)
+!      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
+!
+!      WRITE ( 10000, * ) '#electric field'
+!      WRITE ( 10001, * ) '#dipoles'
+!      WRITE ( 10002, * ) '#forces'
+!      WRITE ( 10003, * ) '#efg'
+!      do ia = 1 , natm
+!        WRITE (10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
+!        WRITE (10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
+!        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
+!        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
+!      enddo
+!#endif
 
       ! =======================================
       !       efg charge only lefg_old=.true. 
@@ -798,6 +763,8 @@ END SUBROUTINE efg_DS
 ! the reciproc part could be ( should be ) parallized
 !
 ! ******************************************************************************
+!deprecrated should even not work anymore I keep it because the implementation
+!is slightly different
 SUBROUTINE efg_ES ( km , alphaES )
 
   USE control,                  ONLY :  myrank , numprocs , calc  
@@ -805,10 +772,10 @@ SUBROUTINE efg_ES ( km , alphaES )
                                         simu_cell , itype , rx , ry , rz , ntype , qia , atom_dec
   USE constants,                ONLY :  pi , fpi , piroot , imag
   USE field,                    ONLY :  qch
-  USE kspace,                   ONLY :  struc_fact
+!  USE kspace,                   ONLY :  struc_fact
   USE cell,                     ONLY :  kardir , dirkar 
-  USE time,                     ONLY :  strftimetot , efgtimetot1 , efgtimetot2 , efgtimetot3
-  USE io,                  ONLY :  stdout
+  USE time,                     ONLY :  rhoktimetot , efgtimetot1 , efgtimetot2 , efgtimetot3
+  USE io,                       ONLY :  stdout
 
   implicit none
 
@@ -878,9 +845,9 @@ SUBROUTINE efg_ES ( km , alphaES )
   ! facteur de structure 
   ! =====================
 !  CALL charge_density_k ( km )
-  CALL struc_fact ( km )
+!  CALL struc_fact ( km )
   ttt2 = MPI_WTIME(ierr)
-  strftimetot = strftimetot + (ttt2 - ttt1)
+  rhoktimetot = rhoktimetot + (ttt2 - ttt1)
 
   ! ======================================
   !         cartesian to direct 
@@ -955,9 +922,9 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
     ! =================
     !   k-space  
     ! =================
-    kx   = km%kpt(1,ik)
-    ky   = km%kpt(2,ik)
-    kz   = km%kpt(3,ik)
+    kx   = km%kptx(ik)
+    ky   = km%kpty(ik)
+    kz   = km%kptz(ik)
     kk   = km%kptk(ik)
     Ak   = EXP ( - kk * 0.25_dp / alpha2 ) 
 
@@ -968,7 +935,7 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
     ! ===============================
     rhon   = (0.0_dp, 0.0_dp)
     do ja = 1, natm
-      rhon = rhon +  qia(ja) * CONJG( km%strf ( ik , ja ) )
+!      rhon = rhon +  qia(ja) * CONJG( km%strf ( ik , ja ) )
     enddo
 
     do ia = 1 , natm
@@ -1062,7 +1029,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
   USE config,                   ONLY :  natm , atype , natmi , ntype , qia , &
                                         rx , ry , rz , fx , fy , fz , tau_coul , simu_cell ,itype , atom_dec
   USE control,                  ONLY :  cutlongrange , myrank
-  USE io,                  ONLY :  stdout , ionode 
+  USE io,                       ONLY :  stdout , ionode 
   USE field,                    ONLY :  qch
   USE cell,                     ONLY :  kardir , dirkar
   USE time,                     ONLY :  efgtimetot1 , efgtimetot3
@@ -1260,11 +1227,11 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
                                         rx , ry , rz , fx , fy , fz ,  &
                                         qia , simu_cell , itype , atom_dec
   USE constants,                ONLY :  imag , pi , piroot , tpi , fpi
-  USE io,                  ONLY :  ionode , stdout 
+  USE io,                       ONLY :  ionode , stdout 
   USE field,                    ONLY :  qch
-!  USE kspace,                   ONLY :  charge_density_k        
+  !USE kspace,                   ONLY :  charge_density_k        
   USE cell,                     ONLY :  kardir , dirkar
-  USE time,                     ONLY :  strftimetot , efgtimetot1 , efgtimetot2 , efgtimetot3           
+  USE time,                     ONLY :  rhoktimetot , efgtimetot1 , efgtimetot2 , efgtimetot3           
 
   implicit none
 
@@ -1290,7 +1257,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   real(kind=dp) :: mujx , mujy , mujz
   real(kind=dp) :: recarg 
   real(kind=dp) :: expon , F1 , F2 , F3 
-  !real(kind=dp) :: k_dot_mu
+  real(kind=dp) :: k_dot_r
   real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
   real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
   real(kind=dp) :: d , d2 , d3  , d5 
@@ -1301,6 +1268,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   real(kind=dp) :: fpi_V 
   real(kind=dp) :: ttt1 , ttt2  , ttt3 , ttt4 
   real(kind=dp) :: ttt1p , ttt2p 
+  complex(kind=dp) :: expikr
 
   real(kind=dp) :: correction_charged
 
@@ -1352,7 +1320,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   CALL charge_density_k ( km , mu )
 
   ttt2p = MPI_WTIME(ierr)
-  strftimetot = strftimetot + ( ttt2p - ttt1p ) 
+  rhoktimetot = rhoktimetot + ( ttt2p - ttt1p ) 
 
   ! =================
   !  some constants 
@@ -1482,9 +1450,9 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
     ! =================
     !   k-space  
     ! =================
-    kx   = km%kpt(1,ik)
-    ky   = km%kpt(2,ik)
-    kz   = km%kpt(3,ik)
+    kx   = km%kptx(ik)
+    ky   = km%kpty(ik)
+    kz   = km%kptz(ik)
 
 ! =========================================================================================
 ! old version 
@@ -1503,8 +1471,10 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
 ! =========================================================================================
 
     do ia = 1 , natm
+      k_dot_r = ( rx ( ia ) * kx + ry ( ia ) * ky + rz ( ia ) * kz )
+      expikr = EXP ( imag * k_dot_r )
       !                        rhon^cc         *     exp(ikr)        *       Ak
-        recarg = REAL ( CONJG ( km%rhon ( ik ) ) * km%expkr( ik , ia ) * km%Ak( ik ) , kind = dp )
+        recarg = REAL ( CONJG ( km%rhon ( ik ) ) * expikr * km%Ak( ik ) , kind = dp )
       ! electric field gradient
       efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) + kx * kx * recarg
       efg_rec ( ia , 2 , 2 ) = efg_rec ( ia , 2 , 2 ) + ky * ky * recarg 
@@ -1540,7 +1510,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   ! remark on the unit :
   ! 1/(4*pi*epislon_0) = 1 => epsilon_0 = 1/4pi
   ! ======================================================
-  efg_rec =   efg_rec * fpi_V  
+  efg_rec =   efg_rec * fpi_V *2.0_dp 
 
   ! ====================================================== 
   !              Self contribution 
@@ -2730,10 +2700,8 @@ SUBROUTINE efg_mesh_alloc
 !    nk  = ( km_coul%kmax(1) + 1 )  * ( km_coul%kmax(2) + 1 ) * ( km_coul%kmax(3) + 1 )
 !    nk = nk - 1
     km_coul%nk = nk
-    allocate ( km_coul%kptk( nk ) , km_coul%kpt(3,nk) )
-    allocate ( km_coul%strf ( nk, natm) )
+    allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk),  km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak   ( nk ) )
-    allocate ( km_coul%expkr( nk , natm ) )
     allocate ( km_coul%rhon ( nk ) )
     CALL kpoint_sum_init ( km_coul , alphaES )
   endif
@@ -2765,10 +2733,8 @@ SUBROUTINE efg_mesh_dealloc
 
   if ( longrange .eq. 'ewald' )  then
 
-    deallocate ( km_coul%kptk , km_coul%kpt )
-    deallocate ( km_coul%strf   )
+    deallocate ( km_coul%kptk , km_coul%kptx , km_coul%kpty , km_coul%kptz )
     deallocate ( km_coul%Ak    )
-    deallocate ( km_coul%expkr )
     deallocate ( km_coul%rhon  )
 
   endif
@@ -2862,16 +2828,14 @@ SUBROUTINE charge_density_k ( km , mu )
   integer :: ia ,ik
   real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz
   real(kind=dp) :: kx , ky , kz
+  complex(kind=dp) :: expikr
 
   km%rhon  = (0.0_dp,0.0_dp)
-  km%expkr = (0.0_dp,0.0_dp)
 
   do ik = 1, km%nk
-    kx = km%kpt ( 1 , ik )
-    ky = km%kpt ( 2 , ik )
-    kz = km%kpt ( 3 , ik )
-
-        !print*,'charge density on',ia,itype(ia),it_efg
+    kx = km%kptx ( ik )
+    ky = km%kpty ( ik )
+    kz = km%kptz ( ik )
 
     do ia = 1 , natm
       rxi = rx ( ia )
@@ -2882,9 +2846,9 @@ SUBROUTINE charge_density_k ( km , mu )
       muz = mu ( ia , 3 )
       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
       k_dot_mu = ( mux * kx + muy * ky + muz * kz )
-      km%expkr ( ik , ia ) = EXP ( imag * k_dot_r )
+      expikr = EXP ( imag * k_dot_r ) 
       if ( lefg_it_contrib .and. ( itype(ia) .ne. it_efg) ) cycle
-      km%rhon  ( ik )      = km%rhon ( ik ) + ( qia ( ia ) + imag * k_dot_mu ) * km%expkr  ( ik , ia )
+      km%rhon  ( ik )      = km%rhon ( ik ) + ( qia ( ia ) + imag * k_dot_mu ) * expikr
     enddo
 
   enddo

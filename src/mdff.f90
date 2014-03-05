@@ -177,16 +177,15 @@ PROGRAM main_MDFF
     ! specific module or where it used.
     ! ===========================================================
     if ( calc .eq. 'md' )                 CALL do_split ( natm       , myrank , numprocs , atom_dec , 'atoms' )
-    if ( calc .eq. 'md' .and. lcoulomb )  CALL do_split ( km_coul%nk , myrank , numprocs , kpt_dec  , 'k-pts' )
-
+    if ( calc .eq. 'md' .and. lcoulomb )  CALL do_split ( km_coul%nk , myrank , numprocs , km_coul%kpt_dec  , 'k-pts' )
+    print*,'after do_split',km_coul%kpt_dec%istart, km_coul%kpt_dec%iend
     ! =====================================
     ! verlet list generation
     ! mmmmh only md ? 
     ! vnlist should be test for calc='opt' 
     ! =====================================
     if ( calc .eq. 'md' ) then 
-      if ( ( lvnlist ) .and. lpbc )           CALL vnlist_pbc   
-      if ( ( lvnlist ) .and. ( .not. lpbc) )  CALL vnlist_nopbc 
+      if ( lvnlist )    CALL vnlist_pbc   
     endif  
 
     !IF MD

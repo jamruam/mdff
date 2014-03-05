@@ -81,7 +81,7 @@ SUBROUTINE do_split ( n , mrank , np , dec , lab )
   if ( ionode ) then
     WRITE ( stdout ,'(a,a5,a)')      'paralelisation - ',dec%label,' decomposition'
     do me = 0,np-1
-      WRITE ( stdout ,'(a5,i4,a5,i8,a3,2i8)')      'rank =      ',me,dec%label,istartV(me),'to',iendV(me), ( iendV(me) - istartV(me) ) + 1
+      WRITE ( stdout ,'(a,i4,a8,i8,a3,i8,a,i8)')      'rank =      ',me,dec%label,istartV(me),'to',iendV(me), ' load : ',( iendV(me) - istartV(me) ) + 1
     enddo     
   endif
 

@@ -181,9 +181,9 @@ END SUBROUTINE vib_check_tag
 ! ******************************************************************************
 SUBROUTINE vib_print_info(kunit)
 
-  USE control,                  ONLY :  lpbc , calc 
+  USE control,                  ONLY :  calc 
   USE config,                   ONLY :  natm , ntype, rho
-  USE io,                  ONLY :  ionode
+  USE io,                       ONLY :  ionode
 
   implicit none
 
@@ -207,8 +207,7 @@ SUBROUTINE vib_print_info(kunit)
                       WRITE ( kunit ,'(a)')       'program, and so is fvibhist.'
                       WRITE ( kunit ,'(a)')       'Original author S. Sastry JNCASR and probably F. Affouard'
      endif
-     if ( .not. lpbc )WRITE ( kunit ,'(a)')       'NO PERIODIC BOUNDARY CONDITIONS (cubic cell)'
-     if ( lpbc )      WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+                      WRITE ( kunit ,'(a)')       'periodic boundary conditions '
                       blankline(kunit)
                       WRITE ( kunit ,'(a)')       'configuration (at equilibrium) file : ISCFF'
                       WRITE ( kunit ,'(a,i5)')    'number of configurations in file    = ',nconf
@@ -250,10 +249,9 @@ SUBROUTINE vib_main
   implicit none
 
   ! local
-  integer                                     :: i , j , ik , ierr , ikd , ia , ja , im , ic , ka , it , nk 
+  integer                                     :: i , j , ik , ierr , ikd , ja , im , ic , ka , nk 
   integer, dimension(:), allocatable          :: dostab
   integer, dimension(:), allocatable          :: dostabtot
-  integer, dimension(:,:), allocatable        :: dostabk
   integer, dimension(:,:), allocatable        :: dostabktot
   real(kind=dp), dimension(:,:), allocatable  :: hess
   real(kind=dp), dimension(:), allocatable    :: work, deig, ipiv !,deig_reorder(3 * n)
@@ -266,11 +264,6 @@ SUBROUTINE vib_main
   real(kind=dp)                               :: ttt1 , ttt2 
   real(kind=dp)                               :: ttt1p , ttt2p 
   real(kind=dp)                               :: ttt1d , ttt2d
-  logical                                     :: allowed
-  character(len=60)                           :: cpos
-  ! trash 
-  real(kind=dp)     :: aaaa
-  character(len=60) :: cccc
 
   ttt1 = MPI_WTIME( ierr )
 
@@ -455,10 +448,11 @@ SUBROUTINE vib_main
       km%kmax(3) = nkphon
       km%nk = nk
       km%meshlabel='km-dos'
-      allocate ( km%kpt( 3 , nk ) , km%kptk(nk) )
+      allocate ( km%kptx ( nk ) ,  km%kpty ( nk ),  km%kptz ( nk ) , km%kptk(nk) )
       CALL do_split ( km%nk , myrank , numprocs , km%kpt_dec , 'kpts')
-      CALL kpoint_sum_init_BZ ( km )
+      CALL kpoint_sum_init_BZ ( km , 1.0_dp )
 
+      ! why the hell did I keet it 
       ! ============================================
       !  read number of kpoints in IBZKPTFF
       ! ============================================
@@ -494,7 +488,7 @@ SUBROUTINE vib_main
           ka = INT (ak) + 1
           !write (stdout, '(i9,2f12.6,2i9)') ,ik,ak,eigenk(ik,ikd),ka,PANdos
           if (ka.gt.PANdos + 1.or.ka.lt.0) then
-             WRITE ( stderr , * ) 'ERROR out of bound in dostabk'
+             WRITE ( stderr , * ) 'ERROR out of bound in eigenk'
              WRITE ( stderr , '(3i12,2f12.5)' ) ik,ka,PANdos + 1,ak,eigenk(ik,ikd)
              STOP
           endif
@@ -510,7 +504,7 @@ SUBROUTINE vib_main
       enddo k_loop 
 
       deallocate(eigenk) 
-      deallocate(km%kpt,km%kptk) 
+      deallocate(km%kptx,km%kpty,km%kptz,km%kptk) 
         
     endif ! vib+dos
 
@@ -1386,7 +1380,7 @@ SUBROUTINE band ( hess )
   ! ========================================
   !  generate kpath in structure kp
   ! ========================================
-  allocate ( kp%kpt ( 3 , nkphon ) )
+  allocate ( kp%kptx ( nkphon ) , kp%kpty ( nkphon ) , kp%kptz ( nkphon ) )
   CALL get_kpath ( ks , kf , nkphon , path , kp )  
 
   OPEN (UNIT = kunit_DOSKFF ,FILE = 'DOSKFF')
@@ -1411,9 +1405,9 @@ SUBROUTINE band ( hess )
     ww      = 0.0_dp
 
     ! direct to kartesian times 2 * pi 
-    kx = tpi * ( kp%kpt(1,ik) * simu_cell%B(1,1) +  kp%kpt(2,ik) * simu_cell%B(1,2) + kp%kpt(3,ik) * simu_cell%B(1,3) ) * ncell
-    ky = tpi * ( kp%kpt(1,ik) * simu_cell%B(2,1) +  kp%kpt(2,ik) * simu_cell%B(2,2) + kp%kpt(3,ik) * simu_cell%B(2,3) ) * ncell
-    kz = tpi * ( kp%kpt(1,ik) * simu_cell%B(3,1) +  kp%kpt(2,ik) * simu_cell%B(3,2) + kp%kpt(3,ik) * simu_cell%B(3,3) ) * ncell
+    kx = tpi * ( kp%kptx(ik) * simu_cell%B(1,1) +  kp%kpty(ik) * simu_cell%B(1,2) + kp%kptz(ik) * simu_cell%B(1,3) ) * ncell
+    ky = tpi * ( kp%kptx(ik) * simu_cell%B(2,1) +  kp%kpty(ik) * simu_cell%B(2,2) + kp%kptz(ik) * simu_cell%B(2,3) ) * ncell
+    kz = tpi * ( kp%kptx(ik) * simu_cell%B(3,1) +  kp%kpty(ik) * simu_cell%B(3,2) + kp%kptz(ik) * simu_cell%B(3,3) ) * ncell
 
     do ia = 1 , natm
 
@@ -1472,13 +1466,13 @@ SUBROUTINE band ( hess )
 
 
     if ( MOD ( ik + 1 , 10 ) .eq. 0 ) &
-    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kp%kpt ( 1 , ik ) , kp%kpt ( 2 , ik ) , kp%kpt ( 3 , ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
-    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kp%kpt ( 1 , ik ) , kp%kpt ( 2 , ik ) , kp%kpt ( 3 , ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
+    WRITE ( stdout ,'(i7,3f12.4,3f18.6)')        ik, kp%kptx ( ik ) , kp%kpty ( ik ) , kp%kptz ( ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
+    WRITE ( kunit_DOSKFF ,'(i7,3f12.4,3f18.6)')  ik, kp%kptx ( ik ) , kp%kpty ( ik ) , kp%kptz ( ik ) , SQRT (ww(1)),SQRT (ww(2)), SQRT (ww(3))
   enddo
 
   CLOSE ( kunit_DOSKFF )
 
-  deallocate ( kp%kpt )
+  deallocate ( kp%kptx , kp%kpty , kp%kptz  )
   deallocate ( tmphess)
   deallocate ( hessij )
 
@@ -1520,8 +1514,8 @@ SUBROUTINE doskpt ( hess , eigenk , km )
   real(kind=dp) , intent (out) :: eigenk( km%nk  , 3 * ntype)
 
   ! local
-  integer          :: ck , kl , wi , ierr , si , sj , im
-  integer          :: ik , i , ia , ja , p1 , p2
+  integer          :: wi , ierr , si , sj , im
+  integer          :: ik , ia , ja , p1 , p2
   real(kind=dp)    :: rxi , ryi , rzi
   real(kind=dp)    :: rxij , ryij , rzij , rijsq
   real(kind=dp)    :: sxij , syij , szij
@@ -1536,8 +1530,7 @@ SUBROUTINE doskpt ( hess , eigenk , km )
   integer*4        :: info, lwork
 
   ! trash
-  integer          :: iiii
-  character(len=60):: cccc
+  !integer          :: iiii
 
   ! =====================================================
   ! WARNING : 
@@ -1584,9 +1577,9 @@ SUBROUTINE doskpt ( hess , eigenk , km )
 
   do ik = km%kpt_dec%istart , km%kpt_dec%iend
 
-    kx = km%kpt(1,ik) * REAL( ncell , kind = dp )
-    ky = km%kpt(2,ik) * REAL( ncell , kind = dp )
-    kz = km%kpt(3,ik) * REAL( ncell , kind = dp )
+    kx = km%kptx(ik) * REAL( ncell , kind = dp )
+    ky = km%kpty(ik) * REAL( ncell , kind = dp )
+    kz = km%kptz(ik) * REAL( ncell , kind = dp )
 
     tmphess = 0.0_dp
     hessij  = 0.0_dp
@@ -1721,7 +1714,7 @@ SUBROUTINE write_IBZKPTFF ( km )
 
   ! local
   integer :: ik , i 
-  integer :: nk , wi , nktot
+  integer :: wi , nktot
 
   wi = 1
   nktot = ( ( nkphon + 1 ) *( nkphon + 1 ) * ( nkphon + 1 ) )
@@ -1735,7 +1728,7 @@ SUBROUTINE write_IBZKPTFF ( km )
   endif
 
   do ik = 1 , nktot
-    io_node WRITE (kunit_IBZKPTFF,'(3f16.12,i6)') ( km%kpt(i,ik) , i = 1 , 3 ) 
+    io_node WRITE (kunit_IBZKPTFF,'(3f16.12)') km%kptx(ik) , km%kpty(ik) , km%kptz(ik) 
   enddo
 
   CLOSE(kunit_IBZKPTFF)

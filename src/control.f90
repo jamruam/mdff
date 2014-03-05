@@ -44,12 +44,11 @@ MODULE control
   logical,           SAVE :: ltraj            !< save trajectory                                    
   logical,           SAVE :: lstatic          !< no MD                                                
   logical,           SAVE :: lvnlist          !< verlet list if .true.                            
-  logical,           SAVE :: lpbc             !< PBC (periodic ...) if .true.                     
-  logical,           SAVE :: lminimg          !< minimum convention image convention if .true.                     
   logical,           SAVE :: lrestart         !< restart or not if true strart from the velocities read in POSFF
   logical,           SAVE :: lreduced         !< print reduced thermo quantites by the number of atoms (natm)
-  logical,           SAVE :: lshiftpot        !< shifted potential
-  logical,           SAVE :: lbmlj            !< binary mixture lennard-jones potential
+  logical,           SAVE :: lnmlj            !< n-m lennard-jones potential
+  logical,           SAVE :: lbmhft           !< born huggins Mayer potential
+  logical,           SAVE :: lbmhftd          !< born huggins Mayer potential + damping
   logical,           SAVE :: lharm            !< harmonic oscilaltor ( to test integration )
   logical,           SAVE :: lmorse           !< morse potential 
   logical,           SAVE :: lcoulomb         !< coulombic potential
@@ -95,6 +94,12 @@ MODULE control
   character(len=3), SAVE :: iscff_data
   character(len=3), SAVE :: data_allowed(4)
   data data_allowed / 'rvf' , 'rnn' , 'rnf' , 'rvn' /
+
+  ! ==============================================================
+  !  non-bonded potential if one of lnmlj, lbmhftd, lbmhftd,lmorse is true 
+  ! ==============================================================
+  logical, SAVE           :: non_bonded 
+   
   
 CONTAINS
 
@@ -116,8 +121,10 @@ SUBROUTINE control_init ( MDFF )
   character(len=80)  :: MDFF
   character(len=132) :: filename
 
-  namelist /controltag/  lbmlj        , &
+  namelist /controltag/  lnmlj        , &
                          lmorse       , &
+                         lbmhft       , &
+                         lbmhftd      , &
                          lcoulomb     , &
                          lsurf        , &
                          lcsvr        , &
@@ -127,10 +134,7 @@ SUBROUTINE control_init ( MDFF )
                          cutshortrange, &
                          lvnlist      , &
                          lstatic      , &
-                         lpbc         , &
-                         lminimg      , &
                          lreduced     , & 
-                         lshiftpot    , &
                          ltest        , &
                          lrestart     , &
                          calc         , &
@@ -190,7 +194,9 @@ SUBROUTINE control_default_tag
   ! ================
   !  default values
   ! ================
-  lbmlj         = .false.
+  lnmlj         = .false.
+  lbmhft        = .false.
+  lbmhftd       = .false.
   lmorse        = .false.
   lcoulomb      = .false.
   lsurf         = .false.
@@ -199,11 +205,8 @@ SUBROUTINE control_default_tag
   ltraj         = .false.
   lvnlist       = .true.
   lstatic       = .false.
-  lpbc          = .true.
-  lreduced      = .true.
-  lshiftpot     = .true.
+  lreduced      = .false.
   ltest         = .false.
-  lminimg       = .true.
   lrestart      = .false.
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
@@ -295,21 +298,25 @@ SUBROUTINE control_check_tag
     io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: restart_data should be ', data_allowed
   endif
 
-
-
   if ( calc .ne. 'md' ) return 
 
-  if ( .not. lbmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm ) then
-   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: lj, harm , morse or coulomb or all of them . Anyway make a choice !! '
+  if ( lnmlj .or. lmorse .or. lbmhftd .or. lbmhft ) then
+    non_bonded = .true.
+  endif
+
+  if ( .not. lnmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm .and. .not. lbmhftd .and. .not. lbmhft ) then
+   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: nmlj, harm , morse, bmhftd or coulomb or all of them . Anyway make a choice !! '
    STOP
   endif
 
-  if ( ( lbmlj .or. lmorse ) .and. cutshortrange .eq. 0.0_dp ) then
+  if ( non_bonded .and. cutshortrange .eq. 0.0_dp ) then
     io_node WRITE ( stdout , '(a)' ) 'controltag: cutshortrange is null', cutshortrange
+    STOP
   endif
 
-  if ( lcoulomb .and. ( cutlongrange .eq. 0.0_dp .or. cutshortrange .eq. 0.0_dp ) ) then
-    io_node WRITE ( stdout , '(a)' ) 'controltag: cutlongrange or cutshortrange is null', cutlongrange, cutshortrange
+  if ( lcoulomb .and. cutlongrange .eq. 0.0_dp ) then
+    io_node WRITE ( stdout , '(a)' ) 'controltag: cutlongrange is null', cutlongrange
+    STOP  
   endif
 
   return
@@ -395,16 +402,15 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a)'  )     'CONTROL MODULE ... WELCOME'
      blankline(kunit)
      WRITE ( kunit ,'(a,a)')     'calc        =  ', calc 
-     WRITE ( kunit ,'(a,l2)')    'lbmlj       = ', lbmlj 
+     WRITE ( kunit ,'(a,l2)')    'lnmlj       = ', lnmlj 
+     WRITE ( kunit ,'(a,l2)')    'lbmhft      = ', lbmhft
+     WRITE ( kunit ,'(a,l2)')    'lbmhftd     = ', lbmhftd
      WRITE ( kunit ,'(a,l2)')    'lmorse      = ', lmorse 
      WRITE ( kunit ,'(a,l2)')    'lcoulomb    = ', lcoulomb
      WRITE ( kunit ,'(a,l2)')    'lsurf       = ', lsurf
      WRITE ( kunit ,'(a,l2)')    'lvnlist     = ', lvnlist
      WRITE ( kunit ,'(a,l2)')    'lstatic     = ', lstatic
-     WRITE ( kunit ,'(a,l2)')    'lpbc        = ', lpbc
-     WRITE ( kunit ,'(a,l2)')    'lminimg     = ', lminimg
      WRITE ( kunit ,'(a,l2)')    'lreduced    = ', lreduced 
-     WRITE ( kunit ,'(a,l2)')    'lshiftpot   = ', lshiftpot
      WRITE ( kunit ,'(a,l2)')    'lrestart    = ', lrestart 
      blankline(kunit)
   endif

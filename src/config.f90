@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE CONF ******************************************
@@ -287,7 +287,7 @@ SUBROUTINE config_alloc
   qia       = 0.0_dp
   massia    = 1.0_dp
   quadia    = 0.0_dp
-  dipia     = 0.0_dp
+  dipia   = 0.0_dp
   dipia_ind = 0.0_dp
   dipia_wfc = 0.0_dp
   polia     = 0.0_dp

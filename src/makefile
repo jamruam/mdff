@@ -54,9 +54,9 @@ EXE= mdff.x
 # =================
 #   on mario / babar / charrue
 # =================
-FCFLAGS = -O3 -ip -static -xSSE4.2 -align all 
+FCFLAGS = -O3 -xSSE4.2 -align all 
 #FCFLAGS = -O3 -ip -static -align all 
-#FCFLAGS = -O3 -pg
+FCFLAGS = -O3 -xSSE4.2 -align all
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all 
 ifeq ($(HOST),debian-charrue)
@@ -90,7 +90,7 @@ $(info FCFLAGS :  $(FCFLAGS))
 #   on T5600
 # =================
 ifeq ($(HOST),IRAM-CE-004776)
-	LDFLAGS=-Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
 	INC=-I/opt/intel/composerxe/mkl/include/fftw/
 endif
 
@@ -108,9 +108,9 @@ $(info ===================================================)
 # ==================
 #  target files
 # ==================
-OBJ= constants.o io.o mpi_mdff.o control.o time.o functions.o \
+OBJ= constants.o dumb.o io.o tt_damp.o mpi_mdff.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
+     block_average.o kspace_new.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
 

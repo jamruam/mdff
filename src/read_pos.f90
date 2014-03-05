@@ -19,7 +19,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug_readpos
+!#define debug_readpos
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE read_pos **********************************
@@ -95,16 +95,13 @@ SUBROUTINE read_pos
   ! config info
   ! ===============================
   CALL config_print_info(stdout)
-  ! ===============================
-  ! init force_field 
-  ! ===============================
-  CALL field_init
 
   ! =========================================      
   ! read positions, velocities, forces from disk 
   ! =========================================      
   if ( restart_data == "rnn" ) then
     READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , ia = 1 , natm )
+    
   else if ( restart_data == "rvn" ) then
     READ  ( kunit_POSFF , * ) ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
                                                vx ( ia ) , vy ( ia ) , vz ( ia ) , ia = 1 , natm ) 
@@ -123,8 +120,10 @@ SUBROUTINE read_pos
     fy=0.0_dp
     fz=0.0_dp
   endif
-
-  !CALL print_config_sample(0,0)
+  ! ===============================
+  ! init force_field 
+  ! ===============================
+  CALL field_init
 
   if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
     ! ======================================
@@ -136,11 +135,11 @@ SUBROUTINE read_pos
 
   CLOSE ( kunit_POSFF )
 
-!  CALL print_config_sample(0,0)
-
   CALL typeinfo_init
-
+  CALL print_config_sample(0,0)
+#ifdef debug_read_pos
   CALL distance_tab 
+#endif
 
   CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
@@ -169,6 +168,7 @@ SUBROUTINE typeinfo_init
   integer :: ccs , cc
   integer :: ia , it, i , j 
 
+  !print*,'in typeinfo_init'
   ! ==========================
   !  set some type parameters
   ! ==========================      

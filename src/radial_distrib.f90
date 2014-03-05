@@ -222,22 +222,19 @@ SUBROUTINE grcalc
   implicit none
 
   ! local 
-  integer                                              :: ia , ic , it , ngr , igr , i 
+  integer                                              :: ic , ngr , igr 
   integer                                              :: it1 , it2 , mp , ierr 
   real(kind=dp),     dimension ( : , : ) , allocatable :: grr 
   integer,           dimension ( : )     , allocatable :: nr 
   character(len=15), dimension ( : )     , allocatable :: cint
   real(kind=dp)                                        :: rr , vol
   real(kind=dp)                                        :: ttt1 , ttt2      
-  logical                                              :: allowed
-  character(len=60)                                    :: cpos 
+  real(kind=dp)                                        :: average_volume
+  real(kind=dp)                                        :: rho_av 
 
 
-  ! trash 
-  integer            :: iiii
-  real(kind=dp)      :: aaaa
-  character(len=60)  :: cccc
-
+  rho_av = 0.0_dp
+  average_volume = 0.0_dp      
 
   OPEN ( kunit_GRTFF , file = 'GRTFF' )
   OPEN ( kunit_NRTFF , file = 'NRTFF' )
@@ -297,7 +294,9 @@ SUBROUTINE grcalc
     CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data ) 
 
     CALL lattice ( simu_cell )
-    rho = DBLE ( natm )  / simu_cell%omega
+    rho_av = rho_av + ( REAL ( natm ,kind=dp )  / simu_cell%omega )
+    average_volume = average_volume + simu_cell%omega    
+    !print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 
     ngr=ngr+1 
     ! ==========================
@@ -306,6 +305,9 @@ SUBROUTINE grcalc
     call gr_main 
 
   enddo !nconf 
+  rho_av = rho_av / REAL(nconf,kind=dp)      
+  average_volume = average_volume / REAL(nconf,kind=dp)
+  if ( average_volume .ne. simu_cell%omega ) write(stdout,'(a,e16.8)') 'average volume : ',average_volume
 
   ! ===========================================
   !        merge results  
@@ -348,7 +350,7 @@ SUBROUTINE grcalc
   do igr = 0 , nbins-1
     rr  = ( REAL ( igr ,kind=dp )+0.5d0)*resg
     vol = 4.d0 * pi * ( resg * rr* rr + ( resg**3 ) / 12.d0 )
-    vol = vol / simu_cell%omega 
+    vol = vol / average_volume  ! only  make sense for trajectory in NPT otherwise the average volume is the current volume ) 
     ! all - all pairs 
     grr ( 0 , igr ) = DBLE ( gr ( igr , 0 , 0 ) ) / ( ngr * vol * natm * natm )
 !    grr ( 0 , igr ) = DBLE ( gr ( 0 , 0 , igr ) ) / ( ngr * vol * natm * natm )
@@ -400,7 +402,7 @@ SUBROUTINE gr_main
 
   USE control,                  ONLY :  myrank, lvnlist
   USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, list, point , atom_dec
-  USE io,                  ONLY :  ionode , stdout  , stderr
+  USE io,                       ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
   USE cell,                     ONLY :  kardir , dirkar
 
@@ -447,10 +449,10 @@ SUBROUTINE gr_main
         if ( rijsq.lt.cut2 ) then
           rr = SQRT ( rijsq )
           igr = INT ( rr / resg ) 
-!         if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
-!            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
-!            STOP
-!          endif 
+         if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
+            WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
+            STOP
+          endif 
           ! all pairs
           gr ( igr , 0    , 0   ) = gr ( igr , 0   ,   0 ) + 1 
           gr ( igr , ita  , jta ) = gr ( igr , ita , jta  ) + 1

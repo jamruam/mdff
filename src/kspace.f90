@@ -40,9 +40,8 @@ MODULE kspace
     real(kind=dp)   , dimension(:,:) , allocatable :: kpt       !< kpoints mesh : dimension ( 3 , nk )
     real(kind=dp)   , dimension(:)   , allocatable :: kptk      !< k module
     real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< k module
-    complex(kind=dp), dimension(:,:) , allocatable :: strf      !< facteur de structure
-    complex(kind=dp), dimension(:,:) , allocatable :: expkr     !< facteur de structure
     complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
+    complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk    !< facteur de structure
     character(len=15)                              :: meshlabel !< giving a name to kmesh
     TYPE ( decomposition )                         :: kpt_dec   
   END TYPE
@@ -66,7 +65,7 @@ CONTAINS
 SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
 
   USE config,           ONLY :  simu_cell
-  USE io,          ONLY :  ionode , stdout
+  USE io,               ONLY :  ionode , stdout
   USE cell,             ONLY :  dirkar
 
   implicit none
@@ -84,23 +83,23 @@ SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
   kp%kpt = 0.0d0
   ! first kpoint
   kp%kpt ( 1 , 1  ) = ks ( 1 )
-  kp%kpt ( 2 , 1  ) = ks ( 2 )
-  kp%kpt ( 3 , 1  ) = ks ( 3 )
+  kp%kpt ( 1 , 2  ) = ks ( 2 )
+  kp%kpt ( 1 , 3  ) = ks ( 3 )
   ! last kpoint
-  kp%kpt ( 1 , nk ) = ke ( 1 )
-  kp%kpt ( 2 , nk ) = ke ( 2 )
-  kp%kpt ( 3 , nk ) = ke ( 3 )
+  kp%kpt ( nk , 1 ) = ke ( 1 )
+  kp%kpt ( nk , 2 ) = ke ( 2 )
+  kp%kpt ( nk , 3 ) = ke ( 3 )
   ! path direction
-  kp%kdir ( 1 ) = kp%kpt ( 1 , nk ) - kp%kpt ( 1 , 1 )
-  kp%kdir ( 2 ) = kp%kpt ( 2 , nk ) - kp%kpt ( 2 , 1 )
-  kp%kdir ( 3 ) = kp%kpt ( 3 , nk ) - kp%kpt ( 3 , 1 )
+  kp%kdir ( 1 ) = kp%kpt ( nk , 1 ) - kp%kpt ( 1 , 1 )
+  kp%kdir ( 2 ) = kp%kpt ( nk , 2 ) - kp%kpt ( 1 , 2 )
+  kp%kdir ( 3 ) = kp%kpt ( nk , 3 ) - kp%kpt ( 1 , 3 )
   kp%nk = nk
   kp%pathlabel = path
 
   if ( ionode ) then
     WRITE ( stdout , '(a,a     )' ) 'path name : ', kp%pathlabel
-    WRITE ( stdout , '(a,3f12.5)' ) 'start     : ', ( kp%kpt ( i , 1  ) , i = 1 , 3 )
-    WRITE ( stdout , '(a,3f12.5)' ) 'end       : ', ( kp%kpt ( i , nk ) , i = 1 , 3 )
+    WRITE ( stdout , '(a,3f12.5)' ) 'start     : ', ( kp%kpt ( 1  , i ) , i = 1 , 3 )
+    WRITE ( stdout , '(a,3f12.5)' ) 'end       : ', ( kp%kpt ( nk , i ) , i = 1 , 3 )
     WRITE ( stdout , '(a,3f12.5)' ) 'direction : ', ( kp%kdir( i )      , i = 1 , 3 )
  endif
 
@@ -108,9 +107,9 @@ SUBROUTINE get_kpath ( ks , ke , nk , path , kp )
 
   do ik = 2 , nk
     r_ik = REAL ( ik - 1 , kind = dp )
-    kp%kpt(1,ik) = kp%kpt(1,1) + r_ik * kp%kdir ( 1 ) * step
-    kp%kpt(2,ik) = kp%kpt(2,1) + r_ik * kp%kdir ( 2 ) * step
-    kp%kpt(3,ik) = kp%kpt(3,1) + r_ik * kp%kdir ( 3 ) * step
+    kp%kpt(ik,1) = kp%kpt(1,1) + r_ik * kp%kdir ( 1 ) * step
+    kp%kpt(ik,2) = kp%kpt(1,2) + r_ik * kp%kdir ( 2 ) * step
+    kp%kpt(ik,3) = kp%kpt(1,3) + r_ik * kp%kdir ( 3 ) * step
   enddo
 
   io_node WRITE ( stdout , '(a,a,a)' ) 'path ',kp%pathlabel,' generated'
@@ -159,9 +158,9 @@ SUBROUTINE kpoint_sum_init( km , alpha )
           ky = tpi * ( REAL (nx) * simu_cell%B(2,1) +  REAL (ny) * simu_cell%B(2,2) + REAL (nz) * simu_cell%B(2,3) )
           kz = tpi * ( REAL (nx) * simu_cell%B(3,1) +  REAL (ny) * simu_cell%B(3,2) + REAL (nz) * simu_cell%B(3,3) )
           kk = kx * kx + ky * ky + kz * kz
-          km%kpt ( 1 , nk ) = kx
-          km%kpt ( 2 , nk ) = ky
-          km%kpt ( 3 , nk ) = kz
+          km%kpt ( nk , 1 ) = kx
+          km%kpt ( nk , 2 ) = ky
+          km%kpt ( nk , 3 ) = kz
           km%kptk ( nk )    = kk
           km%Ak   ( nk )    = EXP ( - kk * 0.25_dp / alpha2 ) / kk 
 !        endif
@@ -229,9 +228,9 @@ SUBROUTINE kpoint_sum_init_BZ ( km )
         kx = tpi * ( kxi * simu_cell%B(1,1) +  kyi * simu_cell%B(1,2) + kzi * simu_cell%B(1,3) )
         ky = tpi * ( kxi * simu_cell%B(2,1) +  kyi * simu_cell%B(2,2) + kzi * simu_cell%B(2,3) )
         kz = tpi * ( kxi * simu_cell%B(3,1) +  kyi * simu_cell%B(3,2) + kzi * simu_cell%B(3,3) )
-        km%kpt(1,nk) = kx 
-        km%kpt(2,nk) = ky 
-        km%kpt(3,nk) = kz 
+        km%kpt(nk,1) = kx 
+        km%kpt(nk,2) = ky 
+        km%kpt(nk,3) = kz 
         km%kptk(nk) = kx*kx + ky*ky + kz*kz 
       enddo
     enddo
@@ -296,18 +295,18 @@ SUBROUTINE reorder_kpt ( km )
   ! ==============================
   !  save previous order
   ! ==============================
-  tmpkx=km%kpt(1,:)
-  tmpky=km%kpt(2,:)
-  tmpkz=km%kpt(3,:) 
+  tmpkx=km%kpt(:,1)
+  tmpky=km%kpt(:,2)
+  tmpkz=km%kpt(:,3) 
   if ( ALLOCATED(km%Ak) ) tmpak=km%Ak
   ! ===============================================
   !  change kptx , kpty , kptz following kptk sort
   ! ===============================================
   do ik=1,km%nk
     lk=labelkpt(ik)
-    km%kpt(1,ik) = tmpkx(lk) 
-    km%kpt(2,ik) = tmpky(lk) 
-    km%kpt(3,ik) = tmpkz(lk) 
+    km%kpt(ik,1) = tmpkx(lk) 
+    km%kpt(ik,2) = tmpky(lk) 
+    km%kpt(ik,3) = tmpkz(lk) 
     if ( ALLOCATED(km%Ak) ) km%Ak(ik) = tmpak(lk) 
   enddo
 
@@ -326,81 +325,90 @@ END SUBROUTINE reorder_kpt
 !> \author
 !! FMV
 ! ******************************************************************************
-SUBROUTINE struc_fact ( km ) 
-  
-  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
-  USE io,               ONLY :  ionode , kunit_STRFACFF
-  USE constants,        ONLY :  imag , mimag
+! deprecated not working anymore
+!SUBROUTINE struc_fact ( km ) 
+!  
+!  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
+!  USE io,               ONLY :  ionode , kunit_STRFACFF
+!  USE constants,        ONLY :  imag , mimag
 
-  implicit none
+!  implicit none
 
-  ! global
-  TYPE ( kmesh ), intent(inout) :: km
+!  ! global
+!  TYPE ( kmesh ), intent(inout) :: km
 
-  ! local
-  !integer :: it
-  integer :: ia, ik
-  real(kind=dp) :: arg , rxi , ryi , rzi 
+!  ! local
+!  !integer :: it
+!  integer :: ia, ik
+!  real(kind=dp) :: arg , rxi , ryi , rzi 
 
-  !  exp ( i k . r ) 
-  km%strf(:,:) = (0.0_dp,0.0_dp)
+!  !  exp ( i k . r ) 
+!  km%strf(:,:) = (0.0_dp,0.0_dp)
 !  do it = 1, ntype
-     do ia = 1, natm
-        rxi = rx ( ia ) 
-        ryi = ry ( ia ) 
-        rzi = rz ( ia ) 
+!     do ia = 1, natm
+!        rxi = rx ( ia ) 
+!        ryi = ry ( ia ) 
+!        rzi = rz ( ia ) 
  
 !        if ( itype (ia) .eq. it ) then
-           do ik = 1, km%nk 
-              arg = ( km%kpt ( 1 , ik ) * rxi + km%kpt ( 2 , ik ) * ryi + km%kpt ( 3 , ik ) * rzi ) 
-              km%strf  ( ik , ia ) = km%strf  ( ik , ia ) + EXP( imag * arg ) 
-           enddo
+!           do ik = 1, km%nk 
+!              arg = ( km%kpt ( ik , 1) * rxi + km%kpt ( ik , 2 ) * ryi + km%kpt ( ik , 3) * rzi ) 
+!              km%strf  ( ik , ia ) = km%strf  ( ik , ia ) + EXP( imag * arg ) !!! check the order of index
+!           enddo
 !        endif
-     enddo
+!     enddo
 !  enddo
 
-  return
+!  return
 
-END SUBROUTINE struc_fact
+!END SUBROUTINE struc_fact
 
-SUBROUTINE charge_density_k ( km , mu )
+! similar as in kspace.f90 but with type conditions for efg calculation
+SUBROUTINE charge_density_k ( km , mu , update_mu )
 
   USE constants,        ONLY :  imag
-  USE config,           ONLY :  natm , rx , ry , rz , qia 
+  USE config,           ONLY :  natm , rx , ry , rz , qia , itype
 
   implicit none
 
   ! global
   TYPE ( kmesh ), intent(inout) :: km
   real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
+  logical                       :: update_mu
 
   ! local
   integer :: ia ,ik
-  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz
-  real(kind=dp) :: kx , ky , kz 
+  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , mux , muy , muz
+  real(kind=dp) :: kx , ky , kz
+  complex(kind=dp) :: expikr , sumia , sumia2 , ik_dot_mu, sumiax,sumiay,sumiaz     
 
+  !print*,'in rhok',km%kpt_dec%istart, km%kpt_dec%iend
   km%rhon  = (0.0_dp,0.0_dp)
-  km%expkr = (0.0_dp,0.0_dp)
-  
-  do ia = 1 , natm
+  do ik = km%kpt_dec%istart, km%kpt_dec%iend
+    kx = km%kpt ( ik , 1 )
+    ky = km%kpt ( ik , 2 )
+    kz = km%kpt ( ik , 3 )
 
-    rxi = rx ( ia )
-    ryi = ry ( ia )
-    rzi = rz ( ia )
-    mux = mu ( ia , 1 )
-    muy = mu ( ia , 2 )
-    muz = mu ( ia , 3 )
-
-    do ik = 1, km%nk
-       kx = km%kpt ( 1 , ik )
-       ky = km%kpt ( 2 , ik )
-       kz = km%kpt ( 3 , ik )
-       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-       k_dot_mu = ( mux * kx + muy * ky + muz * kz )
-       km%expkr ( ik , ia ) = EXP ( imag * k_dot_r ) 
-       km%rhon  ( ik )      = km%rhon ( ik ) + ( qia ( ia ) + imag * k_dot_mu ) * km%expkr  ( ik , ia ) 
-    enddo  
-
+    sumia = (0.0_dp,0.0_dp)
+    do ia = 1 , natm
+      rxi = rx ( ia )
+      ryi = ry ( ia )
+      rzi = rz ( ia )
+      mux = mu ( ia , 1 )
+      muy = mu ( ia , 2 )
+      muz = mu ( ia , 3 )
+      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
+      ik_dot_mu = imag * ( mux * kx + muy * ky + muz * kz )
+      expikr = EXP ( imag * k_dot_r )  
+      sumia  = sumia + ( qia ( ia ) + ik_dot_mu ) * expikr
+!      sumiax = sumiax + ( imag * mux ) * expikr
+!      sumiay = sumiay + ( imag * muy ) * expikr
+!      sumiaz = sumiaz + ( imag * muz ) * expikr
+    enddo
+    km%rhon   ( ik ) = sumia
+!    km%rhon_dk( ik , 1 ) = sumiax
+!    km%rhon_dk( ik , 2 ) = sumiay
+!    km%rhon_dk( ik , 3 ) = sumiaz
   enddo
 
   return

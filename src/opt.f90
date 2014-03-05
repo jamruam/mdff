@@ -182,7 +182,6 @@ END SUBROUTINE opt_check_tag
 ! ******************************************************************************
 SUBROUTINE opt_print_info(kunit) 
 
-  USE control,                  ONLY :  lpbc 
   USE io,                  ONLY :  ionode 
 
   implicit none
@@ -221,8 +220,7 @@ SUBROUTINE opt_print_info(kunit)
        endif
 
                                blankline(kunit) 
-     if (.not.lpbc)            WRITE ( kunit ,'(a)')       'no periodic boundary conditions (cubic cell wall)'
-     if (lpbc)                 WRITE ( kunit ,'(a)')       'periodic boundary conditions in cubic cell'
+                               WRITE ( kunit ,'(a)')       'periodic boundary conditions'
                                blankline(kunit) 
                                WRITE ( kunit ,'(a)')       'read configuration from file          :   TRAJFF'
                                WRITE ( kunit ,'(a)')       'save IS thermo. properties into file  :   ISTHFF' 
@@ -263,13 +261,10 @@ SUBROUTINE opt_main
   implicit none
 
   ! local 
-  integer           :: i , ia , it , ic, neng, iter, nopt , ierr
+  integer           :: ia , it , ic, neng, iter, nopt , ierr
   real(kind=dp)     :: phigrad, pressure0, pot0, Eis
   real(kind=dp)     :: ttt1,ttt2
   real(kind=dp)     :: ttt1p,ttt2p
-  logical           :: allowed
-  character(len=60) :: cpos
-  real(kind=dp)     :: aaaa
 
   ttt1 = MPI_WTIME(ierr)
 

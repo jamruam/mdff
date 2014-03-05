@@ -33,8 +33,6 @@ MODULE thermodynamic
 
   implicit none
 
-  real(kind=dp) :: engunit        !< energy units
-
   real(kind=dp) :: h_tot          !< general conserved quantity (ensemble dependent) 
   real(kind=dp) :: e_tot          !< total energy  ( potential + kinetic )
   real(kind=dp) :: u_tot          ! total potential energy 
@@ -42,10 +40,8 @@ MODULE thermodynamic
   real(kind=dp) :: e_kin          !< kinetic energy
   real(kind=dp) :: u_lj           !< potential energy from lennard_jones interaction
   real(kind=dp) :: u_morse        !< potential energy from morse interaction
-  real(kind=dp) :: u_coul_tot
-!  real(kind=dp) :: u_coul_qq      !< potential energy from coulombic interaction 
-!  real(kind=dp) :: u_coul_dd      !< potential energy from coulombic interaction 
-!  real(kind=dp) :: u_coul_qd      !< potential energy from coulombic interaction
+  real(kind=dp) :: u_bmhft        !< potential energy from bmhft interaction
+  real(kind=dp) :: u_coul
   real(kind=dp) :: u_pol 
   real(kind=dp) :: u_harm         !< harmonic oscilaltor lharm  
   real(kind=dp) :: e_nvt          !< Nose Hoover thermostat "energy" (conserved quantity) 
@@ -57,6 +53,7 @@ MODULE thermodynamic
   real(kind=dp) :: temp_r         !< temperature ( from kinetic energy )  
   real(kind=dp) :: u_lj_r         !< potential energy from lennard_jones interaction
   real(kind=dp) :: u_morse_r      !< potential energy from morse interaction
+  real(kind=dp) :: u_bmhft_r      !< potential energy from bmhft interaction
   real(kind=dp) :: u_coul_r       !< potential energy from coulombic interaction 
   real(kind=dp) :: e_nvt_r        !< further Nose Hoover energy for the conserved quantity 
   real(kind=dp) :: e_npt_r        !< further Nose Hoover energy for the conserved quantity 
@@ -66,6 +63,7 @@ MODULE thermodynamic
   real(kind=dp) :: vir_tot        !< total virial
   real(kind=dp) :: vir_lj         !< virial of lj interaction
   real(kind=dp) :: vir_morse      !< virial of morse interaction
+  real(kind=dp) :: vir_bmhft      !< virial of bmhft interaction
   real(kind=dp) :: vir_coul_tot   !< virial of coulombic interaction
 !  real(kind=dp) :: vir_coul_qq    !< virial of coulombic interaction
 !  real(kind=dp) :: vir_coul_dd    !< virial of coulombic interaction
@@ -73,16 +71,24 @@ MODULE thermodynamic
 
   real(kind=dp) :: pvirial_tot    !< virial correction to the pressure
   real(kind=dp) :: pvirial_lj     !< virial correction to the pressure
+  real(kind=dp) :: pvirial_morse  !< virial correction to the pressure
+  real(kind=dp) :: pvirial_bmhft  !< virial correction to the pressure
   real(kind=dp) :: pvirial_coul   !< virial correction to the pressure
   real(kind=dp) :: pvirial_tot_r  !< virial correction to the pressure
   real(kind=dp) :: pvirial_lj_r   !< virial correction to the pressure
+  real(kind=dp) :: pvirial_morse_r!< virial correction to the pressure
+  real(kind=dp) :: pvirial_bmhft_r!< virial correction to the pressure
   real(kind=dp) :: pvirial_coul_r !< virial correction to the pressure
 
   real(kind=dp) :: pressure_tot   !< total pressure
   real(kind=dp) :: pressure_lj    !< pressure from lj interactions
+  real(kind=dp) :: pressure_morse !< pressure from lj interactions
+  real(kind=dp) :: pressure_bmhft !< pressure from lj interactions
   real(kind=dp) :: pressure_coul  !< pressure from coulombic interactions
   real(kind=dp) :: pressure_tot_r !< total pressure
   real(kind=dp) :: pressure_lj_r  !< pressure from lj interactions
+  real(kind=dp) :: pressure_morse_r  !< pressure from lj interactions
+  real(kind=dp) :: pressure_bmhft_r  !< pressure from lj interactions
   real(kind=dp) :: pressure_coul_r!< pressure from coulombic interactions
 
   TYPE (accu) acc_e_tot          !< total energy  ( potential + kinetic ) 
@@ -109,7 +115,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE calc_thermo
 
-  USE constants,                ONLY :  boltz
+  USE constants,                ONLY :  boltz , press_unit
   USE control,                  ONLY :  lreduced , lcsvr
   USE config,                   ONLY :  natm , rho , simu_cell 
   USE md,                       ONLY :  integrator, press
@@ -122,45 +128,56 @@ SUBROUTINE calc_thermo
  !!!! WARNING virials are wrong
 
   if (lreduced) then
-    u_lj_r   = u_lj         / REAL ( natm , kind = dp ) / engunit
-    u_morse_r= u_morse      / REAL ( natm , kind = dp ) / engunit
-    u_coul_r = u_coul_tot   / REAL ( natm , kind = dp ) / engunit
-    e_kin_r  = e_kin        / REAL ( natm , kind = dp ) / engunit
-    e_nvt_r  = e_nvt        / REAL ( natm , kind = dp ) / engunit 
-    e_npt_r  = e_npt        / REAL ( natm , kind = dp ) / engunit 
-    csvr_conint_r = csvr_conint / REAL ( natm , kind = dp ) / engunit
+    u_lj_r   = u_lj         / REAL ( natm , kind = dp )
+    u_morse_r= u_morse      / REAL ( natm , kind = dp )
+    u_bmhft_r= u_bmhft      / REAL ( natm , kind = dp )
+    u_coul_r = u_coul       / REAL ( natm , kind = dp )
+    e_kin_r  = e_kin        / REAL ( natm , kind = dp )
+    e_nvt_r  = e_nvt        / REAL ( natm , kind = dp )
+    e_npt_r  = e_npt        / REAL ( natm , kind = dp )
+    csvr_conint_r = csvr_conint / REAL ( natm , kind = dp )
   else
-    u_lj_r   = u_lj         / engunit
-    u_morse_r= u_morse      / engunit
-    u_coul_r = u_coul_tot   / engunit
-    e_kin_r  = e_kin        / engunit
-    e_nvt_r  = e_nvt        / engunit 
-    e_npt_r  = e_npt        / engunit 
-    csvr_conint_r = csvr_conint / engunit
+    u_lj_r   = u_lj  
+    u_morse_r= u_morse  
+    u_bmhft_r= u_bmhft
+    u_coul_r = u_coul
+    e_kin_r  = e_kin     
+    e_nvt_r  = e_nvt    
+    e_npt_r  = e_npt   
+    csvr_conint_r = csvr_conint 
   endif
  
-  u_tot    = u_lj_r + u_coul_r + u_morse_r + u_harm
+  u_tot    = u_lj_r + u_coul_r + u_morse_r + u_harm + u_bmhft_r
   e_tot    = u_tot  + e_kin_r
 
-  vir_tot  = vir_lj + vir_coul_tot + vir_morse
+  vir_tot  = vir_lj + vir_coul_tot + vir_morse + vir_bmhft
 
   pvirial_lj    = vir_lj       / omega 
-  pvirial_coul  = vir_coul_tot / omega 
-  pvirial_tot   = pvirial_lj + pvirial_coul
-  pressure_tot  = pvirial_tot + temp_r / omega
+  pvirial_morse = vir_morse    / omega 
+  pvirial_bmhft = vir_bmhft    / omega 
+  pvirial_tot   = pvirial_lj + pvirial_coul + pvirial_morse + pvirial_bmhft
+  pressure_tot  = pvirial_tot +  temp_r * boltz / omega
   pressure_lj   = pvirial_lj   
+  pressure_morse= pvirial_morse
+  pressure_bmhft= pvirial_bmhft
   pressure_coul = pvirial_coul 
   if (lreduced) then
-    pvirial_lj_r    = pvirial_lj   / REAL ( natm , kind = dp ) 
-    pvirial_coul_r  = pvirial_coul / REAL ( natm , kind = dp ) 
+    pvirial_lj_r    = pvirial_lj    / REAL ( natm , kind = dp ) * press_unit
+    pvirial_morse_r = pvirial_morse / REAL ( natm , kind = dp ) * press_unit
+    pvirial_coul_r  = pvirial_coul  / REAL ( natm , kind = dp ) * press_unit
+    pvirial_bmhft_r = pvirial_bmhft / REAL ( natm , kind = dp ) * press_unit
   else
-    pvirial_lj_r    = pvirial_lj
-    pvirial_coul_r  = pvirial_coul 
+    pvirial_lj_r    = pvirial_lj    * press_unit
+    pvirial_morse_r = pvirial_morse * press_unit
+    pvirial_coul_r  = pvirial_coul  * press_unit 
+    pvirial_bmhft_r = pvirial_bmhft * press_unit
   endif
-  pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r  
-  pressure_tot_r  = pvirial_tot_r + temp_r / omega
-  pressure_lj_r   = pvirial_lj_r   
-  pressure_coul_r = pvirial_coul_r 
+  pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r + pvirial_morse_r + pvirial_bmhft_r 
+  pressure_tot_r  = ( pvirial_tot_r + temp_r *boltz / omega ) * press_unit
+  pressure_lj_r   = pvirial_lj_r   * press_unit
+  pressure_morse_r= pvirial_morse_r * press_unit   
+  pressure_bmhft_r= pvirial_bmhft_r * press_unit  
+  pressure_coul_r = pvirial_coul_r  * press_unit
 
   ! conserved quantity extended Hamiltonian
   if ( any ( integrator .eq. nve_ensemble )) then 
@@ -181,15 +198,6 @@ SUBROUTINE calc_thermo
     !print*,'NPT ensemble'
     h_tot = e_tot + e_npt_r
   endif
-
-
-  ! =============================================== 
-  !                UNITS
-  ! =============================================== 
-  !print*,'temp_r',temp_r
-  !temp_r = temp_r / boltz
-
-
 
   return
 
@@ -324,9 +332,9 @@ END SUBROUTINE general_accumulator
 ! ******************************************************************************
 SUBROUTINE write_thermo ( step , kunit , key )
 
+  USE constants,        ONLY :  time_unit
   USE control,  ONLY :  lcsvr
   USE config,   ONLY :  simu_cell 
-  USE md,       ONLY :  dt , integrator,xi,vxi,xib,vxib,xe,ve,nhc_n
   USE io,       ONLY :  ionode
   USE md,       ONLY :  nve_ensemble , nvt_ensemble , npt_ensemble , npe_ensemble , dt , integrator, xi, vxi, xib, vxib, xe, ve, nhc_n
 
@@ -338,19 +346,22 @@ SUBROUTINE write_thermo ( step , kunit , key )
 
   ! local 
   real(kind=dp) :: omega , acell ,bcell , ccell
+  real(kind=dp) :: u_vdw_r , pvirial_vdw_r
   
   omega = simu_cell%omega
   acell = simu_cell%ANORM(1)
   bcell = simu_cell%ANORM(2)
   ccell = simu_cell%ANORM(3)
 
+  u_vdw_r = u_lj_r + u_bmhft_r + u_morse_r
+  pvirial_vdw_r   = pvirial_lj_r + pvirial_morse_r + pvirial_bmhft_r 
 
   if ( key .eq. 'osz' ) then
     if ( ionode ) then
         WRITE ( kunit , 200 ) &
-        step , REAL ( step * dt , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_lj_r      , u_coul_r  , u_morse_r 
+        step , REAL ( step * dt / time_unit , kind = dp ) , e_tot   , e_kin_r      , u_tot        , u_vdw_r      , u_coul_r   
         WRITE ( kunit , 201 ) &
-        step , REAL ( step * dt , kind = dp ) , temp_r  , pressure_tot_r , pressure_lj_r , pressure_coul_r , omega , h_tot  
+        step , REAL ( step * dt / time_unit , kind = dp ) , temp_r  , pressure_tot_r , pvirial_vdw_r , pvirial_coul_r , omega , h_tot  
     endif
   endif
   if ( key .eq. 'std' ) then
@@ -358,20 +369,16 @@ SUBROUTINE write_thermo ( step , kunit , key )
         if ( any ( integrator .eq. nvt_ensemble ) ) write(kunit, 1000) xi,vxi
         if ( any ( integrator .eq. npt_ensemble ) ) write(kunit, 1001) xi,vxi,xib,vxib,xe,ve
 #endif
-        io_node WRITE ( kunit, 300)  step , REAL ( step * dt , kind = dp ) , &
-                                     e_kin_r , temp_r , u_tot  , u_lj_r , u_coul_r  , u_morse_r  , &
-                                     pressure_tot_r , pressure_lj_r , pressure_coul_r , omega ,    &
+        io_node WRITE ( kunit, 300)  step , REAL ( step * dt / time_unit , kind = dp ) , &
+                                     e_kin_r , temp_r , u_tot  , u_vdw_r , u_coul_r  , &
+                                     pressure_tot_r , pvirial_vdw_r , pvirial_coul_r , pvirial_tot_r, omega ,    &
                                      acell , bcell, ccell , e_tot, h_tot
   endif
 
-! 100 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
-!                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8)
-! 101 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
-!                E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8)
  200 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
-                E15.8,'  U_lj   = ',E15.8,'  U_coul   = ',E15.8,'  U_morse   = ',E15.8)
- 201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  P_lj  = ',&
-                E15.8,'  P_coul = ',E15.8,'  Volume   = ',E15.8,'  Htot = ',E15.8)
+                E15.8,'  U_vdw   = ',E15.8,'  U_coul   = ',E15.8)
+ 201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  Pvir_vdw  = ',&
+                E15.8,'  Pvir_coul = ',E15.8,'  Volume   = ',E15.8,'  Htot = ',E15.8)
 
  300 FORMAT(/ &
               '  Thermodynamic information '/ &
@@ -381,12 +388,12 @@ SUBROUTINE write_thermo ( step , kunit , key )
      &        '  Ekin                  = ',E15.8/ &
      &        '  Temp                  = ',E15.8/ &
      &        '  Utot                  = ',E15.8/ &
-     &        '  U_lj                  = ',E15.8/ &
+     &        '  U_vdw                 = ',E15.8/ &
      &        '  U_coul                = ',E15.8/ &
-     &        '  U_morse               = ',E15.8/ &
      &        '  Pressure              = ',E15.8/ &
-     &        '  P_lj                  = ',E15.8/ &
-     &        '  P_coul                = ',E15.8/ &
+     &        '  Pvir_vdw              = ',E15.8/ &
+     &        '  Pvir_coul             = ',E15.8/ &
+     &        '  Pvir_tot              = ',E15.8/ &
      &        '  volume                = ',E15.8/ &
      &        '  a cell                = ',E15.8/ &
      &        '  b cell                = ',E15.8/ &

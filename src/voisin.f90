@@ -218,10 +218,7 @@ SUBROUTINE vois1_driver
   implicit none
 
   ! local 
-  integer            :: i , inb , iiii
-  integer            :: ia , iconf , it 
-  real(kind=dp)      :: aaaa 
-  character(len=60)  :: cccc 
+  integer            :: i , inb , iconf ,it
   dectime
 
 
@@ -287,7 +284,7 @@ SUBROUTINE vois1_driver
     ! parameter-free method
     ! ======================================
     else if ( vois1algo .eq. 'sann' .or. vois1algo .eq. 'sannsq' ) then
-      CALL sann  ( iconf )
+      CALL sann 
     endif
 
     stotime
@@ -511,7 +508,7 @@ END SUBROUTINE fixed_distance
 !     van Meel, Filion, Valeriani and Frenkel November (2011)             
 !
 ! ******************************************************************************
-SUBROUTINE sann ( iconf )
+SUBROUTINE sann
 
   USE config,           ONLY :  natm , simu_cell , rx , ry , rz , atype , atypei , ntype , itype , natmi
   USE control,          ONLY :  cutshortrange
@@ -520,11 +517,8 @@ SUBROUTINE sann ( iconf )
   
   implicit none
   
-  ! global
-  integer, intent ( in ) :: iconf 
-
   ! local
-  integer :: ia, ja , im , sm , it , jt  , jnb , jtnb , kkkk , i
+  integer :: ia, ja , im , sm , it , jt  , jnb , jtnb , kkkk 
   integer :: m
   real(kind=dp) :: dist
   real(kind=dp) :: rxi ,ryi ,rzi

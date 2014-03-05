@@ -29,7 +29,7 @@ MODULE constants
   save
 
   integer, PARAMETER, PUBLIC    :: dp          = selected_real_kind(15,300)            !< double precision definition 
-  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)            !< double precision definition 
+  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)              !< double precision definition 
   real(kind=dp),      PARAMETER :: pi          = 3.14159265358979323846264338327950_dp !< pi
   real(kind=dp),      PARAMETER :: dzero       = 0.0_dp                                !< zero 
   real(kind=dp),      PARAMETER :: done        = 1.0_dp                                !< one 
@@ -44,9 +44,12 @@ MODULE constants
   real(kind=dp),      PARAMETER :: rytoev      = 13.605826_dp                          !< Rydberg constant a.u. to eV
   real(kind=dp),      PARAMETER :: hart        = rytoev*2.0_dp                         !< Hartree energy 
   real(kind=dp),      PARAMETER :: bohr        = 0.529177249_dp                        !< a.u in angstrom  
-  real(kind=dp),      PARAMETER :: coul_factor = 138935.4835_dp                        !< for DL_POLY comparison 
-  real(kind=dp),      PARAMETER :: boltz       = 0.0083144621_dp                        !< boltzmann constant
-  real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< lenght of angstom and energy in eV 
+  real(kind=dp),      PARAMETER :: coul_factor = 14.3996441_dp                         !< 1 / 4pi epsilon0
+  !real(kind=dp),      PARAMETER :: coul_factor = 1.0_dp                         !< 1 / 4pi epsilon0
+  real(kind=dp),      PARAMETER :: press_unit  = 160.2176487_dp                        !< internal unit to GPa
+  real(kind=dp),      PARAMETER :: boltz       = 8.6173423e-05                         !< boltzmann constant ( energy in eV)
+  real(kind=dp),      PARAMETER :: time_unit   = 98.226952_dp                          !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
+  real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< length in angstom and energy in eV 
   real(kind=dp),      PARAMETER :: evtoj       = 1.602176487e-19_dp                    !< eV to J 
   real(kind=dp),      PARAMETER :: hplanck     = 6.62617636e-34_dp                     !< Planck constant 
   real(kind=dp),      PARAMETER :: eh          = evtoj / 1e14_dp / hplanck             !< e/h (electron charge / Planck constant )
