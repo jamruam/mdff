@@ -35,7 +35,7 @@ MODULE io
   logical :: ioprintnode        
 
   !> standard output
-  integer, PARAMETER :: stdout          = 6  
+  integer, PARAMETER :: stdout          = 6 
   !> standard error output
   integer, PARAMETER :: stderr          = 0  
 

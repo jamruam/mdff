@@ -41,9 +41,12 @@ MODULE kspace
     real(kind=dp)   , dimension(:)   , allocatable :: kpty      !< kpoints mesh : dimension ( nk )
     real(kind=dp)   , dimension(:)   , allocatable :: kptz      !< kpoints mesh : dimension ( nk )
     real(kind=dp)   , dimension(:)   , allocatable :: kptk      !< k module
-    real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< k module
+    real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< Ak in ewald
+    real(kind=dp)   , dimension(:)   , allocatable :: kcoe      !< kcoe in ewald
     complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
     complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk    !< facteur de structure
+    complex(kind=dp), dimension(:,:) , allocatable :: expikr    !< facteur de structure
+    complex(kind=dp), dimension(:,:) , allocatable :: expikm    !< facteur de structure
     character(len=15)                              :: meshlabel !< giving a name to kmesh
     TYPE ( decomposition )                         :: kpt_dec   
   END TYPE
@@ -179,15 +182,15 @@ SUBROUTINE kpoint_sum_init( km , alpha )
           km%kptx ( nk ) = kx
           km%kpty ( nk ) = ky
           km%kptz ( nk ) = kz
-          km%kptk ( nk )    = kk
-          km%Ak   ( nk )    = EXP ( - kk * 0.25_dp / alpha2 ) / kk 
+          km%kptk ( nk ) = kk
+          km%Ak   ( nk ) = EXP ( - kk * 0.25_dp / alpha2 ) / kk 
+          km%kcoe ( nk ) = 2.0_dp * ( 1.0_dp / kk + 1.0_dp / alpha2 / 4.0_dp )
       enddo
     enddo
   enddo
  
   if ( nk .ne. km%nk ) then
     io_node WRITE ( stdout ,'(a,2i7,x,a)') 'number of k-points do not match in kpoint_sum_init', nk , km%nk , km%meshlabel
-!    STOP
   endif
 
   km%nk = nk 
@@ -386,7 +389,7 @@ END SUBROUTINE reorder_kpt
 !END SUBROUTINE struc_fact
 
 ! similar as in kspace.f90 but with type conditions for efg calculation
-SUBROUTINE charge_density_k ( km , mu , update_mu )
+SUBROUTINE charge_density_k ( km , mu , ldip , update_mu )
 
   USE constants,        ONLY :  imag
   USE config,           ONLY :  natm , rx , ry , rz , qia , itype
@@ -397,13 +400,14 @@ SUBROUTINE charge_density_k ( km , mu , update_mu )
   TYPE ( kmesh ), intent(inout) :: km
   real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
   logical                       :: update_mu
+  logical                       :: ldip
 
   ! local
   integer :: ia ,ik
-  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , mux , muy , muz
+  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz, qi
   real(kind=dp) :: kx , ky , kz
-  complex(kind=dp) :: expikr , sumia , sumia2 , ik_dot_mu, sumiax,sumiay,sumiaz     
-
+  complex(kind=dp) :: expikr , expikm , sumia
+        
   !print*,'in rhok',km%kpt_dec%istart, km%kpt_dec%iend
   km%rhon  = (0.0_dp,0.0_dp)
   do ik = km%kpt_dec%istart, km%kpt_dec%iend
@@ -413,24 +417,23 @@ SUBROUTINE charge_density_k ( km , mu , update_mu )
 
     sumia = (0.0_dp,0.0_dp)
     do ia = 1 , natm
+      qi  = qia (ia )
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
+      k_dot_r   = ( kx * rxi + ky * ryi + kz * rzi )
+      expikr    = EXP ( imag * k_dot_r )
+      km%expikr(ia,ik) = expikr
+      if ( .not. ldip ) cycle
       mux = mu ( ia , 1 )
       muy = mu ( ia , 2 )
       muz = mu ( ia , 3 )
-      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-      ik_dot_mu = imag * ( mux * kx + muy * ky + muz * kz )
-      expikr = EXP ( imag * k_dot_r )  
-      sumia  = sumia + ( qia ( ia ) + ik_dot_mu ) * expikr
-!      sumiax = sumiax + ( imag * mux ) * expikr
-!      sumiay = sumiay + ( imag * muy ) * expikr
-!      sumiaz = sumiaz + ( imag * muz ) * expikr
+      k_dot_mu  = ( mux * kx + muy * ky + muz * kz )
+      expikm    = k_dot_mu * expikr
+      sumia     = sumia + qi * expikr + imag * expikm 
+      km%expikm(ia,ik) = expikm
     enddo
     km%rhon   ( ik ) = sumia
-!    km%rhon_dk( ik , 1 ) = sumiax
-!    km%rhon_dk( ik , 2 ) = sumiay
-!    km%rhon_dk( ik , 3 ) = sumiaz
   enddo
 
   return

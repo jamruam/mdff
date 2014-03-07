@@ -400,8 +400,8 @@ END SUBROUTINE grcalc
 ! ******************************************************************************
 SUBROUTINE gr_main 
 
-  USE control,                  ONLY :  myrank, lvnlist
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, list, point , atom_dec
+  USE control,                  ONLY :  myrank
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , atype , simu_cell , ntype , itype, atom_dec
   USE io,                       ONLY :  ionode , stdout  , stderr
   USE time,                     ONLY :  grtimetot
   USE cell,                     ONLY :  kardir , dirkar

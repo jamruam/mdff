@@ -32,12 +32,12 @@ MODULE time
 
   implicit none
   
-  real(kind=dp) :: timetot        !< total wall time        
-  real(kind=dp) :: forcetimetot   !< engforce wall time       
-  real(kind=dp) :: fcoultimetot1  !< engforce_coul direct space wall time     
-  real(kind=dp) :: fcoultimetot2  !< engforce_coul fourier space wall time     
-  real(kind=dp) :: fcoultimetot2_2  !< engforce_coul fourier space wall time     
-  real(kind=dp) :: fcoultimetot3  !< engforce_coul wall time (comm only )
+  real(kind=dp) :: timetot         !< total wall time        
+  real(kind=dp) :: forcetimetot    !< engforce wall time       
+  real(kind=dp) :: fcoultimetot1   !< engforce_coul direct space wall time     
+  real(kind=dp) :: fcoultimetot2   !< engforce_coul fourier space wall time     
+  real(kind=dp) :: fcoultimetot2_2 !< engforce_coul fourier space wall time     
+  real(kind=dp) :: fcoultimetot3   !< engforce_coul wall time (comm only )
   real(kind=dp) :: efgtimetot1    !< EFG direct space wall time          
   real(kind=dp) :: efgtimetot2    !< EFG fourier space wall time        
   real(kind=dp) :: efgtimetot3    !< communication only wall time         
@@ -220,6 +220,7 @@ SUBROUTINE print_time_info ( kunit )
       if ( fcoultime_es  .ne. 0.0_dp )  lseparator_noionode(kunit) 
       if ( fcoultimetot1 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(real  part)', fcoultimetot1
       if ( fcoultimetot2 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(recip part)', fcoultimetot2 
+      if ( fcoultimetot2_2 .ne. 0.0_dp )WRITE ( kunit ,110)             'multipole_ES(recip part rhonk)', fcoultimetot2_2 
       if ( fcoultimetot3 .ne. 0.0_dp )  WRITE ( kunit ,110)             'multipole_ES(comm only) ', fcoultimetot3
       if ( rhoktimetot .ne. 0.0_dp )    WRITE ( kunit ,110)             'charge_density_k        ',rhoktimetot
       if ( time_moment_from_pola .ne. 0.0_dp )  WRITE ( kunit ,110)     'moment_from_pola        ', time_moment_from_pola
@@ -232,8 +233,8 @@ SUBROUTINE print_time_info ( kunit )
     if ( bandtimetot.ne.0.0_dp )        WRITE ( kunit ,110)             'band                   ', bandtimetot
     if ( doskpttimetot.ne.0.0_dp )      WRITE ( kunit ,110)             'doskpttimetot          ', doskpttimetot
 
+  !CALL print_dumb
   endif
-  CALL print_dumb
   separator(kunit)
 
 110   FORMAT(2X,A30,' :  cpu time',F9.2)

@@ -304,7 +304,7 @@ SUBROUTINE field_check_tag
     endif
   endif
   !CALL print_config_sample(0,0)
-  !print*,'at check ',task_coul
+  io_node write(*,*) 'Electrostatic tasks ',task_coul
 
 
   return 
@@ -950,7 +950,7 @@ SUBROUTINE engforce_driver
   if ( lcoulomb ) then
                                    CALL get_dipole_moments(mu)
     
-    if ( longrange .eq. 'ewald'  ) CALL multipole_ES_v2 ( eftmp , mu , .true. , task_coul )
+    if ( longrange .eq. 'ewald'  ) CALL multipole_ES_v2 ( eftmp , mu , .true. , task_coul , do_efield=.false. )
   endif
 
   return
@@ -973,7 +973,7 @@ END SUBROUTINE engforce_driver
 SUBROUTINE engforce_nmlj_pbc 
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx, vy , vz , tau_nonb ,  &
-                                        atype , itype , list , point , ntype , simu_cell , atom_dec
+                                        atype , itype , verlet_vdw , ntype , simu_cell , atom_dec
   USE control,                  ONLY :  lvnlist 
   USE thermodynamic,            ONLY :  u_lj , vir_lj , write_thermo
   USE io,                       ONLY :  stdout
@@ -1020,7 +1020,7 @@ SUBROUTINE engforce_nmlj_pbc
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck 
+  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
 
   ! ======================================
   !         cartesian to direct 
@@ -1035,8 +1035,8 @@ SUBROUTINE engforce_nmlj_pbc
     !  verlet list : ja index in point arrays
     ! =====================================
     if ( lvnlist ) then
-      jb = point( ia )
-      je = point( ia + 1 ) - 1
+      jb = verlet_vdw%point( ia )
+      je = verlet_vdw%point( ia + 1 ) - 1
     else
     ! ====================================
     !         else all ja   
@@ -1046,7 +1046,7 @@ SUBROUTINE engforce_nmlj_pbc
     endif
     do j1 = jb, je
       if ( lvnlist ) then
-        ja = list ( j1 )
+        ja = verlet_vdw%list ( j1 )
       else 
         ja = j1
       endif
@@ -1148,7 +1148,7 @@ END SUBROUTINE engforce_nmlj_pbc
 ! ******************************************************************************
 SUBROUTINE engforce_nmlj_nopbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , tau_nonb , simu_cell , atom_dec
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , ntype , tau_nonb , simu_cell , atom_dec , verlet_vdw
   USE control,                  ONLY :  lvnlist
   USE thermodynamic,            ONLY :  u_lj , vir_lj
 
@@ -1178,21 +1178,21 @@ SUBROUTINE engforce_nmlj_nopbc
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck 
+  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   do ia = atom_dec%istart, atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
     if ( lvnlist ) then
-      jb = point ( ia )
-      je = point ( ia + 1 ) - 1
+      jb = verlet_vdw%point ( ia )
+      je = verlet_vdw%point ( ia + 1 ) - 1
     else
       jb = ia 
       je = atom_dec%iend
     endif
     do j1 = jb, je
       if ( lvnlist ) then
-        ja = list(j1)
+        ja = verlet_vdw%list(j1)
       else
         ja = j1
       endif
@@ -1272,7 +1272,7 @@ END SUBROUTINE engforce_nmlj_nopbc
 ! ******************************************************************************
 SUBROUTINE engforce_nmlj_pbc_noshift 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , list , point , ntype , simu_cell , atom_dec
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , verlet_vdw , ntype , simu_cell , atom_dec
   USE control,                  ONLY :  lvnlist 
   USE thermodynamic,            ONLY :  u_lj , vir_lj
   USE time,                     ONLY :  forcetimetot
@@ -1308,21 +1308,21 @@ SUBROUTINE engforce_nmlj_pbc_noshift
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck 
+  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
     if ( lvnlist ) then
-      jb = point ( ia )
-      je = point ( ia + 1 ) - 1
+      jb = verlet_vdw%point ( ia )
+      je = verlet_vdw%point ( ia + 1 ) - 1
     else
       jb = ia 
       je = atom_dec%iend 
     endif
     do j1 = jb, je
       if ( lvnlist ) then
-        ja = list ( j1 )
+        ja = verlet_vdw%list ( j1 )
       else
         ja = j1
       endif 
@@ -1424,7 +1424,7 @@ SUBROUTINE initialize_coulomb
     km_coul%kmax(3) = kES(3)
 
     ! full kpt
-    nk = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
+!    nk = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
 
 !    half 
 !    nk  = ( km_coul%kmax(1) + 1 )  * ( km_coul%kmax(2) + 1 ) * ( km_coul%kmax(3) + 1 )
@@ -1433,14 +1433,13 @@ SUBROUTINE initialize_coulomb
 !   with symmetry
     nk = km_coul%kmax(3) + km_coul%kmax(2) * ( 2 * km_coul%kmax(3) + 1 ) + km_coul%kmax(1) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )
     km_coul%nk = nk
-    print*,nk
-
     allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk), km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak      ( nk ) )
-!    allocate ( km_coul%rhon    ( nk ) )
-!    allocate ( km_coul%rhon_dk ( nk , 3 ) )
+    allocate ( km_coul%kcoe    ( nk ) )
+    allocate ( km_coul%rhon    ( nk ) )
+    allocate ( km_coul%expikr  ( natm , nk ) )
+    allocate ( km_coul%expikm  ( natm , nk ) )
     CALL kpoint_sum_init ( km_coul , alphaES )
-!    CALL kpoint_sum_init_BZ ( km_coul , alphaES  ) 
   endif
 
 
@@ -1475,8 +1474,10 @@ SUBROUTINE finalize_coulomb
   if ( longrange .eq. 'ewald')  then
     deallocate( km_coul%kptk , km_coul%kptx, km_coul%kpty,km_coul%kptz )
     deallocate ( km_coul%Ak    )
-    !deallocate ( km_coul%rhon )
-    !deallocate ( km_coul%rhon_dk )
+    deallocate ( km_coul%kcoe  )
+    deallocate ( km_coul%rhon  )
+    deallocate ( km_coul%expikr)
+    deallocate ( km_coul%expikm)
   endif
 
 
@@ -1571,7 +1572,7 @@ END SUBROUTINE induced_moment
 !> \todo
 !! make it more condensed 
 ! ******************************************************************************
-SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task )
+SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
 
   USE control,          ONLY :  lsurf
   USE constants,        ONLY :  tpi , piroot, coul_factor, press_unit
@@ -1585,7 +1586,7 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task )
   ! global 
   real(kind=dp)     :: ef     ( natm , 3 )
   real(kind=dp)     :: mu     ( natm , 3 )
-  logical           :: damp_ind 
+  logical           :: damp_ind , do_efield 
   logical           :: task(3)
 
   ! local 
@@ -1656,7 +1657,7 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task )
   !        direct space part
   ! ==============================================
   ttt1 = MPI_WTIME(ierr)
-  CALL multipole_ES_v2_dir ( u_dir , ef_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind )
+  CALL multipole_ES_v2_dir ( u_dir , ef_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield )
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
 
@@ -1775,10 +1776,10 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task )
 END SUBROUTINE multipole_ES_v2
 
 
-SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind )
+SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield )
 
-  USE control,                  ONLY :  cutlongrange
-  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec
+  USE control,                  ONLY :  lvnlist
+  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  stdout, ionode
@@ -1791,10 +1792,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   real(kind=dp) :: fx_dir(natm) , fy_dir(natm) , fz_dir(natm)
   real(kind=dp) :: tau_dir ( 3 , 3)
   real(kind=dp) :: mu     ( natm , 3 )
-  logical       :: task(3), damp_ind
+  logical       :: task(3), damp_ind, do_efield
 
   ! local 
-  integer       :: ia , ja , ita, jta
+  integer       :: ia , ja , ita, jta, j1 , jb ,je
   real(kind=dp) :: qi, qj , qij , u_damp , u_tmp
   real(kind=dp) :: muix, muiy, muiz
   real(kind=dp) :: mujx, mujy, mujz
@@ -1824,11 +1825,13 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   charge_charge = task(1)
   charge_dipole = task(2)
   dipole_dipole = task(3)
-  cutsq  = cutlongrange * cutlongrange
+  cutsq  = verlet_coul%cut * verlet_coul%cut !cutlongrange
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
+  print*,cutsq
 
+  if ( lvnlist ) CALL vnlistcheck ( verlet_coul )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -1837,6 +1840,20 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   u_damp = 0.0_dp
 
   do ia = atom_dec%istart , atom_dec%iend
+    ! =====================================
+    !  verlet list : ja index in point arrays
+    ! =====================================
+    if ( lvnlist ) then
+      jb = verlet_coul%point( ia )
+      je = verlet_coul%point( ia + 1 ) - 1
+      print*,'jb,je',jb,je
+    else
+      ! ====================================
+      !         else all ja   
+      ! ====================================
+      jb = 1
+      je = natm
+    endif
     ita  = itype(ia)
     rxi = rx(ia)
     ryi = ry(ia)
@@ -1846,8 +1863,13 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
     muiy = mu ( ia , 2 )
     muiz = mu ( ia , 3 )
 
-    do ja = 1, natm
+    do j1 = jb, je
 
+      if ( lvnlist ) then
+        ja = verlet_coul%list ( j1 )
+      else
+        ja = j1
+      endif
       if (ja .eq. ia ) cycle
 
         jta  = itype(ja)
@@ -1950,14 +1972,16 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           ! energy
           u_dir = u_dir + qij * T
 
-          ! electric field
-          ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) - qj * Tx 
-          ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) - qj * Ty
-          ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) - qj * Tz
-          if ( ldamp ) then
-            ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
-            ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
-            ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
+          if ( do_efield ) then
+            ! electric field
+            ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) - qj * Tx 
+            ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) - qj * Ty
+            ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) - qj * Tz
+            if ( ldamp ) then
+              ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
+              ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
+              ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
+            endif
           endif
 
           ! forces
@@ -2126,6 +2150,9 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 1 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 2 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 3 ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
   CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
@@ -2148,6 +2175,8 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
 
   USE constants,                ONLY :  imag, tpi
   USE config,                   ONLY :  natm, rx ,ry, rz, qia, simu_cell
+  USE kspace,                   ONLY :  charge_density_k
+  USE time,                     ONLY :  fcoultimetot2_2
 
   implicit none
 
@@ -2168,9 +2197,11 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   real(kind=dp)     :: fxij , fyij , fzij
   real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe
   real(kind=dp)     :: alpha2, tpi_V , fpi_V
-  complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk
-  complex(kind=dp ) ,dimension (:), allocatable :: expikr 
-  logical           :: ldip
+  complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk, expikmAk
+  !complex(kind=dp ) ,dimension (:), allocatable :: expikr , expikm
+  complex(kind=dp ) :: expikr , expikm
+  logical           :: ldip , update_mu_only
+  dectime
 
   ! =================
   !  some constants 
@@ -2181,8 +2212,14 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   ldip = .false.
   if ( task(2) .or. task(3) ) ldip = .true.
 
+  statime  
+!  CALL charge_density_k ( km_coul , mu , ldip , update_mu_only )
+  stotime
+  addtime(fcoultimetot2_2)
 
-  allocate( expikr ( natm ) ) 
+
+!  allocate( expikr ( natm ) ) 
+!  allocate( expikm ( natm ) ) 
 
   ! ==============================================
   !            reciprocal space part
@@ -2190,87 +2227,94 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   kpoint : do ik = km_coul%kpt_dec%istart, km_coul%kpt_dec%iend
     if (km_coul%kptk(ik) .eq. 0.0_dp ) cycle
 
-    kx   = km_coul%kptx(ik)
-    ky   = km_coul%kpty(ik)
-    kz   = km_coul%kptz(ik)
-    kk   = km_coul%kptk(ik)
-    Ak   = km_coul%Ak( ik )
-    kcoe = 2.0_dp * ( 1.0_dp / kk + 1.0_dp / alpha2 / 4.0_dp )
-    rhonk = (0.0_dp, 0.0_dp)
-    do ia = 1, natm
-      qi  = qia ( ia )
-      rxi = rx(ia)
-      ryi = ry(ia)
-      rzi = rz(ia)
-      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-      expikr(ia)   = EXP ( imag * k_dot_r )
-      rhonk    = rhonk + qia ( ia ) * expikr(ia) 
-      if ( .not. ldip ) cycle
-      !print*,'dip 1st loop' 
-      muix = mu ( ia , 1 )
-      muiy = mu ( ia , 2 )
-      muiz = mu ( ia , 3 )
-      ik_dot_mu = imag * ( muix * kx + muiy * ky + muiz * kz )
-      rhonk = rhonk + ik_dot_mu * expikr(ia)
-    enddo
+!    kx     = km_coul%kptx(ik)
+!    ky     = km_coul%kpty(ik)
+!    kz     = km_coul%kptz(ik)
+!    kk     = km_coul%kptk(ik)
+!    Ak     = km_coul%Ak( ik )
+!    kcoe   = km_coul%kcoe(ik) 
+    rhonk  = km_coul%rhon(ik) 
+    
+    ! charge density at ik
+!    rhonk = (0.0_dp, 0.0_dp)
+!    do ia = 1, natm
+!      qi  = qia ( ia )
+!      rxi = rx(ia)
+!      ryi = ry(ia)
+!      rzi = rz(ia)
+!      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
+!      expikr(ia)   = EXP ( imag * k_dot_r )
+!      rhonk    = rhonk + qi * expikr(ia) 
+!      if ( .not. ldip ) cycle
+!      muix = mu ( ia , 1 )
+!      muiy = mu ( ia , 2 )
+!      muiz = mu ( ia , 3 )
+!      k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
+!      expikm(ia)= k_dot_mu *  expikr(ia)
+!      rhonk = rhonk + imag * expikm(ia)
+!    enddo
 
-     str    = CONJG ( rhonk ) * rhonk * Ak
+!     str    = CONJG ( rhonk ) * rhonk * Ak
+     ! potential energy 
+!     u_rec   = u_rec   + str
 
     do ia = 1 , natm
-      qi  = qia ( ia )
-      expikrAk = expikr(ia) * Ak
-      recargi = REAL ( imag * CONJG ( rhonk ) * expikrAk , kind = dp )
+!      qi  = qia ( ia )
+      expikr = km_coul%expikr(ia,ik)
+      expikm = km_coul%expikm(ia,ik)
+!      expikrAk = expikr * Ak
+!      expikmAk = expikm * Ak
+!      recargi = REAL ( imag * CONJG ( rhonk ) * expikrAk , kind = dp )
 
-      fxij = kx * recargi
-      fyij = ky * recargi
-      fzij = kz * recargi
-      ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
-      ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
-      ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
+!      fxij = kx * recargi
+!      fyij = ky * recargi
+!      fzij = kz * recargi
+!      ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
+!      ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
+!      ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
 
       ! charges
-      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
-      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
-      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
+!      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
+!      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
+!      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
       ! dipoles ( k_alpha * Ak * mu.k * recarg ) 
-      if ( .not. ldip ) cycle
-      muix = mu ( ia , 1 )
-      muiy = mu ( ia , 2 )
-      muiz = mu ( ia , 3 )
-      recarg  = REAL (        CONJG ( rhonk ) * expikrAk , kind = dp )
-      k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
-      fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
-      fy_rec ( ia ) = fy_rec ( ia ) + ky * k_dot_mu
-      fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
+!      if ( .not. ldip ) cycle
+!      recarg  = REAL (        CONJG ( rhonk ) * expikmAk , kind = dp )
+!      fx_rec ( ia ) = fx_rec ( ia ) + kx * recarg 
+!      fy_rec ( ia ) = fy_rec ( ia ) + ky * recarg
+!      fz_rec ( ia ) = fz_rec ( ia ) + kz * recarg
     enddo
 
      ! keep it out from the ia loop !!!!!!!!!!!!! stupid bug 
      ! stress tensor ! to be check ! symmetric !
-     tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
-     tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str
-     tau_rec(1,3) = tau_rec(1,3) -            kcoe * kx * kz   * str
-     tau_rec(2,1) = tau_rec(2,1) -            kcoe * ky * kx   * str
-     tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str
-     tau_rec(2,3) = tau_rec(2,3) -            kcoe * ky * kz   * str
-     tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str
-     tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
-     tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
+!     tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
+!     tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str
+!     tau_rec(1,3) = tau_rec(1,3) -            kcoe * kx * kz   * str
+!     tau_rec(2,1) = tau_rec(2,1) -            kcoe * ky * kx   * str
+!     tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str
+!     tau_rec(2,3) = tau_rec(2,3) -            kcoe * ky * kz   * str
+!     tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str
+!     tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
+!     tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
 
-    ! potential energy 
-    u_rec   = u_rec   + str
 
   enddo kpoint
 
   ! "half" mesh
-  ef_rec = ef_rec * 2.0_dp
-  fx_rec = fx_rec * 2.0_dp
-  fy_rec = fy_rec * 2.0_dp
-  fz_rec = fz_rec * 2.0_dp
-  u_rec  = u_rec  * 2.0_dp
-  tau_rec=tau_rec * 2.0_dp
+  ef_rec  = ef_rec  * 2.0_dp
+  fx_rec  = fx_rec  * 2.0_dp
+  fy_rec  = fy_rec  * 2.0_dp
+  fz_rec  = fz_rec  * 2.0_dp
+  u_rec   = u_rec   * 2.0_dp
+  tau_rec = tau_rec * 2.0_dp
+  tau_rec(2,1) = tau_rec(1,2)
+  tau_rec(3,1) = tau_rec(1,3)
+  tau_rec(3,2) = tau_rec(2,3)
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
-  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,1) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,2) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,3) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
@@ -2289,7 +2333,8 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   fy_rec  =   fy_rec  * fpi_V
   fz_rec  =   fz_rec  * fpi_V
 
-  deallocate ( expikr ) 
+  !deallocate ( expikr ) 
+  !deallocate ( expikm ) 
 
   return
 
@@ -2300,7 +2345,7 @@ SUBROUTINE engforce_bmhftd_pbc
 
   USE constants,                ONLY :  press_unit
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx, vy , vz , tau_nonb ,  &
-                                        atype , itype , list , point , ntype , simu_cell , atom_dec
+                                        atype , itype , verlet_vdw , ntype , simu_cell , atom_dec
   USE control,                  ONLY :  lvnlist , lbmhftd
   USE thermodynamic,            ONLY :  u_bmhft , vir_bmhft , write_thermo
   USE io,                       ONLY :  stdout
@@ -2330,7 +2375,7 @@ SUBROUTINE engforce_bmhftd_pbc
   tau_nonb = 0.0d0
 
  
-  if ( lvnlist ) CALL vnlistcheck
+  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -2344,8 +2389,8 @@ SUBROUTINE engforce_bmhftd_pbc
     !  verlet list : ja index in point arrays
     ! =====================================
     if ( lvnlist ) then
-      jb = point( ia )
-      je = point( ia + 1 ) - 1
+      jb = verlet_vdw%point( ia )
+      je = verlet_vdw%point( ia + 1 ) - 1
     else
       ! ====================================
       !         else all ja   
@@ -2355,7 +2400,7 @@ SUBROUTINE engforce_bmhftd_pbc
     endif
     do j1 = jb, je
       if ( lvnlist ) then
-        ja = list ( j1 )
+        ja = verlet_vdw%list ( j1 )
       else
         ja = j1
       endif
@@ -2466,8 +2511,8 @@ END SUBROUTINE engforce_bmhftd_pbc
 ! ******************************************************************************
 SUBROUTINE engforce_morse_pbc 
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , list , &
-                                        point , ntype , simu_cell , atom_dec , tau_nonb
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , verlet_vdw, & 
+                                        ntype , simu_cell , atom_dec , tau_nonb
   USE control,                  ONLY :  lvnlist  
   USE thermodynamic,            ONLY :  u_morse , vir_morse
   USE time,                     ONLY :  forcetimetot
@@ -2505,7 +2550,7 @@ SUBROUTINE engforce_morse_pbc
   fy  = 0.0_dp
   fz  = 0.0_dp
 
-  if ( lvnlist ) CALL vnlistcheck 
+  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -2516,15 +2561,15 @@ SUBROUTINE engforce_morse_pbc
     ryi = ry ( ia )
     rzi = rz ( ia )
     if ( lvnlist ) then
-      jb = point( ia )
-      je = point( ia + 1 ) - 1
+      jb = verlet_vdw%point( ia )
+      je = verlet_vdw%point( ia + 1 ) - 1
     else
       jb = 1 
       je = natm !atom_dec%iend
     endif
     do j1 = jb, je
       if ( lvnlist ) then
-        ja = list ( j1 )
+        ja = verlet_vdw%list ( j1 )
       else
         ja = j1
       endif
@@ -2645,19 +2690,12 @@ SUBROUTINE moment_from_pola ( mu_ind )
   ! local
   integer :: ia , iscf , it , npol, alpha
   logical :: linduced
-  real(kind=dp) :: Efield_old , diff_efield , tttt , tttt2 , u_pol_old ,pol_conv
-  real(kind=dp) :: u_tmp , vir_tmp, u_coul_stat , rmsd , u_coul_pol, u_coul_ind
+  real(kind=dp) :: tttt , tttt2 
+  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
   real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ) 
-  real(kind=dp) :: ef_tmp( natm , 3 ) , efg_tmp ( natm , 3 , 3 ) , phi_tmp ( natm ) 
   real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) 
-  real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save 
-  real(kind=dp) :: td1,td2,td3,td4,td5,td6,td7,td8,td9
   logical       :: task_static (3), task_ind(3), ldip
   dectime
-
-  td1 = MPI_WTIME(ierr)
-  allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  ) 
-  fx_save = fx ; fy_save = fy ; fz_save = fz
 
   tttt2=0.0_dp
   statime
@@ -2671,8 +2709,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
   if ( .not. linduced ) then
     return
   endif
-  td2 = MPI_WTIME(ierr)
-  tdt21= tdt21 + ( td2 - td1 )   
 
   ! =============================================
   !  calculate static Efield ( charge + dipoles )
@@ -2681,11 +2717,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
   fx      = 0.0_dp
   fy      = 0.0_dp
   fz      = 0.0_dp
-  ef_tmp  = 0.0_dp
-  efg_tmp = 0.0_dp
-  u_tmp   = 0.0_dp
-  vir_tmp = 0.0_dp
-  phi_tmp = 0.0_dp
 
   !print*,'before 1st multipole_ES'
   ! =============================================
@@ -2697,19 +2728,12 @@ SUBROUTINE moment_from_pola ( mu_ind )
   if ( ldip ) then
     task_static = .true.        
   endif
-  if ( longrange .eq. 'ewald' )  CALL  multipole_ES_v2 ( ef_tmp , dipia , .true. , task_static ) 
+  if ( longrange .eq. 'ewald' )  CALL  multipole_ES_v2 ( Efield_stat , dipia , .true. , task_static , do_efield=.true. ) 
   u_coul_stat = u_coul 
-
-  Efield_stat = Efield_stat + ef_tmp
 
   fx      = 0.0_dp
   fy      = 0.0_dp
   fz      = 0.0_dp
-  ef_tmp  = 0.0_dp
-  efg_tmp = 0.0_dp
-  u_tmp   = 0.0_dp
-  vir_tmp = 0.0_dp
-  phi_tmp = 0.0_dp
 
   ! =============================================
   !  init total Efield to static only
@@ -2718,7 +2742,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
 
   iscf = 0
   rmsd = HUGE(0.0d0)
-  u_pol_old  = 0.0d0
   ! =========================
   !  charges are set to zero 
   ! =========================
@@ -2733,11 +2756,8 @@ SUBROUTINE moment_from_pola ( mu_ind )
   !           SCF LOOP
   ! =============================
   !do while ( diff_efield .gt. conv_tol_ind )
-  td3 = MPI_WTIME(ierr)
-  tdt32= tdt32 + ( td3 - td2 )   
   do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < 3 ) )
 
-    td4 = MPI_WTIME(ierr)
     iscf = iscf + 1
 
     tttt = MPI_WTIME(ierr)
@@ -2747,8 +2767,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
     CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
     tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
-    td5 = MPI_WTIME(ierr)
-    tdt54= tdt54 + ( td5 - td4 )   
 #ifdef debug
    do ia =1 , natm
      WRITE ( stdout , '(a,3f12.5)' ) 'debug : induced moment from pola atom 1', mu_ind ( 1 , 1 ),  mu_ind ( 1 , 2 ) , mu_ind ( 1 , 3 )
@@ -2762,17 +2780,15 @@ SUBROUTINE moment_from_pola ( mu_ind )
     !  calculate Efield_ind from mu_ind
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
     ! ==========================================================
-    if ( longrange .eq. 'ewald' )  CALL  multipole_ES_v2 ( Efield_ind , mu_ind , .false. , task_ind ) 
+    if ( longrange .eq. 'ewald' )  CALL  multipole_ES_v2 ( Efield_ind , mu_ind , .false. , task_ind , do_efield=.true. ) 
     u_coul_ind = u_coul 
     u_coul_pol = u_coul_stat+u_coul_ind
 
     Efield = Efield_stat + Efield_ind
-
     fx      = 0.0_dp
     fy      = 0.0_dp
     fz      = 0.0_dp
-    td6 = MPI_WTIME(ierr)
-    tdt65= tdt65 + ( td6 - td5 )   
+
 
     ! ===================
     !  stopping criteria
@@ -2788,36 +2804,30 @@ SUBROUTINE moment_from_pola ( mu_ind )
       enddo
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
-    pol_conv = ABS ( u_pol * coul_factor - u_pol_old ) 
-    u_pol_old  = u_pol * coul_factor
 
 #ifdef debug_scf_pola
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_factor , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
 #endif 
-    td7 = MPI_WTIME(ierr)
-    tdt76= tdt76 + ( td7 - td6 )   
 
   enddo ! end of SCF loop
   io_printnode WRITE ( stdout, '(a)' ) ''
-  td8 = MPI_WTIME(ierr)
-  tdt83= tdt83 + ( td8 - td3 )   
 
   ! ===========================
   !  charge/force info is recovered
   ! ===========================
   qch = qch_tmp
   qia = qia_tmp
-  fx = fx_save
-  fy = fy_save
-  fz = fz_save
 
-#ifdef debug
-  if ( ionode ) then
+!#ifdef debug
+  if ( ioprintnode ) then
     blankline(stdout)
     WRITE ( stdout , '(a,i6,a)') 'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
-    WRITE ( stdout , '(a,e10.3)') 'Electric field is converged within ',conv_tol_ind
+    WRITE ( stdout , '(a,2e10.3)') 'Electric field is converged within ',conv_tol_ind,rmsd
     blankline(stdout)
+  endif
+#ifdef debug
+  if ( ionode ) then
     WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
     do ia = 1 , natm
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
@@ -2829,10 +2839,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
 
   stotime
   addtime(time_moment_from_pola)
-
-  deallocate ( fx_save , fy_save, fz_save ) 
-  td9 = MPI_WTIME(ierr)
-  tdt98= tdt98 + ( td9 - td8 )   
 
   return
 
@@ -2873,7 +2879,7 @@ END SUBROUTINE moment_from_pola
 SUBROUTINE moment_from_WFc ( mu )
 
   USE constants,                ONLY :  Debye_unit
-  USE config,                   ONLY :  natm , ntype , itype , atype , simu_cell , rx , ry , rz 
+  USE config,                   ONLY :  verlet_list , natm , ntype , itype , atype , simu_cell , rx , ry , rz 
   USE cell,                     ONLY :  kardir , dirkar 
   USE io,                       ONLY :  ionode , kunit_DIPWFC , stdout 
 
@@ -2884,8 +2890,9 @@ SUBROUTINE moment_from_WFc ( mu )
 
   ! local
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
-  integer, dimension ( : ) , allocatable :: cwfc 
-  integer, dimension ( : ) , allocatable :: wfc_list, wfc_point         ! wfc neighbour list info
+  integer, dimension ( : ) , allocatable :: cwfc
+  TYPE( verlet_list ) :: verlet_wfc
+  !integer, dimension ( : ) , allocatable :: wfc_list, wfc_point         ! wfc neighbour list info
   real(kind=dp) :: rijsq, cutsq
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
@@ -2913,11 +2920,11 @@ SUBROUTINE moment_from_WFc ( mu )
   cutsq = rcut_wfc * rcut_wfc
   mu = 0.0_dp
 
-  allocate( wfc_list ( natm * 250 ) , wfc_point(  natm + 1 ) )
+  allocate( verlet_wfc%list ( natm * 250 ) , verlet_wfc%point(  natm + 1 ) )
   allocate ( cwfc ( natm ) )
   cwfc = 0
-  wfc_list      = 0
-  wfc_point     = 0
+  verlet_wfc%list  = 0
+  verlet_wfc%point = 0
 
   ! ======================================
   !         cartesian to direct 
@@ -2949,7 +2956,7 @@ SUBROUTINE moment_from_WFc ( mu )
             cwfc ( ia ) = cwfc ( ia ) + 1
             icount = icount+1
             k = k + 1
-            wfc_list( icount - 1 ) = ja
+            verlet_wfc%list( icount - 1 ) = ja
             ia_last = ia
 #ifdef debug_wfc
           WRITE ( stdout ,'(a4,i4,a4,i4,2e17.8)') atype(ia),ia,atype(ja),ja,SQRT(rijsq),rcut_wfc
@@ -2960,10 +2967,10 @@ SUBROUTINE moment_from_WFc ( mu )
         endif
  
       enddo
-      wfc_point( ia ) = icount-k
+      verlet_wfc%point( ia ) = icount-k
     endif
   enddo
-  wfc_point ( ia_last + 1 ) = icount
+  verlet_wfc%point ( ia_last + 1 ) = icount
 
 
   ! ===========================================
@@ -2982,16 +2989,16 @@ SUBROUTINE moment_from_WFc ( mu )
   ! =============================================
   do ia = 1 , natm
     it = itype ( ia ) 
-    jb = wfc_point ( ia )
-    je = wfc_point ( ia + 1 ) - 1
+    jb = verlet_wfc%point ( ia )
+    je = verlet_wfc%point ( ia + 1 ) - 1
     if ( lwfc ( it ) .gt. 0 ) then
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
-      jb = wfc_point ( ia )
-      je = wfc_point ( ia + 1 ) - 1
+      jb = verlet_wfc%point ( ia )
+      je = verlet_wfc%point ( ia + 1 ) - 1
       do jwfc = jb , je
-        ja = wfc_list ( jwfc )
+        ja = verlet_wfc%list( jwfc )
         rxij  = rx ( ja ) - rxi
         ryij  = ry ( ja ) - ryi
         rzij  = rz ( ja ) - rzi
@@ -3034,7 +3041,7 @@ SUBROUTINE moment_from_WFc ( mu )
     enddo 
   endif
 
-  deallocate ( wfc_list , wfc_point )
+  deallocate ( verlet_wfc%list , verlet_wfc%point )
   deallocate ( cwfc ) 
 
   ! ======================================
@@ -3049,7 +3056,7 @@ END SUBROUTINE moment_from_WFc
 
 SUBROUTINE get_dipole_moments ( mu )
 
-  USE config,           ONLY : natm , ntype , dipia , dipia_ind , dipia_wfc
+  USE config,           ONLY : natm , ntype , dipia , dipia_ind , dipia_wfc, fx,fy,fz
   USE io,               ONLY : ionode , stdout
 
   implicit none
@@ -3060,6 +3067,12 @@ SUBROUTINE get_dipole_moments ( mu )
   ! local
   integer :: it
   logical :: lwannier
+  real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
+
+
+  ! save total force fx,fy,fz as they are overwritted by moment_from_pola
+  allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  )
+  fx_save = fx ; fy_save = fy ; fz_save = fz
 
   !print*,'in get_dipole_moments'
   ! ======================================
@@ -3096,6 +3109,12 @@ SUBROUTINE get_dipole_moments ( mu )
   else
     mu = dipia + dipia_ind
   endif
+
+  fx = fx_save
+  fy = fy_save
+  fz = fz_save
+  deallocate ( fx_save, fy_save, fz_save ) 
+ 
 
   return
 

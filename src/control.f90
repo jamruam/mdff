@@ -235,7 +235,8 @@ END SUBROUTINE control_default_tag
 ! ******************************************************************************
 SUBROUTINE control_check_tag
 
-  USE io,  ONLY :  stdout , ionode
+  USE io,       ONLY :  stdout , ionode
+  USE config,   ONLY : verlet_vdw , verlet_coul
 
   implicit none
 
@@ -318,6 +319,10 @@ SUBROUTINE control_check_tag
     io_node WRITE ( stdout , '(a)' ) 'controltag: cutlongrange is null', cutlongrange
     STOP  
   endif
+
+
+  verlet_vdw%cut  = cutshortrange
+  verlet_coul%cut = cutlongrange
 
   return
 

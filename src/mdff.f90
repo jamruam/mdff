@@ -178,14 +178,16 @@ PROGRAM main_MDFF
     ! ===========================================================
     if ( calc .eq. 'md' )                 CALL do_split ( natm       , myrank , numprocs , atom_dec , 'atoms' )
     if ( calc .eq. 'md' .and. lcoulomb )  CALL do_split ( km_coul%nk , myrank , numprocs , km_coul%kpt_dec  , 'k-pts' )
-    print*,'after do_split',km_coul%kpt_dec%istart, km_coul%kpt_dec%iend
     ! =====================================
     ! verlet list generation
     ! mmmmh only md ? 
     ! vnlist should be test for calc='opt' 
     ! =====================================
-    if ( calc .eq. 'md' ) then 
-      if ( lvnlist )    CALL vnlist_pbc   
+    if ( calc .eq. 'md' ) then
+      verlet_vdw%listname ='vdw ' 
+      verlet_coul%listname='coul' 
+      if ( lvnlist .and. non_bonded )    CALL vnlist_pbc( verlet_vdw  )    
+      if ( lvnlist .and. lcoulomb   )    CALL vnlist_pbc( verlet_coul )    
     endif  
 
     !IF MD

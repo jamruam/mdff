@@ -271,15 +271,19 @@ END SUBROUTINE distance_tab
 !!                   enddo
 !
 ! ******************************************************************************
-SUBROUTINE vnlist_pbc 
+SUBROUTINE vnlist_pbc ( vlist )  
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, list , point, ntype , simu_cell , vnlmax , atom_dec
-  USE control,                  ONLY :  skindiff , cutshortrange
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, ntype , simu_cell , vnlmax , atom_dec, verlet_list
+  USE control,                  ONLY :  skindiff 
   USE cell,                     ONLY :  kardir , dirkar
-  USE io,                  ONLY :  ionode , stdout , stderr
+  USE io,                       ONLY :  ionode , stdout , stderr
 
   implicit none
+
+  ! global
+  TYPE(verlet_list) :: vlist
+
 
   ! local
   integer :: icount , ia , ja , it , jt , k
@@ -293,7 +297,7 @@ SUBROUTINE vnlist_pbc
 
   do jt = 1, ntype 
     do it = 1, ntype
-       rcut    ( it , jt ) = cutshortrange
+       rcut    ( it , jt ) = vlist%cut
        rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
@@ -332,13 +336,13 @@ SUBROUTINE vnlist_pbc
             io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
             STOP
           endif
-          list(icount-1) = ja
+          vlist%list(icount-1) = ja
         endif
       endif
     enddo
-    point(ia) = icount-k
+    vlist%point(ia) = icount-k
   enddo
-  point (atom_dec%iend + 1 ) = icount
+  vlist%point (atom_dec%iend + 1 ) = icount
 
   ! ======================================
   !         direct to cartesian
@@ -356,14 +360,15 @@ END SUBROUTINE vnlist_pbc
 !! same as vnlist_pbc but no periodic boundaries
 !
 ! ******************************************************************************
-SUBROUTINE vnlist_nopbc 
+SUBROUTINE vnlist_nopbc ( vlist )
 
   USE constants, ONLY : dp
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , list , point , ntype , atom_dec
+  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , verlet_list , ntype , atom_dec
   USE control,  ONLY :  skindiff , cutshortrange 
 
   implicit none
 
+  TYPE(verlet_list) :: vlist
   ! local
   integer :: icount , ia , ja , it , jt , k
   integer :: p1,p2
@@ -372,7 +377,7 @@ SUBROUTINE vnlist_nopbc
 
   do jt = 1, ntype
     do it = 1, ntype
-       rcut    ( it , jt ) = cutshortrange
+       rcut    ( it , jt ) = vlist%cut
        rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
        rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
     enddo
@@ -396,14 +401,20 @@ SUBROUTINE vnlist_nopbc
         if (rijsq .le. rskinsq(p1,p2)) then
           icount = icount + 1
           k = k + 1
-          list ( icount - 1 ) = ja
+          vlist%list ( icount - 1 ) = ja
         endif
       endif
     enddo
-    point (ia ) = icount-k
+    vlist%point (ia ) = icount-k
   enddo
-  point( atom_dec%iend + 1 ) = icount
+  vlist%point( atom_dec%iend + 1 ) = icount
 
+
+  print*,vlist%list
+  print*,vlist%point
+  print*,vlist%listname
+  if ( vlist%listname .eq. 'coul' ) stop
+ 
   return
 
 END SUBROUTINE vnlist_nopbc
@@ -414,10 +425,10 @@ END SUBROUTINE vnlist_nopbc
 !! check wether verlet list should be updated
 !
 ! ******************************************************************************
-SUBROUTINE vnlistcheck 
+SUBROUTINE vnlistcheck( vlist )  
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , list , point , atom_dec , simu_cell
+  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , verlet_list , atom_dec , simu_cell
   USE control,                  ONLY :  skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
@@ -426,6 +437,8 @@ SUBROUTINE vnlistcheck
   USE mpimdff
 
   implicit none
+
+  TYPE(verlet_list) :: vlist
 
   ! local
   integer :: ia , ierr
@@ -476,7 +489,7 @@ SUBROUTINE vnlistcheck
   if ( ionode .and. itime .ne. 0 ) write ( stdout , '(a,2i6,2f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl)
   if ( ionode ) write ( stdout , '(a,2i6,5f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl),skindiff, drneimax,drneimax2
 #endif
-    CALL vnlist_pbc 
+    CALL vnlist_pbc ( vlist )  
     do ia = 1, natm 
       xs ( ia ) = rx ( ia )
       ys ( ia ) = ry ( ia )

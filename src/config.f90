@@ -45,7 +45,6 @@ MODULE config
   integer                                      :: ntype              !< number of types
   integer, dimension(:),           allocatable :: itype              !< type of atome i array 
   integer, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
-  integer, dimension(:),           allocatable :: list, point        !< vnlist info
   integer, dimension(0:ntypemax)               :: natmi              !< number of atoms (per type)
 
   TYPE ( celltype )                            :: simu_cell          !< simulation cell
@@ -76,6 +75,15 @@ MODULE config
   character(len=3), dimension(:,:) , allocatable :: allowedmove      !< atom type label  
 
   TYPE(decomposition), SAVE :: atom_dec
+
+  TYPE :: verlet_list 
+    integer, dimension(:),           allocatable :: list, point        !< vnlist info
+    real(kind=dp)                                :: cut  
+    character(len=4)                             :: listname
+  END TYPE
+
+  TYPE( verlet_list ) :: verlet_vdw
+  TYPE( verlet_list ) :: verlet_coul
 
 
   ! =====================================================
@@ -252,7 +260,8 @@ SUBROUTINE config_alloc
   allocate( atype ( natm ) )
   allocate( itype ( natm ) )
   allocate( allowedmove ( 3 , natm ) )
-  allocate( list ( natm * vnlmax ) , point (  natm + 1 ) )
+  allocate( verlet_vdw%list ( natm * vnlmax )  , verlet_vdw%point (  natm + 1 ) )
+  allocate( verlet_coul%list ( natm * vnlmax ) , verlet_coul%point (  natm + 1 ) )
   allocate( qia ( natm ) )
   allocate( massia ( natm ) )
   allocate( quadia ( natm ) )
@@ -282,8 +291,10 @@ SUBROUTINE config_alloc
   rys   = 0.0_dp
   rzs   = 0.0_dp
   atype = ''
-  list      = 0
-  point     = 0
+  verlet_vdw%list    = 0
+  verlet_vdw%point   = 0
+  verlet_coul%list   = 0
+  verlet_coul%point  = 0
   qia       = 0.0_dp
   massia    = 1.0_dp
   quadia    = 0.0_dp
@@ -319,7 +330,8 @@ SUBROUTINE config_dealloc
   deallocate( rxs , rys , rzs )
   deallocate( atype )
   deallocate( itype )
-  deallocate( list , point )
+  deallocate( verlet_vdw%list , verlet_vdw%point )
+  deallocate( verlet_coul%list , verlet_coul%point )
   deallocate( xs , ys , zs )
   deallocate( massia ) 
   deallocate( qia ) 

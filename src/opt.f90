@@ -248,7 +248,7 @@ END SUBROUTINE opt_print_info
 SUBROUTINE opt_main 
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , vx , vy ,vz , fx , fy , fz , &
-                                atype  , rho , config_alloc , list , point , simu_cell , &
+                                atype  , rho , config_alloc , simu_cell , &
                                 atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header 
   USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , trajff_data 
   USE io,               ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
@@ -440,7 +440,7 @@ END SUBROUTINE opt_main
 ! ******************************************************************************
 SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
-  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , list , point , write_trajff_xyz
+  USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , write_trajff_xyz
   USE io,                  ONLY :  ionode , stdout
   USE thermodynamic,            ONLY :  u_tot      
   USE field,                    ONLY :  engforce_driver 
@@ -947,7 +947,7 @@ END SUBROUTINE eforce1d
 ! ******************************************************************************
 SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
 
-  USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz , list, point
+  USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz 
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver
   USE io,                  ONLY :  ionode , stdout
@@ -1167,7 +1167,7 @@ END SUBROUTINE lbfgs_driver
 SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
   USE control,                  ONLY :  myrank , numprocs
-  USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz, list ,point
+  USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz
   USE io,                       ONLY :  stdout, ionode
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver

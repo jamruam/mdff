@@ -236,7 +236,7 @@ SUBROUTINE vib_main
 
   USE config,                   ONLY :  system , natm , natmi , rx , ry , rz ,  & 
                                         atype , atypei , itype , simu_cell , & 
-                                        rho , ntype, config_alloc , list , point, coord_format_allowed , atom_dec , read_traj_header , read_traj
+                                        rho , ntype, config_alloc , coord_format_allowed , atom_dec , read_traj_header , read_traj
   USE control,                  ONLY :  calc , iscff_format , iscff_data
   USE io,                       ONLY :  ionode , stdout , stderr , kunit_ISCFF , kunit_EIGFF , kunit_VECTFF , & 
                                         kunit_DOSFF , kunit_MODFF, kunit_DOSKFF , kunit_IBZKPTFF
