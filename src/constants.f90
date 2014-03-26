@@ -45,8 +45,8 @@ MODULE constants
   real(kind=dp),      PARAMETER :: hart        = rytoev*2.0_dp                         !< Hartree energy 
   real(kind=dp),      PARAMETER :: bohr        = 0.529177249_dp                        !< a.u in angstrom  
   real(kind=dp),      PARAMETER :: coul_factor = 14.3996441_dp                         !< 1 / 4pi epsilon0
-  !real(kind=dp),      PARAMETER :: coul_factor = 1.0_dp                         !< 1 / 4pi epsilon0
-  real(kind=dp),      PARAMETER :: press_unit  = 160.2176487_dp                        !< internal unit to GPa
+  !real(kind=dp),      PARAMETER :: coul_factor = 1.0_dp                               !< 1 / 4pi epsilon0
+  real(kind=dp),      PARAMETER :: press_unit  = 0.0062415096_dp                       !< GPa = > internal unit of pressure ( eV / angstrom**3) 
   real(kind=dp),      PARAMETER :: boltz       = 8.6173423e-05                         !< boltzmann constant ( energy in eV)
   real(kind=dp),      PARAMETER :: time_unit   = 98.226952_dp                          !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
   real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< length in angstom and energy in eV 

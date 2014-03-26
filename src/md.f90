@@ -33,13 +33,13 @@ MODULE md
   logical, SAVE :: lleapequi               !< leap-frog used in the equilibration part together with verlet -> vv + lf 
 
   integer :: npas                          !< number of time steps
+  integer :: itime                         !< current time step
   integer :: nequil                        !< number of equilibration steps
   integer :: nequil_period                 !< equilibration period
   integer :: spas                          !< save configuration each spas step 
   integer :: nprint                        !< print thermo info to standard output
   integer :: fprint                        !< print thermo info to file OSZIFF
   integer :: updatevnl                     !< number of verlet list update  
-  integer :: itime
 
   real(kind=dp) :: dt                   !< time step
   real(kind=dp) :: temp                 !< temperature in input in Kelvin but it's kBT everywhere else
@@ -56,6 +56,7 @@ MODULE md
   real(kind=dp) , dimension ( : ) , allocatable :: vxi , xi              !< general coordinates of the thermostat coupled to the particules (Nose-Hoover Chain : nhcn )
   real(kind=dp) , dimension ( : ) , allocatable :: vxib, xib             !< general coordinates of the thermostat coupled to the volume (Nose-Hoover Chain : nhcnp )
   real(kind=dp) :: ve, xe, xe0              !< general coordinates of the barostat (Andersen) 
+  logical       :: first_time_xe0
 
   ! ================================================
   !     algorithm for dynamic integration
@@ -188,6 +189,8 @@ SUBROUTINE md_default_tag
   nhc_mults     = 2 
   nhc_n         = 4
 
+  first_time_xe0 = .true.
+
   return
 
 END SUBROUTINE md_default_tag
@@ -199,10 +202,11 @@ END SUBROUTINE md_default_tag
 ! ******************************************************************************
 SUBROUTINE md_check_tag
 
-  USE constants,        ONLY :  boltz , time_unit
+  USE constants,        ONLY :  boltz , time_unit, press_unit
   USE control,          ONLY :  lstatic
   USE config,           ONLY :  simu_cell
   USE io,               ONLY :  ionode , stdout
+  USE mpimdff,          ONLY :  myrank
 
   implicit none
 
@@ -294,12 +298,24 @@ SUBROUTINE md_check_tag
       xib  = 0.0_dp
       ve   = 0.0_dp
       xe   = 0.0_dp
-      xe0  = 0.0_dp
+      !xe0  = log(simu_cell%omega)/3.0_dp
+      !xe0 = simu_cell%omega**(1.0/3.0_dp) 
     endif
   endif 
+  print*,myrank,vxi
+  print*,myrank,xi
+  print*,myrank,vxib
+  print*,myrank,xib
+  print*,myrank,ve
+  print*,myrank,xe
+  print*,myrank,xe0
 
-  ! units
-  temp           = temp * boltz ! kB * T
+
+  ! units          
+  !  eV             K     eV/K
+  temp           = temp * boltz ! temp = kB * T
+  ! eV / A**3    =  GPa     eV/A**3/GPa
+  press          = press * press_unit
   ! angstrom*(atomicmassunit/eV)** 0.5  <= ps
   dt             = dt             * time_unit 
   timesca_thermo = timesca_thermo * time_unit
@@ -321,7 +337,7 @@ END SUBROUTINE md_check_tag
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
-  USE constants,        ONLY :  boltz,time_unit
+  USE constants,        ONLY :  boltz, time_unit, press_unit
   USE control,          ONLY :  ltraj , lstatic , lvnlist , lreduced , lcsvr , itraj_start , itraj_period , itraj_format  
   USE io,               ONLY :  ionode 
 
@@ -377,18 +393,18 @@ SUBROUTINE md_print_info(kunit)
         endif !integrator
       endif !static
                                           WRITE ( kunit ,'(a,i10)')     'number of steps                      = ',npas
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                             = ',dt/time_unit           ,' ps'
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                           = ',dt*npas/time_unit      ,' ps'
-                                          WRITE ( kunit ,'(a,f10.5,a)') 'temperature                          = ',temp/boltz             ,' K'
-                                          WRITE ( kunit ,'(a,f10.5)')   'pressure                             = ',press
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                             = ',dt/time_unit           ,'  ps'
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                           = ',dt*npas/time_unit      ,'  ps'
+                                          WRITE ( kunit ,'(a,f10.5,a)') 'temperature                          = ',temp/boltz             ,'   K'
+                                          WRITE ( kunit ,'(a,f10.5,a)') 'pressure                             = ',press/press_unit       ,' GPa'
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
                                           WRITE ( kunit ,'(a,i10)')     'number of equilibration steps        = ',nequil
                                           WRITE ( kunit ,'(a,i10)')     'equilibration period                 = ',nequil_period
       endif 
-      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Stochastic velocity resc. time scale = ',taucsvr/time_unit      ,' ps'
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Stochastic velocity resc. time scale = ',taucsvr/time_unit      ,'  ps'
       if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)')   'taucsvr = 0.0 -> simple rescale'
-      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen thermostat time scale      = ',tauTberendsen/time_unit,' ps'
-      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen barostat time scale        = ',tauPberendsen/time_unit,' ps'
+      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen thermostat time scale      = ',tauTberendsen/time_unit,'  ps'
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen barostat time scale        = ',tauPberendsen/time_unit,'  ps'
       if ( nequil .ne. 0 .and. tauTberendsen .eq. dt )   &
                                           WRITE ( kunit ,'(a)')         'tau[T-P]berendsen = dt -> simple rescale'
                                           WRITE ( kunit ,'(a,i10)')     'print thermo  periodicity            = ',nprint

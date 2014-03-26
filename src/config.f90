@@ -37,7 +37,7 @@ MODULE config
   implicit none
 
   integer, PARAMETER                           :: ntypemax = 16      !< maximum number of types
-  integer, PARAMETER                           :: vnlmax   = 6000    !< maximum number of types
+  integer, PARAMETER                           :: vnlmax   = 20000    !< maximum number of types
 
   character(len=60), SAVE                      :: system             !< system name                                              
 
@@ -102,8 +102,8 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE config_init 
 
-  USE control,  ONLY :  calc
-  USE io,  ONLY :  ionode , stdin, stdout 
+  USE control,  ONLY :  calc , cutshortrange , cutlongrange
+  USE io,       ONLY :  ionode , stdin, stdout 
 
   implicit none
 
@@ -117,6 +117,9 @@ SUBROUTINE config_init
 #ifdef debug
   CALL print_config_sample(0,0)
 #endif
+
+  verlet_vdw%cut=cutshortrange
+  verlet_coul%cut=cutlongrange
 
   return
  
@@ -213,7 +216,7 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
   !CALL print_config_sample(0,0)
-  !CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
   !CALL print_config_sample(0,0)
   
   if ( ionode ) then

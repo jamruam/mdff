@@ -162,22 +162,22 @@ SUBROUTINE calc_thermo
   pressure_bmhft= pvirial_bmhft
   pressure_coul = pvirial_coul 
   if (lreduced) then
-    pvirial_lj_r    = pvirial_lj    / REAL ( natm , kind = dp ) * press_unit
-    pvirial_morse_r = pvirial_morse / REAL ( natm , kind = dp ) * press_unit
-    pvirial_coul_r  = pvirial_coul  / REAL ( natm , kind = dp ) * press_unit
-    pvirial_bmhft_r = pvirial_bmhft / REAL ( natm , kind = dp ) * press_unit
+    pvirial_lj_r    = pvirial_lj    / REAL ( natm , kind = dp ) / press_unit
+    pvirial_morse_r = pvirial_morse / REAL ( natm , kind = dp ) / press_unit
+    pvirial_coul_r  = pvirial_coul  / REAL ( natm , kind = dp ) / press_unit
+    pvirial_bmhft_r = pvirial_bmhft / REAL ( natm , kind = dp ) / press_unit
   else
-    pvirial_lj_r    = pvirial_lj    * press_unit
-    pvirial_morse_r = pvirial_morse * press_unit
-    pvirial_coul_r  = pvirial_coul  * press_unit 
-    pvirial_bmhft_r = pvirial_bmhft * press_unit
+    pvirial_lj_r    = pvirial_lj    / press_unit
+    pvirial_morse_r = pvirial_morse / press_unit
+    pvirial_coul_r  = pvirial_coul  / press_unit 
+    pvirial_bmhft_r = pvirial_bmhft / press_unit
   endif
   pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r + pvirial_morse_r + pvirial_bmhft_r 
-  pressure_tot_r  = ( pvirial_tot_r + temp_r *boltz / omega ) * press_unit
-  pressure_lj_r   = pvirial_lj_r   * press_unit
-  pressure_morse_r= pvirial_morse_r * press_unit   
-  pressure_bmhft_r= pvirial_bmhft_r * press_unit  
-  pressure_coul_r = pvirial_coul_r  * press_unit
+  pressure_tot_r  = ( pvirial_tot_r + temp_r *boltz / omega ) / press_unit
+  pressure_lj_r   = pvirial_lj_r    / press_unit
+  pressure_morse_r= pvirial_morse_r / press_unit   
+  pressure_bmhft_r= pvirial_bmhft_r / press_unit  
+  pressure_coul_r = pvirial_coul_r  / press_unit
 
   ! conserved quantity extended Hamiltonian
   if ( any ( integrator .eq. nve_ensemble )) then 
@@ -375,8 +375,8 @@ SUBROUTINE write_thermo ( step , kunit , key )
                                      acell , bcell, ccell , e_tot, h_tot
   endif
 
- 200 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot  = ',&
-                E15.8,'  U_vdw   = ',E15.8,'  U_coul   = ',E15.8)
+ 200 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Etot = ',E15.8,'  Ekin  = ',E15.8,'  Utot      = ',&
+                E15.8,'  U_vdw     = ',E15.8,'  U_coul   = ',E15.8)                     
  201 FORMAT(' step = ',I9,2X,' Time = 'E15.8,'  Temp = ',E15.8,'  Press = ',E15.8,'  Pvir_vdw  = ',&
                 E15.8,'  Pvir_coul = ',E15.8,'  Volume   = ',E15.8,'  Htot = ',E15.8)
 

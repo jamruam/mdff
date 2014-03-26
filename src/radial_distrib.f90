@@ -89,6 +89,7 @@ SUBROUTINE gr_init
   ! define a new resolution to be 2^N points
   ! ==========================================
  nbins=int(cutgr/resg)+1
+ print*,cutgr,resg,nbins
 !28/05/13 ! i = 1
 !28/05/13 ! do while ( 2**i .lt. nbins )
 !28/05/13 !    i = i + 1
@@ -216,7 +217,7 @@ SUBROUTINE grcalc
                                         coord_format_allowed , atom_dec , read_traj , read_traj_header
   USE io,                       ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
-  USE cell,                     ONLY :  lattice , dirkar
+  USE cell,                     ONLY :  lattice , dirkar , periodicbc
   USE time,                     ONLY :  grtimetot_comm
 
   implicit none
@@ -296,7 +297,10 @@ SUBROUTINE grcalc
     CALL lattice ( simu_cell )
     rho_av = rho_av + ( REAL ( natm ,kind=dp )  / simu_cell%omega )
     average_volume = average_volume + simu_cell%omega    
-    !print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
+#ifdef debug
+    print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
+#endif
+    CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
     ngr=ngr+1 
     ! ==========================
@@ -307,7 +311,7 @@ SUBROUTINE grcalc
   enddo !nconf 
   rho_av = rho_av / REAL(nconf,kind=dp)      
   average_volume = average_volume / REAL(nconf,kind=dp)
-  if ( average_volume .ne. simu_cell%omega ) write(stdout,'(a,e16.8)') 'average volume : ',average_volume
+  if ( ionode .and. average_volume .ne. simu_cell%omega ) write(stdout,'(a,e16.8)') 'average volume : ',average_volume
 
   ! ===========================================
   !        merge results  
@@ -325,8 +329,8 @@ SUBROUTINE grcalc
 
 
 #ifdef debug
-  do i=0, nbins
-    io_node WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',i,gr(i,1,1)
+  do igr=0, nbins
+    io_node WRITE (stdout , '(a,5i6)') 'debug ( total ) : ',igr,gr(igr,1,1)
   enddo
 #endif
 
@@ -359,7 +363,7 @@ SUBROUTINE grcalc
     do it1 = 1 , ntype
       do it2 = it1 , ntype
 #ifdef debug
-        WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
+       io_node WRITE ( stdout , '(a,3i5)' ) 'debug ( pair ) : ', mp , it1 , it2
 #endif        
         if ( mp .lt. 0 .and. mp .gt. npairs ) then
           WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
@@ -449,6 +453,7 @@ SUBROUTINE gr_main
         if ( rijsq.lt.cut2 ) then
           rr = SQRT ( rijsq )
           igr = INT ( rr / resg ) 
+          !print*,rr,igr
          if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
             WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
             STOP
@@ -465,7 +470,7 @@ SUBROUTINE gr_main
   
 #ifdef debug
   do igr=0, nbins-1
-    WRITE (stdout , '(a,5i6)') 'debug: ',myrank,igr,gr(igr,0,0)
+    WRITE (stdout , '(a,5i12)') 'debug: ',myrank,igr,gr(igr,0,0)
   enddo
 #endif 
 

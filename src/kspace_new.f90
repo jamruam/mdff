@@ -44,8 +44,9 @@ MODULE kspace
     real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< Ak in ewald
     real(kind=dp)   , dimension(:)   , allocatable :: kcoe      !< kcoe in ewald
     complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
-    complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk    !< facteur de structure
+    complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk   !< facteur de structure
     complex(kind=dp), dimension(:,:) , allocatable :: expikr    !< facteur de structure
+    real(kind=dp)   , dimension(:,:) , allocatable :: ckr, skr  !< facteur de structure
     complex(kind=dp), dimension(:,:) , allocatable :: expikm    !< facteur de structure
     character(len=15)                              :: meshlabel !< giving a name to kmesh
     TYPE ( decomposition )                         :: kpt_dec   
@@ -296,11 +297,11 @@ SUBROUTINE reorder_kpt ( km )
   !local
   integer :: ik, lk
   real(kind=dp), dimension (:), allocatable :: tkpt
-  real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz , tmpak
+  real(kind=dp), dimension (:), allocatable :: tmpkx , tmpky , tmpkz , tmpak , tmpkcoe
   integer, dimension (:), allocatable :: labelkpt, labelt
 
   allocate ( tkpt ((km%nk+1)/2) , labelkpt(km%nk), labelt((km%nk+1)/2) )
-  allocate ( tmpkx(km%nk) , tmpky(km%nk) , tmpkz(km%nk)  , tmpak(km%nk) )
+  allocate ( tmpkx(km%nk) , tmpky(km%nk) , tmpkz(km%nk)  , tmpak(km%nk) , tmpkcoe (km%nk) )
 
   ! ==============================
   !  set the initial array labels
@@ -323,7 +324,8 @@ SUBROUTINE reorder_kpt ( km )
   tmpkx=km%kptx(:)
   tmpky=km%kpty(:)
   tmpkz=km%kptz(:) 
-  if ( ALLOCATED(km%Ak) ) tmpak=km%Ak
+  if ( ALLOCATED(km%Ak)   ) tmpak=km%Ak
+  if ( ALLOCATED(km%kcoe) ) tmpkcoe=km%kcoe
   ! ===============================================
   !  change kptx , kpty , kptz following kptk sort
   ! ===============================================
@@ -332,11 +334,12 @@ SUBROUTINE reorder_kpt ( km )
     km%kptx(ik) = tmpkx(lk) 
     km%kpty(ik) = tmpky(lk) 
     km%kptz(ik) = tmpkz(lk) 
-    if ( ALLOCATED(km%Ak) ) km%Ak(ik) = tmpak(lk) 
+    if ( ALLOCATED(km%Ak)   ) km%Ak(ik)   = tmpak(lk) 
+    if ( ALLOCATED(km%kcoe) ) km%kcoe(ik) = tmpkcoe(lk) 
   enddo
 
   deallocate ( tkpt , labelkpt , labelt )
-  deallocate ( tmpkx , tmpky , tmpkz    )
+  deallocate ( tmpkx , tmpky , tmpkz, tmpak , tmpkcoe    )
 
   return
 
@@ -423,17 +426,19 @@ SUBROUTINE charge_density_k ( km , mu , ldip , update_mu )
       rzi = rz ( ia )
       k_dot_r   = ( kx * rxi + ky * ryi + kz * rzi )
       expikr    = EXP ( imag * k_dot_r )
-      km%expikr(ia,ik) = expikr
+      km%ckr(ia,ik) = COS( k_dot_r )
+      km%skr(ia,ik) = SIN( k_dot_r )
+      sumia = sumia + qi * expikr 
       if ( .not. ldip ) cycle
       mux = mu ( ia , 1 )
       muy = mu ( ia , 2 )
       muz = mu ( ia , 3 )
       k_dot_mu  = ( mux * kx + muy * ky + muz * kz )
       expikm    = k_dot_mu * expikr
-      sumia     = sumia + qi * expikr + imag * expikm 
-      km%expikm(ia,ik) = expikm
+      !km%expikm(ia,ik) = expikm
+      sumia = sumia + imag * expikm 
     enddo
-    km%rhon   ( ik ) = sumia
+    km%rhon(ik) = sumia
   enddo
 
   return

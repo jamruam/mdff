@@ -304,7 +304,7 @@ SUBROUTINE field_check_tag
     endif
   endif
   !CALL print_config_sample(0,0)
-  io_node write(*,*) 'Electrostatic tasks ',task_coul
+  !io_node write(*,*) 'Electrostatic tasks ',task_coul
 
 
   return 
@@ -385,6 +385,8 @@ SUBROUTINE field_init
       STOP
     endif
   CLOSE ( stdin )
+
+  !print*,'debug : read',lpolar
 
   ! ================================
   ! check field tags values
@@ -950,7 +952,7 @@ SUBROUTINE engforce_driver
   if ( lcoulomb ) then
                                    CALL get_dipole_moments(mu)
     
-    if ( longrange .eq. 'ewald'  ) CALL multipole_ES_v2 ( eftmp , mu , .true. , task_coul , do_efield=.false. )
+    if ( longrange .eq. 'ewald'  ) CALL multipole_ES_v2 ( eftmp , mu , .true. , task_coul , do_efield=.true. )
   endif
 
   return
@@ -972,6 +974,7 @@ END SUBROUTINE engforce_driver
 ! ******************************************************************************
 SUBROUTINE engforce_nmlj_pbc 
 
+  USE constants,                ONLY :  press_unit
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, vx, vy , vz , tau_nonb ,  &
                                         atype , itype , verlet_vdw , ntype , simu_cell , atom_dec
   USE control,                  ONLY :  lvnlist 
@@ -1051,8 +1054,8 @@ SUBROUTINE engforce_nmlj_pbc
         ja = j1
       endif
       if ( ( lvnlist .and. ja .ne. ia ) .or. ( .not. lvnlist .and. ja .gt. ia )  ) then
-!      if ( ( lvnlist .and. ja .ne. ia ) .or. ( .not. lvnlist .and.  ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
-!                                                                      ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) ) ) then
+      !if ( ( lvnlist .and. ja .ne. ia ) .or. ( .not. lvnlist .and.  ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
+      !                                                                ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) ) ) then
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -1093,20 +1096,20 @@ SUBROUTINE engforce_nmlj_pbc
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_nonb(1,1) = tau_nonb(1,1) + rxij * fxij
-          tau_nonb(1,2) = tau_nonb(1,2) + rxij * fyij
-          tau_nonb(1,3) = tau_nonb(1,3) + rxij * fzij
-          tau_nonb(2,1) = tau_nonb(2,1) + ryij * fxij
-          tau_nonb(2,2) = tau_nonb(2,2) + ryij * fyij
-          tau_nonb(2,3) = tau_nonb(2,3) + ryij * fzij
-          tau_nonb(3,1) = tau_nonb(3,1) + rzij * fxij
-          tau_nonb(3,2) = tau_nonb(3,2) + rzij * fyij
-          tau_nonb(3,3) = tau_nonb(3,3) + rzij * fzij
+          tau_nonb(1,1) = tau_nonb(1,1) + (rxij * fxij + rxij * fxij )
+          tau_nonb(1,2) = tau_nonb(1,2) + (rxij * fyij + ryij * fxij )
+          tau_nonb(1,3) = tau_nonb(1,3) + (rxij * fzij + rzij * fxij )
+          tau_nonb(2,1) = tau_nonb(2,1) + (ryij * fxij + rxij * fyij )
+          tau_nonb(2,2) = tau_nonb(2,2) + (ryij * fyij + ryij * fyij )
+          tau_nonb(2,3) = tau_nonb(2,3) + (ryij * fzij + rzij * fyij )
+          tau_nonb(3,1) = tau_nonb(3,1) + (rzij * fxij + rxij * fzij )
+          tau_nonb(3,2) = tau_nonb(3,2) + (rzij * fyij + ryij * fzij )
+          tau_nonb(3,3) = tau_nonb(3,3) + (rzij * fzij + rzij * fzij )
         endif
       endif
     enddo
   enddo
-  tau_nonb = tau_nonb / simu_cell%omega 
+  tau_nonb = tau_nonb / simu_cell%omega / press_unit
   vir = vir/3.0_dp
 
   ttt2 = MPI_WTIME(ierr) ! timing info
@@ -1123,13 +1126,9 @@ SUBROUTINE engforce_nmlj_pbc
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 2, : ) , 3  )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 3, : ) , 3  )
 
-  u_lj = u
+  u_lj = u 
   vir_lj = vir
   
-  !fx = fx * 0.0284223706 
-  !fy = fy * 0.0284223706 
-  !fz = fz * 0.0284223706 
-
   ! ======================================
   !         direct to cartesian
   ! ======================================
@@ -1148,6 +1147,7 @@ END SUBROUTINE engforce_nmlj_pbc
 ! ******************************************************************************
 SUBROUTINE engforce_nmlj_nopbc 
 
+  USE constants,                ONLY :  press_unit
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , itype , ntype , tau_nonb , simu_cell , atom_dec , verlet_vdw
   USE control,                  ONLY :  lvnlist
   USE thermodynamic,            ONLY :  u_lj , vir_lj
@@ -1238,7 +1238,7 @@ SUBROUTINE engforce_nmlj_nopbc
       endif
     enddo
   enddo
-  tau_nonb = tau_nonb / simu_cell%omega 
+  tau_nonb = tau_nonb / simu_cell%omega / press_unit
   vir = vir / 3.0_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u ) 
@@ -1620,7 +1620,7 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
   fx_rec   = 0.0_dp;  fy_rec   = 0.0_dp;  fz_rec   = 0.0_dp
   fx_surf  = 0.0_dp;  fy_surf  = 0.0_dp;  fz_surf  = 0.0_dp
   u_dir    = 0.0_dp;  u_rec    = 0.0_dp;  u_self   = 0.0_dp;  u_surf   = 0.0_dp
-  tau_dir  = 0.0_dp;  tau_rec  = 0.0_dp
+  tau_dir  = 0.0_dp;  tau_rec  = 0.0_dp; tau_coul =0.0_dp
 
 
   ! ==================================================
@@ -1713,55 +1713,58 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
   if ( lsurf ) then
     u_coul   =      ( u_dir   + u_rec   + u_surf   + u_self  + u_pol  ) * coul_factor
     ef       =      ( ef_dir  + ef_rec  + ef_surf  + ef_self          ) 
-    tau_coul =      ( tau_dir + tau_rec                               ) * coul_factor * press_unit
+    tau_coul =      ( tau_dir + tau_rec                               ) * coul_factor / press_unit
     fx       = fx + ( fx_rec  + fx_dir  + fx_surf                     ) * coul_factor
     fy       = fy + ( fy_rec  + fy_dir  + fy_surf                     ) * coul_factor
     fz       = fz + ( fz_rec  + fz_dir  + fz_surf                     ) * coul_factor
   else
     u_coul   =      ( u_dir   + u_rec   + u_self  + u_pol  ) * coul_factor
     ef       =      ( ef_dir  + ef_rec  + ef_self          ) 
-    tau_coul =      ( tau_dir + tau_rec                    ) * coul_factor * press_unit
+    tau_coul =      ( tau_dir + tau_rec                    ) * coul_factor / press_unit
     fx       = fx + ( fx_rec  + fx_dir                     ) * coul_factor
     fy       = fy + ( fy_rec  + fy_dir                     ) * coul_factor
     fz       = fz + ( fz_rec  + fz_dir                     ) * coul_factor
   endif
 
   
+#ifdef debug
+  WRITE ( stdout , '(a)' )     'Electric field at atoms :                           Forces at atoms :'
+  do ia = 1 , natm
+   WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
+   ia,atype(ia),' Efield   = ', ef ( ia , 1)  , ef ( ia , 2 ) , ef ( ia , 3 ),'    f   = ', fx ( ia )  , fy ( ia ) , fz ( ia )
+ enddo
+ do ia = 1 , natm
+   WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
+   ia,atype(ia),' ef_dir   = ', ef_dir ( ia , 1)  , ef_dir ( ia , 2 ) , ef_dir    ( ia , 3 ), '  f_dir   = ',fx_dir ( ia)  , fy_dir ( ia ) , fz_dir    ( ia  )
+enddo
+do ia = 1 , natm
+  WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
+   ia,atype(ia),' ef_rec   = ', ef_rec ( ia , 1)  , ef_rec ( ia , 2 ) , ef_rec   ( ia , 3 ), '  f_rec   = ',fx_rec ( ia)  , fy_rec ( ia ) , fz_rec    ( ia  )
+ enddo
+ do ia = 1 , natm
+   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+   ia,atype(ia),' ef_surf  = ', ef_surf ( ia , 1)  , ef_surf ( ia , 2 ) ,   ef_surf ( ia , 3 )
+ enddo
+ do ia = 1 , natm
+   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+   ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) ,   ef_self ( ia , 3 )
+ enddo
 
-!  WRITE ( stdout , '(a)' )     'Electric field at atoms : '
-!  do ia = 1 , natm
-!   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!   ia,atype(ia),' Efield   = ', ef ( ia , 1)  , ef ( ia , 2 ) , ef ( ia , 3 )
-! enddo
-! do ia = 1 , natm
-!   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!   ia,atype(ia),' ef_dir   = ', ef_dir ( ia , 1)  , ef_dir ( ia , 2 ) , ef_dir    ( ia , 3 )
-! enddo
-! do ia = 1 , natm
-!   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!   ia,atype(ia),' ef_rec   = ', ef_rec ( ia , 1)  , ef_rec ( ia , 2 ) , ef_rec   ( ia , 3 )
-! enddo
-! do ia = 1 , natm
-!   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!   ia,atype(ia),' ef_surf  = ', ef_surf ( ia , 1)  , ef_surf ( ia , 2 ) ,   ef_surf ( ia , 3 )
-! enddo
-! do ia = 1 , natm
-!   WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!   ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) ,   ef_self ( ia , 3 )
-! enddo
-! WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir*coul_factor , &
-!                                    ' u_rec      = ', u_rec*coul_factor , &
-!                                    ' u_surf     = ', u_surf*coul_factor, & 
-!                                    ' u_self     = ', u_self*coul_factor, &
-!                                    ' u_pol      = ', u_pol*coul_factor , &
-!                                    ' u_coul     = ', u_coul
+ WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir*coul_factor , &
+                                    ' u_rec      = ', u_rec*coul_factor , &
+                                    ' u_surf     = ', u_surf*coul_factor, & 
+                                    ' u_self     = ', u_self*coul_factor, &
+                                    ' u_pol      = ', u_pol*coul_factor , &
+                                    ' u_coul     = ', u_coul
 
-  !tau_dir  = tau_dir  * press_unit * coul_factor
-  !tau_rec  = tau_rec  * press_unit * coul_factor
-  !CALL print_tensor( tau_dir  ( : , : )     , 'TAU_DIR ' )
-  !CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
-  !CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
 
+  tau_dir  = tau_dir  / press_unit * coul_factor
+  tau_rec  = tau_rec  / press_unit * coul_factor
+  CALL print_tensor( tau_dir  ( : , : )     , 'TAU_DIR ' )
+  CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
+  CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
+
+#endif
 
   deallocate( ef_dir  , ef_rec  , ef_surf ,ef_self)
   deallocate( fx_coul , fy_coul , fz_coul )
@@ -1769,7 +1772,7 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
   deallocate( fx_rec  , fy_rec  , fz_rec  )
   deallocate( fx_surf , fy_surf , fz_surf )
 
-  pvirial_coul = 1.0_dp / 3.0_dp * ( tau_coul(1,1) + tau_coul(2,2) + tau_coul(3,3) ) / press_unit
+  pvirial_coul = 1.0_dp / 3.0_dp * ( tau_coul(1,1) + tau_coul(2,2) + tau_coul(3,3) ) * press_unit
 
   return
 
@@ -1829,7 +1832,6 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
-  print*,cutsq
 
   if ( lvnlist ) CALL vnlistcheck ( verlet_coul )
   ! ======================================
@@ -1846,7 +1848,6 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
     if ( lvnlist ) then
       jb = verlet_coul%point( ia )
       je = verlet_coul%point( ia + 1 ) - 1
-      print*,'jb,je',jb,je
     else
       ! ====================================
       !         else all ja   
@@ -1870,7 +1871,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
       else
         ja = j1
       endif
-      if (ja .eq. ia ) cycle
+
+  !    print*,'ia,ja',ia,ja
+      !if (ja .eq. ia ) cycle
+      if ( ( lvnlist .and. ja .eq. ia ) .or. ( .not. lvnlist .and. ja .le. ia ) ) cycle
 
         jta  = itype(ja)
         qj   = qia(ja)
@@ -1891,6 +1895,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         d2  = rxij * rxij + ryij * ryij + rzij * rzij
+   !     print*,'rc',d2,cutsq
         if ( d2 .gt. cutsq ) cycle
           d   = SQRT ( d2 )
           d3  = d2 * d
@@ -1977,10 +1982,16 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
             ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) - qj * Tx 
             ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) - qj * Ty
             ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) - qj * Tz
+            ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) + qi * Tx 
+            ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) + qi * Ty
+            ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) + qi * Tz
             if ( ldamp ) then
               ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
               ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
               ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
+              ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) - qi * Txd
+              ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) - qi * Tyd
+              ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) - qi * Tzd
             endif
           endif
 
@@ -1993,6 +2004,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fy_dir ( ia ) = fy_dir ( ia ) - fyij
           fz_dir ( ia ) = fz_dir ( ia ) - fzij
 
+          fx_dir ( ja ) = fx_dir ( ja ) + fxij
+          fy_dir ( ja ) = fy_dir ( ja ) + fyij
+          fz_dir ( ja ) = fz_dir ( ja ) + fzij
+
           ! stress tensor
           tau_dir(1,1) = tau_dir(1,1) - (rxij * fxij + rxij * fxij) * 0.5_dp
           tau_dir(1,2) = tau_dir(1,2) - (rxij * fyij + ryij * fxij) * 0.5_dp
@@ -2003,6 +2018,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           tau_dir(3,1) = tau_dir(3,1) - (rzij * fxij + rxij * fzij) * 0.5_dp
           tau_dir(3,2) = tau_dir(3,2) - (rzij * fyij + ryij * fzij) * 0.5_dp
           tau_dir(3,3) = tau_dir(3,3) - (rzij * fzij + rzij * fzij) * 0.5_dp
+
 
         endif
         ! ===========================================================
@@ -2025,6 +2041,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + ( Txx * mujx + Txy * mujy + Txz * mujz ) 
           ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + ( Txy * mujx + Tyy * mujy + Tyz * mujz ) 
           ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + ( Txz * mujx + Tyz * mujy + Tzz * mujz ) 
+
+          ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) + ( Txx * muix + Txy * muiy + Txz * muiz ) 
+          ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) + ( Txy * muix + Tyy * muiy + Tyz * muiz ) 
+          ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) + ( Txz * muix + Tyz * muiy + Tzz * muiz ) 
 
           ! forces
           fxij = ( muix * Txxx * mujx + &
@@ -2060,6 +2080,9 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fx_dir ( ia ) = fx_dir ( ia ) + fxij
           fy_dir ( ia ) = fy_dir ( ia ) + fyij
           fz_dir ( ia ) = fz_dir ( ia ) + fzij
+          fx_dir ( ja ) = fx_dir ( ja ) - fxij
+          fy_dir ( ja ) = fy_dir ( ja ) - fyij
+          fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
           ! stress tensor
           tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
@@ -2101,6 +2124,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fy_dir ( ia ) = fy_dir ( ia ) + fyij
           fz_dir ( ia ) = fz_dir ( ia ) + fzij
 
+          fx_dir ( ja ) = fx_dir ( ja ) - fxij
+          fy_dir ( ja ) = fy_dir ( ja ) - fyij
+          fz_dir ( ja ) = fz_dir ( ja ) - fzij
+
           ! stress tensor
           tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
           tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij) * 0.5_dp
@@ -2111,6 +2138,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij) * 0.5_dp
           tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij) * 0.5_dp
           tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij) * 0.5_dp
+
 
           if ( ldamp ) then
 
@@ -2126,6 +2154,10 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
             fx_dir ( ia ) = fx_dir ( ia ) + fxij
             fy_dir ( ia ) = fy_dir ( ia ) + fyij
             fz_dir ( ia ) = fz_dir ( ia ) + fzij
+
+            fx_dir ( ja ) = fx_dir ( ja ) - fxij
+            fy_dir ( ja ) = fy_dir ( ja ) - fyij
+            fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
             ! stress tensor
             tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
@@ -2161,9 +2193,14 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 2 , : ) , 3 )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
 
-  tau_dir =   tau_dir * 0.5_dp / simu_cell%omega
-  u_dir   =   u_dir   * 0.5_dp
-  u_damp  =   u_damp  * 0.5_dp
+  !if ( .not. lvnlist )  then
+  !  tau_dir = tau_dir   * 0.5_dp
+  !  u_dir   =   u_dir   * 0.5_dp
+  !  u_damp  =   u_damp  * 0.5_dp
+  !endif
+  tau_dir =   tau_dir / simu_cell%omega
+  u_dir   =   u_dir   !* 0.5_dp
+  u_damp  =   u_damp  !* 0.5_dp
 
   return
 
@@ -2195,11 +2232,11 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   real(kind=dp)     :: kx   , ky   , kz , kk, Ak
   real(kind=dp)     :: rxi  , ryi  , rzi
   real(kind=dp)     :: fxij , fyij , fzij
-  real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe
+  real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe , rhonk_R , rhonk_I
   real(kind=dp)     :: alpha2, tpi_V , fpi_V
-  complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk, expikmAk
-  !complex(kind=dp ) ,dimension (:), allocatable :: expikr , expikm
-  complex(kind=dp ) :: expikr , expikm
+  complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk, expikmAk , expikr
+  !complex(kind=dp ) ,dimension (:), allocatable :: expikr 
+  real(kind=dp)     ,dimension (:), allocatable :: ckr , skr 
   logical           :: ldip , update_mu_only
   dectime
 
@@ -2218,8 +2255,9 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   addtime(fcoultimetot2_2)
 
 
-!  allocate( expikr ( natm ) ) 
-!  allocate( expikm ( natm ) ) 
+  allocate( ckr ( natm ) , skr (natm) ) 
+  !allocate( expikr ( natm ) ) 
+  !allocate( expikm ( natm ) ) 
 
   ! ==============================================
   !            reciprocal space part
@@ -2227,75 +2265,88 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   kpoint : do ik = km_coul%kpt_dec%istart, km_coul%kpt_dec%iend
     if (km_coul%kptk(ik) .eq. 0.0_dp ) cycle
 
-!    kx     = km_coul%kptx(ik)
-!    ky     = km_coul%kpty(ik)
-!    kz     = km_coul%kptz(ik)
-!    kk     = km_coul%kptk(ik)
-!    Ak     = km_coul%Ak( ik )
-!    kcoe   = km_coul%kcoe(ik) 
-    rhonk  = km_coul%rhon(ik) 
-    
-    ! charge density at ik
-!    rhonk = (0.0_dp, 0.0_dp)
-!    do ia = 1, natm
-!      qi  = qia ( ia )
-!      rxi = rx(ia)
-!      ryi = ry(ia)
-!      rzi = rz(ia)
-!      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-!      expikr(ia)   = EXP ( imag * k_dot_r )
-!      rhonk    = rhonk + qi * expikr(ia) 
-!      if ( .not. ldip ) cycle
-!      muix = mu ( ia , 1 )
-!      muiy = mu ( ia , 2 )
-!      muiz = mu ( ia , 3 )
-!      k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
-!      expikm(ia)= k_dot_mu *  expikr(ia)
-!      rhonk = rhonk + imag * expikm(ia)
-!    enddo
+    kx     = km_coul%kptx(ik)
+    ky     = km_coul%kpty(ik)
+    kz     = km_coul%kptz(ik)
+    kk     = km_coul%kptk(ik)
+    Ak     = km_coul%Ak( ik )
+    kcoe   = km_coul%kcoe(ik) 
 
-!     str    = CONJG ( rhonk ) * rhonk * Ak
+    !rhonk = (0.0_dp, 0.0_dp)
+    rhonk_R = 0.0_dp
+    rhonk_I = 0.0_dp
+    do ia = 1, natm
+      qi  = qia ( ia )
+      rxi = rx(ia)
+      ryi = ry(ia)
+      rzi = rz(ia)
+      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
+      !expikr   = EXP ( imag * k_dot_r )  ! cos + i sin
+      ckr(ia)  = COS(k_dot_r) 
+      skr(ia)  = SIN(k_dot_r)
+!      rhonk    = rhonk + qia ( ia ) * expikr(ia) ! q * cos + i * q * sin
+!      rhonk    = rhonk + qia ( ia ) * expikr     ! q * cos + i * q * sin
+      rhonk_R    = rhonk_R + qi * ckr(ia) 
+      rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
+      if ( .not. ldip ) cycle
+      muix = mu ( ia , 1 )
+      muiy = mu ( ia , 2 )
+      muiz = mu ( ia , 3 )
+      k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
+!      rhonk = rhonk + ik_dot_mu * expikr ! rhon_R + i rhon_I
+      rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
+      rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
+    enddo
+!    print*,rhonk_R,rhonk_I
+
+    ! str    = CONJG ( rhonk ) * rhonk * Ak   ! ( rhon_R - i rhon_I ) ( rhon_R + i rhon_I ) ak = ak rhon_R2 + ak rhon_I2 
+     str    = (rhonk_R*rhonk_R + rhonk_I*rhonk_I) * Ak  
      ! potential energy 
-!     u_rec   = u_rec   + str
+     u_rec   = u_rec   + str
 
     do ia = 1 , natm
-!      qi  = qia ( ia )
-      expikr = km_coul%expikr(ia,ik)
-      expikm = km_coul%expikm(ia,ik)
-!      expikrAk = expikr * Ak
-!      expikmAk = expikm * Ak
-!      recargi = REAL ( imag * CONJG ( rhonk ) * expikrAk , kind = dp )
+      qi  = qia ( ia )
+      !expikrAk = expikr(ia) * Ak ! ak cos + i * ak * sin
+!      expikrAk = ( ckr(ia) + imag * skr(ia) ) * Ak ! ak cos + i * ak * sin
+!      recargi = REAL ( imag * CONJG ( rhonk ) * expikrAk , kind = dp ) ! ak ( rhon_I ckr - rhon_R skr )     
+      recarg = Ak * ( rhonk_I * ckr(ia) - rhonk_R * skr(ia) )
+      !print*,'recarg',recarg
 
-!      fxij = kx * recargi
-!      fyij = ky * recargi
-!      fzij = kz * recargi
-!      ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
-!      ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
-!      ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
+      fxij = kx * recarg
+      fyij = ky * recarg
+      fzij = kz * recarg
+      ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
+      ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
+      ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
 
       ! charges
-!      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
-!      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
-!      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
+      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
+      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
+      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
       ! dipoles ( k_alpha * Ak * mu.k * recarg ) 
-!      if ( .not. ldip ) cycle
-!      recarg  = REAL (        CONJG ( rhonk ) * expikmAk , kind = dp )
-!      fx_rec ( ia ) = fx_rec ( ia ) + kx * recarg 
-!      fy_rec ( ia ) = fy_rec ( ia ) + ky * recarg
-!      fz_rec ( ia ) = fz_rec ( ia ) + kz * recarg
+      if ( .not. ldip ) cycle
+      muix = mu ( ia , 1 )
+      muiy = mu ( ia , 2 )
+      muiz = mu ( ia , 3 )
+!      recarg  = REAL (        CONJG ( rhonk ) * expikrAk , kind = dp ) ! ak rhon_R ckr + ak rhon_I skr
+      recarg  = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) ) ! ak rhon_R ckr + ak rhon_I skr
+      k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
+      fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
+      fy_rec ( ia ) = fy_rec ( ia ) + ky * k_dot_mu
+      fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
     enddo
 
      ! keep it out from the ia loop !!!!!!!!!!!!! stupid bug 
      ! stress tensor ! to be check ! symmetric !
-!     tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
-!     tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str
-!     tau_rec(1,3) = tau_rec(1,3) -            kcoe * kx * kz   * str
-!     tau_rec(2,1) = tau_rec(2,1) -            kcoe * ky * kx   * str
-!     tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str
-!     tau_rec(2,3) = tau_rec(2,3) -            kcoe * ky * kz   * str
-!     tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str
-!     tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
-!     tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
+     tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
+     tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str
+     tau_rec(1,3) = tau_rec(1,3) -            kcoe * kx * kz   * str
+     tau_rec(2,1) = tau_rec(2,1) -            kcoe * ky * kx   * str
+     tau_rec(2,2) = tau_rec(2,2) + ( 1.0_dp - kcoe * ky * ky ) * str
+     tau_rec(2,3) = tau_rec(2,3) -            kcoe * ky * kz   * str
+     tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str
+     tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
+     tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
 
 
   enddo kpoint
@@ -2307,9 +2358,6 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   fz_rec  = fz_rec  * 2.0_dp
   u_rec   = u_rec   * 2.0_dp
   tau_rec = tau_rec * 2.0_dp
-  tau_rec(2,1) = tau_rec(1,2)
-  tau_rec(3,1) = tau_rec(1,3)
-  tau_rec(3,2) = tau_rec(2,3)
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
   CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,1) , natm )
@@ -2335,6 +2383,7 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
 
   !deallocate ( expikr ) 
   !deallocate ( expikm ) 
+  deallocate( ckr , skr ) 
 
   return
 
@@ -2454,25 +2503,22 @@ SUBROUTINE engforce_bmhftd_pbc
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_nonb(1,1) = tau_nonb(1,1) + rxij * fxij
-          tau_nonb(1,2) = tau_nonb(1,2) + rxij * fyij
-          tau_nonb(1,3) = tau_nonb(1,3) + rxij * fzij
-          tau_nonb(2,1) = tau_nonb(2,1) + ryij * fxij
-          tau_nonb(2,2) = tau_nonb(2,2) + ryij * fyij
-          tau_nonb(2,3) = tau_nonb(2,3) + ryij * fzij
-          tau_nonb(3,1) = tau_nonb(3,1) + rzij * fxij
-          tau_nonb(3,2) = tau_nonb(3,2) + rzij * fyij
-          tau_nonb(3,3) = tau_nonb(3,3) + rzij * fzij
-
-
+          tau_nonb(1,1) = tau_nonb(1,1) + ( rxij * fxij + rxij * fxij ) * 0.5_dp
+          tau_nonb(1,2) = tau_nonb(1,2) + ( rxij * fyij + ryij * fxij ) * 0.5_dp
+          tau_nonb(1,3) = tau_nonb(1,3) + ( rxij * fzij + rzij * fxij ) * 0.5_dp
+          tau_nonb(2,1) = tau_nonb(2,1) + ( ryij * fxij + rxij * fyij ) * 0.5_dp
+          tau_nonb(2,2) = tau_nonb(2,2) + ( ryij * fyij + ryij * fyij ) * 0.5_dp
+          tau_nonb(2,3) = tau_nonb(2,3) + ( ryij * fzij + rzij * fyij ) * 0.5_dp
+          tau_nonb(3,1) = tau_nonb(3,1) + ( rzij * fxij + rxij * fzij ) * 0.5_dp
+          tau_nonb(3,2) = tau_nonb(3,2) + ( rzij * fyij + ryij * fzij ) * 0.5_dp
+          tau_nonb(3,3) = tau_nonb(3,3) + ( rzij * fzij + rzij * fzij ) * 0.5_dp
         endif
-
      endif
    enddo 
 
   enddo
   vir = vir/3.0_dp
-  tau_nonb = tau_nonb / simu_cell%omega * press_unit
+  tau_nonb = tau_nonb / simu_cell%omega / press_unit
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )
@@ -2511,6 +2557,7 @@ END SUBROUTINE engforce_bmhftd_pbc
 ! ******************************************************************************
 SUBROUTINE engforce_morse_pbc 
 
+  USE constants,                ONLY :  press_unit
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz, atype , itype , verlet_vdw, & 
                                         ntype , simu_cell , atom_dec , tau_nonb
   USE control,                  ONLY :  lvnlist  
@@ -2628,7 +2675,7 @@ SUBROUTINE engforce_morse_pbc
     enddo
   enddo
   vir = vir/3.0_dp
-  tau_nonb = tau_nonb / simu_cell%omega
+  tau_nonb = tau_nonb / simu_cell%omega / press_unit
 
   forcetime2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot+(forcetime2-forcetime1)
@@ -2648,7 +2695,7 @@ SUBROUTINE engforce_morse_pbc
   u_morse = u
   vir_morse = vir
 
-  WRITE ( stdout ,'(2f24.12)') u_morse , u2 
+!  WRITE ( stdout ,'(2f24.12)') u_morse , u2 
 
   ! ======================================
   !         direct to cartesian

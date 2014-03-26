@@ -217,10 +217,9 @@ END SUBROUTINE vacf_dealloc
 ! ******************************************************************************
 SUBROUTINE vacf_main 
 
-  USE control,          ONLY :  cutshortrange 
   USE config,           ONLY :  natm , rx , ry , rz , vx , vy , vz , rho 
   USE md,               ONLY :  dt
-  USE io,          ONLY :  kunit_VACFFF
+  USE io,               ONLY :  kunit_VACFFF
   USE constants,        ONLY :  pi
   USE time,             ONLY :  vacftimetot
 

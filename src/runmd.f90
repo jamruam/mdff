@@ -23,7 +23,7 @@
 !#define debug_para
 
 ! calculate the stress tensor at each time step
-!#define stress_t 
+#define stress_t 
 
 ! calculates efg at each time step
 !#define efg_t
@@ -227,6 +227,8 @@ MAIN:  do itime = offset , npas + (offset-1)
     ioprint = .false.
     ioprintnode = .false.
   endif
+  !ioprint     = .true.
+  !ioprintnode = .true.
 
 
 #ifdef block
@@ -309,11 +311,13 @@ MAIN:  do itime = offset , npas + (offset-1)
          endif
 
 #ifdef stress_t
-  io_node blankline(stdout)
-  io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  io_printnode blankline(stdout)
+  io_printnode WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  if ( ioprintnode ) then
   if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
                     CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' ) 
+  endif
 #endif
        
 #ifdef com_t
@@ -403,7 +407,7 @@ MAIN:  do itime = offset , npas + (offset-1)
             CALL write_thermo( itime , kunit_OSZIFF, 'osz' )
         endif
   
-        CALL periodicbc( natm , rx , ry , rz , simu_cell )
+        !CALL periodicbc( natm , rx , ry , rz , simu_cell )
         ! =====================
         !  save configuration 
         ! =====================

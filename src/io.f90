@@ -149,6 +149,9 @@ MODULE io
   !> output chi rmc 
   integer, PARAMETER :: kunit_RMCLOG     = 310
 
+  integer, PARAMETER :: kunit_conf_proc   = 400
+  integer, dimension(:) , allocatable :: kunit_bak_proc
+
 CONTAINS
 
 ! *********************** SUBROUTINE io_init ***********************************
@@ -166,15 +169,22 @@ SUBROUTINE io_init
   include "mpif.h"
 
   ! local 
-  integer :: myrank , ierr
+  integer :: myrank , numprocs , ierr
   
   CALL MPI_COMM_RANK ( MPI_COMM_WORLD , myrank , ierr )    ! numero de processus (output myrank .eq. 0 )
+  CALL MPI_COMM_SIZE ( MPI_COMM_WORLD , numprocs , ierr )  ! nombre de processus
+
 
    if ( myrank .eq. 0 ) then
      ionode = .true.
    else
      ionode = .false.
    endif
+
+  allocate( kunit_bak_proc(0:numprocs) )
+  kunit_bak_proc(myrank) = kunit_conf_proc + myrank
+  print*,myrank,kunit_bak_proc(myrank)
+    
 
   return
 
@@ -198,7 +208,6 @@ SUBROUTINE io_open ( kunit , cunit , iostatus )
 
   ! local
   integer                   :: ioerr
-
 
   OPEN(UNIT=kunit,FILE=trim(sweep_blanks( cunit )),IOSTAT=ioerr,STATUS=iostatus)
 

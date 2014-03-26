@@ -144,7 +144,7 @@ SUBROUTINE distance_tab
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype 
   USE field,                    ONLY :  sigmalj , lwfc
-  USE io,                  ONLY :  ionode , stdout, stderr
+  USE io,                       ONLY :  ionode , stdout, stderr
   USE cell,                     ONLY :  kardir , dirkar 
 
   implicit none
@@ -286,13 +286,13 @@ SUBROUTINE vnlist_pbc ( vlist )
 
 
   ! local
-  integer :: icount , ia , ja , it , jt , k
+  integer :: icount , ia , ja , it , jt , k , j1
   integer :: p1 , p2
   real(kind=dp)  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
   real(kind=dp) :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
 
 #ifdef debug_vnl
-   WRITE ( stdout , '(a)') 'debug : in vnlist_pbc'
+   WRITE ( stdout , '(a,f10.3)') 'debug : in vnlist_pbc',vlist%cut
 #endif
 
   do jt = 1, ntype 
@@ -330,8 +330,9 @@ SUBROUTINE vnlist_pbc ( vlist )
         p1 = itype ( ia )
         p2 = itype ( ja )
         if ( rijsq .le. rskinsq(p1,p2)) then
+ !         print*,ia,ja,icount,k
           icount = icount + 1
-          k = k+1
+          k=k+1
           if ( icount .lt. 1 .or. icount-1 .gt. vnlmax*natm ) then
             io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
             STOP
@@ -342,12 +343,37 @@ SUBROUTINE vnlist_pbc ( vlist )
     enddo
     vlist%point(ia) = icount-k
   enddo
-  vlist%point (atom_dec%iend + 1 ) = icount
+  vlist%point(atom_dec%iend + 1 )= icount
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+  !print*,'verlet point info'
+  !  rxi = rx ( 1 )
+  !  ryi = ry ( 1 )
+  !  rzi = rz ( 1 )
+  !print*,vlist%point(1),vlist%point(2)
+  !do j1=vlist%point(1),vlist%point(2)
+  !    ja=vlist%list(j1)
+  !      rxij = rxi - rx ( ja )
+  !      ryij = ryi - ry ( ja )
+  !      rzij = rzi - rz ( ja )
+  !      sxij = rxij - nint ( rxij )
+  !      syij = ryij - nint ( ryij )
+  !      szij = rzij - nint ( rzij )
+  !      rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+  !      ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+  !      rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+  !      rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+  !      print*,ja,rijsq
+  !enddo
+  !print*,'verlet list info'
+  !print*,vlist%list
+  !print*,vlist%point
+  !print*,'verlet listname info'
+  !print*,vlist%listname
+  !if ( vlist%listname .eq. 'coul' ) stop
 
   return
 
@@ -363,8 +389,8 @@ END SUBROUTINE vnlist_pbc
 SUBROUTINE vnlist_nopbc ( vlist )
 
   USE constants, ONLY : dp
-  USE config,   ONLY :  natm , natmi , rx , ry , rz , itype , verlet_list , ntype , atom_dec
-  USE control,  ONLY :  skindiff , cutshortrange 
+  USE config,    ONLY :  natm , natmi , rx , ry , rz , itype , verlet_list , ntype , atom_dec
+  USE control,   ONLY :  skindiff
 
   implicit none
 
@@ -410,10 +436,12 @@ SUBROUTINE vnlist_nopbc ( vlist )
   vlist%point( atom_dec%iend + 1 ) = icount
 
 
+  print*,'verlet list info'
   print*,vlist%list
   print*,vlist%point
   print*,vlist%listname
-  if ( vlist%listname .eq. 'coul' ) stop
+  !if ( vlist%listname .eq. 'coul' ) stop
+ 
  
   return
 
@@ -755,15 +783,15 @@ SUBROUTINE print_config_sample ( time , rank )
        WRITE ( stdout ,'(a5,i10)') 'time = ',time
        WRITE ( stdout ,'(a5,i10)') 'rank = ',rank
        WRITE ( stdout ,'(a)') '     i    atype       itype      ipolar      q      mass    mu_x    mu_y    mu_z             rx                 vx                  fx'
-    if ( natm .ge. 8)   &
+    if ( natm .ge. 32)   &
        WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
        ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
-        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 4 )
-    if ( natm .ge. 8)   &
+        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , 16 )
+    if ( natm .ge. 32)   &
        WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
        ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
-        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 4  , natm )
-    if ( natm .lt. 8)   &
+        rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = natm - 16  , natm )
+    if ( natm .lt. 32)   &
        WRITE ( stdout ,'(i6,a10,2i10,4x,5f8.3,3f20.10)') &
        ( ia , atype ( ia ) , itype ( ia ) , ipolar ( ia ) , qia ( ia ) , massia(ia), dipia ( ia , 1 ), dipia ( ia , 2) ,dipia ( ia , 3 ), &
         rx ( ia ) , vx ( ia ) , fx ( ia ) , ia = 1 , natm )
@@ -804,6 +832,57 @@ SUBROUTINE print_general_info (kunit)
   return
 
 END SUBROUTINE print_general_info 
+
+
+! *********************** SUBROUTINE write_all_conf_proc ******************************
+!
+!>\brief
+! write configuration (pos,vel) to CONTFF file
+!
+! ******************************************************************************
+SUBROUTINE write_all_conf_proc
+
+  USE constants,                ONLY :  dp
+  USE mpimdff,                  ONLY :  myrank, numprocs
+  USE io,                       ONLY :  kunit_bak_proc, ionode
+  USE cell,                     ONLY :  kardir , periodicbc
+  USE config,                   ONLY :  system , simu_cell, natm, atype, ntype, natmi , atypei , rx, ry ,rz , vx ,vy ,vz ,fx,fy,fz
+  USE md,                       ONLY :  itime
+
+  implicit none
+
+  ! local
+  integer :: ia , it
+  character(len=2)  :: str1
+  character(len=2)  :: str2
+  character(len=60) :: str3
+  character(len=60) :: filename_out
+
+  write(str1,'(i2)' ) numprocs
+  write(str2,'(i2)' ) myrank
+  write(str3,'(i8)' ) itime
+  filename_out=trim(adjustl( 'CONTFF.np'//trim(adjustl(str1))//'.rank'//trim(adjustl(str2))//'.step'//trim(adjustl(str3)) ) )
+  !write(*,*) 'write conf to unit',kunit_bak_proc(myrank),filename_out
+  OPEN ( kunit_bak_proc(myrank) ,file = filename_out , STATUS = 'UNKNOWN')
+      WRITE (  kunit_bak_proc(myrank),'(i)') natm
+      WRITE (  kunit_bak_proc(myrank),'(a)') system
+      WRITE (  kunit_bak_proc(myrank),'(3f20.12)') simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
+      WRITE (  kunit_bak_proc(myrank),'(3f20.12)') simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
+      WRITE (  kunit_bak_proc(myrank),'(3f20.12)') simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+      WRITE (  kunit_bak_proc(myrank),'(i4)') ntype
+      WRITE (  kunit_bak_proc(myrank),*) ( atypei(it) , it=1,ntype )
+      WRITE (  kunit_bak_proc(myrank),*) ( natmi (it) , it=1,ntype )
+      WRITE (  kunit_bak_proc(myrank),'(A)') 'Cartesian'
+      WRITE (  kunit_bak_proc(myrank),'(a,9e20.12)') ( atype ( ia ) , rx ( ia ) , ry ( ia ) , rz ( ia ) , &
+                                                                      vx ( ia ) , vy ( ia ) , vz ( ia ) , &
+                                                                      fx ( ia ) , fy ( ia ) , fz ( ia ) , ia = 1 , natm )
+  CLOSE (kunit_bak_proc(myrank))
+
+  return
+
+END SUBROUTINE write_all_conf_proc 
+
+
 
 
 ! *********************** SUBROUTINE dumb_guy **********************************

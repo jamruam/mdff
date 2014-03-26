@@ -136,7 +136,6 @@ SUBROUTINE read_pos
   CLOSE ( kunit_POSFF )
 
   CALL typeinfo_init
-  CALL print_config_sample(0,0)
 #ifdef debug_read_pos
   CALL distance_tab 
 #endif
