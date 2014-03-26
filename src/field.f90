@@ -1023,7 +1023,7 @@ SUBROUTINE engforce_nmlj_pbc
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
 
   ! ======================================
   !         cartesian to direct 
@@ -1178,7 +1178,7 @@ SUBROUTINE engforce_nmlj_nopbc
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   do ia = atom_dec%istart, atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -1308,7 +1308,7 @@ SUBROUTINE engforce_nmlj_pbc_noshift
     enddo
   enddo
 
-  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
@@ -1833,7 +1833,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
 
-  if ( lvnlist ) CALL vnlistcheck ( verlet_coul )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_coul )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -2424,7 +2424,7 @@ SUBROUTINE engforce_bmhftd_pbc
   tau_nonb = 0.0d0
 
  
-  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -2597,7 +2597,7 @@ SUBROUTINE engforce_morse_pbc
   fy  = 0.0_dp
   fz  = 0.0_dp
 
-  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
+!  if ( lvnlist ) CALL vnlistcheck ( verlet_vdw )
   ! ======================================
   !         cartesian to direct 
   ! ======================================

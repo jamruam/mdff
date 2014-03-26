@@ -22,8 +22,8 @@
 !#define debug
 !#define debug_para
 
-! calculate the stress tensor at each time step
-#define stress_t 
+! print the stress tensor at each time step for each contribution
+!#define stress_t 
 
 ! calculates efg at each time step
 !#define efg_t
@@ -263,6 +263,8 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nvt-nhcn')      CALL nhcn 
          if ( integrator.eq.'npt-nhcpn')     CALL nhcpn
 
+         if ( lvnlist ) CALL vnlistcheck
+
 #ifdef debug_para
         if ( ioprint ) then
           do ip=0,numprocs-1
@@ -312,13 +314,14 @@ MAIN:  do itime = offset , npas + (offset-1)
 
 #ifdef stress_t
   io_printnode blankline(stdout)
-  io_printnode WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
   if ( ioprintnode ) then
   if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
   if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' ) 
   endif
 #endif
+  if ( ioprintnode ) then
+                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' ) 
+  endif
        
 #ifdef com_t
      if ( ioprint ) then

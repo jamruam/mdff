@@ -19,6 +19,7 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug_vnl  ! verlet list debugging
+!#define debug_vnl2  ! verlet list debugging
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE estimate_alpha ****************************
@@ -271,52 +272,55 @@ END SUBROUTINE distance_tab
 !!                   enddo
 !
 ! ******************************************************************************
-SUBROUTINE vnlist_pbc ( vlist )  
+SUBROUTINE vnlist_pbc  
 
+  USE md,                       ONLY :  itime
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, ntype , simu_cell , vnlmax , atom_dec, verlet_list
+  USE config,                   ONLY :  natm , natmi , rx , ry , rz , itype, ntype , simu_cell , vnlmax , atom_dec, verlet_vdw , verlet_coul
   USE control,                  ONLY :  skindiff 
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  ionode , stdout , stderr
 
   implicit none
 
-  ! global
-  TYPE(verlet_list) :: vlist
-
-
   ! local
-  integer :: icount , ia , ja , it , jt , k , j1
+  integer :: ia , ja , it , jt , j1
+  integer :: icount_vdw , icount_coul
+  integer :: k_vdw , k_coul
   integer :: p1 , p2
-  real(kind=dp)  :: rskinsq(ntype,ntype) , rcut(ntype,ntype) , rskin(ntype,ntype)
+  real(kind=dp)  :: rskinsq_vdw , rskinsq_coul 
   real(kind=dp) :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
+  !debug
+  integer :: iv
 
-#ifdef debug_vnl
-   WRITE ( stdout , '(a,f10.3)') 'debug : in vnlist_pbc',vlist%cut
-#endif
+  verlet_vdw%list=0
+  verlet_coul%list=0
+  verlet_vdw%point=0
+  verlet_coul%point=0
 
-  do jt = 1, ntype 
-    do it = 1, ntype
-       rcut    ( it , jt ) = vlist%cut
-       rskin   ( it , jt ) = rcut  ( it , jt ) + skindiff
-       rskinsq ( it , jt ) = rskin ( it , jt ) * rskin ( it , jt )
-    enddo
-  enddo
+  rskinsq_vdw = verlet_vdw%cut + skindiff
+  rskinsq_vdw = rskinsq_vdw * rskinsq_vdw 
+  rskinsq_coul = verlet_coul%cut + skindiff
+  rskinsq_coul = rskinsq_coul * rskinsq_coul 
 
   ! ======================================
   !         cartesian to direct 
   ! ======================================
   CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
-  icount = 1
+  icount_vdw = 1
+  icount_coul = 1
+
   do ia = atom_dec%istart , atom_dec%iend
     rxi = rx ( ia )
     ryi = ry ( ia )
     rzi = rz ( ia )
-    k = 0
+    k_vdw = 0
+    k_coul = 0
     do ja = 1 , natm
       if ( ( ia .gt. ja .and. ( MOD ( ia + ja , 2 ) .eq. 0 ) ) .or. &
            ( ia .lt. ja .and. ( MOD ( ia + ja , 2 ) .ne. 0 ) ) ) then
+
         rxij = rxi - rx ( ja )
         ryij = ryi - ry ( ja )
         rzij = rzi - rz ( ja )
@@ -329,51 +333,75 @@ SUBROUTINE vnlist_pbc ( vlist )
         rijsq = rxij * rxij + ryij * ryij + rzij * rzij
         p1 = itype ( ia )
         p2 = itype ( ja )
-        if ( rijsq .le. rskinsq(p1,p2)) then
- !         print*,ia,ja,icount,k
-          icount = icount + 1
-          k=k+1
-          if ( icount .lt. 1 .or. icount-1 .gt. vnlmax*natm ) then
-            io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount-1,vnlmax*natm
+        !vdw sphere
+        if ( rijsq .le. rskinsq_vdw ) then
+          icount_vdw = icount_vdw + 1
+          k_vdw = k_vdw + 1
+          if ( icount_vdw .lt. 1 .or. icount_vdw - 1 .gt. vnlmax*natm ) then
+            io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount_vdw-1,vnlmax*natm
             STOP
           endif
-          vlist%list(icount-1) = ja
+          verlet_vdw%list(icount_vdw-1) = ja
+        endif
+        ! coul sphere
+        if ( rijsq .le. rskinsq_coul ) then
+          icount_coul = icount_coul + 1
+          k_coul = k_coul + 1
+          if ( icount_coul .lt. 1 .or. icount_coul - 1 .gt. vnlmax*natm ) then
+            io_node WRITE ( stderr , '(a,2i12,f48.8)' ) 'ERROR: out of bound list in vnlist_pbc',icount_coul-1,vnlmax*natm
+            STOP
+          endif
+          verlet_coul%list(icount_coul-1) = ja
         endif
       endif
     enddo
-    vlist%point(ia) = icount-k
+    verlet_vdw%point(ia)  = icount_vdw-k_vdw
+    verlet_coul%point(ia) = icount_coul-k_coul
   enddo
-  vlist%point(atom_dec%iend + 1 )= icount
+  verlet_vdw%point(atom_dec%iend + 1 ) = icount_vdw
+  verlet_coul%point(atom_dec%iend + 1 )= icount_coul
+
+#ifdef debug_vnl2
+  print*,'verlet point info'
+  ia = 1
+  rxi = rx ( ia )
+  ryi = ry ( ia )
+  rzi = rz ( ia )
+  print*,vlist%point(1),vlist%point(2)-1
+  do j1=vlist%point(1),vlist%point(2)-1
+        ja=vlist%list(j1)
+        rxij = rxi - rx ( ja )
+        ryij = ryi - ry ( ja )
+        rzij = rzi - rz ( ja )
+        sxij = rxij - nint ( rxij )
+        syij = ryij - nint ( ryij )
+        szij = rzij - nint ( rzij )
+        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
+        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
+        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
+        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
+        p1 = itype ( ia )
+        p2 = itype ( ja )
+        write(*,'(3i,4f16.8)') ia,ja,j1,sqrt(rijsq),sqrt(rskinsq(p1,p2)),rx(ia),rx(ja)
+  enddo
+!  CALL merge_sort(,N,T,labela,labelt)
+
+  print*,'verlet list info'
+  print*,vlist%listname
+  do ia=1,natm
+    write(*,*) ia,vlist%point(ia),vlist%point(ia+1)-1
+    do iv=vlist%point(ia),vlist%point(ia+1)-1
+      write(*,*) ia,vlist%list(iv)
+    enddo 
+    write(*,*) ''
+  enddo
+  if ( vlist%listname .eq. 'coul' ) stop
+#endif
 
   ! ======================================
   !         direct to cartesian
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-  !print*,'verlet point info'
-  !  rxi = rx ( 1 )
-  !  ryi = ry ( 1 )
-  !  rzi = rz ( 1 )
-  !print*,vlist%point(1),vlist%point(2)
-  !do j1=vlist%point(1),vlist%point(2)
-  !    ja=vlist%list(j1)
-  !      rxij = rxi - rx ( ja )
-  !      ryij = ryi - ry ( ja )
-  !      rzij = rzi - rz ( ja )
-  !      sxij = rxij - nint ( rxij )
-  !      syij = ryij - nint ( ryij )
-  !      szij = rzij - nint ( rzij )
-  !      rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
-  !      ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
-  !      rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
-  !      rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-  !      print*,ja,rijsq
-  !enddo
-  !print*,'verlet list info'
-  !print*,vlist%list
-  !print*,vlist%point
-  !print*,'verlet listname info'
-  !print*,vlist%listname
-  !if ( vlist%listname .eq. 'coul' ) stop
 
   return
 
@@ -453,10 +481,10 @@ END SUBROUTINE vnlist_nopbc
 !! check wether verlet list should be updated
 !
 ! ******************************************************************************
-SUBROUTINE vnlistcheck( vlist )  
+SUBROUTINE vnlistcheck  
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , verlet_list , atom_dec , simu_cell
+  USE config,                   ONLY :  natm , rx , ry , rz , xs , ys , zs , verlet_vdw , verlet_coul , atom_dec , simu_cell
   USE control,                  ONLY :  skindiff
   USE md,                       ONLY :  updatevnl , itime
   USE time,                     ONLY :  vnlisttimetot
@@ -466,8 +494,6 @@ SUBROUTINE vnlistcheck( vlist )
 
   implicit none
 
-  TYPE(verlet_list) :: vlist
-
   ! local
   integer :: ia , ierr
   real(kind=dp) :: drneimax , drneimax2 , drnei
@@ -475,12 +501,15 @@ SUBROUTINE vnlistcheck( vlist )
   real(kind=dp) :: sxij,syij,szij
   real(kind=dp) :: ttt1 , ttt2
 
+!#ifdef debug_vnl
+!  write(stdout,'(a,a)') 'debug : in vnlistcheck',vlist%listname
+!#endif
+
   ttt1 = MPI_WTIME(ierr)
   ! ======================================
   !         cartesian to direct 
   ! ======================================
   CALL kardir ( natm , rx , ry , rz , simu_cell%B )
-
 
   drneimax = 0.0_dp
   drneimax2 = 0.0_dp
@@ -495,6 +524,9 @@ SUBROUTINE vnlistcheck( vlist )
     rysi = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
     rzsi = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
     drnei = SQRT ( rxsi * rxsi + rysi * rysi + rzsi * rzsi ) 
+#ifdef debug_vnl
+  !  write(stdout,*) rxsi,rx ( ia ),xs ( ia )
+#endif
     if ( drnei .gt. drneimax ) then
       drneimax2 = drneimax
       drneimax  = drnei
@@ -504,7 +536,12 @@ SUBROUTINE vnlistcheck( vlist )
       endif
     endif        
   enddo 
+
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
         
+#ifdef debug_vnl
+  write(stdout,'(a,2e16.8)') 'debug : verlet list displacement =',drneimax + drneimax2,skindiff
+#endif
   ! ========================================
   ! DISPL = 2.0 * SQRT  ( 3.0 * DISPL ** 2 ) 
   !  I don't know from where this come from, 
@@ -514,18 +551,19 @@ SUBROUTINE vnlistcheck( vlist )
   if ( drneimax + drneimax2 .gt. skindiff ) then
     updatevnl = updatevnl + 1
 #ifdef debug_vnl
-  if ( ionode .and. itime .ne. 0 ) write ( stdout , '(a,2i6,2f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl)
-  if ( ionode ) write ( stdout , '(a,2i6,5f12.8)' ) 'verlet list update frequency',updatevnl,DBLE(itime)/DBLE(updatevnl),skindiff, drneimax,drneimax2
+  if ( ionode ) write ( stdout , '(a,i6,5f12.8)' ) 'verlet list update frequency =',updatevnl,REAL(itime)/REAL(updatevnl),skindiff, drneimax,drneimax2
 #endif
-    CALL vnlist_pbc ( vlist )  
+    CALL vnlist_pbc 
+    ! save coordinates it in direct coordinates
+    CALL kardir ( natm , rx , ry , rz , simu_cell%B )
     do ia = 1, natm 
       xs ( ia ) = rx ( ia )
       ys ( ia ) = ry ( ia )
       zs ( ia ) = rz ( ia )
     END do
+  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
      
   endif
-  CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
   ttt2 = MPI_WTIME(ierr)
   vnlisttimetot = vnlisttimetot + ( ttt2 - ttt1 ) 

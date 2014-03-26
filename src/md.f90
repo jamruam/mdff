@@ -302,13 +302,6 @@ SUBROUTINE md_check_tag
       !xe0 = simu_cell%omega**(1.0/3.0_dp) 
     endif
   endif 
-  print*,myrank,vxi
-  print*,myrank,xi
-  print*,myrank,vxib
-  print*,myrank,xib
-  print*,myrank,ve
-  print*,myrank,xe
-  print*,myrank,xe0
 
 
   ! units          

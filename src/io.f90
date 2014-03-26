@@ -183,7 +183,6 @@ SUBROUTINE io_init
 
   allocate( kunit_bak_proc(0:numprocs) )
   kunit_bak_proc(myrank) = kunit_conf_proc + myrank
-  print*,myrank,kunit_bak_proc(myrank)
     
 
   return

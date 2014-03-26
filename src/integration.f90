@@ -945,7 +945,7 @@ SUBROUTINE nhcpn
   Q(1) = Q(1) * L  
   ! thermostat/barostat mass coupled to ve
   Qb   = timesca_baro**2.0_dp * temp
-  Qb(1)= Qb(1) * 9.0_dp 
+  !Qb(1)= Qb(1) * 9.0_dp 
   ! barostat "mass"
   W    =  ( L + 3.0_dp )  * timesca_baro**2.0_dp * temp
 
@@ -961,8 +961,8 @@ SUBROUTINE nhcpn
 
   CALL chain_nhcpn( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 2 )
 
-  io_print write(stdout,'(i,a,e60.48)')        myrank,'mp e_npt',e_npt
 #ifdef debug
+  io_print write(stdout,'(i,a,e60.48)')        myrank,'mp e_npt',e_npt
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xi   ',(xi(inhc)  , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp vxi  ',(vxi(inhc) , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xib  ',(xib(inhc) , inhc=1,nhc_n)
@@ -976,9 +976,9 @@ SUBROUTINE nhcpn
   !  conserved quantity of NPT ensemble
   ! ==============================================
   e_npt = 0.0_dp
-  e_npt = e_npt + press    * simu_cell%omega                     ! PV 
-  e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! pe^2 / 2W
-  e_npt = e_npt + L * temp * xi(1)                               ! Nf kB T xi
+  e_npt = e_npt + press    * simu_cell%omega                     ! PV            # barostat potential energy of barostat
+  e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! pe^2 / 2W     # barostat kinetic energy
+  e_npt = e_npt + L * temp * xi(1)                               ! Nf kB T xi    
   e_npt = e_npt +     temp * xib(1)                              !    kB T xib
   e_npt = e_npt + vxi(1)   * vxi(1)  * 0.5_dp / Q (1)            ! pxi^2  / 2 Q
   e_npt = e_npt + vxib(1)  * vxib(1) * 0.5_dp / Qb(1)            ! pxib^2 / 2 Qb 
