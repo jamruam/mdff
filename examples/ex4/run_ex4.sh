@@ -121,6 +121,7 @@ cat > control.F << eof
         calc='efg'
         lcoulomb  = .true.
         longrange ='ewald'
+	cutlongrange = 5.0d0
 &end
 &efgtag
         lefgprintall=.true.
