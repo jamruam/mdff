@@ -17,7 +17,7 @@ echo "complete DOS "
 echo "(nkphon+1) x (nkphon+1) x (nkphon+1) k-points"
 echo "generated k-points in IBZKPTFF" 
 echo "---------------------------------------------"
-mpirun -np 2 $EXE control_vib+dos.F > stdout.vib+dos
+mpirun -np 16 $EXE control_vib+dos.F > stdout.vib+dos
 mv DKFF DKFF.vib+dos
 mv DOSKFF DOSKFF.vib+dos
 echo "plot dos"
