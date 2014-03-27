@@ -4,28 +4,26 @@
 ! ======================================================================
 &controltag
         calc          = 'md'      ! md calculation
-        lbmlj         = .true.
-        cutshortrange = 2.5d0
-        lrestart = .true.
-        ltraj         = .false.  
+        lnmlj         = .true.    ! switch on lj potential
+        cutshortrange = 8.5d0     ! lj short range cut off
 &end
 ! ======================================================================
 ! parameters for the molecular dynamics 
 ! ======================================================================
 &mdtag
-        integrator    = 'nve-vv'  
-        npas          = 1000      ! md steps
-        dt            = 0.001     ! time step 
-        temp          = 0.8       ! temperature  
+        integrator    = 'nve-vv'  ! NVE ensemble velocity verlet
+        npas          = 5000      ! number of md steps
+        dt            = 0.001     ! time step    [ps]
+        temp          = 90.0d0    ! temperature  [K]
         nprint        = 100       ! printing info each nprint
         fprint        = 1         ! printing info to OSZIFF
-        nequil        = 10        ! equilibration for nequil steps
+        nequil        = 1000      ! equilibration for nequil steps
         nequil_period = 1         ! period of rescaling 
 &end
 ! ======================================================================
 ! parameters for the force-field 
 ! ======================================================================
 &fieldtag
-        epslj(1,1)         = 1.0d0     ! lennard-jones potential
-        sigmalj(1,1)      = 1.0d0     ! lennard-jones potential
+        epslj(1,1)    = 0.010323576d0 ! lennard-jones potential in [eV] = 119.8 K
+        sigmalj(1,1)  = 3.405d0       ! lennard-jones potential in [A]
 &end
