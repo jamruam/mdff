@@ -6,11 +6,8 @@
 &controltag
       calc           = 'md'      ! md calculation
       lstatic        = .true.    ! static
-      lreduced       = .false.   ! reduced energy 
-      lpbc           = .false.   ! no periodic boundaries conditions
-      lvnlist        = .false.   ! no verlet list
       cutshortrange  = 100.0d0   
-      lbmlj          = .true.    ! lennard-jones
+      lnmlj          = .true.    ! lennard-jones
 &end
 
 ! ======================================================================
