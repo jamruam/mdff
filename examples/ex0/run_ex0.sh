@@ -1,5 +1,5 @@
 #!/bin/bash
-EXE=../../bin/mdff.x
+EXE=../../src/mdff.x
 sep="=================================================="
 echo $sep
 echo "#Example 0: Minimum settings with FCC structure"

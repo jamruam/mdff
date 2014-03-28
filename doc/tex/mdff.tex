@@ -43,7 +43,7 @@
 \def\00{{\bf 0}}
 
 
-\title{Molecular Dynamics FF, Manual , version 0.2.2}
+\title{Molecular Dynamics FF, Manual }
 
 \begin{document}
 
@@ -226,34 +226,42 @@ This cutoff is then implictely set to half of the box size.
 
 \section{Usage}
 
-\MDFF~only needs one input file usually called control.F~\footnote{the .F extension permits to get nice colors with vim} 
+The main file (usually called control.F~\footnote{the .F extension permits to get nice colors with vim}) is read in input as :
+\begin{verbatim}
+mdff.x control.F
+\end{verbatim}
 
-\subsection{Minimum settings: the input file}
+\MDFF read configuration from different files, depending on the task :
+\begin{verbatim}
+POSFF
+TRAJFF
+ISCFF
+\end{verbatim}
+
+\subsection{Main input : control.F}
 
 The input file is composed of different sections. 
 Each section is defined by  \&SECTIONNAME and \&END.
 Everything outside the sections is ignored.
 \\
 \\
-In \MDFF, five sections are always required :
+In \MDFF, three sections are always required :
 
 \begin{itemize}
 \item \&controltag ... \&end $\rightarrow$ General control parameters for calculation 
 \item \&mdtag ... \&end      $\rightarrow$ General Molecular dynamics parameters.
-\item \&configtag ... \&end  $\rightarrow$ Information on the configuration
 \item \&fieldtag ... \&end   $\rightarrow$ Set the Force-Field.
-\item \&proptag ... \&end    $\rightarrow$ Calculation of properties
 \end{itemize}
 
-see examples/ex0/control.F for the minimum settings example
-Using this minimum settings the code runs with default values.
+see examples/ex0/control.F for the some minimum settings example
+Using this minimum settings the code runs with several default values.
 It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc lennard-jones 
 crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the standard output of this minimum setting. 
 
 \clearpage
 \subsection{Minimum setting: standart output}
 \begin{verbatim}
-                            \\|//                    
+                            \\|//                            
                            -(o o)-                           
 ========================oOO==(_)==OOo========================
           ____    ____  ______   ________  ________  
@@ -262,128 +270,209 @@ crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the st
            | |\  /| |    | |  | | |  _|     |  _|    
           _| |_\/_| |_  _| |_.' /_| |_     _| |_     
          |_____||_____||______.'|_____|   |_____|    
-  
+
 =============================================================
 
 MOLECULAR DYNAMICS ...for fun                 
-mdff.0.3.1
-parallel version
+mdff.r70  (build Mar 28 2014 12:40:00) parallel                                 
 filipe.manuel.vasconcelos@gmail.com  
-Running on   1 nodes                  
-Host     : superbock
-time     : 2012/10/09    14:37:06
-calc     : md                                                          
+Running on  :    1 nodes                  
+by user     : filipe                        
+host        : IRAM-CE-004776
+date        : 2014/03/28    12:45:23
+
+CONTROL MODULE ... WELCOME
+
+calc        =  md                                                          
+lnmlj       =  T
+lbmhft      =  F
+lbmhftd     =  F
+lmorse      =  F
+lcoulomb    =  F
+lsurf       =  F
+lvnlist     =  T
+lstatic     =  T
+lreduced    =  F
+lrestart    =  F
 
 =============================================================
 
-periodic boundary conditions in cubic cell     
-using minimum image convention                 
-verlet list used 
-units reduced by the number of atom
-dynamic calculation
-NVE ensemble --- velocity verlet integrator    
-with equilibration:             
-berendsen scaling ( is not canonical ...and so NVE)
-number of steps                      =         10
-timestep                             = .10000E-02
-time range                           = .10000E-01
-temperature                          =    1.00000
-number of equilibration steps        =         10
-equilibration period                 =          1
-Berendsen thermo time scale          = .10000E-02
-tauberendsen = dt -> simple rescale
-print thermo  periodicity            =          1
+reading configuration
+config from file POSFF
+found type information on POSFF : A  
+atomic positions in direct coordinates in POSFF
 
 =============================================================
 
-structure generated from the code
-Face-centered cubic structure :  4x  4x  4  
-system                               : UNKNOWN                                                     
-natm                                 =              256
-nA                                   =              256  100.00%
-cell parameter                       =           6.3496
-volume                               =         256.0000
-density                              =           1.0000
+CONFIG MODULE ... WELCOME
+
+system                : CONFIG                                                      
+natm                  =             4000
+ntype                 =                1
+nA                    =             4000  100.00%
+
+-------------------------------------------------------------
+direct     basis : 
+-------------------------------------------------------------
+a_vector              =      15.4144      0.0000      0.0000
+b_vector              =       0.0000     15.4144      0.0000
+c_vector              =       0.0000      0.0000     15.4144
+cell param.           =      15.4144     15.4144     15.4144
+perpend. width        =      15.4144     15.4144     15.4144
+angles                =      90.0000     90.0000     90.0000
+volume                =    3662.4913
+
+
+-------------------------------------------------------------
+reciprocal basis : 
+-------------------------------------------------------------
+a*_vector             =       0.0649      0.0000      0.0000
+b*_vector             =       0.0000      0.0649      0.0000
+c*_vector             =       0.0000      0.0000      0.0649
+
+cell param.           =       0.0649      0.0649      0.0649
+perpend. width        =       0.0649      0.0649      0.0649
+angles                =      90.0000     90.0000     90.0000
+volume                =       1.0000
+
+-------------------------------------------------------------
+
+density               =       1.0922
+
+ long range correction (init)  -169.435784080640     
 =============================================================
 
-discret charges: (no forces!)
-qA        =   -1.00000
+FIELD MODULE ... WELCOME
 
-force field information :                      
-no masses are implemented                      
-LENNARD-JONES                  
+-------------------------------------------------------------
+point charges: 
+-------------------------------------------------------------
+q   A                   =  0.000E+00
+quadA                   =  0.000E+00 mb
+total charge            =  0.000E+00
+second moment of charge =  0.000E+00
+
+-------------------------------------------------------------
+static dipoles: 
+-------------------------------------------------------------
+muA        =    0.00000   0.00000   0.00000
+
+-------------------------------------------------------------
+lennard-jones           
+-------------------------------------------------------------
 
        eps    /    / sigma* \ q       / sigma*  \ p \
  V = ------- |  p | ------- |    - q | -------- |   |
       q - p   \    \   r    /         \    r    /   /
 
-USER DEFINED MODEL                             
-cutoff      =    2.50000
+cutoff      =    6.00000
 truncation  = linear                                                      
+long range correction :       -169.435784081
 
---------------------------------------------------------
-A-A interactions:
---------------------------------------------------------
-sigma                                =    1.00000
-eps                                  =    1.00000
-q                                    =   12.00000
-p                                    =    6.00000
 
-long range correction :         -0.535433102
- 
-bmlj quantities initialized
-paralelisation - atom decomposition
-rank    0 atom    1 to  256
+-------------------------------------------------------------
+A  -A   interactions:
+-------------------------------------------------------------
+sigma                                =   0.10000000E+01
+eps                                  =   0.10000000E+01
+q                                    =   0.12000000E+02
+p                                    =   0.60000000E+01
+shift correction (linear)            :   -0.00009
+
+
 =============================================================
 
-generate velocities
-Velocities from Maxwell-Boltzmann distribution
-normal distribution method = boxmuller_basic     
-Berendsen thermostat
-effective temperature      T        =     1.0072
-wanted temperature         T0       =     1.0000
-velocities rescaled by              =     0.9964
+=============================================================
 
-center of mass velocity ALL     0.108420E-16    0.136609E-16    0.112757E-16
-center of mass velocity A       0.108420E-16    0.136609E-16    0.112757E-16
-=====================================================================================================================================
+MD MODULE ... WELCOME
+
+static  calculation ....boring                 
+number of steps                       =           10
+timestep                              =  0.00000E+00  ps
+time range                            =  0.00000E+00  ps
+temperature                           =      1.00000   K
+pressure                              =      0.00000 GPa
+print thermo  periodicity             =            1
+
+paralelisation - atoms decomposition
+rank =         0   atoms       1 to    4000 load :     4000
+=============================================================
 properties at t=0
-        0  0.00000000E+00  Etot = -.58210321E+01  Ekin  = 0.15000000E+01  Utot  = -.73210321E+01  U_lj   = -.73210321E+01  U_coul   = 0.00000000E+00
-        0  0.00000000E+00  Temp = 0.10000000E+01  Press = -.93499015E-02  P_lj  = -.13256151E-01  P_coul = 0.00000000E+00  Volume   = 0.25600000E+03
- 
+
+  Thermodynamic information 
+  ---------------------------------------------
+  step                  =         0
+  time                  =  0.00000000E+00
+  Ekin                  =  0.00000000E+00
+  Temp                  =  0.00000000E+00
+  Utot                  = -0.34102600E+05
+  U_vdw                 = -0.34102600E+05
+  U_coul                =  0.00000000E+00
+  Pressure              =  0.35716516E+04
+  Pvir_vdw              =  0.22292498E+02
+  Pvir_coul             =  0.00000000E+00
+  Pvir_tot              =  0.22292498E+02
+  volume                =  0.36624913E+04
+  a cell                =  0.15414361E+02
+  b cell                =  0.15414361E+02
+  c cell                =  0.15414361E+02
+  ---------------------------------------------
+  Etot                  = -0.34102600E+05
+  Htot                  = -0.34102600E+05
+
 stress tensor of initial configuration
-LJ : 
-                 x              y              z
-x                -3.39357478     0.00000000     0.00000000
-y                 0.00000000    -3.39357478    -0.00000000
-z                 0.00000000    -0.00000000    -3.39357478
-Press. iso =     -3.39357478     (    -0.01325615)
+
+TAU_NONB
+  0.44584996E+02  0.34094247E-14  0.15735806E-14
+  0.34094247E-14  0.44584996E+02  0.64934485E-14
+  0.15735806E-14  0.64934485E-14  0.44584996E+02
+iso =   0.44584996E+02(  0.11146249E-01)
+
+
+TAU_TOTA
+  0.44584996E+02  0.34094247E-14  0.15735806E-14
+  0.34094247E-14  0.44584996E+02  0.64934485E-14
+  0.15735806E-14  0.64934485E-14  0.44584996E+02
+iso =   0.44584996E+02(  0.11146249E-01)
 
 
 starting main loop
-=====================================================================================================================================
-.... MD OUTPOUT
-=====================================================================================================================================
+=============================================================
+=============================================================
 end of the main loop
- 
+
+
 stress tensor of final configuration
-LJ : 
-                 x              y              z
-x                -3.28236697    -0.00346038     0.00454895
-y                -0.00346038    -3.29751865     0.00222982
-z                 0.00454895     0.00222982    -3.29532761
-Press. iso =     -3.29173774     (    -0.01285835)
+
+TAU_NONB
+  0.44584996E+02  0.34094247E-14  0.15735806E-14
+  0.34094247E-14  0.44584996E+02  0.64934485E-14
+  0.15735806E-14  0.64934485E-14  0.44584996E+02
+iso =   0.44584996E+02(  0.11146249E-01)
+
+
+TAU_TOTA
+  0.44584996E+02  0.34094247E-14  0.15735806E-14
+  0.34094247E-14  0.44584996E+02  0.64934485E-14
+  0.15735806E-14  0.64934485E-14  0.44584996E+02
+iso =   0.44584996E+02(  0.11146249E-01)
 
 =============================================================
 
-                 TOTAL :  cpu time     0.04
-                    MD :  cpu time     0.02
+TIME MODULE ... WELCOME
 
+-------------------------------------------------------------
+                           TOTAL :  cpu time     0.66
+                          kardir :  cpu time     0.00
+                          dirkar :  cpu time     0.00
+
+-------------------------------------------------------------
 main subroutines:
+-------------------------------------------------------------
 MD:
-    engforce_bmlj      :  cpu time     0.02
-    engforce_coul_DS   :  cpu time     0.00
-    vnlistcheck        :  cpu time     0.00
+-------------------------------------------------------------
+             engforce_nmlj       :  cpu time     0.35
+-------------------------------------------------------------
 =============================================================
 \end{verbatim}
 
@@ -415,10 +504,19 @@ Parameter        &  Type              &          Short Description              
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lbmlj?     & (LOGICAL)          &  set the binary mixture lennard-jones potential (see section~\ref{sec:BMLJ})        & \verb?.TRUE.?  \\
+\verb?lnmlj?     & (LOGICAL)          &  set the binary mixture lennard-jones potential (see section~\ref{sec:BMLJ})        & \verb?.TRUE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lcoulomb?  & (LOGICAL)          &  set coulombic potentials (to be tested)                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lmorse?    & (LOGICAL)          &  set coulombic potentials (to be tested)                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lbmhft?    & (LOGICAL)          &  set coulombic potentials (to be tested)                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lbmhftd?   & (LOGICAL)          &  set coulombic potentials (to be tested)                                            & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lvnlist?   & (LOGICAL)          &  use verlet neighbour list (see section~\ref{sec:vnlist})                           & \verb?.TRUE.?  \\
@@ -427,7 +525,7 @@ Parameter        &  Type              &          Short Description              
 \verb?lstatic?   & (LOGICAL)          &  static calculation                                                                 & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lpbc?      & (LOGICAL)          &  use periodic boundary conditions (if .FALSE. should be tested)                     & \verb?.TRUE.?  \\
+\verb?lsurf?     & (LOGICAL)          &  use periodic boundary conditions (if .FALSE. should be tested)                     & \verb?.TRUE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lreduced?  & (LOGICAL)          &  \newline reduced the output quantities by the total number of particules \newline
@@ -436,13 +534,13 @@ Parameter        &  Type              &          Short Description              
 					 Units are discussed in section \ref{sec:units} \newline                            & \verb?.TRUE.? \\ 
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lshiftpot? & (LOGICAL)          &  use a shifted potential (maybe redundant with ctrunc)                              & \verb?.TRUE.? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
 \verb?ltest?     & (LOGICAL)          &  get round of the main code (for test purpose only)                                 & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lrestart?   & (LOGICAL)         &  restart calculation read previous positions and velocities                         & \verb?.FALSE.? \\
+\verb?lrestart?  & (LOGICAL)          &  restart calculation read previous positions and velocities                         & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?ltraj?     & (LOGICAL)          &  restart calculation read previous positions and velocities                         & \verb?.FALSE.? \\
 \hline
 \rule[-2.5cm]{0cm}{5cm}
 \verb?calc?      & (CHARACTER)        & \newline \verb?'md'?  : molecular dynamics simulation (see section~\ref{sec:MD}) \newline
@@ -487,6 +585,12 @@ Parameter        &  Type              &          Short Description              
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?skindiff?  & (DBLE)             &  verlet-list cutoff ( cutoff + skindiff )                                          & \verb?0.1?\\
 \hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?itraj_start?   & (INTEGER)      &  write trajectory from step \verb?itraj_start?                                      & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?itraj_period?  & (INTEGER)      &  write trajectory each \verb?itraj_period? steps                                    & \verb?10000? \\
 \hline
 \end{longtable}
 

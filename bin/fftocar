@@ -54,7 +54,7 @@ echo "1.00000"               >> $poscar
 head -n 5 $posff | tail -n 3 >> $poscar
 head -n 9 $posff | tail -n 3 >> $poscar 
 awk '{ 
-        if ((NF==10)||(NF==4)) { printf ("%30s %30s %30s %5s \n",$2,$3,$4,$1)  }
+        if ((NR>8)&&((NF==10)||(NF==4))) { printf ("%30s %30s %30s %5s \n",$2,$3,$4,$1)  }
                    }' $posff >> $poscar
 
 echo "file $poscar generated"

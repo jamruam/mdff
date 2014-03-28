@@ -61,29 +61,28 @@ tail -n $last temp > temp_l
 echo ""
 echo "averaging on $last last points:"
 echo ""
-awk -v np=$last     'BEGIN  { sum_etot=0        ; sum_ekin=0          ; sum_utot=0          ; sum_ulj=0           ; sum_ucoul=0          ; sum_umorse=0    ; 
-                              sum_etot_2=0      ; sum_ekin_2=0        ; sum_utot_2=0        ; sum_ulj_2=0         ; sum_ucoul_2=0        ; sum_umorse_2=0  } 
-                            { sum_etot+=$9      ; sum_ekin+=$12       ; sum_utot+=$15       ; sum_ulj+=$18        ; sum_ucoul+=$21       ; sum_umorse+=$24 ; 
-                              sum_etot_2+=$9*$9 ; sum_ekin_2+=$12*$12 ; sum_utot_2+=$15*$15 ; sum_ulj_2+=$18*$18  ; sum_ucoul_2+=$21*$21 ; sum_umorse_2+=$24*$24 } 
-                      END   { printf(" %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n",     
-                             "<Etot>   =" ,sum_etot/np   ,"<Etot^2>   =" ,sum_etot_2/np  ,"std dev.=",sqrt((sum_etot_2/np)-(sum_etot/np)^2),
-                             "<Ekin>   =" ,sum_ekin/np   ,"<Ekin^2>   =" ,sum_ekin_2/np  ,"std dev.=",sqrt((sum_ekin_2/np)-(sum_ekin/np)^2),
-                             "<Upot>   =" ,sum_utot/np   ,"<Upot^2>   =" ,sum_utot_2/np  ,"std dev.=",sqrt((sum_utot_2/np)-(sum_utot/np)^2),
-                             "<Ulj>    =" ,sum_ulj/np    ,"<Ulj^2>    =" ,sum_ulj_2/np   ,"std dev.=",sqrt((sum_ulj_2/np)-(sum_ulj/np)^2),
-                             "<Ucoul>  =" ,sum_ucoul/np  ,"<Ucoul^2>  =" ,sum_ucoul_2/np ,"std dev.=",sqrt((sum_ucoul_2/np)-(sum_ucoul/np)^2),
-                             "<Umorse> =" ,sum_umorse/np ,"<Umorse^2> =" ,sum_umorse_2/np,"std dev.=",sqrt((sum_umorse_2/np)-(sum_umorse/np)^2) ) }' etot_l
+awk -v np=$last     'BEGIN  { sum_etot=0        ; sum_ekin=0          ; sum_utot=0          ; sum_uvdw=0           ; sum_ucoul=0          ; 
+                              sum_etot_2=0      ; sum_ekin_2=0        ; sum_utot_2=0        ; sum_uvdw_2=0         ; sum_ucoul_2=0        } 
+                            { sum_etot+=$9      ; sum_ekin+=$12       ; sum_utot+=$15       ; sum_uvdw+=$18        ; sum_ucoul+=$21       ; 
+                              sum_etot_2+=$9*$9 ; sum_ekin_2+=$12*$12 ; sum_utot_2+=$15*$15 ; sum_uvdw_2+=$18*$18  ; sum_ucoul_2+=$21*$21 } 
+                      END   { printf(" %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n",     
+                             "<Etot>        =" ,sum_etot/np   ,"<Etot^2>       =" ,sum_etot_2/np  ,"std dev.=",sqrt((sum_etot_2/np)-(sum_etot/np)^2),
+                             "<Ekin>        =" ,sum_ekin/np   ,"<Ekin^2>       =" ,sum_ekin_2/np  ,"std dev.=",sqrt((sum_ekin_2/np)-(sum_ekin/np)^2),
+                             "<Upot>        =" ,sum_utot/np   ,"<Upot^2>       =" ,sum_utot_2/np  ,"std dev.=",sqrt((sum_utot_2/np)-(sum_utot/np)^2),
+                             "<Uvdw>        =" ,sum_uvdw/np   ,"<Uvdw^2>       =" ,sum_uvdw_2/np   ,"std dev.=",sqrt((sum_uvdw_2/np)-(sum_uvdw/np)^2),
+                             "<Ucoul>       =" ,sum_ucoul/np  ,"<Ucoul^2>      =" ,sum_ucoul_2/np ,"std dev.=",sqrt((sum_ucoul_2/np)-(sum_ucoul/np)^2) ) }' etot_l
 
-awk -v np=$last     'BEGIN  { sum_temp=0        ; sum_press=0          ; sum_Plj=0          ; sum_Pcoul=0          ; sum_volume=0          ; sum_htot =0         ; 
-                              sum_temp_2=0      ; sum_press_2=0        ; sum_Plj_2=0        ; sum_Pcoul_2=0        ; sum_volume_2=0        ; sum_htot_2=0        } 
-                            { sum_temp+=$9      ; sum_press+=$12       ; sum_Plj+=$15       ; sum_Pcoul+=$18       ; sum_volume+=$21       ; sum_htot+=$24       ;
-                              sum_temp_2+=$9*$9 ; sum_press_2+=$12*$12 ; sum_Plj_2+=$15*$15 ; sum_Pcoul_2+=$18*$18 ; sum_volume_2+=$21*$21 ; sum_htot_2+=$24*$24 } 
+awk -v np=$last     'BEGIN  { sum_temp=0        ; sum_press=0          ; sum_Pvdw=0          ; sum_Pcoul=0          ; sum_volume=0          ; sum_htot =0         ; 
+                              sum_temp_2=0      ; sum_press_2=0        ; sum_Pvdw_2=0        ; sum_Pcoul_2=0        ; sum_volume_2=0        ; sum_htot_2=0        } 
+                            { sum_temp+=$9      ; sum_press+=$12       ; sum_Pvdw+=$15       ; sum_Pcoul+=$18       ; sum_volume+=$21       ; sum_htot+=$24       ;
+                              sum_temp_2+=$9*$9 ; sum_press_2+=$12*$12 ; sum_Pvdw_2+=$15*$15 ; sum_Pcoul_2+=$18*$18 ; sum_volume_2+=$21*$21 ; sum_htot_2+=$24*$24 } 
                       END   { printf(" %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e \n %15s %16.8e %15s %12.5e %15s %16.8e\n", 
-                             "<Temp>   =" ,sum_temp/np   ,"<Temp^2>   =",sum_temp_2/np     ,"std dev.=",sqrt((sum_temp_2/np)-(sum_temp/np)^2),
-                             "<Press>  =" ,sum_press/np  ,"<Press^2>  =",sum_press_2/np    ,"std dev.=",sqrt((sum_Press_2/np)-(sum_Press/np)^2),
-                             "<Plj>    =" ,sum_Plj/np    ,"<Plj^2>    =",sum_Plj_2/np      ,"std dev.=",sqrt((sum_Plj_2/np)-(sum_Plj/np)^2),
-                             "<Pcoul>  =" ,sum_Pcoul/np  ,"<Pcoul^2>  =",sum_Pcoul_2/np    ,"std dev.=",sqrt((sum_Pcoul_2/np)-(sum_Pcoul/np)^2),
-                             "<vol>    =" ,sum_volume/np ,"<vol^2>    =",sum_volume_2/np   ,"std dev.=",sqrt((sum_volume_2/np)-(sum_volume/np)^2),      
-                             "<Htot>   =" ,sum_htot/np   ,"<Htot^2>   =",sum_htot_2/np     ,"std dev.=",sqrt((sum_htot_2/np)-(sum_htot/np)^2) )    }' temp_l
+                             "<Temp>        =" ,sum_temp/np   ,"<Temp^2>       =",sum_temp_2/np     ,"std dev.=",sqrt((sum_temp_2/np)-(sum_temp/np)^2),
+                             "<Press>       =" ,sum_press/np  ,"<Press^2>      =",sum_press_2/np    ,"std dev.=",sqrt((sum_Press_2/np)-(sum_Press/np)^2),
+                             "<Pvir_vdw>    =" ,sum_Pvdw/np   ,"<Pvir_vdw^2>   =",sum_Pvdw_2/np      ,"std dev.=",sqrt((sum_Pvdw_2/np)-(sum_Pvdw/np)^2),
+                             "<Pvir_coul>   =" ,sum_Pcoul/np  ,"<Pvir_coul^2>  =",sum_Pcoul_2/np    ,"std dev.=",sqrt((sum_Pcoul_2/np)-(sum_Pcoul/np)^2),
+                             "<vol>         =" ,sum_volume/np ,"<vol^2>        =",sum_volume_2/np   ,"std dev.=",sqrt((sum_volume_2/np)-(sum_volume/np)^2),      
+                             "<Htot>        =" ,sum_htot/np   ,"<Htot^2>       =",sum_htot_2/np     ,"std dev.=",sqrt((sum_htot_2/np)-(sum_htot/np)^2) )    }' temp_l
 
 if [ $no -eq 0 ];
 then

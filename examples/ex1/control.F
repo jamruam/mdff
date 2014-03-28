@@ -26,4 +26,5 @@
 &fieldtag
         epslj(1,1)    = 0.010323576d0 ! lennard-jones potential in [eV] = 119.8 K
         sigmalj(1,1)  = 3.405d0       ! lennard-jones potential in [A]
+        mass          = 39.95         ! in atomic mass unit
 &end
