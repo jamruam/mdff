@@ -130,13 +130,13 @@ SUBROUTINE control_init ( MDFF )
                          lcsvr        , &
                          lharm        , &
                          ltraj        , &
-                         cutlongrange , &
-                         cutshortrange, &
                          lvnlist      , &
                          lstatic      , &
                          lreduced     , & 
                          ltest        , &
                          lrestart     , &
+                         cutlongrange , &
+                         cutshortrange, &
                          calc         , &
                          dgauss       , &
                          longrange    , &
@@ -298,15 +298,8 @@ SUBROUTINE control_check_tag
     io_node WRITE ( stdout , '(a)' ) 'ERROR controltag: restart_data should be ', data_allowed
   endif
 
-  if ( calc .ne. 'md' ) return 
-
   if ( lnmlj .or. lmorse .or. lbmhftd .or. lbmhft ) then
     non_bonded = .true.
-  endif
-
-  if ( .not. lnmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm .and. .not. lbmhftd .and. .not. lbmhft ) then
-   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: nmlj, harm , morse, bmhftd or coulomb or all of them . Anyway make a choice !! '
-   STOP
   endif
 
   if ( non_bonded .and. cutshortrange .eq. 0.0_dp ) then
@@ -317,6 +310,13 @@ SUBROUTINE control_check_tag
   if ( lcoulomb .and. cutlongrange .eq. 0.0_dp ) then
     io_node WRITE ( stdout , '(a)' ) 'controltag: cutlongrange is null', cutlongrange
     STOP  
+  endif
+  
+  if ( calc .ne. 'md' ) return 
+
+  if ( .not. lnmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm .and. .not. lbmhftd .and. .not. lbmhft ) then
+   if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: nmlj, harm , morse, bmhftd or coulomb or all of them . Anyway make a choice !! '
+   STOP
   endif
 
   return

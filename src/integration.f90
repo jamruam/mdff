@@ -182,6 +182,7 @@ SUBROUTINE prop_velocity_verlet
     vz ( ia ) = vz ( ia ) + ( fsz ( ia ) + fz ( ia ) ) * dt2 / massia(ia)
   enddo
 
+  ! full t+dt kinetic energy
   CALL calc_temp(tempi, kin)
   temp_r = tempi      
   e_kin  = kin
@@ -515,6 +516,15 @@ SUBROUTINE nhcn
   CALL chain_nhcn( kin, vxi, xi , Q , L )
   integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
+
+  ! ===========================================
+  !  conserved quantity energy in NVT ensemble
+  ! ===========================================
+  ! note on units :
+  ! [ vxi ] = [ eV ] **2 [ T ]**2
+  ! [ Q ]   = [ eV ] [ T ]**2 
+  ! vxi(1) * vxi(1) * 0.5_dp / Q(1)i = [eV]
+  ! [xi] = sans unité
   e_nvt = 0.0_dp
   e_nvt = e_nvt + L * temp * xi(1)
   e_nvt = e_nvt + vxi(1) * vxi(1) * 0.5_dp / Q(1)
@@ -617,7 +627,7 @@ SUBROUTINE chain_nhcn ( kin , vxi , xi , Q , L )
     dts4 = dts2 * 0.5d0
     dts8 = dts4 * 0.5d0 
 
-    G(nhc_n) = ( 0.5_dp * vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp) 
+    G(nhc_n) = ( vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp) 
     ! exp1 
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4 
     do inh=nhc_n-1,1,-1
@@ -640,7 +650,7 @@ SUBROUTINE chain_nhcn ( kin , vxi , xi , Q , L )
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )  
       vxi ( inh )     =   vxi ( inh ) + G(inh) * dts4
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )  
-      G   ( inh + 1 ) = ( 0.5_dp * vxi ( inh ) * vxi(inh) / Q(inh) - temp)
+      G   ( inh + 1 ) = ( vxi ( inh ) * vxi(inh) / Q(inh) - temp)
     enddo
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
 
@@ -945,7 +955,7 @@ SUBROUTINE nhcpn
   Q(1) = Q(1) * L  
   ! thermostat/barostat mass coupled to ve
   Qb   = timesca_baro**2.0_dp * temp
-  !Qb(1)= Qb(1) * 9.0_dp 
+  Qb(1)= Qb(1) * 9.0_dp 
   ! barostat "mass"
   W    =  ( L + 3.0_dp )  * timesca_baro**2.0_dp * temp
 
@@ -988,8 +998,6 @@ SUBROUTINE nhcpn
     e_npt = e_npt + temp * xi(inhc)
     e_npt = e_npt + temp * xib(inhc)
   enddo
-
-!  CALL calc_thermo
 
   deallocate(Q , Qb )
 

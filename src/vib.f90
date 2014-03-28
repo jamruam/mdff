@@ -330,8 +330,6 @@ SUBROUTINE vib_main
     CALL lattice ( simu_cell )
     rho = natm / simu_cell%omega
 
-
-
     CALL typeinfo_init
 
     ! ===============================================
@@ -497,7 +495,7 @@ SUBROUTINE vib_main
           !   index 0 : all modes
           !   index ikd : separately
           ! ========================================
-          dostabktot(ka,0) = dostabktot(ka,0) + 1
+          dostabktot(ka,0)   = dostabktot(ka,0) + 1
           dostabktot(ka,ikd) = dostabktot(ka,ikd) + 1
         enddo
 
@@ -587,7 +585,7 @@ END SUBROUTINE vib_main
 SUBROUTINE hessian ( hess )
 
   USE config,           ONLY :  natm , rx , ry , rz , itype , ntype , simu_cell 
-  USE io,          ONLY :  ionode , stdout , stderr
+  USE io,               ONLY :  ionode , stdout , stderr
   USE field,            ONLY :  rcutsq , sigsq , epsp , fc , uc , plj , qlj
   USE cell,             ONLY :  kardir , dirkar
   USE time,             ONLY :  hessiantimetot
@@ -640,7 +638,6 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
-
   do ia = 1 , natm 
 
     rxi = rx ( ia )
@@ -662,9 +659,8 @@ SUBROUTINE hessian ( hess )
 
       p1 = itype ( ia )
       p2 = itype ( ja )
-
+        
       if ( rijsq .lt. rcutsq(p1,p2) ) then
-
         sr2 = sigsq(p1,p2)/rijsq
         sr = SQRT (sr2)
         srp2 = sr ** np2(p1,p2)
@@ -1572,7 +1568,7 @@ SUBROUTINE doskpt ( hess , eigenk , km )
   CALL kardir ( natm , rx , ry , rz , simu_cell%B )
 
   wi = 1
-
+        
   ttt1l = MPI_WTIME(ierr) ! timing info
 
   do ik = km%kpt_dec%istart , km%kpt_dec%iend

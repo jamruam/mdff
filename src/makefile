@@ -14,7 +14,9 @@
 $(info ==============  MDFF compiling info ===============)
 UNAME := $(shell uname -a)
 HOST  := $(shell hostname -s)
+SVNREV := $(shell svn info -rHEAD | grep vision | head -n 1 | cut -d' ' -f2 )
 $(info compiling on : $(HOST) )
+$(info svn revision : $(SVNREV) )
 # suffix of preprocessed source file
 SUFFIX=.F90
 
@@ -110,7 +112,7 @@ $(info ===================================================)
 # ==================
 OBJ= constants.o dumb.o io.o tt_damp.o mpi_mdff.o control.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
-     block_average.o kspace_new.o rspace.o thermo.o kinetic.o field.o harm.o \
+     block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
 
@@ -121,8 +123,9 @@ OBJ= constants.o dumb.o io.o tt_damp.o mpi_mdff.o control.o time.o functions.o \
 #   -Dtiming   : timing info 
 #   -DGFORTRAN : gfortran compiler 
 # ================================================================
-CPPDEFS = -DHOST=\"$(HOST)\" \
-          -Dtiming         \
+CPPDEFS = -DHOST=\"$(HOST)\"   \
+          -Dtiming             \
+          -DSVNREV=\"$(SVNREV)\" \
 #          -Ddebug=debug
 
 CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)

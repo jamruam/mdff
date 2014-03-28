@@ -56,6 +56,7 @@ MODULE md
   real(kind=dp) , dimension ( : ) , allocatable :: vxi , xi              !< general coordinates of the thermostat coupled to the particules (Nose-Hoover Chain : nhcn )
   real(kind=dp) , dimension ( : ) , allocatable :: vxib, xib             !< general coordinates of the thermostat coupled to the volume (Nose-Hoover Chain : nhcnp )
   real(kind=dp) :: ve, xe, xe0              !< general coordinates of the barostat (Andersen) 
+  real(kind=dp) :: annealing            !< velocity rescaling
   logical       :: first_time_xe0
 
   ! ================================================
@@ -108,6 +109,7 @@ SUBROUTINE md_init
                       npas          , & 
                       nequil        , &
                       nequil_period , & 
+                      annealing     , &
                       nprint        , & 
                       fprint        , & 
                       spas          , & 
@@ -174,7 +176,7 @@ SUBROUTINE md_default_tag
   integrator    = 'nve-vv'
   setvel        = 'MaxwBoltz'
   npas          = 10
-  nequil        = 10
+  nequil        = 0
   nequil_period = 1
   nprint        = 1             
   fprint        = 1
@@ -188,6 +190,7 @@ SUBROUTINE md_default_tag
   nhc_yosh_order= 3 
   nhc_mults     = 2 
   nhc_n         = 4
+  annealing     = 1.0_dp
 
   first_time_xe0 = .true.
 
@@ -303,6 +306,12 @@ SUBROUTINE md_check_tag
     endif
   endif 
 
+  ! annealing 
+  if ( annealing .ne. 1.0_dp ) then
+    nequil=npas
+    nequil_period=1
+  endif
+
 
   ! units          
   !  eV             K     eV/K
@@ -361,7 +370,7 @@ SUBROUTINE md_print_info(kunit)
                                           WRITE ( kunit ,'(a)')       'NVE ensemble --- velocity verlet integrator    '
         if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator    ' 
         if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a)')       ' + Andersen thermostat'
-        if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a,f10.5)') 'nuandersen                         = ',nuandersen  
+        if ( integrator .eq. 'nvt-and' )  WRITE ( kunit ,'(a,f12.5)') 'nuandersen                         = ',nuandersen  
         if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       'NVT ensemble --- velocity verlet integrator'
         if ( integrator .eq. 'nvt-nh' )   WRITE ( kunit ,'(a)')       ' + Nose Hoover thermostat'
         if ( integrator .eq. 'nvt-nhc2' .or. &
@@ -369,8 +378,8 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-nhc2' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain 2 thermostat  (see Frenkel and Smit)'
         if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
         if ( integrator .eq. 'nvt-nhc2' .or. & 
-             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f10.5,a)') 'time scale thermostat: timesca_thermo = ',timesca_thermo/time_unit,' ps'
-        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f10.5,a)') 'time scale barostat  : timesca_baro   = ',timesca_baro/time_unit  ,' ps'
+             integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f12.5,a)') 'time scale thermostat: timesca_thermo = ',timesca_thermo/time_unit,' ps'
+        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f12.5,a)') 'time scale barostat  : timesca_baro   = ',timesca_baro/time_unit  ,' ps'
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
              ( integrator .ne. 'nvt-nhcn' ) .and. &
@@ -385,27 +394,27 @@ SUBROUTINE md_print_info(kunit)
               endif !nequil
         endif !integrator
       endif !static
-                                          WRITE ( kunit ,'(a,i10)')     'number of steps                      = ',npas
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                             = ',dt/time_unit           ,'  ps'
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                           = ',dt*npas/time_unit      ,'  ps'
-                                          WRITE ( kunit ,'(a,f10.5,a)') 'temperature                          = ',temp/boltz             ,'   K'
-                                          WRITE ( kunit ,'(a,f10.5,a)') 'pressure                             = ',press/press_unit       ,' GPa'
+                                          WRITE ( kunit ,'(a,i12)')     'number of steps                       = ',npas
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                              = ',dt/time_unit           ,'  ps'
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                            = ',dt*npas/time_unit      ,'  ps'
+                                          WRITE ( kunit ,'(a,f12.5,a)') 'temperature                           = ',temp/boltz             ,'   K'
+                                          WRITE ( kunit ,'(a,f12.5,a)') 'pressure                              = ',press/press_unit       ,' GPa'
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
-                                          WRITE ( kunit ,'(a,i10)')     'number of equilibration steps        = ',nequil
-                                          WRITE ( kunit ,'(a,i10)')     'equilibration period                 = ',nequil_period
+                                          WRITE ( kunit ,'(a,i12)')     'number of equilibration steps         = ',nequil
+                                          WRITE ( kunit ,'(a,i12)')     'equilibration period                  = ',nequil_period
       endif 
-      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Stochastic velocity resc. time scale = ',taucsvr/time_unit      ,'  ps'
+      if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Stochastic velocity resc. time scale  = ',taucsvr/time_unit      ,'  ps'
       if ( nequil .ne. 0 .and.      lcsvr)WRITE ( kunit ,'(a,e12.5)')   'taucsvr = 0.0 -> simple rescale'
-      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen thermostat time scale      = ',tauTberendsen/time_unit,'  ps'
-      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen barostat time scale        = ',tauPberendsen/time_unit,'  ps'
+      if ( nequil .ne. 0 .and. .not.lcsvr)WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen thermostat time scale       = ',tauTberendsen/time_unit,'  ps'
+      if ( nequil .ne. 0 )                WRITE ( kunit ,'(a,e12.5,a)') 'Berendsen barostat time scale         = ',tauPberendsen/time_unit,'  ps'
       if ( nequil .ne. 0 .and. tauTberendsen .eq. dt )   &
                                           WRITE ( kunit ,'(a)')         'tau[T-P]berendsen = dt -> simple rescale'
-                                          WRITE ( kunit ,'(a,i10)')     'print thermo  periodicity            = ',nprint
+                                          WRITE ( kunit ,'(a,i12)')     'print thermo  periodicity             = ',nprint
       if ( ltraj )                   then    
-                                          WRITE ( kunit ,'(a,i10)')     'save trajectory from step            = ',itraj_start
-                                          WRITE ( kunit ,'(a,i10)')     'saved trajectory periodicity         = ',itraj_period
-      if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                    : BINARY'
-      if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                    : FORMATTED'
+                                          WRITE ( kunit ,'(a,i12)')     'save trajectory from step             = ',itraj_start
+                                          WRITE ( kunit ,'(a,i12)')     'saved trajectory periodicity          = ',itraj_period
+      if ( itraj_format .eq. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                     : BINARY'
+      if ( itraj_format .ne. 0 )          WRITE ( kunit ,'(a,I7)')      'trajectory format                     : FORMATTED'
       endif       
                                           blankline(kunit)    
   endif !ionode

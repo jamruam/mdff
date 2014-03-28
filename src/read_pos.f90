@@ -140,7 +140,7 @@ SUBROUTINE read_pos
   CALL distance_tab 
 #endif
 
-  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   return
 

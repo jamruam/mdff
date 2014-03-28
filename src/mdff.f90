@@ -77,6 +77,7 @@ PROGRAM main_MDFF
   integer       :: argc               ! input argument of the executable
   integer       :: offset             ! offset ( not used yet )
   dectime                             ! timing declaration ( ierr also declared ) 
+  !character(len=80) :: SVNREV         ! svn revision 
 
 #ifdef MULTRUN
   integer :: irun          
@@ -84,7 +85,7 @@ PROGRAM main_MDFF
 #endif
   ! date time version infog as from vasp 5.3 ;)
   CHARACTER (LEN=80),PARAMETER :: MDFF = &
-        'mdff.0.3.1' // ' ' // &
+        'mdff.r'//SVNREV// ' ' // &
         ' (build ' // __DATE__// ' ' //__TIME__// ') ' // &
         'parallel'
 

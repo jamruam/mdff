@@ -131,6 +131,7 @@ MODULE field
   logical          :: ldip_damping ( ntypemax , ntypemax) !< dipole damping 
   integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
   real(kind=dp)    :: conv_tol_ind                     !< convergence tolerance of the scf induced dipole calculation
+  integer          :: min_scf_pol_iter
   integer          :: max_scf_pol_iter
   real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
   
@@ -208,8 +209,9 @@ SUBROUTINE field_default_tag
   rcut_wfc      = 0.5_dp
 
   conv_tol_ind  = 1e-4
-  max_scf_pol_iter = 6
-  epsw = 1e-7
+  min_scf_pol_iter = 3
+  max_scf_pol_iter = 100
+  epsw = 1e-6
   lautoES = .false.
   mass          = 1.0_dp
 
@@ -347,6 +349,7 @@ SUBROUTINE field_init
                          pol_damp_c    , &  
                          pol_damp_k    , &  
                          conv_tol_ind  , &  
+                         min_scf_pol_iter,&
                          max_scf_pol_iter,&
                          epsw          , &  
                          lautoES       , &  
@@ -364,12 +367,10 @@ SUBROUTINE field_init
   
                  
 
-  !print*,'before field_default_tag'
   ! ================================
   ! defaults values for field tags 
   ! ================================
   CALL field_default_tag
-  !print*,'after field_default_tag'
 
   ! ================================
   ! read field tags
@@ -386,20 +387,15 @@ SUBROUTINE field_init
     endif
   CLOSE ( stdin )
 
-  !print*,'debug : read',lpolar
-
   ! ================================
   ! check field tags values
   ! ================================
-  !print*,'before field_check_tag'
   CALL field_check_tag
-  !print*,'after field_check_tag'
 
   ! ===============================================
   !  this routines generates the ewald parameters
   ! ===============================================
   if ( longrange .eq. 'ewald' .and. lcoulomb ) CALL ewald_param
-  !print*,'after ewald_param'
  
   ! =====================================  
   !  if efg print field info and return 
@@ -578,9 +574,9 @@ SUBROUTINE field_print_info ( kunit , quiet )
       WRITE ( kunit ,'(a)')             'lennard-jones           '
       lseparator(kunit) 
       blankline(kunit)
-      WRITE ( kunit ,'(a)')             '       eps    /    / sigma* \ q       / sigma*  \ p \'
-      WRITE ( kunit ,'(a)')             ' V = ------- |  p | ------- |    - q | -------- |   |'   
-      WRITE ( kunit ,'(a)')             '      q - p   \    \   r    /         \    r    /   /'
+      WRITE ( kunit ,'(a)')             '       eps    /    / sigma* \ q       / sigma*  \ p  |'
+      WRITE ( kunit ,'(a)')             ' V = ------- |  p | ------- |    - q | -------- |    |'   
+      WRITE ( kunit ,'(a)')             '      q - p   \    \   r    /         \    r    /    /'
       blankline(kunit)
       WRITE ( kunit ,'(a,f10.5)')       'cutoff      = ',cutshortrange
       WRITE ( kunit ,'(a,a)')           'truncation  = ',ctrunc
@@ -857,8 +853,8 @@ SUBROUTINE initialize_param_non_bonded
   do it = 1 , ntype 
     do jt = 1 , ntype
 
-      ! intermediate terms 
-          rcut   ( it , jt ) = cutshortrange                                      ! rc
+          ! intermediate terms 
+          rcut   ( it , jt ) = cutshortrange                               ! rc
           rcutsq ( it , jt ) = rcut ( it , jt ) * rcut   ( it , jt )       ! rc^2 
           rcut3  ( it , jt ) = rcut ( it , jt ) * rcutsq ( it , jt )       ! rc^3
           ppqq   ( it , jt ) = pp   ( it , jt ) * qq     ( it , jt )       ! p x q
@@ -2336,7 +2332,7 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
       fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
     enddo
 
-     ! keep it out from the ia loop !!!!!!!!!!!!! stupid bug 
+     ! keep it out from the ia loop ! stupid bug ! 
      ! stress tensor ! to be check ! symmetric !
      tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
      tau_rec(1,2) = tau_rec(1,2) -            kcoe * kx * ky   * str
@@ -2803,7 +2799,7 @@ SUBROUTINE moment_from_pola ( mu_ind )
   !           SCF LOOP
   ! =============================
   !do while ( diff_efield .gt. conv_tol_ind )
-  do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < 3 ) )
+  do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
 
     iscf = iscf + 1
 
@@ -2869,8 +2865,8 @@ SUBROUTINE moment_from_pola ( mu_ind )
 !#ifdef debug
   if ( ioprintnode ) then
     blankline(stdout)
-    WRITE ( stdout , '(a,i6,a)') 'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
-    WRITE ( stdout , '(a,2e10.3)') 'Electric field is converged within ',conv_tol_ind,rmsd
+    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
+    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
     blankline(stdout)
   endif
 #ifdef debug
@@ -3101,6 +3097,17 @@ SUBROUTINE moment_from_WFc ( mu )
 END SUBROUTINE moment_from_WFc
 
 
+! *********************** SUBROUTINE get_dipole_moments *************************
+!
+!> \brief
+!!  get dipole moments
+!> \author
+!! FMV
+!
+!> \date 
+!! February 2014
+!
+! ******************************************************************************
 SUBROUTINE get_dipole_moments ( mu )
 
   USE config,           ONLY : natm , ntype , dipia , dipia_ind , dipia_wfc, fx,fy,fz
@@ -3167,7 +3174,14 @@ SUBROUTINE get_dipole_moments ( mu )
 
 END SUBROUTINE get_dipole_moments
 
-! Tang-Toennies damping function
+! *********************** SUBROUTINE TT_damping_functions **********************
+!> \brief
+!! Tang-Toennies damping function
+!> \author
+!! FMV
+!> \date 
+!! February 2014
+! ******************************************************************************
 SUBROUTINE TT_damping_functions(b,c,r,f,fd,order)
 
   USE tt_damp,          ONLY : E_TT ! Tang-Toennies coefficients define once up to order 8 
@@ -3200,7 +3214,6 @@ SUBROUTINE TT_damping_functions(b,c,r,f,fd,order)
 
 END SUBROUTINE TT_damping_functions
 
-
-
 END MODULE field 
 ! ===== fmV =====
+

@@ -2703,6 +2703,7 @@ SUBROUTINE efg_mesh_alloc
     allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk),  km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak   ( nk ) )
     allocate ( km_coul%rhon ( nk ) )
+    allocate ( km_coul%kcoe ( nk ) )
     CALL kpoint_sum_init ( km_coul , alphaES )
   endif
 
@@ -2735,6 +2736,7 @@ SUBROUTINE efg_mesh_dealloc
 
     deallocate ( km_coul%kptk , km_coul%kptx , km_coul%kpty , km_coul%kptz )
     deallocate ( km_coul%Ak    )
+    deallocate ( km_coul%kcoe  )
     deallocate ( km_coul%rhon  )
 
   endif

@@ -23,13 +23,12 @@
 ! separator '='
 #define separator(X)     if ( ionode ) WRITE ( X , '(a)' ) repeat('=',61) 
 #define separator_noionode(X)          WRITE ( X , '(a)' ) repeat('=',61) 
-! big separator '='
-#define bigseparator(X)  if ( ionode ) WRITE ( X , '(a)' ) repeat('=',100) 
-#define bigseparator_noionode(X)       WRITE ( X , '(a)' ) repeat('=',100) 
+#define bigseparator(X)     if ( ionode ) WRITE ( X , '(a)' ) repeat('=',100) 
+#define bigseparator_noionode(X)          WRITE ( X , '(a)' ) repeat('=',100) 
 
 ! separator '-'
-#define lseparator(X)     if ( ionode ) WRITE ( X , '(a)' ) repeat('-',91) 
-#define lseparator_noionode(X)          WRITE ( X , '(a)' ) repeat('-',91) 
+#define lseparator(X)     if ( ionode ) WRITE ( X , '(a)' ) repeat('-',61) 
+#define lseparator_noionode(X)          WRITE ( X , '(a)' ) repeat('-',61) 
 
 ! blank line
 #define blankline(X)            WRITE ( X , '(a)' ) ''

@@ -55,7 +55,10 @@ SUBROUTINE init_velocities
   ! ===============================================
   !  generate velocities from a given distribution
   ! ===============================================
-  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp .and. (nequil.ne.0) ) then
+  ! very stupid bug found jeudi 27 mars 2014 
+  ! if nequil == 0 no velocity in NVT and NPT
+  !if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp .and. (nequil.ne.0) ) then
+  if ( (key .eq. 0 .or. .not. lrestart) .and. temp .ne. 0.0_dp ) then
 
     separator(stdout)    
     io_node blankline(stdout)    
@@ -102,9 +105,9 @@ SUBROUTINE init_velocities
   endif
 
   CALL center_of_mass ( vx , vy , vz , com )
-  io_node WRITE ( stdout ,'(a,4e16.6)') 'center of mass vel. ALL ',com( 0 , :)
+  io_node WRITE ( stdout ,'(a,4e16.6)') 'c.o.m. vel. ALL ',com( 0 , :)
   do it = 1 , ntype
-    io_node WRITE ( stdout ,'(a,a,a,4e16.6)') 'center of mass vel. ', atypei( it ),' ',com( it , :)
+    io_node WRITE ( stdout ,'(a,a,a,4e16.6)') 'c.o.m. vel. ', atypei( it ),' ',com( it , :)
   enddo
   io_node blankline(stdout)
 
@@ -124,7 +127,7 @@ SUBROUTINE rescale_velocities (quite)
   USE constants,                ONLY :  dp , boltz
   USE control,                  ONLY :  lcsvr
   USE config,                   ONLY :  natm , vx , ntype, vy , vz, ntypemax, atypei ,center_of_mass
-  USE md,                       ONLY :  dt , temp , tauTberendsen, taucsvr
+  USE md,                       ONLY :  dt , temp , tauTberendsen, taucsvr, annealing
   USE io,                       ONLY :  ionode , stdout
   USE thermodynamic,            ONLY :  csvr_conint
 
@@ -152,6 +155,8 @@ SUBROUTINE rescale_velocities (quite)
     write(*,'(a,3e20.8)') 'resamplekin',ekin,sigma,lambda
 #endif
   endif
+
+  if ( annealing .ne. 1.0_dp ) lambda = annealing
 
   do ia = 1 , natm
      vx ( ia ) = vx ( ia ) * lambda
