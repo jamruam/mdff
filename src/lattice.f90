@@ -278,7 +278,9 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
   ! local
   integer :: ia
 
-  CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
+!  CALL print_config_sample(0,0)
+!  CALL kardir ( natm , xxx , yyy , zzz , latt%B ) 
+!  CALL print_config_sample(0,0)
 
   do ia = 1 , natm
      xxx ( ia ) = xxx ( ia ) - NINT ( xxx ( ia )  ) 
@@ -286,8 +288,9 @@ SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
      zzz ( ia ) = zzz ( ia ) - NINT ( zzz ( ia )  )  
   enddo
 
-  CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 
-
+!  CALL print_config_sample(0,0)
+!  CALL dirkar ( natm , xxx , yyy , zzz , latt%A ) 
+!  CALL print_config_sample(0,0)
   return
 
 END SUBROUTINE periodicbc

@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug
+#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE radial_distrib ********************************
@@ -300,7 +300,7 @@ SUBROUTINE grcalc
 #ifdef debug
     print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 #endif
-    CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  !  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
     ngr=ngr+1 
     ! ==========================
@@ -453,8 +453,7 @@ SUBROUTINE gr_main
         if ( rijsq.lt.cut2 ) then
           rr = SQRT ( rijsq )
           igr = INT ( rr / resg ) 
-          !print*,rr,igr
-         if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
+          if ( igr .lt. 0 .and. igr .gt. nbins-1 ) then
             WRITE ( stderr , '(a)' ) 'ERROR out of bound of gr in gr_main'
             STOP
           endif 
@@ -468,7 +467,7 @@ SUBROUTINE gr_main
     enddo
   enddo
   
-#ifdef debug
+#ifdef debug2
   do igr=0, nbins-1
     WRITE (stdout , '(a,5i12)') 'debug: ',myrank,igr,gr(igr,0,0)
   enddo

@@ -201,8 +201,8 @@ END SUBROUTINE config_print_info
 ! ******************************************************************************
 SUBROUTINE write_CONTFF
 
-  USE io,                  ONLY :  kunit_CONTFF, ionode
-  USE cell,                     ONLY :  kardir , periodicbc
+  USE io,                       ONLY :  kunit_CONTFF, ionode
+  USE cell,                     ONLY :  kardir , periodicbc , dirkar
 
   implicit none
 
@@ -215,9 +215,15 @@ SUBROUTINE write_CONTFF
   xxx = rx
   yyy = ry
   zzz = rz
-  !CALL print_config_sample(0,0)
+  ! ======================================
+  !         cartesian to direct 
+  ! ======================================
+  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
   CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
-  !CALL print_config_sample(0,0)
+  ! ======================================
+  !         direct to cartesian
+  ! ======================================
+  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')

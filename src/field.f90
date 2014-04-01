@@ -136,6 +136,7 @@ MODULE field
   real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
   
   ! ewald sum related 
+  logical          :: lrecip_coul                      !< add reciprocal contribution to coulombic terms
   real(kind=dp)    :: epsw                             !< accuracy of the ewald sum 
   real(kind=dp)    :: alphaES                          !< Ewald sum parameter 
   real(kind=dp)    :: cutshortrange                    !< Ewald sum parameter cutoff shortrange 
@@ -188,6 +189,7 @@ SUBROUTINE field_default_tag
 
   
   ! Coulomb
+  lrecip_coul   = .true.
   ncelldirect   =  2
   kES(1)        = 10
   kES(2)        = 10
@@ -353,6 +355,7 @@ SUBROUTINE field_init
                          max_scf_pol_iter,&
                          epsw          , &  
                          lautoES       , &  
+                         lrecip_coul   , &  
                          lwfc          , &            
                          lwrite_dip_wfc, &            
                          ldip_wfc      , &            
@@ -382,7 +385,7 @@ SUBROUTINE field_init
       io_node WRITE ( stdout, '(a)') 'ERROR reading input_file : fieldtag section is absent'
       STOP
     elseif ( ioerr .gt. 0 )  then
-      io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : fieldtag wrong tag'
+      io_node WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : fieldtag wrong tag',ioerr
       STOP
     endif
   CLOSE ( stdin )
@@ -1092,15 +1095,15 @@ SUBROUTINE engforce_nmlj_pbc
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_nonb(1,1) = tau_nonb(1,1) + (rxij * fxij + rxij * fxij )
-          tau_nonb(1,2) = tau_nonb(1,2) + (rxij * fyij + ryij * fxij )
-          tau_nonb(1,3) = tau_nonb(1,3) + (rxij * fzij + rzij * fxij )
-          tau_nonb(2,1) = tau_nonb(2,1) + (ryij * fxij + rxij * fyij )
-          tau_nonb(2,2) = tau_nonb(2,2) + (ryij * fyij + ryij * fyij )
-          tau_nonb(2,3) = tau_nonb(2,3) + (ryij * fzij + rzij * fyij )
-          tau_nonb(3,1) = tau_nonb(3,1) + (rzij * fxij + rxij * fzij )
-          tau_nonb(3,2) = tau_nonb(3,2) + (rzij * fyij + ryij * fzij )
-          tau_nonb(3,3) = tau_nonb(3,3) + (rzij * fzij + rzij * fzij )
+          tau_nonb(1,1) = tau_nonb(1,1) + (rxij * fxij + rxij * fxij ) * 0.5_dp
+          tau_nonb(1,2) = tau_nonb(1,2) + (rxij * fyij + ryij * fxij ) * 0.5_dp
+          tau_nonb(1,3) = tau_nonb(1,3) + (rxij * fzij + rzij * fxij ) * 0.5_dp 
+          tau_nonb(2,1) = tau_nonb(2,1) + (ryij * fxij + rxij * fyij ) * 0.5_dp
+          tau_nonb(2,2) = tau_nonb(2,2) + (ryij * fyij + ryij * fyij ) * 0.5_dp
+          tau_nonb(2,3) = tau_nonb(2,3) + (ryij * fzij + rzij * fyij ) * 0.5_dp
+          tau_nonb(3,1) = tau_nonb(3,1) + (rzij * fxij + rxij * fzij ) * 0.5_dp
+          tau_nonb(3,2) = tau_nonb(3,2) + (rzij * fyij + ryij * fzij ) * 0.5_dp
+          tau_nonb(3,3) = tau_nonb(3,3) + (rzij * fzij + rzij * fzij ) * 0.5_dp
         endif
       endif
     enddo
@@ -1657,6 +1660,8 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
 
+
+  if ( lrecip_coul ) then
   ! ==============================================
   !        reciprocal space part
   ! ==============================================
@@ -1664,6 +1669,7 @@ SUBROUTINE multipole_ES_v2 ( ef , mu , damp_ind , task , do_efield )
   CALL multipole_ES_v2_rec ( u_rec , ef_rec ,fx_rec , fy_rec , fz_rec , tau_rec , mu , task )
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot2 = fcoultimetot2 + ( ttt2 - ttt1 )  
+  endif
 
   ! ====================================================== 
   !              Surface contribution 
@@ -2005,15 +2011,15 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fz_dir ( ja ) = fz_dir ( ja ) + fzij
 
           ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) - (rxij * fxij + rxij * fxij) * 0.5_dp
-          tau_dir(1,2) = tau_dir(1,2) - (rxij * fyij + ryij * fxij) * 0.5_dp
-          tau_dir(1,3) = tau_dir(1,3) - (rxij * fzij + rzij * fxij) * 0.5_dp
-          tau_dir(2,1) = tau_dir(2,1) - (ryij * fxij + rxij * fyij) * 0.5_dp
-          tau_dir(2,2) = tau_dir(2,2) - (ryij * fyij + ryij * fyij) * 0.5_dp
-          tau_dir(2,3) = tau_dir(2,3) - (ryij * fzij + rzij * fyij) * 0.5_dp
-          tau_dir(3,1) = tau_dir(3,1) - (rzij * fxij + rxij * fzij) * 0.5_dp
-          tau_dir(3,2) = tau_dir(3,2) - (rzij * fyij + ryij * fzij) * 0.5_dp
-          tau_dir(3,3) = tau_dir(3,3) - (rzij * fzij + rzij * fzij) * 0.5_dp
+          tau_dir(1,1) = tau_dir(1,1) - (rxij * fxij + rxij * fxij) 
+          tau_dir(1,2) = tau_dir(1,2) - (rxij * fyij + ryij * fxij)
+          tau_dir(1,3) = tau_dir(1,3) - (rxij * fzij + rzij * fxij)
+          tau_dir(2,1) = tau_dir(2,1) - (ryij * fxij + rxij * fyij) 
+          tau_dir(2,2) = tau_dir(2,2) - (ryij * fyij + ryij * fyij)
+          tau_dir(2,3) = tau_dir(2,3) - (ryij * fzij + rzij * fyij)
+          tau_dir(3,1) = tau_dir(3,1) - (rzij * fxij + rxij * fzij)
+          tau_dir(3,2) = tau_dir(3,2) - (rzij * fyij + ryij * fzij)
+          tau_dir(3,3) = tau_dir(3,3) - (rzij * fzij + rzij * fzij)
 
 
         endif
@@ -2081,15 +2087,15 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
           ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
-          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij) * 0.5_dp
-          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij) * 0.5_dp
-          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij) * 0.5_dp
-          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij) * 0.5_dp
-          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij) * 0.5_dp
-          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij) * 0.5_dp
-          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij) * 0.5_dp
-          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij) * 0.5_dp
+          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
+          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
+          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
+          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
+          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
+          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
+          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
+          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
+          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
 
         endif
 
@@ -2119,21 +2125,20 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fx_dir ( ia ) = fx_dir ( ia ) + fxij
           fy_dir ( ia ) = fy_dir ( ia ) + fyij
           fz_dir ( ia ) = fz_dir ( ia ) + fzij
-
           fx_dir ( ja ) = fx_dir ( ja ) - fxij
           fy_dir ( ja ) = fy_dir ( ja ) - fyij
           fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
           ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
-          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij) * 0.5_dp
-          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij) * 0.5_dp
-          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij) * 0.5_dp
-          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij) * 0.5_dp
-          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij) * 0.5_dp
-          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij) * 0.5_dp
-          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij) * 0.5_dp
-          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij) * 0.5_dp
+          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
+          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
+          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
+          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
+          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
+          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
+          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
+          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
+          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
 
 
           if ( ldamp ) then
@@ -2156,15 +2161,15 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
             fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
             ! stress tensor
-            tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij) * 0.5_dp
-            tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij) * 0.5_dp
-            tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij) * 0.5_dp
-            tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij) * 0.5_dp
-            tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij) * 0.5_dp
-            tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij) * 0.5_dp
-            tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij) * 0.5_dp
-            tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij) * 0.5_dp
-            tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij) * 0.5_dp
+            tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
+            tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
+            tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
+            tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
+            tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
+            tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
+            tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
+            tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
+            tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
           endif
 
         endif
@@ -2194,7 +2199,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   !  u_dir   =   u_dir   * 0.5_dp
   !  u_damp  =   u_damp  * 0.5_dp
   !endif
-  tau_dir =   tau_dir / simu_cell%omega
+  tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   u_dir   =   u_dir   !* 0.5_dp
   u_damp  =   u_damp  !* 0.5_dp
 
@@ -2499,22 +2504,22 @@ SUBROUTINE engforce_bmhftd_pbc
           fy ( ja ) = fy ( ja ) - fyij
           fz ( ja ) = fz ( ja ) - fzij
           ! stress tensor
-          tau_nonb(1,1) = tau_nonb(1,1) + ( rxij * fxij + rxij * fxij ) * 0.5_dp
-          tau_nonb(1,2) = tau_nonb(1,2) + ( rxij * fyij + ryij * fxij ) * 0.5_dp
-          tau_nonb(1,3) = tau_nonb(1,3) + ( rxij * fzij + rzij * fxij ) * 0.5_dp
-          tau_nonb(2,1) = tau_nonb(2,1) + ( ryij * fxij + rxij * fyij ) * 0.5_dp
-          tau_nonb(2,2) = tau_nonb(2,2) + ( ryij * fyij + ryij * fyij ) * 0.5_dp
-          tau_nonb(2,3) = tau_nonb(2,3) + ( ryij * fzij + rzij * fyij ) * 0.5_dp
-          tau_nonb(3,1) = tau_nonb(3,1) + ( rzij * fxij + rxij * fzij ) * 0.5_dp
-          tau_nonb(3,2) = tau_nonb(3,2) + ( rzij * fyij + ryij * fzij ) * 0.5_dp
-          tau_nonb(3,3) = tau_nonb(3,3) + ( rzij * fzij + rzij * fzij ) * 0.5_dp
+          tau_nonb(1,1) = tau_nonb(1,1) + ( rxij * fxij + rxij * fxij )
+          tau_nonb(1,2) = tau_nonb(1,2) + ( rxij * fyij + ryij * fxij ) 
+          tau_nonb(1,3) = tau_nonb(1,3) + ( rxij * fzij + rzij * fxij )
+          tau_nonb(2,1) = tau_nonb(2,1) + ( ryij * fxij + rxij * fyij ) 
+          tau_nonb(2,2) = tau_nonb(2,2) + ( ryij * fyij + ryij * fyij ) 
+          tau_nonb(2,3) = tau_nonb(2,3) + ( ryij * fzij + rzij * fyij ) 
+          tau_nonb(3,1) = tau_nonb(3,1) + ( rzij * fxij + rxij * fzij )
+          tau_nonb(3,2) = tau_nonb(3,2) + ( rzij * fyij + ryij * fzij )
+          tau_nonb(3,3) = tau_nonb(3,3) + ( rzij * fzij + rzij * fzij ) 
         endif
      endif
    enddo 
 
   enddo
   vir = vir/3.0_dp
-  tau_nonb = tau_nonb / simu_cell%omega / press_unit
+  tau_nonb = tau_nonb / simu_cell%omega / press_unit * 0.5_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )

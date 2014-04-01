@@ -14,9 +14,9 @@
 $(info ==============  MDFF compiling info ===============)
 UNAME := $(shell uname -a)
 HOST  := $(shell hostname -s)
-SVNREV := $(shell svn info -rHEAD | grep vision | head -n 1 | cut -d' ' -f2 )
+#SVNREV := $(shell svn info -rHEAD | grep vision | head -n 1 | cut -d' ' -f2 )
 $(info compiling on : $(HOST) )
-$(info svn revision : $(SVNREV) )
+#$(info svn revision : $(SVNREV) )
 # suffix of preprocessed source file
 SUFFIX=.F90
 
