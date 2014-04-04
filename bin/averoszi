@@ -76,9 +76,9 @@ awk -v np=$last     'BEGIN  { sum_temp=0        ; sum_press=0          ; sum_Pvd
                               sum_temp_2=0      ; sum_press_2=0        ; sum_Pvdw_2=0        ; sum_Pcoul_2=0        ; sum_volume_2=0        ; sum_htot_2=0        } 
                             { sum_temp+=$9      ; sum_press+=$12       ; sum_Pvdw+=$15       ; sum_Pcoul+=$18       ; sum_volume+=$21       ; sum_htot+=$24       ;
                               sum_temp_2+=$9*$9 ; sum_press_2+=$12*$12 ; sum_Pvdw_2+=$15*$15 ; sum_Pcoul_2+=$18*$18 ; sum_volume_2+=$21*$21 ; sum_htot_2+=$24*$24 } 
-                      END   { printf(" %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e\n %15s %16.8e %15s %12.5e %15s %16.8e \n %15s %16.8e %15s %12.5e %15s %16.8e\n", 
+                      END   { printf(" %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f\n %15s %12.5f %15s %12.5e %15s %12.5f \n %15s %12.5f %15s %12.5e %15s %12.5f\n",
                              "<Temp>        =" ,sum_temp/np   ,"<Temp^2>       =",sum_temp_2/np     ,"std dev.=",sqrt((sum_temp_2/np)-(sum_temp/np)^2),
-                             "<Press>       =" ,sum_press/np  ,"<Press^2>      =",sum_press_2/np    ,"std dev.=",sqrt((sum_Press_2/np)-(sum_Press/np)^2),
+                             "<Press>       =" ,sum_press/np  ,"<Press^2>      =",sum_press_2/np    ,"std dev.=",sqrt((sum_press_2/np)-(sum_press/np)^2),
                              "<Pvir_vdw>    =" ,sum_Pvdw/np   ,"<Pvir_vdw^2>   =",sum_Pvdw_2/np      ,"std dev.=",sqrt((sum_Pvdw_2/np)-(sum_Pvdw/np)^2),
                              "<Pvir_coul>   =" ,sum_Pcoul/np  ,"<Pvir_coul^2>  =",sum_Pcoul_2/np    ,"std dev.=",sqrt((sum_Pcoul_2/np)-(sum_Pcoul/np)^2),
                              "<vol>         =" ,sum_volume/np ,"<vol^2>        =",sum_volume_2/np   ,"std dev.=",sqrt((sum_volume_2/np)-(sum_volume/np)^2),      
