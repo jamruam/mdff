@@ -20,7 +20,6 @@
 !! ===============================================================\n
 !!                                                                \n
 !> \brief PARALLEL MOLECULAR DYNAMICS ...for fun                  \n
-!! Version: 0.3.1 BMLJ  (q-p) LJ potential                        \n
 !! This code perform molecular dynamics simulation with simple    \n
 !! non-bonding potentials ( Lennard-jones, Buckingham and Morse). \n
 !! It permits to calculate electric-field gradient (EFG) in a     \n
@@ -34,12 +33,13 @@
 !! S. Sastry   JNCASR                                             \n 
 !! D. Frenkel and B. Smit                                         \n  
 !! Allen-Tildesley                                                \n
-!! vasp: some features of the best code ever ;)                   \n
+!! vasp: some features ;)                                         \n
 !> \date
 !! - sep2005-jun2006                                        
 !! - dec2007                                                        
 !! - jan2011                                                
 !! - jan2013                                                      \n
+!! - jan/mars2014                                                 \n
 !!
 !  ===============================================================
 

@@ -764,7 +764,6 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve in  ',s,sb,ve/W,Ge,pvirial_tot,press
 #endif
   if ( trotter_order == 2 ) then
-    !P_kin = 2.0_dp * odnf * kin  / ( 3.0_dp * simu_cell%omega )  
     P_kin = odnf * kin  / ( 3.0_dp * simu_cell%omega )  
     Ge    = 3.0_dp * simu_cell%omega * ( P_kin + pvirial_tot - press ) 
     ve    = ve + Ge * dt2 ! pe 
@@ -787,7 +786,7 @@ if ( trotter_order == 1 ) then
     ! ==============
     !  thermo-baro
     ! ==============
-    Gb(nhc_n) = ( vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
+    Gb(nhc_n) = ( 0.5_dp * vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
     vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
     do inh=nhc_n-1,1,-1
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
@@ -801,7 +800,7 @@ if ( trotter_order == 1 ) then
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
       vxib ( inh )     =   vxib ( inh ) + Gb(inh) * dts4
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
-      Gb   ( inh + 1 ) = ( vxib ( inh ) * vxib(inh) / Qb(inh) - temp)
+      Gb   ( inh + 1 ) = ( 0.5_dp * vxib ( inh ) * vxib(inh) / Qb(inh) - temp)
     enddo
     vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
 #ifdef debug2
@@ -816,7 +815,7 @@ if ( trotter_order == 1 ) then
     ! ===================
     !  thermo-particules
     ! ===================
-    G(nhc_n) = ( vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp)
+    G(nhc_n) = ( 0.5_dp * vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp)
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
     do inh=nhc_n-1,1,-1
       vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
@@ -830,7 +829,7 @@ if ( trotter_order == 1 ) then
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
       vxi ( inh )     =   vxi ( inh ) + G(inh) * dts4
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
-      G   ( inh + 1 ) = ( vxi ( inh ) * vxi(inh) / Q(inh) - temp)
+      G   ( inh + 1 ) = ( 0.5_dp * vxi ( inh ) * vxi(inh) / Q(inh) - temp)
     enddo
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
 
@@ -841,7 +840,7 @@ else
     ! ===================
     !  thermo-particules
     ! ===================
-    G(nhc_n) = ( vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp)
+    G(nhc_n) = ( 0.5_dp * vxi(nhc_n-1) * vxi(nhc_n-1) / Q(nhc_n-1) - temp)
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
     do inh=nhc_n-1,1,-1
       vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
@@ -855,13 +854,13 @@ else
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
       vxi ( inh )     =   vxi ( inh ) + G(inh) * dts4
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
-      G   ( inh + 1 ) = ( vxi ( inh ) * vxi(inh) / Q(inh) - temp)
+      G   ( inh + 1 ) = ( 0.5_dp * vxi ( inh ) * vxi(inh) / Q(inh) - temp)
     enddo
     vxi ( nhc_n ) = vxi ( nhc_n ) + G ( nhc_n ) * dts4
     ! ==============
     !  thermo-baro
     ! ==============
-    Gb(nhc_n) = ( vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
+    Gb(nhc_n) = ( 0.5_dp * vxib(nhc_n-1) * vxib(nhc_n-1) / Qb(nhc_n-1) - temp)
     vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
     do inh=nhc_n-1,1,-1
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
@@ -875,7 +874,7 @@ else
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
       vxib ( inh )     =   vxib ( inh ) + Gb(inh) * dts4
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
-      Gb   ( inh + 1 ) = ( vxib ( inh ) * vxib(inh) / Qb(inh) - temp)
+      Gb   ( inh + 1 ) = ( 0.5_dp * vxib ( inh ) * vxib(inh) / Qb(inh) - temp)
     enddo
     vxib ( nhc_n ) = vxib ( nhc_n ) + Gb ( nhc_n ) * dts4
 
@@ -934,7 +933,7 @@ END SUBROUTINE chain_nhcpn
 ! ******************************************************************************
 SUBROUTINE nhcpn
 
-  USE io,                       ONLY :  stdout, ioprint
+  USE io,                       ONLY :  stdout, ioprint , ioprintnode, ionode
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , simu_cell
   USE md,                       ONLY :  dt, vxi, xi , vxib, xib , xe , ve , xe0, timesca_thermo , timesca_baro, nhc_n,temp , press, itime
@@ -955,9 +954,9 @@ SUBROUTINE nhcpn
   Q(1) = Q(1) * L  
   ! thermostat/barostat mass coupled to ve
   Qb   = timesca_baro**2.0_dp * temp
-  Qb(1)= Qb(1) * 9.0_dp 
+  Qb(1)= Qb(1) * 9.0_dp
   ! barostat "mass"
-  W    =  ( L + 3.0_dp )  * timesca_baro**2.0_dp * temp
+  W    =  ( L + 1.0_dp )  * timesca_baro**2.0_dp * temp
 
   CALL calc_temp ( tempi , kin )
 
@@ -972,7 +971,6 @@ SUBROUTINE nhcpn
   CALL chain_nhcpn( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 2 )
 
 #ifdef debug
-  io_print write(stdout,'(i,a,e60.48)')        myrank,'mp e_npt',e_npt
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xi   ',(xi(inhc)  , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp vxi  ',(vxi(inhc) , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xib  ',(xib(inhc) , inhc=1,nhc_n)
@@ -988,8 +986,8 @@ SUBROUTINE nhcpn
   e_npt = 0.0_dp
   e_npt = e_npt + press    * simu_cell%omega                     ! PV            # barostat potential energy of barostat
   e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! pe^2 / 2W     # barostat kinetic energy
-  e_npt = e_npt + L * temp * xi(1)                               ! Nf kB T xi    
-  e_npt = e_npt +     temp * xib(1)                              !    kB T xib
+  e_npt = e_npt + L        * temp * xi(1)                        ! Nf kB T xi    
+  e_npt = e_npt + 9.0_dp   * temp * xib(1)                       !    kB T xib
   e_npt = e_npt + vxi(1)   * vxi(1)  * 0.5_dp / Q (1)            ! pxi^2  / 2 Q
   e_npt = e_npt + vxib(1)  * vxib(1) * 0.5_dp / Qb(1)            ! pxib^2 / 2 Qb 
   do inhc = 2 , nhc_n
@@ -998,6 +996,7 @@ SUBROUTINE nhcpn
     e_npt = e_npt + temp * xi(inhc)
     e_npt = e_npt + temp * xib(inhc)
   enddo
+  io_printnode write(stdout,'(a,e60.48)') 'e_npt  =',e_npt
 
   deallocate(Q , Qb )
 

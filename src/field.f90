@@ -123,12 +123,12 @@ MODULE field
   real(kind=dp)    :: quad_efg ( ntypemax )            !< quadrupolar moment
   real(kind=dp)    :: dip      ( ntypemax , 3 )        !< dipoles 
   real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    !< polarizability if lpolar( it ) = .true. 
-  real(kind=dp)    :: pol_damp_b ( ntypemax,ntypemax ) !< dipole damping : parameter b [length]^-1
-  real(kind=dp)    :: pol_damp_c ( ntypemax,ntypemax ) !< dipole damping : parameter c no units
-  integer          :: pol_damp_k ( ntypemax,ntypemax ) !< dipole damping : Tang-Toennies function order
+  real(kind=dp)    :: pol_damp_b ( ntypemax, ntypemax,ntypemax ) !< dipole damping : parameter b [length]^-1
+  real(kind=dp)    :: pol_damp_c ( ntypemax, ntypemax,ntypemax ) !< dipole damping : parameter c no units
+  integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax ) !< dipole damping : Tang-Toennies function order
 
   logical          :: lpolar   ( ntypemax )            !< induced moment from pola 
-  logical          :: ldip_damping ( ntypemax , ntypemax) !< dipole damping 
+  logical          :: ldip_damping ( ntypemax , ntypemax , ntypemax) !< dipole damping 
   integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
   real(kind=dp)    :: conv_tol_ind                     !< convergence tolerance of the scf induced dipole calculation
   integer          :: min_scf_pol_iter
@@ -494,17 +494,27 @@ SUBROUTINE field_print_info ( kunit , quiet )
       WRITE ( kunit ,'(a)')             'polarizabilities on atoms'
       if ( ldamp ) &
       WRITE ( kunit ,'(a)')             'electric field damping applied to polarizable atoms' 
-         
+
       lseparator(kunit) 
-      do it = 1 , ntype
-        if ( lpolar( it ) ) then
-          WRITE ( kunit ,'(a,a2,a,f12.4)')'polarizability on type ', atypei(it),' : ' 
-          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 1 , j ) , j = 1 , 3 ) 
-          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 2 , j ) , j = 1 , 3 ) 
-          WRITE ( kunit ,'(3f12.4)')      ( pol ( it , 3 , j ) , j = 1 , 3 ) 
+      do it1 = 1 , ntype
+        if ( lpolar( it1 ) ) then
+          WRITE ( kunit ,'(a,a2,a,f12.4)')'polarizability on type ', atypei(it1),' : ' 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it1 , 1 , j ) , j = 1 , 3 ) 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it1 , 2 , j ) , j = 1 , 3 ) 
+          WRITE ( kunit ,'(3f12.4)')      ( pol ( it1 , 3 , j ) , j = 1 , 3 ) 
           blankline(kunit)
+          !if ( ldamp ) then
+            WRITE ( kunit ,'(a)') 'damping functions : '
+            WRITE ( kunit ,'(a)') '                    b           c              k'
+            do it2 = 1 ,ntype 
+          !    if ( ldip_damping(it1,it1,it2 ) )  &
+              WRITE ( kunit ,'(a,a,a,a,2f12.4,i,a,2f12.4,i,a)') atypei(it1),' - ',atypei(it2), ' : ' ,& 
+                                                    pol_damp_b(it1,it1,it2),pol_damp_c(it1,it1,it2),pol_damp_k(it1,it1,it2),&
+                                              ' ( ',pol_damp_b(it1,it2,it1),pol_damp_c(it1,it2,it1),pol_damp_k(it1,it2,it1),' ) '
+            enddo
+          !endif
         else
-          WRITE ( kunit ,'(a,a2)')      'no polarizability on type ', atypei(it)
+          WRITE ( kunit ,'(a,a2)')      'no polarizability on type ', atypei(it1)
         endif
         lseparator(kunit) 
         blankline(kunit)
@@ -1784,7 +1794,7 @@ END SUBROUTINE multipole_ES_v2
 SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield )
 
   USE control,                  ONLY :  lvnlist
-  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul
+  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  stdout, ionode
@@ -1800,7 +1810,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   logical       :: task(3), damp_ind, do_efield
 
   ! local 
-  integer       :: ia , ja , ita, jta, j1 , jb ,je
+  integer       :: ia , ja , ita, jta, j1 , jb ,je , it_tgt, it_tgt2
   real(kind=dp) :: qi, qj , qij , u_damp , u_tmp
   real(kind=dp) :: muix, muiy, muiz
   real(kind=dp) :: mujx, mujy, mujz
@@ -1815,17 +1825,21 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   real(kind=dp) :: dm1 , dm3 , dm5 , dm7
   real(kind=dp) :: F0 , F1 , F2 , F3
   real(kind=dp) :: F1d , F2d , F3d
+  real(kind=dp) :: F1d2 , F2d2 , F3d2
   real(kind=dp) :: T
   real(kind=dp) :: Tx , Ty , Tz
   real(kind=dp) :: Txd , Tyd , Tzd
+  real(kind=dp) :: Txd2 , Tyd2 , Tzd2
   real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
   real(kind=dp) :: Txxd , Tyyd , Tzzd , Txyd , Txzd , Tyzd
+  real(kind=dp) :: Txxd2 , Tyyd2 , Tzzd2 , Txyd2 , Txzd2 , Tyzd2
   real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
   real(kind=dp) :: alpha2 , alpha3 , alpha5 , expon 
   real(kind=dp), external :: errfc
   real(kind=dp) :: fdamp , fdampdiff
+  real(kind=dp) :: fdamp2 , fdampdiff2
   logical       :: ldamp 
-  logical       :: charge_charge, charge_dipole, dipole_dipole
+  logical       :: charge_charge, charge_dipole, dipole_dipole, double_damping
  
   charge_charge = task(1)
   charge_dipole = task(2)
@@ -1874,9 +1888,8 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
         ja = j1
       endif
 
-  !    print*,'ia,ja',ia,ja
-      !if (ja .eq. ia ) cycle
       if ( ( lvnlist .and. ja .eq. ia ) .or. ( .not. lvnlist .and. ja .le. ia ) ) cycle
+!      if ( ( lvnlist .and. ja .eq. ia ) .or. ( .not. lvnlist .and. ja .eq. ia ) ) cycle
 
         jta  = itype(ja)
         qj   = qia(ja)
@@ -1909,10 +1922,23 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
 
         ! damping function 
         ldamp = .false.
-        if ( ldip_damping(ita,jta) ) ldamp = .true.
+        if ( ldip_damping(ita,ita,jta) .or. ldip_damping(jta,ita,jta) ) ldamp = .true.
         if ( .not. damp_ind ) ldamp = .false. 
         if ( ldamp ) then
-          CALL TT_damping_functions(pol_damp_b(ita,jta),pol_damp_c(ita,jta),d,fdamp,fdampdiff,pol_damp_k(ita,jta) )
+       !   it_tgt  = ita
+       !   it_tgt2 = jta
+          double_damping = .false.
+       !   if (       ldip_damping(ita,ita,jta) .and. .not.  ldip_damping(jta,ita,jta) ) then
+       !     it_tgt  = ita
+       !     it_tgt2 = jta
+       !   endif
+       !   if ( .not. ldip_damping(ita,ita,jta) .and.        ldip_damping(jta,ita,jta) ) then 
+       !     it_tgt  = jta
+       !     it_tgt2 = ita
+       !   endif
+          if ( ldip_damping(ita,ita,jta) .and. ldip_damping(jta,ita,jta) ) double_damping = .true.
+          CALL TT_damping_functions(pol_damp_b(ita,ita,jta),pol_damp_c(ita,ita,jta),d,fdamp,fdampdiff,pol_damp_k(ita,ita,jta) )
+          CALL TT_damping_functions(pol_damp_b(jta,ita,jta),pol_damp_c(jta,ita,jta),d,fdamp2,fdampdiff2,pol_damp_k(jta,ita,jta) )
         else
           fdamp = 1.0_dp
           fdampdiff = 0.0d0
@@ -1928,6 +1954,8 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
         ! damping if no damping fdamp == 1 and fdampdiff == 0
         F1d  = - fdamp + 1.0d0 
         F2d  = F1d + ( d / 3.0_dp ) * fdampdiff ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
+        F1d2  = - fdamp2 + 1.0d0 
+        F2d2  = F1d2 + ( d / 3.0_dp ) * fdampdiff2 ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
 
         ! multipole interaction tensor rank = 0 
         T  = dm1 * F0
@@ -1940,6 +1968,9 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           Txd = - rxij * F1d * dm3  
           Tyd = - ryij * F1d * dm3  
           Tzd = - rzij * F1d * dm3  
+          Txd2 = - rxij * F1d2 * dm3  
+          Tyd2 = - ryij * F1d2 * dm3  
+          Tzd2 = - rzij * F1d2 * dm3  
         endif
 
         ! multipole interaction tensor rank = 2
@@ -1957,6 +1988,12 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           Txyd = ( 3.0_dp * rxij * ryij * F2d ) * dm5
           Txzd = ( 3.0_dp * rxij * rzij * F2d ) * dm5
           Tyzd = ( 3.0_dp * ryij * rzij * F2d ) * dm5
+          Txxd2 = ( 3.0_dp * rxij * rxij * F2d2 - d2 * F1d2 ) * dm5
+          Tyyd2 = ( 3.0_dp * ryij * ryij * F2d2 - d2 * F1d2 ) * dm5
+          Tzzd2 = ( 3.0_dp * rzij * rzij * F2d2 - d2 * F1d2 ) * dm5
+          Txyd2 = ( 3.0_dp * rxij * ryij * F2d2 ) * dm5
+          Txzd2 = ( 3.0_dp * rxij * rzij * F2d2 ) * dm5
+          Tyzd2 = ( 3.0_dp * ryij * rzij * F2d2 ) * dm5
         endif
 
         ! multipole interaction tensor rank = 3  
@@ -1988,12 +2025,12 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
             ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) + qi * Ty
             ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) + qi * Tz
             if ( ldamp ) then
-              ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
-              ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
-              ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
-              ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) - qi * Txd
-              ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) - qi * Tyd
-              ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) - qi * Tzd
+                ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
+                ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
+                ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
+                ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) - qi * Txd2
+                ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) - qi * Tyd2
+                ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) - qi * Tzd2
             endif
           endif
 
@@ -2108,8 +2145,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           u_dir = u_dir - ( qi * ( Tx * mujx + Ty * mujy + Tz * mujz ) ) + ( qj * ( Tx * muix + Ty * muiy + Tz * muiz ) )
       
           if ( ldamp ) then
-            u_dir = u_dir + ( qi * ( Txd * mujx + Tyd * mujy + Tzd * mujz ) ) - ( qj * ( Txd * muix + Tyd * muiy + Tzd * muiz ) )
-            u_damp = u_damp + ( qi * ( Txd * mujx + Tyd * mujy + Tzd * mujz ) ) - ( qj * ( Txd * muix + Tyd * muiy + Tzd * muiz ) )  
+              u_dir = u_dir + ( qi * ( Txd2 * mujx + Tyd2 * mujy + Tzd2 * mujz ) ) - ( qj * ( Txd * muix + Tyd * muiy + Tzd * muiz ) )
           endif
 
           ! forces 
@@ -2144,13 +2180,13 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           if ( ldamp ) then
 
             fxij = qj * ( Txxd * muix + Txyd * muiy + Txzd * muiz ) - &
-                   qi * ( Txxd * mujx + Txyd * mujy + Txzd * mujz ) 
+                   qi * ( Txxd2 * mujx + Txyd2 * mujy + Txzd2 * mujz ) 
                     
             fyij = qj * ( Txyd * muix + Tyyd * muiy + Tyzd * muiz ) - &
-                   qi * ( Txyd * mujx + Tyyd * mujy + Tyzd * mujz ) 
+                   qi * ( Txyd2 * mujx + Tyyd2 * mujy + Tyzd2 * mujz ) 
 
             fzij = qj * ( Txzd * muix + Tyzd * muiy + Tzzd * muiz ) - &
-                   qi * ( Txzd * mujx + Tyzd * mujy + Tzzd * mujz ) 
+                   qi * ( Txzd2 * mujx + Tyzd2 * mujy + Tzzd2 * mujz ) 
 
             fx_dir ( ia ) = fx_dir ( ia ) + fxij
             fy_dir ( ia ) = fy_dir ( ia ) + fyij
@@ -2194,11 +2230,11 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 2 , : ) , 3 )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
 
-  !if ( .not. lvnlist )  then
-  !  tau_dir = tau_dir   * 0.5_dp
-  !  u_dir   =   u_dir   * 0.5_dp
-  !  u_damp  =   u_damp  * 0.5_dp
-  !endif
+  if ( .not. lvnlist )  then
+    tau_dir = tau_dir   * 0.5_dp
+    u_dir   =   u_dir   * 0.5_dp
+    u_damp  =   u_damp  * 0.5_dp
+  endif
   tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   u_dir   =   u_dir   !* 0.5_dp
   u_damp  =   u_damp  !* 0.5_dp
@@ -2853,10 +2889,10 @@ SUBROUTINE moment_from_pola ( mu_ind )
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
 
-#ifdef debug_scf_pola
+!#ifdef debug_scf_pola
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_factor , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
-#endif 
+!#endif 
 
   enddo ! end of SCF loop
   io_printnode WRITE ( stdout, '(a)' ) ''

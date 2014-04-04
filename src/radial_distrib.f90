@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE radial_distrib ********************************
@@ -290,13 +290,13 @@ SUBROUTINE grcalc
 
   ngr = 0
   do ic = 1, nconf
-    io_node WRITE ( stdout , '(a,i6,a,i6,a)' ) 'config : [ ',ic,' / ',nconf,' ] '
 
     CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data ) 
 
     CALL lattice ( simu_cell )
     rho_av = rho_av + ( REAL ( natm ,kind=dp )  / simu_cell%omega )
     average_volume = average_volume + simu_cell%omega    
+    io_node WRITE ( stdout , '(a,i6,a,i6,a,f12.3)' ) 'config : [ ',ic,' / ',nconf,' ]   vol : ',simu_cell%omega
 #ifdef debug
     print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 #endif
