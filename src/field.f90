@@ -22,7 +22,7 @@
 !#define debug_multipole_ES
 !#define debug_multipole_ES2
 !#define debug_multipole_ES3
-!#define  debug_scf_pola
+#define debug_scf_pola
 !#define debug_wfc
 !#define debug_morse
 !#define debug_nmlj
@@ -58,6 +58,7 @@ MODULE field
   logical, SAVE     :: lwrite_dip_wfc    !< write dipoles from wannier centers to file
   logical, SAVE     :: ldip_wfc          !< calculate electrostatic contribution from dipolar momemt coming from wfc
   logical, SAVE     :: lquiet            !< unknown
+  logical, SAVE     :: symmetric_pot     !< symmetric potential ( default .true. but who knows ?)
 
 
   ! ============================================================  
@@ -167,6 +168,7 @@ SUBROUTINE field_default_tag
   ! =================
 
   ctrunc        = 'linear' 
+  symmetric_pot = .true.
 
   ! LJ
   lKA           = .false.
@@ -238,7 +240,7 @@ SUBROUTINE field_check_tag
   implicit none
 
   ! local
-  integer :: i, it
+  integer :: i, it, it2
   logical :: allowed , ldamp , ldip, lqch
   real(kind=dp) :: mu (natm,3)
 
@@ -277,11 +279,28 @@ SUBROUTINE field_check_tag
     epslj   ( 2 , 1 ) = 1.5_dp
   endif
 
-  Abmhftd(:,1)  = Abmhftd(1,:)
-  Bbmhftd(:,1)  = Bbmhftd(1,:)
-  Cbmhftd(:,1)  = Cbmhftd(1,:)
-  Dbmhftd(:,1)  = Dbmhftd(1,:)
-  BDbmhftd(:,1) = BDbmhftd(1,:)
+  if ( symmetric_pot ) then
+    do it = 1 , ntype
+      ! nmlj
+      epslj   (:,it)   = epslj   (it,:) 
+      sigmalj (:,it)   = sigmalj (it,:)
+      plj     (:,it)   = plj     (it,:)
+      qlj     (:,it)   = qlj     (it,:)
+      ! bhmftd
+      Abmhftd(:,it)  = Abmhftd(it,:)
+      Bbmhftd(:,it)  = Bbmhftd(it,:)
+      Cbmhftd(:,it)  = Cbmhftd(it,:)
+      Dbmhftd(:,it)  = Dbmhftd(it,:)
+      BDbmhftd(:,it) = BDbmhftd(it,:)
+      do it2 = 1 ,ntype
+        ! dip_damping
+        ldip_damping(it2,:,it) = ldip_damping(it2,it,:)
+        pol_damp_b  (it2,:,it) = pol_damp_b  (it2,it,:)
+        pol_damp_c  (it2,:,it) = pol_damp_c  (it2,it,:)
+        pol_damp_k  (it2,:,it) = pol_damp_k  (it2,it,:)
+      enddo
+    enddo
+  endif
 
   if ( any( pol_damp_k .gt. maximum_of_TT_expansion ) ) then
     io_node  WRITE ( stdout , '(a,i)' ) 'ERROR Tang-Toennieng expansion order too large (i.e pol_damp_k) max = ',maximum_of_TT_expansion 
@@ -307,8 +326,6 @@ SUBROUTINE field_check_tag
       task_coul(3) = .true.
     endif
   endif
-  !CALL print_config_sample(0,0)
-  !io_node write(*,*) 'Electrostatic tasks ',task_coul
 
 
   return 
@@ -332,6 +349,7 @@ SUBROUTINE field_init
 
   namelist /fieldtag/    lKA           , &       
                          ctrunc        , &
+                         symmetric_pot , &
                          ncelldirect   , &
                          kES           , &
                          alphaES       , &
@@ -1910,7 +1928,6 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         d2  = rxij * rxij + ryij * ryij + rzij * rzij
-   !     print*,'rc',d2,cutsq
         if ( d2 .gt. cutsq ) cycle
           d   = SQRT ( d2 )
           d3  = d2 * d
@@ -1925,17 +1942,7 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
         if ( ldip_damping(ita,ita,jta) .or. ldip_damping(jta,ita,jta) ) ldamp = .true.
         if ( .not. damp_ind ) ldamp = .false. 
         if ( ldamp ) then
-       !   it_tgt  = ita
-       !   it_tgt2 = jta
           double_damping = .false.
-       !   if (       ldip_damping(ita,ita,jta) .and. .not.  ldip_damping(jta,ita,jta) ) then
-       !     it_tgt  = ita
-       !     it_tgt2 = jta
-       !   endif
-       !   if ( .not. ldip_damping(ita,ita,jta) .and.        ldip_damping(jta,ita,jta) ) then 
-       !     it_tgt  = jta
-       !     it_tgt2 = ita
-       !   endif
           if ( ldip_damping(ita,ita,jta) .and. ldip_damping(jta,ita,jta) ) double_damping = .true.
           CALL TT_damping_functions(pol_damp_b(ita,ita,jta),pol_damp_c(ita,ita,jta),d,fdamp,fdampdiff,pol_damp_k(ita,ita,jta) )
           CALL TT_damping_functions(pol_damp_b(jta,ita,jta),pol_damp_c(jta,ita,jta),d,fdamp2,fdampdiff2,pol_damp_k(jta,ita,jta) )
@@ -1943,7 +1950,6 @@ SUBROUTINE multipole_ES_v2_dir ( u_dir , ef_dir , fx_dir , fy_dir , fz_dir , tau
           fdamp = 1.0_dp
           fdampdiff = 0.0d0
         endif
-        !print*,ldamp,fdamp,fdampdiff
 
         expon = EXP ( - alpha2 * d2 )    / piroot
         F0    = errfc( alphaES * d )
@@ -2272,7 +2278,6 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe , rhonk_R , rhonk_I
   real(kind=dp)     :: alpha2, tpi_V , fpi_V
   complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk, expikmAk , expikr
-  !complex(kind=dp ) ,dimension (:), allocatable :: expikr 
   real(kind=dp)     ,dimension (:), allocatable :: ckr , skr 
   logical           :: ldip , update_mu_only
   dectime
@@ -2286,15 +2291,7 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   ldip = .false.
   if ( task(2) .or. task(3) ) ldip = .true.
 
-  statime  
-!  CALL charge_density_k ( km_coul , mu , ldip , update_mu_only )
-  stotime
-  addtime(fcoultimetot2_2)
-
-
   allocate( ckr ( natm ) , skr (natm) ) 
-  !allocate( expikr ( natm ) ) 
-  !allocate( expikm ( natm ) ) 
 
   ! ==============================================
   !            reciprocal space part
@@ -2309,7 +2306,6 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
     Ak     = km_coul%Ak( ik )
     kcoe   = km_coul%kcoe(ik) 
 
-    !rhonk = (0.0_dp, 0.0_dp)
     rhonk_R = 0.0_dp
     rhonk_I = 0.0_dp
     do ia = 1, natm
@@ -2318,11 +2314,8 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
       ryi = ry(ia)
       rzi = rz(ia)
       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-      !expikr   = EXP ( imag * k_dot_r )  ! cos + i sin
       ckr(ia)  = COS(k_dot_r) 
       skr(ia)  = SIN(k_dot_r)
-!      rhonk    = rhonk + qia ( ia ) * expikr(ia) ! q * cos + i * q * sin
-!      rhonk    = rhonk + qia ( ia ) * expikr     ! q * cos + i * q * sin
       rhonk_R    = rhonk_R + qi * ckr(ia) 
       rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
       if ( .not. ldip ) cycle
@@ -2330,24 +2323,17 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
       muiy = mu ( ia , 2 )
       muiz = mu ( ia , 3 )
       k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
-!      rhonk = rhonk + ik_dot_mu * expikr ! rhon_R + i rhon_I
       rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
       rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
     enddo
-!    print*,rhonk_R,rhonk_I
 
-    ! str    = CONJG ( rhonk ) * rhonk * Ak   ! ( rhon_R - i rhon_I ) ( rhon_R + i rhon_I ) ak = ak rhon_R2 + ak rhon_I2 
      str    = (rhonk_R*rhonk_R + rhonk_I*rhonk_I) * Ak  
      ! potential energy 
      u_rec   = u_rec   + str
 
     do ia = 1 , natm
       qi  = qia ( ia )
-      !expikrAk = expikr(ia) * Ak ! ak cos + i * ak * sin
-!      expikrAk = ( ckr(ia) + imag * skr(ia) ) * Ak ! ak cos + i * ak * sin
-!      recargi = REAL ( imag * CONJG ( rhonk ) * expikrAk , kind = dp ) ! ak ( rhon_I ckr - rhon_R skr )     
       recarg = Ak * ( rhonk_I * ckr(ia) - rhonk_R * skr(ia) )
-      !print*,'recarg',recarg
 
       fxij = kx * recarg
       fyij = ky * recarg
@@ -2365,7 +2351,6 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
       muix = mu ( ia , 1 )
       muiy = mu ( ia , 2 )
       muiz = mu ( ia , 3 )
-!      recarg  = REAL (        CONJG ( rhonk ) * expikrAk , kind = dp ) ! ak rhon_R ckr + ak rhon_I skr
       recarg  = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) ) ! ak rhon_R ckr + ak rhon_I skr
       k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
       fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
@@ -2418,8 +2403,6 @@ SUBROUTINE multipole_ES_v2_rec ( u_rec , ef_rec, fx_rec , fy_rec , fz_rec , tau_
   fy_rec  =   fy_rec  * fpi_V
   fz_rec  =   fz_rec  * fpi_V
 
-  !deallocate ( expikr ) 
-  !deallocate ( expikm ) 
   deallocate( ckr , skr ) 
 
   return
@@ -2728,11 +2711,8 @@ SUBROUTINE engforce_morse_pbc
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 2, : ) , 3  )
   CALL MPI_ALL_REDUCE_DOUBLE ( tau_nonb( 3, : ) , 3  )
 
-
   u_morse = u
   vir_morse = vir
-
-!  WRITE ( stdout ,'(2f24.12)') u_morse , u2 
 
   ! ======================================
   !         direct to cartesian
@@ -2802,7 +2782,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
   fy      = 0.0_dp
   fz      = 0.0_dp
 
-  !print*,'before 1st multipole_ES'
   ! =============================================
   !  coulombic energy , forces (field) and virial
   ! =============================================
@@ -2839,7 +2818,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
   ! =============================
   !           SCF LOOP
   ! =============================
-  !do while ( diff_efield .gt. conv_tol_ind )
   do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
 
     iscf = iscf + 1
@@ -2873,7 +2851,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
     fy      = 0.0_dp
     fz      = 0.0_dp
 
-
     ! ===================
     !  stopping criteria
     ! ===================
@@ -2889,10 +2866,10 @@ SUBROUTINE moment_from_pola ( mu_ind )
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
 
-!#ifdef debug_scf_pola
+#ifdef debug_scf_pola
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_factor , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
-!#endif 
+#endif 
 
   enddo ! end of SCF loop
   io_printnode WRITE ( stdout, '(a)' ) ''
@@ -2903,7 +2880,6 @@ SUBROUTINE moment_from_pola ( mu_ind )
   qch = qch_tmp
   qia = qia_tmp
 
-!#ifdef debug
   if ( ioprintnode ) then
     blankline(stdout)
     WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
@@ -2976,7 +2952,6 @@ SUBROUTINE moment_from_WFc ( mu )
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
   integer, dimension ( : ) , allocatable :: cwfc
   TYPE( verlet_list ) :: verlet_wfc
-  !integer, dimension ( : ) , allocatable :: wfc_list, wfc_point         ! wfc neighbour list info
   real(kind=dp) :: rijsq, cutsq
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
@@ -3164,17 +3139,14 @@ SUBROUTINE get_dipole_moments ( mu )
   logical :: lwannier
   real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
 
-
   ! save total force fx,fy,fz as they are overwritted by moment_from_pola
   allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  )
   fx_save = fx ; fy_save = fy ; fz_save = fz
 
-  !print*,'in get_dipole_moments'
   ! ======================================
   !     induced moment from polarisation 
   ! ======================================
   CALL moment_from_pola ( dipia_ind )
-  !print*,'after moment_from_pola'
 
   ! =========================================================
   !  Is there any Wannier center ? if yes lwannier = .TRUE.

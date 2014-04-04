@@ -1,4 +1,4 @@
-#define debug_TT
+!#define debug_TT
 MODULE tt_damp
 
 #include "symbol.h"

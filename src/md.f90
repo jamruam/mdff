@@ -143,7 +143,7 @@ SUBROUTINE md_init
     STOP
   elseif ( ioerr .gt. 0 )  then
     io_node &
-    WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : mdtag wrong tag'
+    WRITE ( stdout, '(a,i8)') 'ERROR reading input_file : mdtag wrong tag',ioerr
     STOP
   endif
   CLOSE  ( stdin )
