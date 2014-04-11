@@ -216,14 +216,11 @@ SUBROUTINE write_CONTFF
   yyy = ry
   zzz = rz
   ! ======================================
-  !         cartesian to direct 
+  !                  PBC
   ! ======================================
-  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
-  ! ======================================
-  !         direct to cartesian
-  ! ======================================
-  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
+  CALL kardir     ( natm , xxx , yyy , zzz , simu_cell%B )
+  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell   )
+  CALL dirkar     ( natm , xxx , yyy , zzz , simu_cell%A )
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
@@ -241,7 +238,6 @@ SUBROUTINE write_CONTFF
                                                            fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
   CLOSE (kunit_CONTFF)
   endif
-  !CALL print_config_sample(0,0)
 
   deallocate ( xxx , yyy , zzz ) 
 
@@ -330,7 +326,7 @@ SUBROUTINE config_dealloc
   implicit none 
         
   ! tmp 
-  if ( calc .eq.'rmc' ) return
+  if ( calc .eq.'rmc' .or. calc .eq.'stochio') return
 
   deallocate( rx  , ry  , rz )
   deallocate( vx  , vy  , vz )
@@ -553,15 +549,11 @@ SUBROUTINE write_trajff_xyz
   zzz = rz
 
   ! ======================================
-  !         cartesian to direct 
+  !             PBC
   ! ======================================
-  CALL kardir ( natm , xxx , yyy , zzz , simu_cell%B )
-
+  CALL kardir     ( natm , xxx , yyy , zzz , simu_cell%B )
   CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
-  ! ======================================
-  !         direct to cartesian
-  ! ======================================
-  CALL dirkar ( natm , xxx , yyy , zzz , simu_cell%A )
+  CALL dirkar     ( natm , xxx , yyy , zzz , simu_cell%A )
 
 
   if ( ionode ) then
@@ -783,11 +775,6 @@ SUBROUTINE read_traj ( kunit , iformat , csave )
   return
 
 END SUBROUTINE read_traj
-
-!  if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
-!  if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
-
-
 
 END MODULE config
 ! ===== fmV =====

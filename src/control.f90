@@ -36,8 +36,9 @@ MODULE control
   integer,           SAVE :: nprop            !< properties period
   integer                 :: itraj_start      !< write trajectory from step itraj_start
   integer                 :: itraj_period     !< write trajectory each itraj_period steps 
-  integer                 :: itraj_format     !< choose the trajectory format ( = 0 BINARY, = 1 FORMATED)
-  integer                 :: iscff_format     !< format of optimized configuration 0 = BINARY
+  integer                 :: itraj_format     !< format of TRAJFF file ( = 0 BINARY, = 1 FORMATED)
+  integer                 :: iscff_format     !< format of ISCFF  file      0 = BINARY
+  integer                 :: iefgall_format   !< format of EFGALL file  0 = BINARY
   character(len=8),  SAVE :: DATE             !< execution DATE
   character(len=10), SAVE :: HOUR             !< execution HOUR
 
@@ -66,10 +67,10 @@ MODULE control
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc             !< type of calculation : md, opt, vib, efg ...  
-  character(len=60), SAVE :: calc_allowed(13)    
+  character(len=60), SAVE :: calc_allowed(14)    
   data calc_allowed / 'md'       , 'opt'     , 'vib'        , 'vib+fvib'       , 'vib+gmod' , &
                       'vib+band' , 'vib+dos' , 'efg'        , 'efg+acf'        , 'gr'       , &
-                      'vois1'    , 'rmc'     , 'dist' /
+                      'vois1'    , 'rmc'     , 'dist'       , 'stochio'  /
 
   ! =====================================================
   ! algorithm for long-range calculation
@@ -121,32 +122,33 @@ SUBROUTINE control_init ( MDFF )
   character(len=80)  :: MDFF
   character(len=132) :: filename
 
-  namelist /controltag/  lnmlj        , &
-                         lmorse       , &
-                         lbmhft       , &
-                         lbmhftd      , &
-                         lcoulomb     , &
-                         lsurf        , &
-                         lcsvr        , &
-                         lharm        , &
-                         ltraj        , &
-                         lvnlist      , &
-                         lstatic      , &
-                         lreduced     , & 
-                         ltest        , &
-                         lrestart     , &
-                         cutlongrange , &
-                         cutshortrange, &
-                         calc         , &
-                         dgauss       , &
-                         longrange    , &
-                         itraj_start  , & 
-                         itraj_period , & 
-                         itraj_format , & 
-                         trajff_data  , & 
-                         iscff_format , & 
-                         iscff_data   , & 
-                         restart_data , & 
+  namelist /controltag/  lnmlj          , &
+                         lmorse         , &
+                         lbmhft         , &
+                         lbmhftd        , &
+                         lcoulomb       , &
+                         lsurf          , &
+                         lcsvr          , &
+                         lharm          , &
+                         ltraj          , &
+                         lvnlist        , &
+                         lstatic        , &
+                         lreduced       , & 
+                         ltest          , &
+                         lrestart       , &
+                         cutlongrange   , &
+                         cutshortrange  , &
+                         calc           , &
+                         dgauss         , &
+                         longrange      , &
+                         itraj_start    , & 
+                         itraj_period   , & 
+                         itraj_format   , & 
+                         trajff_data    , & 
+                         iscff_format   , & 
+                         iscff_data     , & 
+                         iefgall_format , & 
+                         restart_data   , & 
                          skindiff     
                
   ! ======================
@@ -222,6 +224,7 @@ SUBROUTINE control_default_tag
   trajff_data   = 'rnn'
   iscff_data    = 'rnn'
   restart_data  = 'rnn'
+  iefgall_format= 1
 
   return 
  

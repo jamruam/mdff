@@ -68,6 +68,7 @@ PROGRAM main_MDFF
   USE voisin
   USE msd
   USE vacf 
+  USE stochio
   USE block
   USE mpimdff
 
@@ -336,6 +337,11 @@ PROGRAM main_MDFF
     ! ========================================================
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
+    endif
+
+    if ( calc .eq. 'stochio' ) then
+      CALL stochio_init    
+      CALL stochio_calc
     endif
  
     ! ==============================================

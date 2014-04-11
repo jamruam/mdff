@@ -886,9 +886,9 @@ SUBROUTINE eforce1d( x , pot , vir , f1d , xix , xiy , xiz , neng )
   ry = ryt
   rz = rzt
 
-  ! ================
+  ! ====================
   !  warning ! only pbc
-  ! ================
+  ! ====================
   CALL engforce_driver 
   CALL calc_thermo
   vir = vir_tot
@@ -1201,7 +1201,6 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   ALLOCATE ( x (N) )
   ALLOCATE ( g (N) )
   ALLOCATE ( dz (ndz) )
-  print*,'here'
 
   ! ========================================
   !  set X ( 3 *natm ) to rx , ry , rz

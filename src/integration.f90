@@ -1016,7 +1016,7 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
   USE config,                   ONLY :  natm , massia , rx , ry , rz , ry , vx , vy , vz , fx , fy , fz, simu_cell, rho
   USE md,                       ONLY :  dt , nhc_n , temp , press , first_time_xe0
   USE field,                    ONLY :  engforce_driver
-  USE cell,                     ONLY :  lattice , kardir, dirkar, periodicbc
+  USE cell,                     ONLY :  lattice , kardir, dirkar
   USE thermodynamic,            ONLY :  u_tot, calc_thermo
   USE io,                       ONLY :  stdout, ioprintnode, ionode
 

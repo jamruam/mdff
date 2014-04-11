@@ -19,8 +19,8 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug
-!#define debug_invert
-!#define debug_invert2
+#define debug_invert
+#define debug_invert2
 !#define debug_chisq
 ! ======= Hardware =======
 
@@ -71,7 +71,7 @@ SUBROUTINE rmc_init
 
   USE config,                   ONLY :  simu_cell
   USE control,                  ONLY :  calc
-  USE io,                  ONLY :  stdin , stdout , ionode
+  USE io,                       ONLY :  stdin , stdout , ionode
 
   implicit none
 
@@ -185,7 +185,7 @@ END SUBROUTINE rmc_print_info
 SUBROUTINE rmc_main
 
   USE constants,                ONLY : pi , dzero
-  USE io,                  ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
+  USE io,                       ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
   USE config,                   ONLY : natm, ntype , simu_cell, natmi, atypei, atype, allowedmove, rx, ry , rz, &
                                        config_alloc, coord_format_allowed, write_CONTFF, system , &
                                        vx, vy, vz, fx, fy, fz, rho , config_print_info , itype , atom_dec , write_trajff_xyz
@@ -213,15 +213,16 @@ SUBROUTINE rmc_main
   real(kind=dp),     dimension (     : , : ) , allocatable :: dibeta_exp
   real(kind=dp),     dimension (     : , : ) , allocatable :: dibeta_calc
   real(kind=dp)     :: x , y , z , rr
+  ! TODO : create a type structure for chisq
   character(len=3)  :: label_chisq(6) 
   data label_chisq / 'rmc' , 'var' , 'efg' , 'vzz' , 'eta' ,'tot' /
   real(kind=dp)     :: chisq(6)       ! array of chisq : chisq_rmc, chisq_var, chisq_uefg, chisq_eta, chisq_vzz ,total
   real(kind=dp)     :: chisq_old(6)   ! array of chisq same order as above the last one is the total
   real(kind=dp)     :: delta_chisq(6) ! array of delta same order as above the last one is the total
+  logical           :: accept(6)
   real(kind=dp)     :: metro, randmetro, randpart
   real(kind=dp)     :: exec_loops,timing_loop1,timing_loop2,timing_all_start
   logical           :: allowed
-  logical           :: accept(6)
   character(len=60) :: cpos
 
   timing_all_start = MPI_WTIME(ierr)
@@ -504,7 +505,7 @@ SUBROUTINE rmc_main
     ! ===========================================
     if ( lrmc_var )  CALL eval_chisq_var_distance (  chisq(2) )
     !if ( lrmc_var )  CALL eval_chisq_var_distance_simple_update ( random_particule , chisq(2) )
-    chisq(6)     = sum( chisq(1:5) )    
+    chisq(6)     = sum( chisq(1:5) )    ! total
     delta_chisq = chisq - chisq_old
 
     ! ===============================
@@ -610,7 +611,7 @@ SUBROUTINE rmc_main
           endif
         endif 
         CALL write_CONTFF
-        CALL write_trajff_xyz 
+        if ( kacc .gt. (acceptance_max-10000) ) CALL write_trajff_xyz 
       endif
 
     else
@@ -1059,6 +1060,7 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
   USE config,           ONLY :  natm, ntype , itype , natmi , rx , ry , rz, simu_cell, rx, ry, rz 
   USE cell,             ONLY :  kardir, dirkar
   USE time,             ONLY :  chisqvartimetotu, chisqvartime2u , chisqvartime3u , chisqvartime4u
+  USE io,               ONLY :  stdout
 
   implicit none
 
@@ -1357,7 +1359,7 @@ END SUBROUTINE eval_chisq_var_distance_simple_update
 SUBROUTINE rmc_move ( max_displacement , random_particule , x1 , y1 , z1 )
 
   USE config,           ONLY :  natm , simu_cell , rx , ry ,rz
-  USE cell,             ONLY :  periodicbc , kardir, dirkar
+  USE cell,             ONLY :  kardir, dirkar
 
   implicit none
 

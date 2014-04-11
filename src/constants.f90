@@ -49,7 +49,7 @@ MODULE constants
   real(kind=dp),      PARAMETER :: press_unit  = 0.0062415096_dp                       !< GPa = > internal unit of pressure ( eV / angstrom**3) 
   real(kind=dp),      PARAMETER :: boltz       = 8.6173423e-05                         !< boltzmann constant ( energy in eV)
   real(kind=dp),      PARAMETER :: time_unit   = 98.226952_dp                          !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
-  real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< length in angstom and energy in eV 
+!  real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< length in angstom and energy in eV 
   real(kind=dp),      PARAMETER :: evtoj       = 1.602176487e-19_dp                    !< eV to J 
   real(kind=dp),      PARAMETER :: hplanck     = 6.62617636e-34_dp                     !< Planck constant 
   real(kind=dp),      PARAMETER :: eh          = evtoj / 1e14_dp / hplanck             !< e/h (electron charge / Planck constant )

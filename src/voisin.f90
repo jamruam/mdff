@@ -50,7 +50,7 @@ MODULE voisin
 
   integer , PARAMETER ::  nmaxneigh = 500
 
-  integer :: nconf                       ! number of configurations readed for vois1 analysis (only when calc = 'vois1') 
+  integer       :: nconf                            ! number of configurations readed for vois1 analysis (only when calc = 'vois1') 
   real(kind=dp) :: cutvois1 ( ntypemax , ntypemax ) ! cutoff of the first neighbour sphere for each pair of types
 
   ! ===============

@@ -20,8 +20,8 @@
 #include "symbol.h"
 !// general debug flag
 !#define debug 
-!#define debug_main
-!#define debug_es
+#define debug_input
+#define debug_es
 !#define debug_multipole
 !#define debug_efg_stat
 !#define fix_grid
@@ -51,8 +51,7 @@ MODULE efg
   logical :: lefg_restart               !< if EFGALL files are ready
   logical :: lefg_old                   !< use efg_DS and efg_ES ( old routines ) 
   logical :: lefg_stat                  !< compute statitics distribution on EFG's 
-  integer :: lefg_format                !< format = 0 BINARY > 0 FORMATED
-  logical :: lvasp_units               
+  logical :: lefg_reduced_units         !< 1/4piepsilon0 = 1
   logical :: lefg_it_contrib            !< only on kind is contributing too efg (default false)
   logical :: lmp_correction
   integer :: ncefg                      !< number of configurations READ  for EFG calc (only when calc = 'efg')
@@ -110,23 +109,22 @@ SUBROUTINE efg_init
   integer            :: ioerr
   character(len=132) :: filename
 
-  namelist /efgtag/  lefgprintall     , & 
-                     lefg_format      , &
-                     lefg_restart     , &
-                     lefg_old         , &
-                     lefg_it_contrib  , &
-                     lefg_stat        , &
-                     lmp_correction   , &
-                     ncefg            , & 
-                     ntcor            , &
-                     resvzz           , &
-                     reseta           , &
-                     resu             , &
-                     vzzmin           , &
-                     lvasp_units      , &
-                     dt               , & 
-                     it_efg           , &
-                     umin             , & 
+  namelist /efgtag/  lefgprintall       , & 
+                     lefg_restart       , &
+                     lefg_old           , &
+                     lefg_it_contrib    , &
+                     lefg_stat          , &
+                     lmp_correction     , &
+                     ncefg              , & 
+                     ntcor              , &
+                     resvzz             , &
+                     reseta             , &
+                     resu               , &
+                     vzzmin             , &
+                     lefg_reduced_units , &
+                     dt                 , & 
+                     it_efg             , &
+                     umin               , & 
                      smax           
 
   if ( calc .ne. 'efg' .and. calc .ne. 'efg+acf' ) return 
@@ -154,7 +152,7 @@ SUBROUTINE efg_init
   !  check efgtag
   ! ===============
   CALL efg_check_tag
-   if ( calc .eq. 'efg' ) return
+  if ( calc .ne. 'efg' ) return
   ! =============
   !  print info
   ! =============
@@ -177,12 +175,11 @@ SUBROUTINE efg_default_tag
   !  default values
   ! =================
   lefgprintall       = .true. 
-  lefg_format        = 1
   lefg_old           = .false.
   lefg_restart       = .false.
   lefg_stat          = .false.
-  lvasp_units        = .true.
-  lmp_correction     = .true.
+  lefg_reduced_units = .false.
+  lmp_correction     = .false.
   reseta             =   0.1_dp
   resvzz             =   0.1_dp
   resu               =   0.1_dp 
@@ -242,10 +239,10 @@ SUBROUTINE efg_check_tag
     STOP
   endif
 
-  if ( lvasp_units ) then
-    io_node WRITE ( stdout, '(a)' ) 'vasp units for electric field gradient'
+  if ( lefg_reduced_units ) then
+    io_node WRITE ( stdout, '(a)' ) 'reduced units for electric field gradient (1/4pi epsilon_0 = 1)'
   else
-    io_node WRITE ( stdout, '(a)' ) 'internal units for electric field gradient'
+    io_node WRITE ( stdout, '(a)' ) 'eV/A^2 units for electric field gradient'
   endif
 
   return
@@ -260,7 +257,7 @@ END SUBROUTINE efg_check_tag
 SUBROUTINE efg_print_info(kunit)
 
   USE io,                  ONLY :  ionode 
-  USE control,                  ONLY :  calc , longrange , cutlongrange
+  USE control,                  ONLY :  calc , longrange , cutlongrange, iefgall_format
   USE config,                   ONLY :  ntype , atypei , natmi , simu_cell , atype
   USE constants,                ONLY :  tpi ,dzero , done
   USE field,                    ONLY :  qch , alphaES , ncelldirect , kES
@@ -288,10 +285,10 @@ SUBROUTINE efg_print_info(kunit)
       if ( lefgprintall ) then
         WRITE ( kunit ,'(a)')                   'EFG for all atoms                : EFGALL '
       endif
-      if ( lefg_format .ne. 0 ) then
+      if ( iefgall_format .ne. 0 ) then
         WRITE ( kunit ,'(a)')                   'EFGALL formatted / binary ?      : FORMATTED '
       endif
-      if ( lefg_format .eq. 0 ) then
+      if ( iefgall_format .eq. 0 ) then
         WRITE ( kunit ,'(a)')                   'EFGALL formatted / binary ?      : BINARY    '
       endif
       WRITE ( kunit ,'(a)')                     'distributions parameters:'
@@ -326,19 +323,19 @@ END SUBROUTINE efg_print_info
 ! ******************************************************************************
 SUBROUTINE efgcalc 
 
-  USE io,                       ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , &
+  USE io,                       ONLY :  ionode , ioprint, ioprintnode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , &
                                         kunit_NMRFF , kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF , kunit_DTIBSFF , io_open , io_close
-  USE constants,                ONLY :  fpi , e_2 
+  USE constants,                ONLY :  fpi , coul_factor 
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
                                         ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
-                                        coord_format_allowed, atom_dec , read_traj_header , read_traj , config_dealloc
+                                        coord_format_allowed, atom_dec , read_traj_header , read_traj , config_dealloc, verlet_coul
   
-  USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data
+  USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data , lvnlist, cutlongrange, iefgall_format
   USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lpolar , lwfc , & 
                                         moment_from_pola , moment_from_wfc , rm_coul , &
-                                        km_coul , alphaES , field_print_info , ldip_wfc, get_dipole_moments
-  USE cell,                     ONLY :  lattice , dirkar , periodicbc
+                                        km_coul , alphaES , field_print_info , ldip_wfc, get_dipole_moments, ewald_param
+  USE cell,                     ONLY :  lattice , dirkar , periodicbc, kardir
 
   implicit none
 
@@ -358,8 +355,8 @@ SUBROUTINE efgcalc
   ! ==================================
   if ( .not. lefg_restart ) then
 
-    if ( lefg_format .ne. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', STATUS='REPLACE')
-    if ( lefg_format .eq. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', STATUS='REPLACE' , form ='unformatted')
+    if ( iefgall_format .ne. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', STATUS='REPLACE')
+    if ( iefgall_format .eq. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', STATUS='REPLACE' , form ='unformatted')
 
     if ( itraj_format .ne. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' )
     if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
@@ -386,6 +383,9 @@ SUBROUTINE efgcalc
     CALL efg_mesh_alloc
     if ( lcoulomb ) CALL do_split ( km_coul%nk , myrank , numprocs , km_coul%kpt_dec , 'k-pts' )
     CALL typeinfo_init
+    verlet_coul%listname='coul' 
+    verlet_coul%cut=cutlongrange
+    if ( lvnlist )    CALL vnlist_pbc( verlet_coul )  
     ! =============
     !  print info
     ! =============
@@ -402,20 +402,31 @@ SUBROUTINE efgcalc
     ! LOOP OVER CONFIGURATIONS 
     ! ============================================
     do iconf = 1, ncefg
+  
+      ! io print conditions    
+      ioprint = .true.
+      if ( ionode ) ioprintnode = .true.
+  
       ttt1 = MPI_WTIME(ierr)
 
       CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data )
+      if ( lvnlist ) CALL vnlist_pbc( verlet_coul )
 
       CALL lattice ( simu_cell )
 
-#ifdef debug
+#ifdef debug_input
       ! ============================
       !  print minimum distance 
       !  and distance distribution
       ! ============================
       call distance_tab 
+      call print_config_sample(0,0)  
+      write(stdout,'(a,f16.8)') 'volume = ',simu_cell%omega
 #endif
-      call periodicbc ( natm , rx , ry , rz , simu_cell ) 
+      CALL kardir ( natm , rx , ry , rz , simu_cell%B )
+      CALL periodicbc ( natm , rx , ry , rz , simu_cell ) 
+      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+     
 
       ! =======================
       !  total tensor (efg_t)
@@ -467,11 +478,11 @@ SUBROUTINE efgcalc
 
       efg_t    = efg_ia 
 
-      if ( lvasp_units ) then
-        efg_t    = - efg_t    * e_2 
+      if ( .not. lefg_reduced_units ) then
+        efg_t    = - efg_t    * coul_factor 
       endif
 
-#ifdef debug_main
+#ifdef debug
       CALL print_tensor( efg_t( 1 , : , : ) , 'TOTEFG  ' )
 #endif
 
@@ -479,7 +490,7 @@ SUBROUTINE efgcalc
       ! write efg for each atom in file EFGALL 
       ! =======================================
       if ( ionode  .and. lefgprintall ) then
-        if ( lefg_format .ne. 0 ) then
+        if ( iefgall_format .ne. 0 ) then
           WRITE ( kunit_EFGALL , * )  natm
           WRITE ( kunit_EFGALL , * )  system
           WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -499,7 +510,7 @@ SUBROUTINE efgcalc
             endif
           enddo
         endif
-        if ( lefg_format .eq. 0 ) then
+        if ( iefgall_format .eq. 0 ) then
           WRITE ( kunit_EFGALL )  natm
           WRITE ( kunit_EFGALL )  system
           WRITE ( kunit_EFGALL )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -530,8 +541,8 @@ SUBROUTINE efgcalc
   ! ========================================================
   !     calculate statistical properties from EFGALL
   ! ========================================================
-  if ( lefg_format .ne. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL')
-  if ( lefg_format .eq. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', form ='unformatted')
+  if ( iefgall_format .ne. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL')
+  if ( iefgall_format .eq. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', form ='unformatted')
   CALL io_open  ( kunit_NMRFF  , 'NMRFF'  , 'unknown' )
   CALL efg_stat ( kunit_EFGALL , kunit_NMRFF )
   CALL io_close ( kunit_NMRFF ) 
@@ -816,7 +827,6 @@ SUBROUTINE efg_ES ( km , alphaES )
   if ( .not. lcharge ) return
 
 #ifdef debug
-  CALL print_config_sample(0,0)
   WRITE ( stdout ,'(a,2i)')    'debug in efg_ES : atom decomposition istart,iend',atom_dec%istart , atom_dec%iend
   WRITE ( stdout ,'(a,i)')     'debug in efg_ES : km%nk',km%nk
   WRITE ( stdout ,'(a,f16.5)') 'debug in efg_ES : alphaES ',alphaES
@@ -1065,7 +1075,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
   ! =============================== 
   cutsq = cutlongrange * cutlongrange
 
-#ifdef debug
+#ifdef debug_ds
   if ( ionode ) then
   WRITE( stdout , '(a)')    'debug: in multipole_efg_DS'
   WRITE( stdout , '(a,i8,a)') 'debug : rm ',rm%ncmax,rm%meshlabel
@@ -1093,6 +1103,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
 ! ==================================================================================================
   atom : do ia = atom_dec%istart , atom_dec%iend
 
+    io_node print*,ia
     rxi  = rx  ( ia )
     ryi  = ry  ( ia )
     rzi  = rz  ( ia )
@@ -1284,7 +1295,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
     mip ( it , 3 ) = mu ( ip , 3 )
   enddo
 
-#ifdef debug
+#ifdef debug_es
   if ( ionode ) then
     WRITE( stdout , '(a)')          'debug : in multipole_efg_ES'
     WRITE( stdout , '(a,i8,a,a)')   'debug : km        ',km%nk,' ',km%meshlabel
@@ -1303,7 +1314,6 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
     WRITE( stdout , '(a,2i8)')      'debug : atom decomposition istart,iend  ', atom_dec%istart ,atom_dec%iend
     WRITE( stdout , '(a,f20.5)')    'debug : alphaES        ', alphaES
   endif
-  call print_config_sample(0,0)
 #endif 
 
   allocate( efg_dir ( natm , 3 , 3 ) , efg_rec ( natm , 3 , 3 ) , efg_self ( natm , 3 , 3 ) ) 
@@ -1694,8 +1704,9 @@ END SUBROUTINE efg_write_output
 ! ******************************************************************************
 SUBROUTINE efg_acf
 
+  USE control,                  ONLY :  iefgall_format
   USE config,                   ONLY :  system , natm , ntype , itype , atype , atypei, natmi , simu_cell , rho , config_alloc
-  USE io,                  ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_EFGACFFF , kunit_NMRACFFF , kunit_UIACFFF
+  USE io,                       ONLY :  ionode , stdout , stderr , kunit_EFGALL , kunit_EFGACFFF , kunit_NMRACFFF , kunit_UIACFFF
   USE cell,                     ONLY :  lattice
 
   implicit none
@@ -1734,7 +1745,7 @@ SUBROUTINE efg_acf
   sq3 = 1.0_dp / sq3
   sq32 = sq3 * 0.5_dp
 
-  if ( lefg_format .ne. 0 ) then
+  if ( iefgall_format .ne. 0 ) then
     OPEN ( kunit_EFGALL , FILE='EFGALL' )
     READ ( kunit_EFGALL , * ) natm
     READ ( kunit_EFGALL , * ) system
@@ -1746,7 +1757,7 @@ SUBROUTINE efg_acf
     READ ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
     READ ( kunit_EFGALL , * ) XXXX
   endif
-  if ( lefg_format .eq. 0 ) then
+  if ( iefgall_format .eq. 0 ) then
     OPEN ( kunit_EFGALL , FILE='EFGALL' , form='unformatted' )
     READ ( kunit_EFGALL ) natm
     READ ( kunit_EFGALL ) system
@@ -1797,7 +1808,7 @@ SUBROUTINE efg_acf
   
   do t0 = 1 , ncefg 
     if ( t0 .ne. 1 ) then
-      if ( lefg_format .ne. 0 ) then
+      if ( iefgall_format .ne. 0 ) then
         READ ( kunit_EFGALL , * ) natm
         READ ( kunit_EFGALL , * ) system
         READ ( kunit_EFGALL , * ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -1808,7 +1819,7 @@ SUBROUTINE efg_acf
         READ ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
         READ ( kunit_EFGALL , * ) XXXX
       endif
-      if ( lefg_format .eq. 0 ) then
+      if ( iefgall_format .eq. 0 ) then
         READ ( kunit_EFGALL ) natm
         READ ( kunit_EFGALL ) system
         READ ( kunit_EFGALL ) simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -1819,12 +1830,12 @@ SUBROUTINE efg_acf
         READ ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
       endif
     endif
-    if ( lefg_format .ne. 0 ) then
+    if ( iefgall_format .ne. 0 ) then
       do ia = 1 , natm
         READ(kunit_EFGALL,*) iiii , atype(ia) , vxxt( ia , t0 ) , vyyt( ia , t0 ) , vzzt( ia , t0 ) , vxyt( ia , t0 ) , vxzt( ia , t0 ) , vyzt( ia , t0 )
       enddo
     endif
-    if ( lefg_format .eq. 0 ) then
+    if ( iefgall_format .eq. 0 ) then
       READ ( kunit_EFGALL ) efg_t 
       vxxt(:,t0) = efg_t(:,1,1)
       vyyt(:,t0) = efg_t(:,2,2)
@@ -2001,9 +2012,10 @@ END SUBROUTINE efg_acf
 ! ******************************************************************************
 SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
 
+  USE control,                  ONLY :  iefgall_format
   USE config,                   ONLY :  system , natm , natmi , ntype , itype , &
                                         atype , atypei , simu_cell , rho, config_alloc , quadia
-  USE io,                  ONLY :  ionode , stdout , stderr 
+  USE io,                       ONLY :  ionode , stdout , stderr 
   USE field,                    ONLY :  lwfc , field_init        
   USE constants,                ONLY :  CQ_UNIT
   USE cell,                     ONLY :  lattice
@@ -2046,7 +2058,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
 #ifdef debug_efg_stat
   WRITE ( stdout , '(a)' ) 'debug : in efg_stat'
 #endif
-  if   ( lefg_format .ne. 0 ) then
+  if   ( iefgall_format .ne. 0 ) then
     READ ( kunit_input , * )  natm
     READ ( kunit_input , * )  system
     READ ( kunit_input , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -2058,7 +2070,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
     READ( kunit_input ,*)   ( natmi ( it ) , it = 1 , ntype )
     READ ( kunit_input , * )  xxxx
   endif
-  if   ( lefg_format .eq. 0 ) then
+  if   ( iefgall_format .eq. 0 ) then
     READ ( kunit_input  )  natm
     READ ( kunit_input  )  system
     READ ( kunit_input  )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -2126,7 +2138,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
     ! read header of EFGALL of the first config ! well we should read it if the volume or
     ! something change in time !!!! 
     if ( ic .ne. 1 ) then
-      if ( lefg_format .ne. 0 ) then
+      if ( iefgall_format .ne. 0 ) then
         READ ( kunit_input , * )  natm
         READ ( kunit_input , * )  system
         READ ( kunit_input , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -2137,7 +2149,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
         READ ( kunit_input , * )  ( iiii , it = 1 , ntype )
         READ ( kunit_input , * )  xxxx
       endif
-      if ( lefg_format .eq. 0 ) then
+      if ( iefgall_format .eq. 0 ) then
         READ ( kunit_input )  natm
         READ ( kunit_input )  system
         READ ( kunit_input )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
@@ -2152,7 +2164,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
     CALL lattice ( simu_cell )
     rho = natm / simu_cell%omega
 
-    if ( lefg_format .ne. 0 ) then
+    if ( iefgall_format .ne. 0 ) then
       do ia = 1 , natm
         it = itype ( ia )
         if ( lwfc ( it ) .ge. 0 ) then
@@ -2161,7 +2173,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
         endif
       enddo
     endif
-    if ( lefg_format .eq. 0 ) then
+    if ( iefgall_format .eq. 0 ) then
       READ( kunit_input ) efg_t 
     endif
     
@@ -2381,6 +2393,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
     m2_U ( it , : , : ) = m2_U(it,:,:) / ( REAL(ncefg,kind=dp) * REAL(natmi(it),kind=dp) )
   enddo
 
+  if ( ionode ) then
   write(stdout,'(a)') ''
   write(stdout,'(a)') ''
   separator( stdout )
@@ -2410,6 +2423,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
     write(*,'(a,5e16.8)') '<U5>', ( m2_U ( it , 5 , ui ) , ui = 1 , 5 )
     print*,''
   enddo
+  endif
 
 
   !  ================
@@ -2695,10 +2709,18 @@ SUBROUTINE efg_mesh_alloc
     km_coul%kmax(1) = kES(1)
     km_coul%kmax(2) = kES(2)
     km_coul%kmax(3) = kES(3)
-    nk = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
-!    half 
+
+! full
+!    nk = ( 2 * km_coul%kmax(1) + 1 ) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )   
+
+!half 
 !    nk  = ( km_coul%kmax(1) + 1 )  * ( km_coul%kmax(2) + 1 ) * ( km_coul%kmax(3) + 1 )
 !    nk = nk - 1
+
+!with symmetry
+    nk = km_coul%kmax(3) + km_coul%kmax(2) * ( 2 * km_coul%kmax(3) + 1 ) + km_coul%kmax(1) * ( 2 * km_coul%kmax(2) + 1 ) * ( 2 * km_coul%kmax(3) + 1 )
+    km_coul%nk = nk
+
     km_coul%nk = nk
     allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk),  km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak   ( nk ) )
@@ -2726,7 +2748,6 @@ SUBROUTINE efg_mesh_dealloc
   implicit none
 
   if ( calc .ne. 'efg' ) return
-  print*,'in mesh dealloc'
 
   if ( longrange .eq. 'direct' ) then
     deallocate( rm_coul%boxxyz , rm_coul%lcell )
@@ -2740,7 +2761,6 @@ SUBROUTINE efg_mesh_dealloc
     deallocate ( km_coul%rhon  )
 
   endif
-  print*,'out mesh dealloc'
 
   return
 
@@ -2804,7 +2824,6 @@ SUBROUTINE read_DTETAFF ( dibeta , filename )
   real(kind=dp) :: u
   character(*) :: filename
 
-  print*,PANeta
   OPEN(UNIT=1000,FILE=filename)
   do bin=0 , PANeta
     read(1000,*) u ,  ( dibeta (it,bin) , it = 0 , ntype )  

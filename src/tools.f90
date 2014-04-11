@@ -18,8 +18,8 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug_vnl  ! verlet list debugging
-!#define debug_vnl2  ! verlet list debugging
+!#define debug_vnl   
+!#define debug_vnl2  
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE estimate_alpha ****************************
@@ -154,7 +154,7 @@ SUBROUTINE distance_tab
   integer                             :: ia , ja , PANdis, kdis , it , jt , bin
   real(kind=dp)                       :: rxi, ryi, rzi
   real(kind=dp)                       :: sxij, syij, szij
-  real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm, d
+  real(kind=dp)                       :: rxij, ryij, rzij, rij, rijsq, norm
   real(kind=dp)                       :: resdis,mindis 
   integer, dimension (:) ,allocatable :: dist
   integer :: indxmin(2)
@@ -193,20 +193,19 @@ SUBROUTINE distance_tab
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         rijsq = rxij *rxij + ryij * ryij + rzij * rzij
-        d = SQRT ( rijsq ) 
-        if ( mindis .gt. rij ) then
-          mindis = d
+        rij = SQRT ( rijsq ) 
+        if ( rij .lt. mindis  ) then
+          mindis = rij
           indxmin(1) = ia
           indxmin(2) = ja
         endif
-        if ( d .lt. sigmalj(1,1) * 0.001_dp ) then
+        if ( rij .lt. sigmalj(1,1) * 0.001_dp ) then
           if ( ionode ) &
           WRITE ( stdout ,'(a,i5,a,i5,a,f12.6)') &
-          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',d
+          'ERROR: DISTANCE between atoms', ia ,' and ', ja ,' is very small',rij
           STOP 
         endif
-        rij = d / resdis
-        kdis = INT ( rij )
+        kdis = INT ( rij / resdis )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
           io_node WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
         endif
@@ -361,43 +360,6 @@ SUBROUTINE vnlist_pbc
   verlet_vdw%point(atom_dec%iend + 1 ) = icount_vdw
   verlet_coul%point(atom_dec%iend + 1 )= icount_coul
 
-#ifdef debug_vnl2
-  print*,'verlet point info'
-  ia = 1
-  rxi = rx ( ia )
-  ryi = ry ( ia )
-  rzi = rz ( ia )
-  print*,vlist%point(1),vlist%point(2)-1
-  do j1=vlist%point(1),vlist%point(2)-1
-        ja=vlist%list(j1)
-        rxij = rxi - rx ( ja )
-        ryij = ryi - ry ( ja )
-        rzij = rzi - rz ( ja )
-        sxij = rxij - nint ( rxij )
-        syij = ryij - nint ( ryij )
-        szij = rzij - nint ( rzij )
-        rxij = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
-        ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
-        rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
-        rijsq = rxij * rxij + ryij * ryij + rzij * rzij
-        p1 = itype ( ia )
-        p2 = itype ( ja )
-        write(*,'(3i,4f16.8)') ia,ja,j1,sqrt(rijsq),sqrt(rskinsq(p1,p2)),rx(ia),rx(ja)
-  enddo
-!  CALL merge_sort(,N,T,labela,labelt)
-
-  print*,'verlet list info'
-  print*,vlist%listname
-  do ia=1,natm
-    write(*,*) ia,vlist%point(ia),vlist%point(ia+1)-1
-    do iv=vlist%point(ia),vlist%point(ia+1)-1
-      write(*,*) ia,vlist%list(iv)
-    enddo 
-    write(*,*) ''
-  enddo
-  if ( vlist%listname .eq. 'coul' ) stop
-#endif
-
   ! ======================================
   !         direct to cartesian
   ! ======================================
@@ -525,7 +487,7 @@ SUBROUTINE vnlistcheck
     rzsi = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
     drnei = SQRT ( rxsi * rxsi + rysi * rysi + rzsi * rzsi ) 
 #ifdef debug_vnl
-  !  write(stdout,*) rxsi,rx ( ia ),xs ( ia )
+    write(stdout,*) rxsi,rx ( ia ),xs ( ia )
 #endif
     if ( drnei .gt. drneimax ) then
       drneimax2 = drneimax
@@ -883,7 +845,6 @@ SUBROUTINE write_all_conf_proc
   USE constants,                ONLY :  dp
   USE mpimdff,                  ONLY :  myrank, numprocs
   USE io,                       ONLY :  kunit_bak_proc, ionode
-  USE cell,                     ONLY :  kardir , periodicbc
   USE config,                   ONLY :  system , simu_cell, natm, atype, ntype, natmi , atypei , rx, ry ,rz , vx ,vy ,vz ,fx,fy,fz
   USE md,                       ONLY :  itime
 

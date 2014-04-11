@@ -217,7 +217,7 @@ SUBROUTINE grcalc
                                         coord_format_allowed , atom_dec , read_traj , read_traj_header
   USE io,                       ONLY :  ionode , stdout , stderr , kunit_TRAJFF , kunit_GRTFF , kunit_NRTFF
   USE constants,                ONLY :  pi 
-  USE cell,                     ONLY :  lattice , dirkar , periodicbc
+  USE cell,                     ONLY :  lattice , dirkar , periodicbc, kardir
   USE time,                     ONLY :  grtimetot_comm
 
   implicit none
@@ -300,7 +300,9 @@ SUBROUTINE grcalc
 #ifdef debug
     print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 #endif
-  !  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+    CALL kardir     ( natm , rx , ry , rz , simu_cell%B ) 
+    CALL periodicbc ( natm , rx , ry , rz , simu_cell   )
+    CALL dirkar     ( natm , rx , ry , rz , simu_cell%A ) 
 
     ngr=ngr+1 
     ! ==========================

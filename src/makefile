@@ -104,13 +104,22 @@ ifeq ($(HOST),debian-charrue)
 	INC=-I/opt/intel/composerxe/mkl/include/fftw/
 endif
 
+# =================
+#   on curie
+# =================
+ifeq ($(HOST),curie71)
+	LDFLAGS=${MKL_LIBS}
+	INC=-I/usr/local/fftw3-3.3.1/include/
+endif
+
+
 $(info LDFLAGS:  $(LDFLAGS))
 $(info INC:  $(INC))
 $(info ===================================================)
 # ==================
 #  target files
 # ==================
-OBJ= constants.o dumb.o io.o tt_damp.o mpi_mdff.o control.o time.o functions.o \
+OBJ= constants.o dumb.o io.o tt_damp.o oxyde.o mpi_mdff.o control.o stochio.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \

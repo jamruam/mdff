@@ -38,10 +38,10 @@ SUBROUTINE read_pos
   USE control,                  ONLY :  calc , lrestart, restart_data
   USE config,                   ONLY :  rx , ry , rz , vx , vy , vz , fx , fy , fz , atype , atypei , itype , &
                                         natmi , natm , dipia , qia , ipolar , rho , system , ntype , config_alloc , &
-                                        simu_cell , config_print_info , coord_format_allowed 
+                                        simu_cell , config_print_info , coord_format_allowed , write_CONTFF
   USE field,                    ONLY :  qch , dip , lpolar , field_init
   USE io,                       ONLY :  ionode , stdout , kunit_POSFF
-  USE cell,                     ONLY :  lattice, periodicbc , dirkar
+  USE cell,                     ONLY :  lattice, periodicbc , dirkar, kardir
 
   implicit none
 
@@ -49,7 +49,6 @@ SUBROUTINE read_pos
   integer           :: it , ia , i
   logical           :: allowed
   character(len=60) :: cpos
-
 
   separator(stdout) 
   IF ( ionode ) then
@@ -131,16 +130,19 @@ SUBROUTINE read_pos
     ! ======================================
     CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
   else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
+    WRITE ( stdout ,'(A,20A3)' ) 'input positions in Cartesian coordinates'
   endif 
 
   CLOSE ( kunit_POSFF )
+
+  CALL kardir     ( natm , rx , ry , rz , simu_cell%B )
+  CALL periodicbc ( natm , rx , ry , rz , simu_cell )
+  CALL dirkar     ( natm , rx , ry , rz , simu_cell%A )
 
   CALL typeinfo_init
 #ifdef debug_read_pos
   CALL distance_tab 
 #endif
-
-  !CALL periodicbc ( natm , rx , ry , rz , simu_cell )
 
   return
 
