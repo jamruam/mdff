@@ -9,11 +9,11 @@
         lnmlj         = .true.
         lvnlist       = .false.
         ltraj         = .true.
-        itraj_start   = 50000
+        itraj_start   = 0 
         itraj_period  = 10 
 &end
 &mdtag
-        npas          = 100000
+        npas          = 200000
         nprint        = 1000
         fprint        = 10
 

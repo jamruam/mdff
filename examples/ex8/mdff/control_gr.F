@@ -6,5 +6,5 @@
 &grtag
         cutgr = 8.5d0
         resg = 0.05d0
-        nconf = 5000 
+        nconf = 20000 
 &end
