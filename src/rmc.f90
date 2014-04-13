@@ -19,8 +19,8 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug
-#define debug_invert
-#define debug_invert2
+!#define debug_invert
+!#define debug_invert2
 !#define debug_chisq
 ! ======= Hardware =======
 
@@ -115,6 +115,8 @@ SUBROUTINE rmc_init
   endif
   CLOSE ( stdin )
 
+  CALL rmc_check_tag
+
   CALL rmc_print_info(stdout)
 
   return 
@@ -150,6 +152,14 @@ SUBROUTINE rmc_default_tag
 
 END SUBROUTINE rmc_default_tag
 
+SUBROUTINE rmc_check_tag
+
+  implicit none
+
+  return
+
+END SUBROUTINE
+
 
 ! *********************** SUBROUTINE rmc_print_info *****************************
 !
@@ -158,8 +168,8 @@ END SUBROUTINE rmc_default_tag
 ! ******************************************************************************
 SUBROUTINE rmc_print_info(kunit)
 
-  USe control,                  ONLY :  calc
-  USE io,                  ONLY :  ionode 
+  USE control,                  ONLY :  calc
+  USE io,                       ONLY :  ionode 
 
   implicit none
  
@@ -168,9 +178,10 @@ SUBROUTINE rmc_print_info(kunit)
 
    if ( ionode ) then
      blankline(kunit)
-     WRITE ( kunit ,'(a)')            'RMC MODULE ... WELCOME'
-     WRITE ( kunit ,'(a,i5)')         'rmc calculation'
+     WRITE ( kunit ,'(a)')                 'RMC MODULE ... WELCOME'
+     WRITE ( kunit ,'(a,i5)')              'rmc calculation'
      if ( lrmc_var ) WRITE ( kunit ,'(a)') 'rmc-invert algorithm (add references!!)'
+     WRITE ( kunit ,'(a,i5)')              ' acceptance max : ',acceptance_max
      blankline(kunit)
    endif 
   return
@@ -185,7 +196,8 @@ END SUBROUTINE rmc_print_info
 SUBROUTINE rmc_main
 
   USE constants,                ONLY : pi , dzero
-  USE io,                       ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
+  USE io,                       ONLY : ionode , stdout, stderr , kunit_RMCFF, kunit_GRTFF, &
+                                       kunit_POSFF , kunit_RMCLOG, kunit_TRAJFF , kunit_DTIBUFF , kunit_DTETAFF , kunit_DTVZZFF
   USE config,                   ONLY : natm, ntype , simu_cell, natmi, atypei, atype, allowedmove, rx, ry , rz, &
                                        config_alloc, coord_format_allowed, write_CONTFF, system , &
                                        vx, vy, vz, fx, fy, fz, rho , config_print_info , itype , atom_dec , write_trajff_xyz
@@ -240,14 +252,14 @@ SUBROUTINE rmc_main
     ! ==============================================================
     OPEN(UNIT=kunit_RMCFF,FILE='RMCFF')
       READ( kunit_RMCFF, * ) natm
-      READ( kunit_RMCFF, * ) ntype
-      READ( kunit_RMCFF, * ) (atypei(it),it=1,ntype)
-      READ( kunit_RMCFF, * ) (natmi(it),it=1,ntype)
+      READ( kunit_RMCFF, * ) system 
       READ( kunit_RMCFF ,* ) simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
       READ( kunit_RMCFF ,* ) simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
       READ( kunit_RMCFF ,* ) simu_cell%A ( 1 , 3 ) , simu_cell%A ( 2 , 3 ) , simu_cell%A ( 3 , 3 )
+      READ( kunit_RMCFF, * ) ntype
+      READ( kunit_RMCFF, * ) (atypei(it),it=1,ntype)
+      READ( kunit_RMCFF, * ) (natmi(it),it=1,ntype)
     CLOSE(UNIT=kunit_RMCFF) 
-    system = 'rmc'
     CALL lattice ( simu_cell ) 
     rho = REAL ( natm , kind = dp ) / simu_cell%omega
     npairs = ntype * ( ntype + 1 ) / 2
@@ -395,12 +407,12 @@ SUBROUTINE rmc_main
     ! alloc main histogram for g(r) calculation
     CALL gr_alloc
     CALL rmc_gr ( grr_calc )
-#ifdef debug
+!#ifdef debug
   do igr=0,nbins-1
     rr  = ( REAL( igr , kind = dp ) + 0.5_dp ) * resolution_gr
     write(*,'(3e20.8)') rr, grr_calc ( 0 , igr ) , grr_exp ( 0 , igr )
   enddo
-#endif
+!#endif
   endif
 
   ! =============================================
@@ -516,7 +528,7 @@ SUBROUTINE rmc_main
       if ( delta_chisq(isq) .lt. 0.0_dp ) then
         accept(isq) = .TRUE.
       else
-        metro = EXP ( - delta_chisq(isq) * 0.5 / temp_rmc(isq) )
+        metro = EXP ( - delta_chisq(isq) * 0.5_dp / temp_rmc(isq) )
         CALL RANDOM_NUMBER(HARVEST = randmetro )
         if ( metro .ge. randmetro ) then
           accept(isq) = .TRUE.
@@ -1422,7 +1434,7 @@ SUBROUTINE rmc_gr ( grr_calc )
   USE radial_distrib,           ONLY :  nbins , npairs , gr_main , gr , resg , cutgr
   USE config,                   ONLY :  natm, natmi , ntype , simu_cell
   USE time,                     ONLY :  rmcgrtimetot_comm
-  USE io,                  ONLY :  stderr
+  USE io,                       ONLY :  stderr
 
   implicit none
  
