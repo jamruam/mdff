@@ -479,7 +479,7 @@ SUBROUTINE efgcalc
       efg_t    = efg_ia 
 
       if ( .not. lefg_reduced_units ) then
-        efg_t    = - efg_t    * coul_factor 
+        efg_t    =  efg_t    * coul_factor 
       endif
 
 #ifdef debug
@@ -1233,7 +1233,6 @@ END SUBROUTINE multipole_efg_DS
 ! ******************************************************************************
 SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
 
-  USE control,                  ONLY :  lsurf 
   USE config,                   ONLY :  natm , ntype , natmi , atype , &
                                         rx , ry , rz , fx , fy , fz ,  &
                                         qia , simu_cell , itype , atom_dec
