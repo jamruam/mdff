@@ -20,7 +20,23 @@
 !> \author FMV
 !> \brief Main constants of the code
 !> \note
-!> length should be in angstom and energy in eV 
+!!
+!! Units of MDFF in input: 
+!! length      : angstom 
+!! energy      : eV 
+!! mass        : atomic mass unit
+!! time        : ps
+!! temperature : Kelvin
+!! pressure    : GPa
+!!
+!! Internal units :
+!! length      : angstom 
+!! energy      : eV 
+!! mass        : atomic mass unit
+!! time          angstrom * ( atomicmassunit / eV ) ** 0.5 
+!! temperature : eV
+!! pressure    : ( eV / angstrom**3)
+
 ! ******************************************************************************
 MODULE constants 
 
@@ -29,7 +45,7 @@ MODULE constants
   save
 
   integer, PARAMETER, PUBLIC    :: dp          = selected_real_kind(15,300)            !< double precision definition 
-  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)              !< double precision definition 
+  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)              !< single precision definition 
   real(kind=dp),      PARAMETER :: pi          = 3.14159265358979323846264338327950_dp !< pi
   real(kind=dp),      PARAMETER :: dzero       = 0.0_dp                                !< zero 
   real(kind=dp),      PARAMETER :: done        = 1.0_dp                                !< one 
@@ -38,14 +54,13 @@ MODULE constants
   real(kind=dp),      PARAMETER :: fpi         = 2.0_dp*tpi                            !< 4pi
   real(kind=dp),      PARAMETER :: piroot      = SQRT ( pi )                           !< sqrt(pi)
   real(kind=dp),      PARAMETER :: radian      = 180.0_dp / pi                         !< radian 
-  complex(kind=dp),   PARAMETER :: imag        = (0.0_dp, 1.0_dp)                      !< imaginary number 
-  complex(kind=dp),   PARAMETER :: mimag       = (0.0_dp,-1.0_dp)                      !< negative imaginary number 
+  complex(kind=dp),   PARAMETER :: imag        = (0.0_dp, 1.0_dp)                      !< imaginary number i
+  complex(kind=dp),   PARAMETER :: mimag       = (0.0_dp,-1.0_dp)                      !< negative imaginary number (-imag)
   complex(kind=dp),   PARAMETER :: citpi       = imag*tpi                              !< 2*i*pi
   real(kind=dp),      PARAMETER :: rytoev      = 13.605826_dp                          !< Rydberg constant a.u. to eV
   real(kind=dp),      PARAMETER :: hart        = rytoev*2.0_dp                         !< Hartree energy 
   real(kind=dp),      PARAMETER :: bohr        = 0.529177249_dp                        !< a.u in angstrom  
-  real(kind=dp),      PARAMETER :: coul_factor = 14.3996441_dp                         !< 1 / 4pi epsilon0
-  !real(kind=dp),      PARAMETER :: coul_factor = 1.0_dp                               !< 1 / 4pi epsilon0
+  real(kind=dp),      PARAMETER :: coul_factor = 14.3996441_dp                         !< 1 / 4pi epsilon0  in eV
   real(kind=dp),      PARAMETER :: press_unit  = 0.0062415096_dp                       !< GPa = > internal unit of pressure ( eV / angstrom**3) 
   real(kind=dp),      PARAMETER :: boltz       = 8.6173423e-05                         !< boltzmann constant ( energy in eV)
   real(kind=dp),      PARAMETER :: time_unit   = 98.226952_dp                          !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
