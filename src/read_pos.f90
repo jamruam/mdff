@@ -125,12 +125,13 @@ SUBROUTINE read_pos
   CALL field_init
 
   if ( cpos .eq. 'Direct' .or. cpos .eq. 'D' ) then
+    io_node WRITE ( stdout ,'(A,20A3)' ) 'input positions in Direct coordinates'
     ! ======================================
     !         direct to cartesian
     ! ======================================
     CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
   else if ( cpos .eq. 'Cartesian' .or. cpos .eq. 'C' ) then
-    WRITE ( stdout ,'(A,20A3)' ) 'input positions in Cartesian coordinates'
+    io_node WRITE ( stdout ,'(A,20A3)' ) 'input positions in Cartesian coordinates'
   endif 
 
   CLOSE ( kunit_POSFF )

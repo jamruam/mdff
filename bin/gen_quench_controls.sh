@@ -13,7 +13,7 @@ init()
 	echo "--------------------------------------------------------------------------------"
 	echo " generate scripts from quench.config                                            "
 	echo "--------------------------------------------------------------------------------"
-	./read_quench_table.py
+	read_quench_table.py
 	echo " "
 
 }
@@ -97,5 +97,5 @@ DoALL
 echo "--------------------------------------------------------------------------------"
 
 
-#rm scr* tmp* barostat thermostat rescaling 
+rm scr* tmp* barostat thermostat rescaling 
 exit 0;
