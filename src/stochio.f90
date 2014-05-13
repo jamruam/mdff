@@ -28,7 +28,7 @@
 ! ******************************************************************************
 MODULE stochio
 
-  USE constants,        ONLY :  dp
+  USE constants,        ONLY :  dp, g_to_am
   USE oxyde
   USE io
 
@@ -47,7 +47,7 @@ MODULE stochio
   
   integer             :: target_nions , ntot , save_target
   integer             :: nel    ( nelem )              ! number of ions per element has to be calculated
-  real(kind=dp)       :: pox ( noxyde )                ! proportion en oxyde (input)
+!  real(kind=dp)       :: pox ( noxyde )                ! proportion en oxyde (input)
   real(kind=dp)       :: rat ( noxyde )                ! proportion en oxyde (output)
   real(kind=dp)       :: sumox , charg , density , a_o_b , a_o_c 
   real(kind=dp)       :: volume , totmass , acell , bcell , ccell , volume2
@@ -72,7 +72,7 @@ SUBROUTINE stochio_calc
   !  define 0 < pox < 1
   ! ========================
   if ( def .eq. 'num' ) then 
-    pox = pox * 100._dp
+    oxydes%relcon = oxydes%relcon * 100._dp
   endif
   ! ============================
   ! check that the sum is == 1
@@ -80,13 +80,13 @@ SUBROUTINE stochio_calc
   ! ============================
   sumox=0._dp
   do iox=1,noxyde
-    sumox=sumox+pox(iox)
+    sumox=sumox+oxydes(iox)%relcon
   enddo
   if ( REAL(sumox,kind=dp) .ne. 100._dp ) then
     WRITE ( stdout , '(a,f24.16)' ) 'ERROR sum of oxydes not 100 % : ', REAL(sumox,kind=dp)
     STOP
   endif
-  pox = pox / 100._dp
+  oxydes%relcon = oxydes%relcon / 100._dp
 
   ! ================================ 
   !  check if the number of ions 
@@ -94,9 +94,9 @@ SUBROUTINE stochio_calc
   ! ================================ 
   minel=0
   do iox=1,noxyde
-    if ( pox(iox) .eq. 0.0_dp ) then
+    if ( oxydes(iox)%relcon .eq. 0.0_dp ) then
       do j=1,2
-        minel = minel + nel_ox(j,iox) 
+        minel = minel + oxydes(iox)%nel_ox(j)
       enddo
     endif
   enddo
@@ -122,9 +122,9 @@ SUBROUTINE stochio_calc
     target_nions = target_nions - 1
     ntot = 0
     do iox = 1 , noxyde
-      if ( pox ( iox ).ne.0._dp ) then
+      if ( oxydes(iox)%relcon .ne.0._dp ) then
         do j = 1 , 2 
-          ntot = ntot + int(target_nions*pox(iox))*nel_ox(j,iox)
+          ntot = ntot + int(target_nions*oxydes(iox)%relcon)*oxydes(iox)%nel_ox(j)
         enddo
       endif
     enddo
@@ -134,8 +134,8 @@ SUBROUTINE stochio_calc
     STOP
   endif
   do iox = 1 , noxyde
-    if ( pox ( iox ).ne.0._dp ) then
-      if ( int(target_nions*pox( iox )) .eq. 0 ) STOP
+    if ( oxydes(iox)%relcon .ne.0._dp ) then
+      if ( int(target_nions*oxydes(iox)%relcon) .eq. 0 ) STOP
     endif
   enddo
   WRITE ( stdout ,'(a,i)' ) 'target found :',target_nions
@@ -146,11 +146,11 @@ SUBROUTINE stochio_calc
   ! ===========================
   nel = 0
   do iox = 1, noxyde
-    if ( pox ( iox ).ne.0._dp ) then
+    if ( oxydes(iox)%relcon.ne.0._dp ) then
       do j=1,2
         do ie = 1 , nelem
-          if ( ele_ox( j , iox ) .eq. ele(ie) ) then
-            nel(ie) = nel(ie) + int(target_nions*pox( iox ))*nel_ox( j , iox )
+          if ( oxydes(iox)%ele_ox( j ) .eq. tabper(ie)%elename ) then
+            nel(ie) = nel(ie) + int(target_nions*oxydes(iox)%relcon)*oxydes(iox)%nel_ox( j )
           endif
         enddo
       enddo
@@ -163,7 +163,7 @@ SUBROUTINE stochio_calc
   charg = 0._dp
   do ie=1,nelem
     if ( nel(ie) .ne. 0 ) then
-      charg = charg + nel(ie) * numoxyd(ie)
+      charg = charg + nel(ie) * tabper(ie)%numoxyd
     endif
   enddo
   if ( charg .ne. 0._dp ) then
@@ -179,7 +179,7 @@ SUBROUTINE stochio_calc
   do ie=1,nelem
     if ( nel(ie) .ne. 0 ) then
       ntot = ntot + nel(ie)
-      WRITE( stdout, '(A5,I10)' ) ele(ie),nel(ie) 
+      WRITE( stdout, '(A5,I10)' ) tabper(ie)%elename,nel(ie) 
     endif
   enddo
   WRITE( stdout, '(A5,I10)' )   'total',ntot
@@ -192,8 +192,8 @@ SUBROUTINE stochio_calc
   sum_sto = 0
   do iox = 1,noxyde
     do ie = 1 , nelem
-      if ( ele ( ie ) .eq. ele_ox( 1 , iox ) ) then
-        sum_sto =sum_sto + (nel(ie)/nel_ox( 1 , iox ) )
+      if ( tabper(ie)%elename .eq. oxydes(iox)%ele_ox( 1 ) ) then
+        sum_sto =sum_sto + (nel(ie)/oxydes(iox)%nel_ox( 1 ) )
       endif
     enddo
   enddo
@@ -201,11 +201,11 @@ SUBROUTINE stochio_calc
   ! and check if it is the exact wanted ratio comparing to all pox( iox )
   lexact = .true.
   do iox = 1 , noxyde
-    if ( pox(iox) .ne. 0._dp ) then
+    if ( oxydes(iox)%relcon .ne. 0._dp ) then
       do ie = 1 , nelem
-        if ( ele ( ie ) .eq. ele_ox( 1 , iox ) ) then
-          rat(iox)=REAL(nel(ie)/nel_ox( 1 , iox ),kind=dp)/REAL(sum_sto,kind=dp)
-          if ( rat( iox ) .ne. pox ( iox ) ) then
+        if ( tabper(ie)%elename .eq. oxydes(iox)%ele_ox( 1 ) ) then
+          rat(iox)=REAL(nel(ie)/oxydes(iox)%nel_ox( 1 ),kind=dp)/REAL(sum_sto,kind=dp)
+          if ( rat( iox ) .ne. oxydes(iox)%relcon ) then
             lexact =.false.
           endif
         endif
@@ -221,10 +221,10 @@ SUBROUTINE stochio_calc
   endif
   WRITE(stdout , '(a)' ) '#oxyde    current(%)      wanted(%)           nb of oxyde (mole)'
   do iox = 1 , noxyde
-    if ( pox( iox ) .ne. 0.0_dp ) then
+    if ( oxydes(iox)%relcon .ne. 0.0_dp ) then
       do ie = 1 , nelem
-        if ( ele ( ie ) .eq. ele_ox(1, iox ) ) then
-          WRITE(stdout , '(A4,2F14.3,I20)' ) lox( iox ),rat( iox )*100._dp,pox( iox )*100._dp, nel(ie)/nel_ox(1, iox )
+        if ( tabper(ie)%elename .eq. oxydes(iox)%ele_ox(1) ) then
+          WRITE(stdout , '(A4,2F14.3,I20)' ) oxydes(iox)%nameox,rat( iox )*100._dp, oxydes(iox)%relcon *100._dp, nel(ie)/oxydes(iox)%nel_ox(1)
         endif
       enddo
     endif
@@ -241,12 +241,12 @@ SUBROUTINE stochio_calc
   else
     totmass= 0.0_dp
     numbands = 0
-    WRITE( stdout , '(a)' ) '  valence e-    mass     element      nb ele'
+    WRITE( stdout , '(a)' ) '           Z     valence    mass    element       nb ele'
     do ie = 1 , nelem
       if ( nel(ie) .ne. 0 ) then
-        totmass = totmass + massele(ie) * nel(ie) 
-        numbands = numbands + valence(ie) * nel(ie)
-        WRITE( stdout , '(i,f8.3,10x,a,i)' ) valence(ie),massele(ie),ele(ie),nel(ie)
+        totmass = totmass + tabper(ie)%massele * nel(ie) 
+        numbands = numbands + tabper(ie)%valence * nel(ie)
+        WRITE( stdout , '(i,i,f8.3,10x,a,i)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
       endif
     enddo
     blankline(stdout)
@@ -272,6 +272,8 @@ SUBROUTINE stochio_calc
     endif
   endif
 
+  CALL deallocate_tabper_oxydes
+
   return
 
 END SUBROUTINE stochio_calc
@@ -295,6 +297,7 @@ SUBROUTINE stochio_init
                            a_o_c         , &
                            target_nions  , &
                            sio2          , &
+                           geo2          , &
                            na2o          , &
                            b2o3          , &
                            cao           , &
@@ -302,6 +305,8 @@ SUBROUTINE stochio_init
                            p2o5
 
   if ( calc .ne. 'stochio' ) return
+
+
 
   CALL stochio_default_tag
 
@@ -313,12 +318,15 @@ SUBROUTINE stochio_init
     STOP
   elseif ( ioerr .gt. 0 )  then
     WRITE ( stdout, '(a,i6)') 'ERROR reading input_file : input wrong tag',ioerr
-    WRITE ( stdout, '(a,i6)' ) 'Number of avaiablabel oxydes :' ,noxyde
-    WRITE ( stdout, '(<noxyde>a6)' ) ( lox ( iox ) , iox = 1 , noxyde )
+    WRITE ( stdout, '(a,i6)' ) 'Number of available oxydes :' ,noxyde
+    WRITE ( stdout, '(<noxyde>a6)' ) ( oxydes(iox)%nameox , iox = 1 , noxyde )
     WRITE ( stdout, '(a)' ) 'add some oxyde in oxyde.f90'
     STOP
   endif
   CLOSE ( stdin )
+
+  CALL gen_tab_period
+  CALL gen_oxydes
 
   ! =======================
   !  check stochiotag info
@@ -369,6 +377,8 @@ SUBROUTINE stochio_check_tag
 
   implicit none
 
+ integer :: ntype, iox
+
 
   if ( lcubic ) then
     if ( ( a_o_b .eq. 0._dp) .or. ( a_o_c .eq. 0._dp) ) then
@@ -390,17 +400,11 @@ SUBROUTINE stochio_check_tag
       STOP
   endif
 
-  ! ==========================================
-  ! WARNING if you add some oxyde it should 
-  ! be define in the same order as the
-  ! different list defined in module oxyde
-  pox ( 1 ) = sio2
-  pox ( 2 ) = na2o
-  pox ( 3 ) = b2o3
-  pox ( 4 ) = cao
-  pox ( 5 ) = p2o5
-  pox ( 6 ) = al2o3
 
+  do iox = 1 , noxyde
+    if ( oxydes(iox)%relcon .ne. 0.0d0) ntype=ntype+1
+  enddo
+  WRITE ( stdout , '(a,i)' ) 'ntypes ', ntype
 
   return
 
@@ -418,8 +422,8 @@ SUBROUTINE stochio_print_info ( kunit )
     blankline(kunit)
     WRITE( kunit , '(a)' ) 'STOCHIO MODULE ... WELCOME'
     WRITE ( stdout , '(a)'            ) 'Composition :'
-    WRITE ( stdout , '(<noxyde>a8)'   ) (lox(iox),iox=1,noxyde)
-    WRITE ( stdout , '(<noxyde>f8.2)' ) (pox(iox),iox=1,noxyde)
+    WRITE ( stdout , '(<noxyde>a8)'   ) (oxydes(iox)%nameox,iox=1,noxyde)
+    WRITE ( stdout , '(<noxyde>f8.2)' ) (oxydes(iox)%relcon,iox=1,noxyde)
   endif
   
 

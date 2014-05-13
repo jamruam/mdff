@@ -30,7 +30,7 @@ SUBROUTINE init_velocities
   USE constants,        ONLY :  dp 
   USE config,           ONLY :  vx , vy , vz , natm , ntype , ntypemax , atypei , center_of_mass
   USE md,               ONLY :  nequil , setvel , temp
-  USE io,          ONLY :  ionode , stdout
+  USE io,               ONLY :  ionode , stdout
   USE control,          ONLY :  lrestart
 
   implicit none
@@ -146,11 +146,11 @@ SUBROUTINE rescale_velocities (quite)
   lambda = ( 1.0_dp + (dt / tauTberendsen) * (  (temp / T / boltz) - 1.0_dp) ) ** 0.5_dp
   
   if ( lcsvr ) then 
-    ndeg = 3 * natm - 3 
-    sigma = ndeg * temp * 0.5d0 
-    lambda=resamplekin(ekin,sigma,ndeg,taucsvr)
-    csvr_conint= csvr_conint - (lambda-ekin)
-    lambda=sqrt(lambda/ekin)
+    ndeg        = 3 * natm - 3 
+    sigma       = ndeg * temp * 0.5d0 
+    lambda      = resamplekin(ekin,sigma,ndeg,taucsvr)
+    csvr_conint = csvr_conint - (lambda-ekin)
+    lambda      = sqrt(lambda/ekin)
 #ifdef debug
     write(*,'(a,3e20.8)') 'resamplekin',ekin,sigma,lambda
 #endif
@@ -559,24 +559,29 @@ END SUBROUTINE calc_temp
 ! Stochastic velocity rescale, as described in
 ! Bussi, Donadio and Parrinello, J. Chem. Phys. 126, 014101 (2007)
 !
-! This subroutine implements Eq.(A7) and returns the new value for the kinetic energy,
-! which can be used to rescale the velocities.
+! This subroutine implements Eq.(A7) and returns the new value for the 
+! kinetic energy, which can be used to rescale the velocities.
 ! The procedure can be applied to all atoms or to smaller groups.
 ! If it is applied to intersecting groups in sequence, the kinetic energy
-! that is given as an input (kk) has to be up-to-date with respect to the previous rescalings.
+! that is given as an input (kk) has to be up-to-date with respect to the 
+! previous rescalings.
 !
-! When applied to the entire system, and when performing standard molecular dynamics (fixed c.o.m. (center of mass))
-! the degrees of freedom of the c.o.m. have to be discarded in the calculation of ndeg,
-! and the c.o.m. momentum HAS TO BE SET TO ZERO.
+! When applied to the entire system, and when performing standard molecular 
+! dynamics (fixed c.o.m. (center of mass))
+! the degrees of freedom of the c.o.m. have to be discarded in the calculation 
+! of ndeg, and the c.o.m. momentum HAS TO BE SET TO ZERO.
 ! When applied to subgroups, one can chose to:
-! (a) calculate the subgroup kinetic energy in the usual reference frame, and count the c.o.m. in ndeg
-! (b) calculate the subgroup kinetic energy with respect to its c.o.m. motion, discard the c.o.m. in ndeg
-!     and apply the rescale factor with respect to the subgroup c.o.m. velocity.
+!       (a) calculate the subgroup kinetic energy in the usual reference frame, 
+!           and count the c.o.m. in ndeg
+!       (b) calculate the subgroup kinetic energy with respect to its c.o.m. 
+!           motion, discard the c.o.m. in ndeg
+!           and apply the rescale factor with respect to the subgroup c.o.m. velocity.
 ! They should be almost equivalent.
-! If the subgroups are expected to move one respect to the other, the choice (b) should be better.
+! If the subgroups are expected to move one respect to the other, the choice 
+! (b) should be better.
 !
-! If a null relaxation time is required (taut=0.0), the procedure reduces to an istantaneous
-! randomization of the kinetic energy, as described in paragraph IIA.
+! If a null relaxation time is required (taut=0.0), the procedure reduces 
+! to an istantaneous randomization of the kinetic energy, as described in paragraph IIA.
 !
 ! HOW TO CALCULATE THE EFFECTIVE-ENERGY DRIFT
 ! The effective-energy (htilde) drift can be used to check the integrator against discretization errors.
@@ -592,7 +597,7 @@ function resamplekin(kk,sigma,ndeg,taut)
   real(kind=dp)               :: resamplekin
   real(kind=dp) ,  intent(in)  :: kk    ! present value of the kinetic energy of the atoms to be thermalized (in arbitrary units)
   real(kind=dp) ,  intent(in)  :: sigma ! target average value of the kinetic energy (ndeg k_b T/2)  (in the same units as kk)
-  integer, intent(in)  :: ndeg  ! number of degrees of freedom of the atoms to be thermalized
+  integer, intent(in)  :: ndeg          ! number of degrees of freedom of the atoms to be thermalized
   real(kind=dp) ,  intent(in)  :: taut  ! relaxation time of the thermostat, in units of 'how often this routine is called'
   real(kind=dp)  :: factor,rr,G2
   if(taut>0.1) then
@@ -602,8 +607,8 @@ function resamplekin(kk,sigma,ndeg,taut)
   end if
   CALL boxmuller_polar (G2, 0.0d0, 1.0d0)
   rr = G2 
-  resamplekin = kk + (1.0-factor)* (sigma*(sumnoises(ndeg-1)+rr**2)/ndeg-kk) &
-               + 2.0*rr*sqrt(kk*sigma/ndeg*(1.0-factor)*factor)
+  resamplekin = kk + ( 1.0 - factor ) * (sigma*(sumnoises(ndeg-1)+rr**2)/ndeg-kk) &
+                   +   2.0 * rr * sqrt( kk*sigma/ndeg*(1.0-factor)*factor )
 
 contains
 
@@ -632,6 +637,4 @@ double precision function sumnoises(nn)
 end function sumnoises
 
 end function resamplekin
-
-
 ! ===== fmV =====

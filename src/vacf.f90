@@ -156,7 +156,7 @@ END SUBROUTINE vacf_print_info
 
 ! *********************** SUBROUTINE vacf_alloc ********************************
 ! 
-! allocate / deallocate principal arrays for vacf
+! allocate principal arrays for vacf
 ! 
 ! ******************************************************************************
 SUBROUTINE vacf_alloc
@@ -190,7 +190,7 @@ END SUBROUTINE vacf_alloc
 
 ! *********************** SUBROUTINE vacf_dealloc ******************************
 ! 
-! allocate / deallocate principal arrays for vacf
+! deallocate principal arrays for vacf
 ! 
 ! ******************************************************************************
 SUBROUTINE vacf_dealloc
@@ -341,7 +341,6 @@ SUBROUTINE vacf_write_output
     in  = vacff
     CALL fft_1D_complex ( in , out , tmax )
     rout = DBLE ( out ) 
-
 
     do i = 1 , tmax
       vtime = dtime * ( i - 1 )

@@ -56,6 +56,7 @@ MODULE field
   logical, SAVE     :: lKA               !< use Kob-Andersen model for BMLJ                        
   logical, SAVE     :: lautoES           !< auto-determination of Ewald parameter from epsw ( accuracy)
   logical, SAVE     :: lwrite_dip_wfc    !< write dipoles from wannier centers to file
+  logical, SAVE     :: lwrite_dip        !< write dipoles 
   logical, SAVE     :: ldip_wfc          !< calculate electrostatic contribution from dipolar momemt coming from wfc
   logical, SAVE     :: lquiet            !< internal stuff 
   logical, SAVE     :: symmetric_pot     !< symmetric potential ( default .true. but who knows ?)
@@ -134,6 +135,9 @@ MODULE field
   real(kind=dp)    :: conv_tol_ind                     !< convergence tolerance of the scf induced dipole calculation
   integer          :: min_scf_pol_iter
   integer          :: max_scf_pol_iter
+  character(len=3) :: algo_moment_from_pola            !< set the algorithm used to get induced moments from polarization 
+  character(len=3) :: algo_moment_from_pola_allowed(2) !< set the algorithm used to get induced moments from polarization 
+  data                algo_moment_from_pola_allowed / 'scf', 'cng' /  !! scf ( self consistent ) or cng ( conjugate gradient )
   real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
   
   ! ewald sum related 
@@ -210,6 +214,7 @@ SUBROUTINE field_default_tag
   dip           = 0.0_dp  ! dipolar moment
   doefield      = .false. ! calculate electric field ( it is internally swicth on for induced polarization calculation )
   doefg         = .false. ! electric field gradient
+  lwrite_dip    = .false.            
 
   ! polarization
   lpolar        = 0
@@ -218,9 +223,10 @@ SUBROUTINE field_default_tag
   pol_damp_c    = 0.0_dp
   pol_damp_k    = 0
   ldip_damping  = .false.
-  conv_tol_ind  = 1e-4
+  conv_tol_ind  = 1e-6
   min_scf_pol_iter = 3
   max_scf_pol_iter = 100
+  algo_moment_from_pola = 'scf'
 
   ! wannier centers related
   lwfc           = 0
@@ -262,7 +268,6 @@ SUBROUTINE field_check_tag
   do i = 1 , size ( ctrunc_allowed )
     if ( trim ( ctrunc ) .eq. ctrunc_allowed ( i ) )  allowed = .true.
   enddo
-
   if ( .not. allowed ) then
     if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR fieldtag: ctrunc should be ', ctrunc_allowed
     STOP
@@ -341,6 +346,19 @@ SUBROUTINE field_check_tag
     endif
   endif
 
+  allowed = .false.
+  ! =======================
+  !  algo_moment_from_pola 
+  ! =======================
+  do i = 1 , size ( algo_moment_from_pola_allowed )
+    if ( trim ( algo_moment_from_pola ) .eq. algo_moment_from_pola_allowed ( i ) )  allowed = .true.
+  enddo
+  if ( .not. allowed ) then
+    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR fieldtag: algo_moment_from_pola should be ',algo_moment_from_pola_allowed
+    STOP
+  endif
+
+
 
   return 
 
@@ -385,13 +403,15 @@ SUBROUTINE field_init
                          pol_damp_c    , &  
                          pol_damp_k    , &  
                          conv_tol_ind  , &  
-                         min_scf_pol_iter,&
-                         max_scf_pol_iter,&
+                         min_scf_pol_iter, &
+                         max_scf_pol_iter, &
+                         algo_moment_from_pola, &
                          epsw          , &  
                          lautoES       , &  
                          lrecip_coul   , &  
                          lwfc          , &            
                          lwrite_dip_wfc, &            
+                         lwrite_dip    , &            
                          ldip_wfc      , &            
                          rcut_wfc      , &            
                          lpolar        , &
@@ -973,7 +993,7 @@ SUBROUTINE engforce_driver
 
   USE config,                   ONLY :  natm , ntype, system , simu_cell, atypei ,natmi, atype, itype
   USE control,                  ONLY :  lnmlj , lcoulomb , lbmhft , lbmhftd, lmorse , lharm , longrange, non_bonded, iefgall_format
-  USE io,                       ONLY :  ionode , stdout 
+  USE io,                       ONLY :  ionode , stdout , kunit_DIPFF
 
   implicit none
 
@@ -1048,6 +1068,17 @@ SUBROUTINE engforce_driver
         WRITE ( kunit_EFGALL )  efg_t
       endif
     endif
+
+    if ( ionode .and. lwrite_dip ) then
+      OPEN ( UNIT = kunit_DIPFF , FILE='DIPFF' )
+      do ia= 1 , natm
+        WRITE ( kunit_DIPFF , '(a,3e16.8)' ) atype( ia ) , mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+      enddo
+      CLOSE ( kunit_DIPFF )
+    endif
+
+
+
 
   endif
 
@@ -1620,6 +1651,15 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   integer :: ipiv ( 3 ) 
   integer :: ierr , npol
 
+  ! ---------------------------------------------------------------
+  ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
+  ! ---------------------------------------------------------------
+  ! note on units :
+  ! everything are in internal units :
+  !    [ Efield ] = e / A^2
+  !    [ polia  ] = A ^ 3
+  !    [ mu_ind ] = e A 
+  ! ---------------------------------------------------------------
   mu_ind = 0.0_dp
   do ia = 1 , natm 
     it = itype(ia) 
@@ -1656,7 +1696,15 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
     endif
   enddo
 
-  u_pol = u_pol * 0.5_dp 
+  ! ===============================================================
+  !      u_pol = 1/ ( 2 alpha  ) * | mu_ind | ^ 2
+  ! ---------------------------------------------------------------
+  ! note on units :
+  !    [ polia  ] = A ^ 3
+  !    [ mu_ind ] = e A 
+  !    [ u_pol  ] = e^2 / A ! electrostatic internal energy  
+  ! ===============================================================
+  u_pol = u_pol * 0.5_dp  
 
   return
 
@@ -1815,6 +1863,9 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
 
   ! =====================================================
   !                  TOTAL and units
+  !  TODO : electric field has not the correct unit !!!!
+  !         because of induced_moment subroutine 
+  !         make dipole, polarisation, electric field more coherent !!!
   ! =====================================================
 
   if ( lsurf ) then
@@ -2883,11 +2934,11 @@ END SUBROUTINE engforce_morse_pbc
 !! The stopping criteria is governed by conv_tol_ind
 !
 ! ******************************************************************************
-SUBROUTINE moment_from_pola ( mu_ind ) 
+SUBROUTINE moment_from_pola_scf ( mu_ind ) 
 
   USE io,               ONLY :  ionode , stdout , ioprintnode
   USE constants,        ONLY :  coul_factor
-  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax, polia , itype 
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , dipia_ind , qia , ntypemax, polia , itype 
   USE control,          ONLY :  longrange
   USE thermodynamic,    ONLY :  u_pol, u_coul
   USE time,             ONLY :  time_moment_from_pola
@@ -2972,8 +3023,13 @@ SUBROUTINE moment_from_pola ( mu_ind )
     tttt = MPI_WTIME(ierr)
     ! ==========================================================
     !  calculate mu_ind from Efield = Efield_stat + Efield_ind
+    !  if first step keep previous dipia_ind ( previous md step ) 
     ! ==========================================================
-    CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
+    if ( iscf.ne.1 ) then
+      CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
+    else
+      mu_ind = dipia_ind
+    endif
     tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
 #ifdef debug
@@ -3013,10 +3069,10 @@ SUBROUTINE moment_from_pola ( mu_ind )
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
 
-#ifdef debug_scf_pola
+!#ifdef debug_scf_pola
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_factor , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
-#endif 
+!#endif 
 
   enddo ! end of SCF loop
   io_printnode WRITE ( stdout, '(a)' ) ''
@@ -3049,7 +3105,226 @@ SUBROUTINE moment_from_pola ( mu_ind )
 
   return
 
-END SUBROUTINE moment_from_pola
+END SUBROUTINE moment_from_pola_scf
+
+!SUBROUTINE moment_from_pola_cng ( mu_ind )
+!
+!  USE io,               ONLY :  ionode , stdout , ioprintnode
+!  USE constants,        ONLY :  coul_factor
+!  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia, dipia_ind , qia , ntypemax, polia , itype
+!  USE control,          ONLY :  longrange
+!  USE thermodynamic,    ONLY :  u_pol, u_coul
+!  USE time,             ONLY :  time_moment_from_pola
+!  USE dumb
+!
+!
+!
+!  implicit none
+!
+!  ! global
+!  real(kind=dp) , intent (out) :: mu_ind ( natm , 3 )
+!
+!  ! local
+!  integer :: ia , it , npol, alpha
+!  logical :: linduced
+!  real(kind=dp) :: tttt , tttt2
+!  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
+!  real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), efg_dummy(natm,3,3)
+!  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax )
+!  logical       :: task_static (3), task_ind(3), ldip
+!  dectime
+!
+!!c
+!!c --- parameters to set
+!!c     np = dimension of the problem
+!!c
+!      integer np,mp
+!!      parameter (np=100,mp=100)
+!!c
+!!c --- computed parameters
+!!c
+!      integer nwp,nilmp,nwlmp
+!!      parameter (nwp=15*natm+mp,nilmp=mp+4,nwlmp=mp*(2*np+1)+1)
+!!c
+!      logical two
+!      character*2 ctest
+!      character*3 marker(3)
+!      integer i,j,k,kk,absrel,iter,iter0,imp,iom,imode(3),mode,bfgsb,&
+!       select,bfgsp,izs(1),nc,test,p(10),m
+!      integer, dimension (:), allocatable :: ilm1,ilm0 
+!      real(kind=dp) ::  rzs(1)
+!      real(kind=dp) :: r,epsneg,restol,dzs(1)
+!      real(kind=dp), dimension (:)  , allocatable :: b,bb,X,XX,w,wlm1,wlm0
+!      real(kind=dp), dimension (:,:), allocatable :: l,a,pmat1,pmat0
+!      external mvquad
+!!c     double precision drand
+!!c
+!!c     --- Lapack variables
+!!c
+!      integer info,imin
+!      real(kind=dp) :: eigmin
+!      real(kind=dp) , dimension (:)    , allocatable :: eig,work
+!      real(kind=dp) , dimension (:,:)  , allocatable :: mat
+!!c
+!      integer ln
+!      common /cquad/ln
+!      ln=np
+!
+!      np=3*natm
+!      mp=np
+!      nwp=5*np+mp
+!      nilmp=mp+4
+!      nwlmp=mp*(2*np+1)+1
+!
+!      allocate ( ilm1(nilmp),ilm0(nilmp) )
+!      allocate ( l(np,np),a(np,np),b(np),bb(np),x(np),xx(np),&
+!       w(nwp),pmat1(np,np),pmat0(np,np),wlm1(nwlmp),wlm0(nwlmp) )
+!      allocate ( mat(np,np) , eig(np),work(3*np-1) ) 
+!
+!
+!
+!  tttt2=0.0_dp
+!  statime
+!
+!  ! =========================================================
+!  !  Is there any polarizability ? if yes linduced = .TRUE.
+!  ! =========================================================
+!  linduced = .false.
+!  do it = 1 , ntype
+!    if ( lpolar ( it ) ) linduced = .true.
+!  enddo
+!  if ( .not. linduced ) then
+!    return
+!  endif
+!
+!  ! =============================================
+!  !  calculate static Efield ( charge + dipoles )
+!  ! =============================================
+!  Efield_stat = 0.0_dp
+!  fx      = 0.0_dp
+!  fy      = 0.0_dp
+!  fz      = 0.0_dp
+!
+!  ! =============================================
+!  !  coulombic energy , forces (field) and virial
+!  ! =============================================
+!  ldip=.false.
+!  task_static(1) = .true.
+!  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
+!  if ( ldip ) then
+!    task_static = .true.
+!  endif
+!  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , .true. , task_static , do_efield=.true. , do_efg=.false. )
+!  u_coul_stat = u_coul
+!
+!  fx      = 0.0_dp
+!  fy      = 0.0_dp
+!  fz      = 0.0_dp
+!
+!  ! =============================================
+!  !  init total Efield to static only
+!  ! =============================================
+!  Efield = Efield_stat
+!
+!  iter = 0
+!  rmsd = HUGE(0.0d0)
+!  ! =========================
+!  !  charges are set to zero 
+!  ! =========================
+!  qch_tmp = qch
+!  qia_tmp = qia
+!  qch = 0.0_dp
+!  qia = 0.0_dp
+!  task_ind(1) = .false.
+!  task_ind(2) = .false.
+!  task_ind(3) = .true.
+!  ! ================================
+!  !   m1cg1 call
+!  ! ================================
+!    write (stdout,'(a,t100,a)') "= LS solved by the unpreconditioned CG", "="
+!!c
+!  do ia = 1, natm
+!    X( ia )            = dipia_ind( ia ,1 )
+!    X( natm + ia )     = dipia_ind( ia ,2 )
+!    X( 2 * natm + ia ) = dipia_ind( ia ,3 )
+!  enddo
+!
+!          np = 3 * natm
+!          epsneg=1.d-8
+!          restol=1.d-10
+!          absrel=0
+!          iter=10*np
+!          imp=2
+!          iom=stdout
+!          imode(1)=0
+!          imode(2)=0
+!          imode(3)=0
+!!c
+!!c         --- use a preconditioning matrix ?
+!!c
+!          bfgsp=0
+!!c
+!!c         --- build a preconditioning matrix ?
+!!c
+!          bfgsb=1
+!          pmat1(1,1)=0.d0
+!          select=2
+!!c
+!!c         --- two LS to wolve ?
+!!c
+!          two=.false.
+!!c
+!!c         --- call the solver
+!!c
+!          call m1cg1 (mvquad,np,x,b,a,xx,bb,two,epsneg,restol,absrel,&
+!                      iter,imp,iom,imode,mode,w,nwp,&
+!                      bfgsp,pmat0,np**2,mp,ilm0,nilmp,wlm0,nwlmp,&
+!                      bfgsb,pmat1,np**2,mp,ilm1,nilmp,wlm1,nwlmp,&
+!                      select,izs,rzs,dzs)
+!          if ((mode.eq.1) .or. (mode.eq.7)) return
+! 
+!
+!    do ia = 1, natm
+!      mu_ind ( ia , 1 )   = X ( ia )
+!      mu_ind ( ia , 2 )   = X ( natm + ia )
+!      mu_ind ( ia , 3 )   = X ( 2* natm + ia )
+!    enddo
+!
+!
+!
+!  ! ===========================
+!  !  charge/force info is recovered
+!  ! ===========================
+!  qch = qch_tmp
+!  qia = qia_tmp
+!
+!  if ( ioprintnode ) then
+!    blankline(stdout)
+!    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iter, ' iterations '
+!    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
+!    blankline(stdout)
+!  endif
+!#ifdef debug
+!  if ( ionode ) then
+!    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
+!    do ia = 1 , natm
+!      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+!      ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
+!    enddo
+!    blankline(stdout)
+!  endif
+!#endif
+!
+!  stotime
+!  addtime(time_moment_from_pola)
+!
+!      deallocate ( ilm1,ilm0 )
+!      deallocate ( l,a,b,bb,x,xx,w,pmat1,pmat0,wlm1,wlm0 )
+!      deallocate ( mat , eig , work ) 
+! 
+!  return
+!
+!END SUBROUTINE moment_from_pola_cng
 
 ! *********************** SUBROUTINE moment_from_WFc ***************************
 !
@@ -3293,7 +3568,11 @@ SUBROUTINE get_dipole_moments ( mu )
   ! ======================================
   !     induced moment from polarisation 
   ! ======================================
-  CALL moment_from_pola ( dipia_ind )
+  if ( algo_moment_from_pola .eq. 'scf' ) then
+    CALL moment_from_pola_scf ( dipia_ind )
+  else if ( algo_moment_from_pola .eq. 'cng' ) then
+  !  CALL moment_from_pola_cng ( dipia_ind )
+  endif
 
   ! =========================================================
   !  Is there any Wannier center ? if yes lwannier = .TRUE.

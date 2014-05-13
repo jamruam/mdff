@@ -313,7 +313,7 @@ SUBROUTINE reorder_kpt ( km )
   !  arrays are sorted for increasing k^2 
   !  (see tools.f90 for more details )
   !  the old labels are stored in labelkpt
-  !  that will be used to reorganized kx,ky,kz
+  !  that will be used to reorganized kx,ky,kz,Ak,kcoe
   ! ===========================================
   call merge_sort ( km%kptk , km%nk , tkpt , labelkpt , labelt )
 
@@ -410,7 +410,6 @@ SUBROUTINE charge_density_k ( km , mu , ldip , update_mu )
   real(kind=dp) :: kx , ky , kz
   complex(kind=dp) :: expikr , expikm , sumia
         
-  !print*,'in rhok',km%kpt_dec%istart, km%kpt_dec%iend
   km%rhon  = (0.0_dp,0.0_dp)
   do ik = km%kpt_dec%istart, km%kpt_dec%iend
     kx = km%kptx ( ik )

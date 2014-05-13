@@ -1,6 +1,7 @@
 MODULE oxyde
 
   USE constants,        ONLY :  dp 
+! 
 ! pour le moment il n'y a que 6 oxydes 
 ! mais l'ajout de nouveaux oxydes ne devraient pas poser de probleme.
 ! à modifier (dans le cas d'ajout d'un ou plusieurs oxydes) :
@@ -16,67 +17,207 @@ MODULE oxyde
 ! necessaire... juste à partir de la liste des elements et du numero
 ! d'oxydation par exemple.
 
-  integer , PARAMETER :: noxyde = 6
-  integer , PARAMETER :: nelem  = noxyde + 1 ! + oxygen
-  real(kind=dp) :: g_to_am = 1.660538782_dp ! grammes -> unité de masse atomique
+  integer , PARAMETER :: noxyde = 7   
+  integer , PARAMETER :: nelem  = 57
 
-  character(len=4)    :: lox     ( noxyde )       ! label de l'oxyde ex: SiO2, Na2O
-  character(len=2)    :: ele_ox  ( 2 , noxyde )   ! element de l'oxyde ex:Si , Na . le second est toujours l'oxygene
-  integer             :: nel_ox  ( 2 , noxyde )   ! nombre d'element dans
-  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3 ! valeur en entré
+  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3, geo2  ! valeur en entré
 
-  character(len=2)    :: ele     ( nelem ) ! liste des elements chimique distincts
-  integer             :: numoxyd ( nelem ) ! degree d'oxydation
-  integer             :: valence ( nelem ) ! valence electrons ( as recommended in VASP )
-  real(kind=dp)       :: massele ( nelem ) ! Standard atomic weight 
+  ! type structur pour l'element chimique 
+  TYPE element
+    character(len=2)    :: elename         !< nom de l'element
+    real(kind=dp)       :: massele         !< mass atomic (amu)
+    integer             :: valence         !< nombre d'electrons de valence (pour le caclcul du nombre de bandes )
+    integer             :: numoxyd         !< correspond à la charge pour un champ de force "rigid ion"
+  END TYPE
 
-  data ele      / 'Si' , &
-                  'Na' , &
-                  ' B' , &
-                  'Ca' , &
-                  ' P' , &
-                  'Al' , &
-                  ' O' /
+  ! type structur pour l'oxyde 
+  TYPE oxy
+    character(len=4)    :: nameox          !< label de l'oxyde ex: SiO2, Na2O
+    character(len=2)    :: ele_ox  ( 2 )   !< element de l'oxyde ex:Si , Na . le second est toujours l'oxygene
+    integer             :: nel_ox  ( 2 )   !< nombre d'ions par oxyde  
+    real(kind=dp)       :: relcon          !< relative concentration
+  END TYPE
 
-  data numoxyd  /   4  , &
-                    1  , & 
-                    3  , &
-                    2  , & 
-                    5  , & 
-                    3  , & 
-                   -2  /
+  ! tableau de type element = tableau periodique  ( nelem_max = 57 )
+  TYPE(element), dimension (:) , allocatable :: tabper
+  ! tableau de type oxydes                        ( noxyde_max = 6 ) 
+  TYPE(oxy)    , dimension (:) , allocatable :: oxydes 
 
-  data valence  /   4  , &
-                    7  , & 
-                    3  , &
-                    8  , & 
-                    5  , & 
-                    3  , & 
-                    6  /
+CONTAINS
 
-  data massele  / 28.0855_dp     , &
-                  22.98976928_dp , &
-                  10.811_dp      , &
-                  40.078_dp      , & 
-                  30.973762_dp   , & 
-                  26.9815386_dp  , & 
-                  15.9994_dp      /
+SUBROUTINE gen_tab_period
 
-  data lox    / 'SiO2' , 'Na2O' , 'B2O3' , 'CaO' , 'P2O5' , 'Al2O3' /
+  implicit none
 
-  data ele_ox / 'Si' , ' O' , &
-                'Na' , ' O' , & 
-                ' B' , ' O' , & 
-                'Ca' , ' O' , & 
-                ' P' , ' O' , & 
-                'Al' , ' O' / 
+  allocate ( tabper(nelem) )
 
-  data nel_ox /  1 , 2 , & ! Si 1 O 2
-                 2 , 1 , & ! Na 2 O 1
-                 2 , 3 , & !  B 2 O 3 
-                 1 , 1 , & ! Ca 1 O 1 
-                 2 , 5 , & !  P 2 O 5
-                 2 , 3   / ! Al 2 O 3
+  ! # 1
+  ! # 2
+  ! # 3
+  ! # 4
+  ! # 5
+  tabper(5)%elename='B'
+  tabper(5)%numoxyd=3
+  tabper(5)%valence=3
+  tabper(5)%massele=10.811_dp
+  ! # 6
+  ! # 7
+  ! # 8
+  tabper(8)%elename='O'
+  tabper(8)%numoxyd=-2
+  tabper(8)%valence=6
+  tabper(8)%massele=15.9994_dp
+  ! # 9
+  ! # 10
+  ! # 11
+  tabper(11)%elename='Na'
+  tabper(11)%numoxyd=1
+  tabper(11)%valence=7
+  tabper(11)%massele=22.9898_dp
+  ! # 12
+  ! # 13
+  tabper(13)%elename='Al'
+  tabper(13)%numoxyd=3
+  tabper(13)%valence=3
+  tabper(13)%massele=26.9815_dp
+  ! # 14
+  tabper(14)%elename='Si'
+  tabper(14)%numoxyd=4
+  tabper(14)%valence=4
+  tabper(14)%massele=28.086_dp
+  ! # 15
+  tabper(15)%elename='P'
+  tabper(15)%numoxyd=5
+  tabper(15)%valence=5
+  tabper(15)%massele=30.9738_dp
+  ! # 16
+  ! # 17
+  ! # 18
+  ! # 19
+  ! # 20
+  tabper(20)%elename='Ca'
+  tabper(20)%numoxyd=2
+  tabper(20)%valence=8
+  tabper(20)%massele=40.08_dp
+  ! # 21
+  ! # 22
+  ! # 23
+  ! # 24
+  ! # 25
+  ! # 26
+  ! # 27
+  ! # 28
+  ! # 29
+  ! # 30
+  ! # 31
+  ! # 32
+  tabper(20)%elename='Ge'
+  tabper(20)%numoxyd=4
+  tabper(20)%valence=4
+  tabper(20)%massele=72.92_dp
+  ! # 33
+  ! # 34
+  ! # 35
+  ! # 36
+  ! # 37
+  ! # 38
+  ! # 39
+  ! # 40
+  ! # 41
+  ! # 42
+  ! # 43
+  ! # 44
+  ! # 45
+  ! # 46
+  ! # 47
+  ! # 48
+  ! # 49
+  ! # 50
+  ! # 51
+  ! # 52
+  ! # 53
+  ! # 54
+  ! # 55
+  ! # 56
+  ! # 57
+
+  return
+
+END SUBROUTINE 
+
+SUBROUTINE gen_oxydes
+
+  implicit none
+
+  allocate ( oxydes(noxyde) )
+
+  ! # 1 
+  oxydes(1)%nameox='B2O3'
+  oxydes(1)%ele_ox(1)='B'
+  oxydes(1)%ele_ox(2)='O'
+  oxydes(1)%nel_ox(1)=2
+  oxydes(1)%nel_ox(2)=3
+  oxydes(1)%relcon = b2o3
+  ! # 2
+  oxydes(2)%nameox='Na2O'
+  oxydes(2)%ele_ox(1)='Na'
+  oxydes(2)%ele_ox(2)='O'
+  oxydes(2)%nel_ox(1)=2
+  oxydes(2)%nel_ox(2)=1
+  oxydes(2)%relcon = na2o
+  ! # 3
+  oxydes(3)%nameox='Al2O3'
+  oxydes(3)%ele_ox(1)='Al'
+  oxydes(3)%ele_ox(2)='O'
+  oxydes(3)%nel_ox(1)=2
+  oxydes(3)%nel_ox(2)=3
+  oxydes(3)%relcon = al2o3
+  ! # 4
+  oxydes(4)%nameox='SiO2'
+  oxydes(4)%ele_ox(1)='Si'
+  oxydes(4)%ele_ox(2)='O'
+  oxydes(4)%nel_ox(1)=1
+  oxydes(4)%nel_ox(2)=2
+  oxydes(4)%relcon = sio2
+  ! # 5
+  oxydes(5)%nameox='P2O5'
+  oxydes(5)%ele_ox(1)='P'
+  oxydes(5)%ele_ox(2)='O'
+  oxydes(5)%nel_ox(1)=2
+  oxydes(5)%nel_ox(2)=5
+  oxydes(5)%relcon = p2o5
+  ! # 6
+  oxydes(6)%nameox='CaO'
+  oxydes(6)%ele_ox(1)='Ca'
+  oxydes(6)%ele_ox(2)='O'
+  oxydes(6)%nel_ox(1)=1
+  oxydes(6)%nel_ox(2)=1
+  oxydes(6)%relcon = cao
+  ! # 7
+  oxydes(7)%nameox='GeO2'
+  oxydes(7)%ele_ox(1)='Ge'
+  oxydes(7)%ele_ox(2)='O'
+  oxydes(7)%nel_ox(1)=1
+  oxydes(7)%nel_ox(2)=2
+  oxydes(7)%relcon = geo2 
+
+  return
+
+END SUBROUTINE
+
+SUBROUTINE deallocate_tabper_oxydes
+
+  implicit none
+
+  IF (ALLOCATED(oxydes)) THEN
+    deallocate(oxydes)
+  ENDIF
+  IF (ALLOCATED(tabper)) THEN
+    deallocate(tabper)
+  ENDIF
+
+  return
+END SUBROUTINE
 
 
 END MODULE oxyde

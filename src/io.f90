@@ -136,20 +136,22 @@ MODULE io
   integer, PARAMETER :: kunit_NRTFF     = 260
 
   !> dipole moments on atoms from Wannier centers
-  integer, PARAMETER :: kunit_DIPWFC     = 270
+  integer, PARAMETER :: kunit_DIPWFC    = 270
+  !> total dipole moments on atoms
+  integer, PARAMETER :: kunit_DIPFF     = 271
 
   !> neighbor info
-  integer, PARAMETER :: kunit_VOIS1FF     = 280
+  integer, PARAMETER :: kunit_VOIS1FF   = 280
 
   !> number of neighbors distribution
-  integer, PARAMETER :: kunit_DTNBFF      = 290
+  integer, PARAMETER :: kunit_DTNBFF    = 290
 
   !> input config info for rmc calculation 
-  integer, PARAMETER :: kunit_RMCFF      = 300
+  integer, PARAMETER :: kunit_RMCFF     = 300
   !> output chi rmc 
-  integer, PARAMETER :: kunit_RMCLOG     = 310
+  integer, PARAMETER :: kunit_RMCLOG    = 310
 
-  integer, PARAMETER :: kunit_conf_proc   = 400
+  integer, PARAMETER :: kunit_conf_proc = 400
   integer, dimension(:) , allocatable :: kunit_bak_proc
 
 CONTAINS

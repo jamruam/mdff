@@ -18,24 +18,32 @@
 
 ! *********************** MODULE CONSTANTS *************************************
 !> \author FMV
-!> \brief Main constants of the code
+!> \brief Main constants and units definition of the code
 !> \note
 !!
-!! Units of MDFF in input: 
-!! length      : angstom 
-!! energy      : eV 
-!! mass        : atomic mass unit
-!! time        : ps
-!! temperature : Kelvin
-!! pressure    : GPa
+!! Units of MDFF in input/output : 
+!! length        : angstom 
+!! energy        : eV 
+!! mass          : atomic mass unit
+!! time          : ps
+!! temperature   : Kelvin
+!! pressure      : GPa
+!! charge        : atomic charge ( proton charge )
+!! dipole moment : Debye
+!! efg           : V  / angstom**2 
+!! forces        : eV / angtrom
 !!
-!! Internal units :
-!! length      : angstom 
-!! energy      : eV 
-!! mass        : atomic mass unit
-!! time          angstrom * ( atomicmassunit / eV ) ** 0.5 
-!! temperature : eV
-!! pressure    : ( eV / angstrom**3)
+!! Internal units:
+!! length        : angstom 
+!! energy        : eV 
+!! mass          : atomic mass unit
+!! time          : angstrom * ( atomicmassunit / eV ) ** 0.5 
+!! temperature   : eV
+!! pressure      : ( eV / angstrom**3)
+!! charge        : atomic charge ( proton charge )
+!! dipole moment : angstrom * atomiccharge 
+!! 1/4piepsilon0 : eV  * angstrom / atomiccharge **2 == 1.0
+!! efg           : atomiccharge / angstrom ** 3  
 
 ! ******************************************************************************
 MODULE constants 
@@ -44,8 +52,13 @@ MODULE constants
 
   save
 
+  ! -------------------------------------------------------------------------------------------------------------------
+  ! kind definitions 
+ 
   integer, PARAMETER, PUBLIC    :: dp          = selected_real_kind(15,300)            !< double precision definition 
   integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)              !< single precision definition 
+  ! -------------------------------------------------------------------------------------------------------------------
+  ! mathematical constants
   real(kind=dp),      PARAMETER :: pi          = 3.14159265358979323846264338327950_dp !< pi
   real(kind=dp),      PARAMETER :: dzero       = 0.0_dp                                !< zero 
   real(kind=dp),      PARAMETER :: done        = 1.0_dp                                !< one 
@@ -57,19 +70,21 @@ MODULE constants
   complex(kind=dp),   PARAMETER :: imag        = (0.0_dp, 1.0_dp)                      !< imaginary number i
   complex(kind=dp),   PARAMETER :: mimag       = (0.0_dp,-1.0_dp)                      !< negative imaginary number (-imag)
   complex(kind=dp),   PARAMETER :: citpi       = imag*tpi                              !< 2*i*pi
-  real(kind=dp),      PARAMETER :: rytoev      = 13.605826_dp                          !< Rydberg constant a.u. to eV
+  ! -------------------------------------------------------------------------------------------------------------------
+  ! physical constants
+  real(kind=dp),      PARAMETER :: rytoev      = 13.6056919282781_dp                   !< Rydberg constant a.u. to eV
   real(kind=dp),      PARAMETER :: hart        = rytoev*2.0_dp                         !< Hartree energy 
-  real(kind=dp),      PARAMETER :: bohr        = 0.529177249_dp                        !< a.u in angstrom  
-  real(kind=dp),      PARAMETER :: coul_factor = 14.3996441_dp                         !< 1 / 4pi epsilon0  in eV
-  real(kind=dp),      PARAMETER :: press_unit  = 0.0062415096_dp                       !< GPa = > internal unit of pressure ( eV / angstrom**3) 
-  real(kind=dp),      PARAMETER :: boltz       = 8.6173423e-05                         !< boltzmann constant ( energy in eV)
-  real(kind=dp),      PARAMETER :: time_unit   = 98.226952_dp                          !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
-!  real(kind=dp),      PARAMETER :: e_2         = hart * bohr                           !< length in angstom and energy in eV 
+  real(kind=dp),      PARAMETER :: bohr        = 0.52917721092_dp                      !< a.u in angstrom  
+  real(kind=dp),      PARAMETER :: coul_factor = 14.3996441494161_dp                   !< 1 / 4pi epsilon0  in eV
+  real(kind=dp),      PARAMETER :: press_unit  = 0.00624150964712042_dp                !< GPa = > internal unit of pressure ( eV / angstrom**3) 
+  real(kind=dp),      PARAMETER :: boltz       = 8.61734229648141e-05                  !< boltzmann constant ( energy in eV)
+  real(kind=dp),      PARAMETER :: time_unit   = 98.2269514139276_dp                   !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
   real(kind=dp),      PARAMETER :: evtoj       = 1.602176487e-19_dp                    !< eV to J 
   real(kind=dp),      PARAMETER :: hplanck     = 6.62617636e-34_dp                     !< Planck constant 
   real(kind=dp),      PARAMETER :: eh          = evtoj / 1e14_dp / hplanck             !< e/h (electron charge / Planck constant )
-  real(kind=dp),      PARAMETER :: CQ_UNIT     = eh / 1000.0_dp                        !< Cq unit conversion (  a.u to V/A^2 )
+  real(kind=dp),      PARAMETER :: cq_unit     = eh / 1000.0_dp                        !< Cq unit conversion 
   real(kind=dp),      PARAMETER :: Debye_unit  = 2.54174618782479816355_dp / bohr      !< Debye unit for dipole moments in eA
+  real(kind=dp),      PARAMETER :: g_to_am     = 1.660538782_dp                        !< gram to atomic mass unit 
 
 
 

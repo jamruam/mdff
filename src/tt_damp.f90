@@ -5,7 +5,7 @@ MODULE tt_damp
   USE constants,        ONLY :  dp
   USE io,               ONLY :  stdout, ionode
 
-  integer,            PARAMETER :: maximum_of_TT_expansion=8
+  integer      , PARAMETER                             :: maximum_of_TT_expansion=8
   real(kind=dp), dimension (0:maximum_of_TT_expansion) :: E_TT 
 
 CONTAINS

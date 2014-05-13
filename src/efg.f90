@@ -20,8 +20,8 @@
 #include "symbol.h"
 !// general debug flag
 !#define debug 
-#define debug_input
-#define debug_es
+!#define debug_input
+!#define debug_es
 !#define debug_multipole
 !#define debug_efg_stat
 !#define fix_grid
@@ -52,6 +52,7 @@ MODULE efg
   logical :: lefg_old                   !< use efg_DS and efg_ES ( old routines ) 
   logical :: lefg_stat                  !< compute statitics distribution on EFG's 
   logical :: lefg_reduced_units         !< 1/4piepsilon0 = 1
+  logical :: lefg_vasp_sign             !< opposite sign definition in vasp ( on other DFT codes e- has a negative charge )
   logical :: lefg_it_contrib            !< only on kind is contributing too efg (default false)
   logical :: lmp_correction
   integer :: ncefg                      !< number of configurations READ  for EFG calc (only when calc = 'efg')
@@ -122,6 +123,7 @@ SUBROUTINE efg_init
                      resu               , &
                      vzzmin             , &
                      lefg_reduced_units , &
+                     lefg_vasp_sign     , &
                      dt                 , & 
                      it_efg             , &
                      umin               , & 
@@ -179,6 +181,7 @@ SUBROUTINE efg_default_tag
   lefg_restart       = .false.
   lefg_stat          = .false.
   lefg_reduced_units = .false.
+  lefg_vasp_sign     = .false.
   lmp_correction     = .false.
   reseta             =   0.1_dp
   resvzz             =   0.1_dp
@@ -222,8 +225,8 @@ SUBROUTINE efg_check_tag
 !  ! ==================================
 !  !  check vzzmin and Umin .ne. 0
 !  ! ==================================
-!  if ( vzzmin .eq. 0._dp .or. umin .eq. 0._dp .or. smin .eq. 0._dp ) then
-!    io_node WRITE ( stderr ,'(a,3f8.3)') 'ERROR efgtag: vzzmin , umin or smin should be set',vzzmin,umin,smin
+!  if ( vzzmin .eq. 0._dp .or. umin .eq. 0._dp .or. smax .eq. 0._dp ) then
+!    io_node WRITE ( stderr ,'(a,3f8.3)') 'ERROR efgtag: vzzmin , umin or smin should be set',vzzmin,umin,smax
 !    STOP
 !  endif             
   ! ==========================================
@@ -233,7 +236,7 @@ SUBROUTINE efg_check_tag
   PANvzz = int ((2.0_dp*ABS (vzzmin))/resvzz)
   PANU   = int ((2.0_dp*ABS (umin))/resu) 
   PANS   = int ( smax / resu) 
- 
+
   if ( ncefg .eq. 0 ) then
     io_node WRITE ( stderr ,'(a,2f8.3)') 'ERROR efgtag: ncefg is zero but calc=efg requested',ncefg
     STOP
@@ -480,6 +483,10 @@ SUBROUTINE efgcalc
 
       if ( .not. lefg_reduced_units ) then
         efg_t    =  efg_t    * coul_factor 
+      endif
+      ! opposite sign in DFT codes ( charge of electron ? )
+      if ( lefg_vasp_sign ) then
+        efg_t     = - efg_t 
       endif
 
 #ifdef debug
@@ -1670,7 +1677,7 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u  , kunit_s  )
     ! =================================================
     do i = 0 , PANS
       WRITE (kunit_s ,'(<ntype+2>f15.8)') REAL ( i,kind=dp) * resu , ( r_dibStot(it,i)/ ( resu * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
-      WRITE (100000 ,'(f15.8,3i)') REAL ( i,kind=dp) * resu , ( dibStot(it,i) , it = 0 , ntype )
+      !WRITE (100000 ,'(f15.8,3i)') REAL ( i,kind=dp) * resu , ( dibStot(it,i) , it = 0 , ntype )
     enddo
 
     blankline(kunit_eta) 
@@ -2169,6 +2176,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
         if ( lwfc ( it ) .ge. 0 ) then
           READ( kunit_input , * ) iiii , xxxx , efg_t(ia,1,1) , efg_t(ia,2,2) , efg_t(ia,3,3) , &
                                                 efg_t(ia,1,2) , efg_t(ia,1,3) , efg_t(ia,2,3)
+          !print*,efg_t(ia,1,1) , efg_t(ia,2,2) , efg_t(ia,3,3) 
         endif
       enddo
     endif
