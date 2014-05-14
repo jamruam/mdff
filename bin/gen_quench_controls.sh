@@ -45,7 +45,7 @@ Docontrol()
 		cat > rescaling << EOF
         temp          = __TEMP__
         nequil        = __NEQUIL__
-        nequil_period = 10
+        nequil_period = __NEQUIL_PERIOD__
 EOF
 		include rescaling < tmp1 > tmp2
 	fi
@@ -59,9 +59,9 @@ EOF
 		cat > thermostat << EOF
         temp           = __TEMP__
         timesca_thermo = __TIME_THERMO__
-        nhc_n          = 3
-        nhc_yosh_order = 3
-        nhc_mults      = 3
+        nhc_n          = __NHC_N__ 
+        nhc_yosh_order = __NHC_YOSH_ORDER__
+        nhc_mults      = __NHC_MULTS__
 EOF
 		include thermostat < tmp1 > tmp2
 	fi
@@ -72,9 +72,9 @@ EOF
         press          = __PRESS__
         timesca_thermo = __TIME_THERMO__
         timesca_baro   = __TIME_BARO__
-        nhc_n          = 3
-        nhc_yosh_order = 3
-        nhc_mults      = 3
+        nhc_n          = __NHC_N__ 
+        nhc_yosh_order = __NHC_YOSH_ORDER__
+        nhc_mults      = __NHC_MULTS__
 EOF
                 include barostat < tmp1 > tmp2
         fi
@@ -97,5 +97,5 @@ DoALL
 echo "--------------------------------------------------------------------------------"
 
 
-rm scr* tmp* barostat thermostat rescaling 
+rm -f scr* tmp* barostat thermostat rescaling 
 exit 0;

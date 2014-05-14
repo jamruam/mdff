@@ -164,7 +164,7 @@ def write_script(var,table):
 
 
             NAME="INTEGRATOR"
-            VAL="'nve-vv'"
+            VAL="\\'nve-vv\\'"
             print >> fout, "   -e s/__"+NAME+"__/"+VAL+"/g",
 
             NAME="NPRINT"
@@ -189,7 +189,7 @@ def write_script(var,table):
 
 
             print >> fdo, 'Docontrol "'+item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'.F'+' '+item[1]+' '+item[6]+' '+item[0]+' '+str(k) 
-            print >> fdo2, 'DoMD "'+item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'_'+item[7]+'.F'+' '+item[1]+' '+item[6]+' '+item[7]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]
+            print >> fdo2,'DoMD "'     +item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'.F'+' '+item[1]+' '+item[6]+' '+item[0]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]
         first=False
 
     fout.close()
