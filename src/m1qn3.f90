@@ -246,7 +246,7 @@ subroutine m1qn3 (simul,prosca,ctonb,ctcab,n,x,f,g,dxmin,df1,epsg,normtype,impre
           omode=2
           if (reverse.gt.0) reverse = -1
           if (ionode .and.impres.ge.1) write (iom,922)
-  922     format (/" >>> m1qn3: not enough memory allocated")
+  922     format (/" >>> m1qn3: not enough memory Allocated")
           return
       endif
 !c

@@ -56,6 +56,7 @@ SUBROUTINE init_random_seed(rank,nump)
   seed = clock + 48 * (/ (i - 1, i = 1, n) /)
   CALL MPI_ALL_REDUCE_INTEGER ( seed , n )
   CALL RANDOM_SEED(PUT = seed)
+  deallocate(SEED)
 
   return
 

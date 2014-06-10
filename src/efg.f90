@@ -336,7 +336,7 @@ SUBROUTINE efgcalc
   
   USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data , lvnlist, cutlongrange, iefgall_format
   USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lpolar , lwfc , & 
-                                        moment_from_pola , moment_from_wfc , rm_coul , &
+                                        rm_coul , &
                                         km_coul , alphaES , field_print_info , ldip_wfc, get_dipole_moments, ewald_param
   USE cell,                     ONLY :  lattice , dirkar , periodicbc, kardir
 
@@ -351,6 +351,8 @@ SUBROUTINE efgcalc
 #ifdef fix_grid
   real(kind=dp) , dimension ( : , : )     , allocatable :: rave !average positions
 #endif
+  integer :: nwfc , itwfc
+  logical :: any_wfc
   
 
   ! ==================================
@@ -451,6 +453,8 @@ SUBROUTINE efgcalc
 !        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
 !        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
 !      enddo
+    deallocate ( ef_tmp  )
+    deallocate ( efg_tmp )
 !#endif
 
       ! =======================================
@@ -494,18 +498,48 @@ SUBROUTINE efgcalc
 #endif
 
       ! =======================================
-      ! write efg for each atom in file EFGALL 
+      ! write efg for each atom in file EFGALL ( not the wannier centres )
+      ! note : 
+      !    lorsque les EFG sont calculés à partir des dipoles provenant de centres
+      !    de wannier, le tenseur n'est pas ecrit dans EFGALL, par contre il faut
+      !    ici absolument que les centres de Wannier X soit le premier type
+      !    definis ( c'est le cas lorsqu'il sont générer par wannier90 ( et vasp)   
+      !    les lignes suivantes sont a modifier :
+      !              WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 2 ,  ntype )   !! pas assez general
+      !              WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 2 , ntype )   !! pas assez general
+      !    
       ! =======================================
+      nwfc = 0
+      any_wfc = .false.
+      do ia = 1 , natm
+        it = itype ( ia )
+        if ( lwfc( it ) .lt. 0 ) then 
+          nwfc = nwfc + 1
+          any_wfc = .true.
+          itwfc = it
+        endif
+      enddo
+
       if ( ionode  .and. lefgprintall ) then
         if ( iefgall_format .ne. 0 ) then
-          WRITE ( kunit_EFGALL , * )  natm
+          if ( any_wfc ) then
+            WRITE ( kunit_EFGALL , * )  natm - nwfc
+          else
+            WRITE ( kunit_EFGALL , * )  natm
+          endif
           WRITE ( kunit_EFGALL , * )  system
           WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
           WRITE ( kunit_EFGALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
           WRITE ( kunit_EFGALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-          WRITE ( kunit_EFGALL , * )  ntype
-          WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
-          WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+          if ( any_wfc ) then
+            WRITE ( kunit_EFGALL , * )  ntype - 1
+            WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 2 , ntype )   !! pas assez general
+            WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 2 , ntype )   !! pas assez general
+          else
+            WRITE ( kunit_EFGALL , * )  ntype
+            WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
+            WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+          endif
           WRITE ( kunit_EFGALL ,'(a)') &
           '      ia type                   vxx                   vyy                   vzz                   vxy                   vxz                   vyz'
           do ia = 1 , natm 
@@ -518,14 +552,22 @@ SUBROUTINE efgcalc
           enddo
         endif
         if ( iefgall_format .eq. 0 ) then
-          WRITE ( kunit_EFGALL )  natm
+          if ( any_wfc ) then
+            WRITE ( kunit_EFGALL )  natm - nwfc
+          else
+            WRITE ( kunit_EFGALL , * )  natm
+          endif
           WRITE ( kunit_EFGALL )  system
           WRITE ( kunit_EFGALL )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
           WRITE ( kunit_EFGALL )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
           WRITE ( kunit_EFGALL )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-          WRITE ( kunit_EFGALL )  ntype
-          WRITE ( kunit_EFGALL )  ( atypei ( it ) , it = 1 , ntype )
-          WRITE ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
+          if ( any_wfc ) then
+            WRITE ( kunit_EFGALL , * )  ntype - 1
+          else
+            WRITE ( kunit_EFGALL , * )  ntype
+            WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
+            WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+          endif
           WRITE ( kunit_EFGALL )  efg_t 
         endif
         
@@ -1987,20 +2029,20 @@ SUBROUTINE efg_acf
   CLOSE ( kunit_EFGACFFF )      
 
   deallocate ( norm )
-  deallocate ( acfxx , acfyy , acfzz )
-  deallocate ( acfxy , acfxz , acfyz )
   deallocate ( vxxt  , vyyt  , vzzt  )
   deallocate ( vxyt  , vxzt  , vyzt  )
+  deallocate ( v11t  , v22t  , v33t  )
+  deallocate ( etat                  )
+  deallocate ( Ut                    )
   deallocate ( vxx0  , vyy0  , vzz0  )
   deallocate ( vxy0  , vxz0  , vyz0  )
-  deallocate ( v11t  , v22t  , v33t  )
   deallocate ( v110  , v220  , v330  )
-  deallocate ( acf11 , acf22 , acf33 )
   deallocate ( eta0                  )
-  deallocate ( etat                  )
-  deallocate ( acfeta                )
   deallocate ( U0                    )
-  deallocate ( Ut                    )
+  deallocate ( acfxx , acfyy , acfzz )
+  deallocate ( acfxy , acfxz , acfyz )
+  deallocate ( acf11 , acf22 , acf33 )
+  deallocate ( acfeta                )
   deallocate ( acfU                  )
 
   return
@@ -2436,16 +2478,19 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
   !  ================
   !   deallocation
   !  ================
+  deallocate ( U                 )
+  deallocate ( S                 )
   deallocate ( nmr               )   
   deallocate ( vzzmini , vzzmaxi )
-  deallocate ( U                 )
   deallocate ( vzzm              )
   deallocate ( vzzma             )
+  deallocate ( vzzsq             )
   deallocate ( etam              )
   deallocate ( pvzz              )
   deallocate ( rho_z             )
   deallocate ( sigmavzz          )
-  deallocate ( vzzsq             )
+  deallocate ( m_U               )                       ! average U per type
+  deallocate ( m2_U              )                   ! averarge U_iU_j per type 
 
 100 FORMAT(I7,1X,' ATOM ',A3,'  minVZZ = ',F10.5,' maxVZZ = ',F10.5,& 
              ' <VZZ> =  ',F10.5,' <|VZZ|> =  ',F10.5,' mETA =  ',F10.5, &
@@ -2609,8 +2654,8 @@ END SUBROUTINE nmr_convention
 
 ! *********************** SUBROUTINE efg_alloc *********************************
 !
-! allocate quantities related to efg calculation
-! /deallocate 
+! Allocate quantities related to efg calculation
+! /Deallocate 
 !
 ! ******************************************************************************
 SUBROUTINE efg_alloc 
@@ -2646,7 +2691,7 @@ END SUBROUTINE efg_alloc
 
 ! *********************** SUBROUTINE efg_dealloc *******************************
 !
-! deallocate quantities related to efg calculation
+! Deallocate quantities related to efg calculation
 !
 ! ******************************************************************************
 SUBROUTINE efg_dealloc
@@ -2675,9 +2720,9 @@ END SUBROUTINE efg_dealloc
 
 ! *********************** SUBROUTINE efg_mesh_alloc ****************************
 !
-! allocate quantities related to the real space or reciprocal space mesh used to
+! Allocate quantities related to the real space or reciprocal space mesh used to
 ! calculate efg's
-! /deallocate 
+! /Deallocate 
 !
 ! ******************************************************************************
 SUBROUTINE efg_mesh_alloc
@@ -2742,9 +2787,9 @@ END SUBROUTINE efg_mesh_alloc
 
 ! *********************** SUBROUTINE efg_mesh_dealloc **************************
 !
-! allocate quantities related to the real space or reciprocal space mesh used to
+! Allocate quantities related to the real space or reciprocal space mesh used to
 ! calculate efg's
-! /deallocate 
+! /Deallocate 
 !
 ! ******************************************************************************
 SUBROUTINE efg_mesh_dealloc

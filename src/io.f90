@@ -185,11 +185,19 @@ SUBROUTINE io_init
 
   allocate( kunit_bak_proc(0:numprocs) )
   kunit_bak_proc(myrank) = kunit_conf_proc + myrank
-    
 
   return
 
 END SUBROUTINE io_init
+
+SUBROUTINE io_end
+  implicit none
+
+  deallocate( kunit_bak_proc )
+
+  return
+
+END SUBROUTINE io_end
 
 ! *********************** SUBROUTINE io_open ***********************************
 !

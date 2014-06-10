@@ -1582,7 +1582,7 @@ END SUBROUTINE initialize_coulomb
 
 ! *********************** SUBROUTINE finalize_coulomb **************************
 !> \brief
-!! deallocate main quanties used during coulombic calculation
+!! Deallocate main quanties used during coulombic calculation
 ! ******************************************************************************
 SUBROUTINE finalize_coulomb
 
@@ -1822,7 +1822,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   endif
 
   ! ====================================================== 
-  !              Surface contribution 
+  !              Surface contribution ????? 
   ! ====================================================== 
 
   ! electrostatic energy and virial
@@ -1884,6 +1884,12 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
     fx       = fx + ( fx_rec  + fx_dir                     ) * coul_factor
     fy       = fy + ( fy_rec  + fy_dir                     ) * coul_factor
     fz       = fz + ( fz_rec  + fz_dir                     ) * coul_factor
+!    fx       = fx + ( fx_dir                     ) * coul_factor
+!    fy       = fy + ( fy_dir                     ) * coul_factor
+!    fz       = fz + ( fz_dir                     ) * coul_factor
+!    fx       = fx + ( fx_rec                     ) * coul_factor
+!    fy       = fy + ( fy_rec                     ) * coul_factor
+!    fz       = fz + ( fz_rec                     ) * coul_factor
   endif
 
   
@@ -1910,6 +1916,7 @@ do ia = 1 , natm
    ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) ,   ef_self ( ia , 3 )
  enddo
 
+!#endif
  WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir*coul_factor , &
                                     ' u_rec      = ', u_rec*coul_factor , &
                                     ' u_surf     = ', u_surf*coul_factor, & 
@@ -1995,7 +2002,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: fdamp , fdampdiff
   real(kind=dp) :: fdamp2 , fdampdiff2
   logical       :: ldamp 
-  logical       :: charge_charge, charge_dipole, dipole_dipole, double_damping
+  logical       :: charge_charge, charge_dipole, dipole_dipole, double_damping , dip_i , dip_j
 
   charge_charge = task(1)
   charge_dipole = task(2)
@@ -2034,6 +2041,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     muix = mu ( ia , 1 )
     muiy = mu ( ia , 2 )
     muiz = mu ( ia , 3 )
+    dip_i = ( muix .ne. 0.0d0 ) .and. ( muiy .ne. 0.0d0 ) .and. ( muiz .ne. 0.0d0 )
 
     do j1 = jb, je
 
@@ -2050,6 +2058,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         mujx = mu ( ja , 1 )
         mujy = mu ( ja , 2 )
         mujz = mu ( ja , 3 )
+        dip_j = ( mujx .ne. 0.0d0 ) .and. ( mujy .ne. 0.0d0 ) .and. ( mujz .ne. 0.0d0 )
         qij  = qi * qj
         rxj  = rx(ja)
         ryj  = ry(ja)
@@ -2084,7 +2093,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           CALL TT_damping_functions(pol_damp_b(jta,ita,jta),pol_damp_c(jta,ita,jta),d,fdamp2,fdampdiff2,pol_damp_k(jta,ita,jta) )
         else
           fdamp = 1.0_dp
+          fdamp2 = 1.0_dp
           fdampdiff = 0.0d0
+          fdampdiff2 = 0.0d0
         endif
 
         expon = EXP ( - alpha2 * d2 )    / piroot
@@ -2222,7 +2233,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         !                  dipole-dipole interaction
         ! ===========================================================
 
-        if ( dipole_dipole ) then
+        if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
+        !if ( dipole_dipole ) then
+          
           ! energy
           u_dir = u_dir - ( muix * Txx * mujx + &
                             muix * Txy * mujy + &
@@ -2316,7 +2329,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         !                  charge-dipole interaction
         ! ===========================================================
 
-        if ( charge_dipole ) then
+        if ( charge_dipole .and. ( dip_i .or. dip_j ) ) then
+        !if ( charge_dipole ) then
           ! electrostatic energy
           u_dir = u_dir - ( qi * ( Tx * mujx + Ty * mujy + Tz * mujz ) ) + ( qj * ( Tx * muix + Ty * muiy + Tz * muiz ) )
       
@@ -3107,225 +3121,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
 END SUBROUTINE moment_from_pola_scf
 
-!SUBROUTINE moment_from_pola_cng ( mu_ind )
-!
-!  USE io,               ONLY :  ionode , stdout , ioprintnode
-!  USE constants,        ONLY :  coul_factor
-!  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia, dipia_ind , qia , ntypemax, polia , itype
-!  USE control,          ONLY :  longrange
-!  USE thermodynamic,    ONLY :  u_pol, u_coul
-!  USE time,             ONLY :  time_moment_from_pola
-!  USE dumb
-!
-!
-!
-!  implicit none
-!
-!  ! global
-!  real(kind=dp) , intent (out) :: mu_ind ( natm , 3 )
-!
-!  ! local
-!  integer :: ia , it , npol, alpha
-!  logical :: linduced
-!  real(kind=dp) :: tttt , tttt2
-!  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
-!  real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), efg_dummy(natm,3,3)
-!  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax )
-!  logical       :: task_static (3), task_ind(3), ldip
-!  dectime
-!
-!!c
-!!c --- parameters to set
-!!c     np = dimension of the problem
-!!c
-!      integer np,mp
-!!      parameter (np=100,mp=100)
-!!c
-!!c --- computed parameters
-!!c
-!      integer nwp,nilmp,nwlmp
-!!      parameter (nwp=15*natm+mp,nilmp=mp+4,nwlmp=mp*(2*np+1)+1)
-!!c
-!      logical two
-!      character*2 ctest
-!      character*3 marker(3)
-!      integer i,j,k,kk,absrel,iter,iter0,imp,iom,imode(3),mode,bfgsb,&
-!       select,bfgsp,izs(1),nc,test,p(10),m
-!      integer, dimension (:), allocatable :: ilm1,ilm0 
-!      real(kind=dp) ::  rzs(1)
-!      real(kind=dp) :: r,epsneg,restol,dzs(1)
-!      real(kind=dp), dimension (:)  , allocatable :: b,bb,X,XX,w,wlm1,wlm0
-!      real(kind=dp), dimension (:,:), allocatable :: l,a,pmat1,pmat0
-!      external mvquad
-!!c     double precision drand
-!!c
-!!c     --- Lapack variables
-!!c
-!      integer info,imin
-!      real(kind=dp) :: eigmin
-!      real(kind=dp) , dimension (:)    , allocatable :: eig,work
-!      real(kind=dp) , dimension (:,:)  , allocatable :: mat
-!!c
-!      integer ln
-!      common /cquad/ln
-!      ln=np
-!
-!      np=3*natm
-!      mp=np
-!      nwp=5*np+mp
-!      nilmp=mp+4
-!      nwlmp=mp*(2*np+1)+1
-!
-!      allocate ( ilm1(nilmp),ilm0(nilmp) )
-!      allocate ( l(np,np),a(np,np),b(np),bb(np),x(np),xx(np),&
-!       w(nwp),pmat1(np,np),pmat0(np,np),wlm1(nwlmp),wlm0(nwlmp) )
-!      allocate ( mat(np,np) , eig(np),work(3*np-1) ) 
-!
-!
-!
-!  tttt2=0.0_dp
-!  statime
-!
-!  ! =========================================================
-!  !  Is there any polarizability ? if yes linduced = .TRUE.
-!  ! =========================================================
-!  linduced = .false.
-!  do it = 1 , ntype
-!    if ( lpolar ( it ) ) linduced = .true.
-!  enddo
-!  if ( .not. linduced ) then
-!    return
-!  endif
-!
-!  ! =============================================
-!  !  calculate static Efield ( charge + dipoles )
-!  ! =============================================
-!  Efield_stat = 0.0_dp
-!  fx      = 0.0_dp
-!  fy      = 0.0_dp
-!  fz      = 0.0_dp
-!
-!  ! =============================================
-!  !  coulombic energy , forces (field) and virial
-!  ! =============================================
-!  ldip=.false.
-!  task_static(1) = .true.
-!  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
-!  if ( ldip ) then
-!    task_static = .true.
-!  endif
-!  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , .true. , task_static , do_efield=.true. , do_efg=.false. )
-!  u_coul_stat = u_coul
-!
-!  fx      = 0.0_dp
-!  fy      = 0.0_dp
-!  fz      = 0.0_dp
-!
-!  ! =============================================
-!  !  init total Efield to static only
-!  ! =============================================
-!  Efield = Efield_stat
-!
-!  iter = 0
-!  rmsd = HUGE(0.0d0)
-!  ! =========================
-!  !  charges are set to zero 
-!  ! =========================
-!  qch_tmp = qch
-!  qia_tmp = qia
-!  qch = 0.0_dp
-!  qia = 0.0_dp
-!  task_ind(1) = .false.
-!  task_ind(2) = .false.
-!  task_ind(3) = .true.
-!  ! ================================
-!  !   m1cg1 call
-!  ! ================================
-!    write (stdout,'(a,t100,a)') "= LS solved by the unpreconditioned CG", "="
-!!c
-!  do ia = 1, natm
-!    X( ia )            = dipia_ind( ia ,1 )
-!    X( natm + ia )     = dipia_ind( ia ,2 )
-!    X( 2 * natm + ia ) = dipia_ind( ia ,3 )
-!  enddo
-!
-!          np = 3 * natm
-!          epsneg=1.d-8
-!          restol=1.d-10
-!          absrel=0
-!          iter=10*np
-!          imp=2
-!          iom=stdout
-!          imode(1)=0
-!          imode(2)=0
-!          imode(3)=0
-!!c
-!!c         --- use a preconditioning matrix ?
-!!c
-!          bfgsp=0
-!!c
-!!c         --- build a preconditioning matrix ?
-!!c
-!          bfgsb=1
-!          pmat1(1,1)=0.d0
-!          select=2
-!!c
-!!c         --- two LS to wolve ?
-!!c
-!          two=.false.
-!!c
-!!c         --- call the solver
-!!c
-!          call m1cg1 (mvquad,np,x,b,a,xx,bb,two,epsneg,restol,absrel,&
-!                      iter,imp,iom,imode,mode,w,nwp,&
-!                      bfgsp,pmat0,np**2,mp,ilm0,nilmp,wlm0,nwlmp,&
-!                      bfgsb,pmat1,np**2,mp,ilm1,nilmp,wlm1,nwlmp,&
-!                      select,izs,rzs,dzs)
-!          if ((mode.eq.1) .or. (mode.eq.7)) return
-! 
-!
-!    do ia = 1, natm
-!      mu_ind ( ia , 1 )   = X ( ia )
-!      mu_ind ( ia , 2 )   = X ( natm + ia )
-!      mu_ind ( ia , 3 )   = X ( 2* natm + ia )
-!    enddo
-!
-!
-!
-!  ! ===========================
-!  !  charge/force info is recovered
-!  ! ===========================
-!  qch = qch_tmp
-!  qia = qia_tmp
-!
-!  if ( ioprintnode ) then
-!    blankline(stdout)
-!    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iter, ' iterations '
-!    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
-!    blankline(stdout)
-!  endif
-!#ifdef debug
-!  if ( ionode ) then
-!    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
-!    do ia = 1 , natm
-!      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-!      ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
-!    enddo
-!    blankline(stdout)
-!  endif
-!#endif
-!
-!  stotime
-!  addtime(time_moment_from_pola)
-!
-!      deallocate ( ilm1,ilm0 )
-!      deallocate ( l,a,b,bb,x,xx,w,pmat1,pmat0,wlm1,wlm0 )
-!      deallocate ( mat , eig , work ) 
-! 
-!  return
-!
-!END SUBROUTINE moment_from_pola_cng
-
 ! *********************** SUBROUTINE moment_from_WFc ***************************
 !
 !> \brief
@@ -3414,15 +3209,17 @@ SUBROUTINE moment_from_WFc ( mu )
 
   icount = 1
   do ia = 1 , natm 
-    it = itype ( ia ) 
-    if ( lwfc ( it ) .gt. 0 )  then
+    it = itype ( ia )
+    ! loop only on non wannier-centres
+    if ( lwfc ( it ) .lt. 0 )  cycle
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
       k = 0    
       do ja = 1 , natm
         jt = itype (ja) 
-        if ( lwfc ( jt ) .lt. 0 )  then
+        ! check distance to wannier-centres only
+        if ( lwfc ( jt ) .ge. 0 ) cycle 
           rxij  = rxi - rx ( ja )
           ryij  = ryi - ry ( ja )
           rzij  = rzi - rz ( ja )
@@ -3445,11 +3242,8 @@ SUBROUTINE moment_from_WFc ( mu )
 #endif
           endif
 
-        endif
- 
       enddo
       verlet_wfc%point( ia ) = icount-k
-    endif
   enddo
   verlet_wfc%point ( ia_last + 1 ) = icount
 
@@ -3472,7 +3266,7 @@ SUBROUTINE moment_from_WFc ( mu )
     it = itype ( ia ) 
     jb = verlet_wfc%point ( ia )
     je = verlet_wfc%point ( ia + 1 ) - 1
-    if ( lwfc ( it ) .gt. 0 ) then
+    if ( lwfc ( it ) .lt. 0 ) cycle
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
@@ -3493,7 +3287,6 @@ SUBROUTINE moment_from_WFc ( mu )
         mu ( ia , 2 ) = mu ( ia , 2 ) + ryij
         mu ( ia , 3 ) = mu ( ia , 3 ) + rzij
       enddo
-    endif
   enddo
 
   ! charges of WFC
@@ -3515,7 +3308,7 @@ SUBROUTINE moment_from_WFc ( mu )
     WRITE ( stdout , '(a)' ) 'atom         |mu| [D]      |mu| [eA]'
     do ia = 1 , natm 
       it = itype ( ia )  
-      if ( lwfc ( it ) .eq. -1 ) cycle
+      if ( lwfc ( it ) .lt. 0 ) cycle
       dmu = mu ( ia , 1 ) * mu ( ia , 1 ) + mu ( ia , 2 ) * mu ( ia , 2 ) + mu ( ia , 3 ) *  mu ( ia , 3 )
       dmu = SQRT ( dmu ) 
       WRITE ( stdout , '(a,4x,2e16.8)' ) atype(ia), dmu * Debye_unit, dmu 

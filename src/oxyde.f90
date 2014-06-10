@@ -17,10 +17,10 @@ MODULE oxyde
 ! necessaire... juste à partir de la liste des elements et du numero
 ! d'oxydation par exemple.
 
-  integer , PARAMETER :: noxyde = 7   
+  integer , PARAMETER :: noxyde = 8   
   integer , PARAMETER :: nelem  = 57
 
-  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3, geo2  ! valeur en entré
+  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3, geo2 , la2o3  ! valeur en entré
 
   ! type structur pour l'element chimique 
   TYPE element
@@ -40,7 +40,7 @@ MODULE oxyde
 
   ! tableau de type element = tableau periodique  ( nelem_max = 57 )
   TYPE(element), dimension (:) , allocatable :: tabper
-  ! tableau de type oxydes                        ( noxyde_max = 6 ) 
+  ! tableau de type oxydes                        ( noxyde_max = 8 ) 
   TYPE(oxy)    , dimension (:) , allocatable :: oxydes 
 
 CONTAINS
@@ -111,10 +111,10 @@ SUBROUTINE gen_tab_period
   ! # 30
   ! # 31
   ! # 32
-  tabper(20)%elename='Ge'
-  tabper(20)%numoxyd=4
-  tabper(20)%valence=4
-  tabper(20)%massele=72.92_dp
+  tabper(32)%elename='Ge'
+  tabper(32)%numoxyd=4
+  tabper(32)%valence=4
+  tabper(32)%massele=72.92_dp
   ! # 33
   ! # 34
   ! # 35
@@ -140,6 +140,10 @@ SUBROUTINE gen_tab_period
   ! # 55
   ! # 56
   ! # 57
+  tabper(57)%elename='La'
+  tabper(57)%numoxyd=3
+  tabper(57)%valence=9
+  tabper(57)%massele=138.90547_dp
 
   return
 
@@ -200,12 +204,19 @@ SUBROUTINE gen_oxydes
   oxydes(7)%nel_ox(1)=1
   oxydes(7)%nel_ox(2)=2
   oxydes(7)%relcon = geo2 
+  ! # 8 
+  oxydes(8)%nameox='La2O3'
+  oxydes(8)%ele_ox(1)='La'
+  oxydes(8)%ele_ox(2)='O'
+  oxydes(8)%nel_ox(1)=2
+  oxydes(8)%nel_ox(2)=3
+  oxydes(8)%relcon = la2o3 
 
   return
 
 END SUBROUTINE
 
-SUBROUTINE deallocate_tabper_oxydes
+SUBROUTINE tabper_oxydes_dalloc
 
   implicit none
 
@@ -217,7 +228,7 @@ SUBROUTINE deallocate_tabper_oxydes
   ENDIF
 
   return
-END SUBROUTINE
+END SUBROUTINE tabper_oxydes_dalloc
 
 
 END MODULE oxyde

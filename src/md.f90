@@ -53,11 +53,11 @@ MODULE md
   real(kind=dp) :: tauPberendsen        !< characteristic time in berendsen barostat   (simple rescale if tauPberendsen = dt )
   real(kind=dp) :: taucsvr              !< characteristic time in Stochastic velocity rescaling (simple rescale if taucsvr = 0.0 )
   real(kind=dp) :: nuandersen           !< characteristic frequency in andersen thermostat ( to be merged with timesca_thermo )
-  real(kind=dp) , dimension ( : ) , allocatable :: vxi , xi              !< general coordinates of the thermostat coupled to the particules (Nose-Hoover Chain : nhcn )
-  real(kind=dp) , dimension ( : ) , allocatable :: vxib, xib             !< general coordinates of the thermostat coupled to the volume (Nose-Hoover Chain : nhcnp )
-  real(kind=dp) :: ve, xe, xe0              !< general coordinates of the barostat (Andersen) 
   real(kind=dp) :: annealing            !< velocity rescaling
   logical       :: first_time_xe0
+  real(kind=dp), dimension(:)    , allocatable :: vxi , xi           !< thermostat coordinates coupled to the particules (Nose-Hoover Chain : nhcn )
+  real(kind=dp), dimension(:)    , allocatable :: vxib, xib          !< thermostat coordinates coupled to the volume (Nose-Hoover Chain : nhcnp )
+  real(kind=dp)                                :: ve, xe, xe0        !< coordinates of the barostat (Andersen) 
 
   ! ================================================
   !     algorithm for dynamic integration
@@ -151,6 +151,8 @@ SUBROUTINE md_init
   !  check mdtag namelist
   ! ======================
   CALL md_check_tag
+
+  CALL extended_coordinates_alloc
   ! ===================
   !  print mdtag info
   ! ===================
@@ -280,31 +282,11 @@ SUBROUTINE md_check_tag
     integrator = 'nve-vv' 
   endif
 
-  ! allocation of thermostat coordinates
-  if ( integrator .eq. 'nvt-nhc2' ) then 
-    allocate ( vxi(2) , xi(2) )
-    vxi  = 0.0_dp
-    xi   = 0.0_dp
-    nhc_n= 2
-  endif 
-  if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then 
-    if ( nhc_n == 1 ) then
-      write(stdout,'(a)') 'ERROR : nhc_n = 1 is not allowed with Nose Hoover chains thermostats'
-      stop
-    endif
-    allocate ( vxi(nhc_n) , xi(nhc_n) )
-    vxi = 0.0_dp
-    xi  = 0.0_dp
-    if ( integrator .eq. 'npt-nhcpn' ) then
-      allocate ( vxib(nhc_n) , xib(nhc_n) )
-      vxib = 0.0_dp
-      xib  = 0.0_dp
-      ve   = 0.0_dp
-      xe   = 0.0_dp
-      !xe0  = log(simu_cell%omega)/3.0_dp
-      !xe0 = simu_cell%omega**(1.0/3.0_dp) 
-    endif
-  endif 
+
+  if ( nhc_n == 1 ) then
+    write(stdout,'(a)') 'ERROR : nhc_n = 1 is not allowed with Nose Hoover chains thermostats'
+    stop
+  endif
 
   ! annealing 
   if ( annealing .ne. 1.0_dp ) then
@@ -325,13 +307,58 @@ SUBROUTINE md_check_tag
   tauTberendsen  = tauTberendsen  * time_unit
   tauPberendsen  = tauPberendsen  * time_unit
 
+  return
+
+END SUBROUTINE md_check_tag
+
+SUBROUTINE extended_coordinates_alloc
+
+  implicit none
+
+  ! allocation of thermostat coordinates
+  if ( integrator .eq. 'nvt-nhc2' ) then
+    allocate ( vxi(2) , xi(2) )
+    vxi  = 0.0_dp
+    xi   = 0.0_dp
+    nhc_n= 2
+  endif
+  if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then
+    allocate ( vxi(nhc_n) , xi(nhc_n) )
+    vxi = 0.0_dp
+    xi  = 0.0_dp
+    if ( integrator .eq. 'npt-nhcpn' ) then
+      allocate ( vxib(nhc_n) , xib(nhc_n) )
+      vxib = 0.0_dp
+      xib  = 0.0_dp
+      ve   = 0.0_dp
+      xe   = 0.0_dp
+    endif
+  endif
 
 
   return
 
+END SUBROUTINE extended_coordinates_alloc
 
-END SUBROUTINE md_check_tag
+SUBROUTINE extended_coordinates_dealloc
 
+  implicit none
+
+  ! Deallocation of thermostat coordinates
+  if ( integrator .eq. 'nvt-nhc2' ) then
+    deallocate ( vxi , xi )
+  endif
+  if (  integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then
+    deallocate ( vxi , xi )
+    if ( integrator .eq. 'npt-nhcpn' ) then
+      deallocate ( vxib , xib )
+    endif
+  endif
+
+
+  return
+
+END SUBROUTINE extended_coordinates_dealloc
 
 ! *********************** SUBROUTINE md_print_info *****************************
 !> \brief

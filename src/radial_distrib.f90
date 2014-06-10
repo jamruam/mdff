@@ -107,7 +107,7 @@ END SUBROUTINE gr_init
 ! *********************** SUBROUTINE gr_alloc **********************************
 !
 !> \brief
-!! allocate g(r) function 
+!! Allocate g(r) function 
 !
 ! ******************************************************************************
 SUBROUTINE gr_alloc
@@ -129,7 +129,7 @@ END SUBROUTINE gr_alloc
 ! *********************** SUBROUTINE gr_dealloc ********************************
 !
 !> \brief
-!! deallocate g(r) function 
+!! Deallocate g(r) function 
 !
 ! ******************************************************************************
 SUBROUTINE gr_dealloc
@@ -206,7 +206,7 @@ END SUBROUTINE gr_print_info
 !
 !> \brief
 !! main driver of radial distribution function calculation
-!! this subroutine read the trajectory, allocate, call the  
+!! this subroutine read the trajectory, Allocate, call the  
 !
 ! ******************************************************************************
 SUBROUTINE grcalc
@@ -391,7 +391,7 @@ SUBROUTINE grcalc
 
   !CALL static_struc_fac ( grr , nbins , npairs ) 
 
-  deallocate ( grr , nr , cint )
+  deallocate ( grr ,nr , cint)
   CALL gr_dealloc
 
   return

@@ -384,23 +384,23 @@ SUBROUTINE write_thermo ( step , kunit , key )
               '  Thermodynamic information '/ &
      &        '  ---------------------------------------------'/ &
      &        '  step                  = ',I9/ &
-     &        '  time                  = ',E15.8/ &
-     &        '  Ekin                  = ',E15.8/ &
-     &        '  Temp                  = ',E15.8/ &
-     &        '  Utot                  = ',E15.8/ &
-     &        '  U_vdw                 = ',E15.8/ &
-     &        '  U_coul                = ',E15.8/ &
-     &        '  Pressure              = ',E15.8/ &
-     &        '  Pvir_vdw              = ',E15.8/ &
-     &        '  Pvir_coul             = ',E15.8/ &
-     &        '  Pvir_tot              = ',E15.8/ &
-     &        '  volume                = ',E15.8/ &
-     &        '  a cell                = ',E15.8/ &
-     &        '  b cell                = ',E15.8/ &
-     &        '  c cell                = ',E15.8/ &
+     &        '  time                  = ',E19.12/ &
+     &        '  Ekin                  = ',E19.12/ &
+     &        '  Temp                  = ',E19.12/ &
+     &        '  Utot                  = ',E19.12/ &
+     &        '  U_vdw                 = ',E19.12/ &
+     &        '  U_coul                = ',E19.12/ &
+     &        '  Pressure              = ',E19.12/ &
+     &        '  Pvir_vdw              = ',E19.12/ &
+     &        '  Pvir_coul             = ',E19.12/ &
+     &        '  Pvir_tot              = ',E19.12/ &
+     &        '  volume                = ',E19.12/ &
+     &        '  a cell                = ',E19.12/ &
+     &        '  b cell                = ',E19.12/ &
+     &        '  c cell                = ',E19.12/ &
      &        '  ---------------------------------------------'/ &
-     &        '  Etot                  = ',E15.8/ &
-     &        '  Htot                  = ',E15.8)
+     &        '  Etot                  = ',E19.12/ &
+     &        '  Htot                  = ',E19.12)
 
  1000 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8) 
  1001 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8,'  xib = ',<nhc_n>e16.8,'  vxib = ', <nhc_n>e16.8 ,'  xe = ',e16.8  ,'  ve = ',e16.8 ) 

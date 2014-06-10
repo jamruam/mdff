@@ -60,6 +60,7 @@ MODULE config
   real(kind=dp), dimension(:)    , allocatable :: xs  , ys  , zs     !< last positions in verlet list
   real(kind=dp), dimension(:)    , allocatable :: rix , riy , riz    !< positions in the center of mass reference 
 
+
   real(kind=dp), dimension(:)    , allocatable :: massia             !< mass on ion 
   real(kind=dp), dimension(:)    , allocatable :: qia                !< charge on ion 
   real(kind=dp), dimension(:)    , allocatable :: quadia             !< quadrupolar moment on ion
@@ -317,7 +318,7 @@ END SUBROUTINE config_alloc
 
 ! *********************** SUBROUTINE config_dealloc ****************************
 !> \brief
-!! deallocate config quantities (see config_alloc)
+!! Deallocate config quantities (see config_alloc)
 ! ******************************************************************************
 SUBROUTINE config_dealloc
 
@@ -333,13 +334,14 @@ SUBROUTINE config_dealloc
   deallocate( fx  , fy  , fz )
   deallocate( fxs , fys , fzs )
   deallocate( rxs , rys , rzs )
+  deallocate( xs , ys , zs )
   deallocate( atype )
   deallocate( itype )
+  deallocate( allowedmove )
   deallocate( verlet_vdw%list , verlet_vdw%point )
   deallocate( verlet_coul%list , verlet_coul%point )
-  deallocate( xs , ys , zs )
-  deallocate( massia ) 
   deallocate( qia ) 
+  deallocate( massia ) 
   deallocate( quadia ) 
   deallocate( dipia ) 
   deallocate( dipia_ind ) 
@@ -614,6 +616,8 @@ SUBROUTINE write_trajff_xyz
   endif
 
  200 FORMAT(A2,9E20.12)
+
+  deallocate ( xxx  , yyy  , zzz )
 
   return
 

@@ -272,7 +272,7 @@ SUBROUTINE stochio_calc
     endif
   endif
 
-  CALL deallocate_tabper_oxydes
+  CALL tabper_oxydes_dalloc 
 
   return
 
@@ -300,6 +300,7 @@ SUBROUTINE stochio_init
                            geo2          , &
                            na2o          , &
                            b2o3          , &
+                           la2o3         , &
                            cao           , &
                            al2o3         , &
                            p2o5
@@ -359,9 +360,11 @@ SUBROUTINE stochio_default_tag
   sio2    = 0._dp
   na2o    = 0._dp
   b2o3    = 0._dp
+  la2o3   = 0._dp
   cao     = 0._dp
   p2o5    = 0._dp
   al2o3   = 0._dp
+  geo2    = 0._dp
   def     = 'pct'
   density = 0.0d0
 

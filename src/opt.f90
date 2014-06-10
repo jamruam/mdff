@@ -602,7 +602,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
       if ( MIN ( u0 , u1 ) .gt. ukeep ) then
         Eis = u0
+        deallocate( gx  , gy  , gz )
+        deallocate( hx  , hy  , hz )
+        deallocate( xix , xiy , xiz )
         deallocate( fx_sum, fy_sum, fz_sum )
+        deallocate( xtmp , ytmp , ztmp  )
         return
       else 
         if ( u0 .lt. u1 ) then
@@ -785,7 +789,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
               ( xiz ( ja ) + gz ( ja ) ) * xiz ( ja )
     enddo
     if (gg .eq. 0.0_dp) then 
+      deallocate( gx  , gy  , gz )
+      deallocate( hx  , hy  , hz )
+      deallocate( xix , xiy , xiz )
       deallocate( fx_sum, fy_sum, fz_sum )
+      deallocate( xtmp , ytmp , ztmp  )
       return
     endif
     gam = dgg / gg
@@ -813,12 +821,11 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
   enddo 
 
 
-  deallocate( xtmp , ytmp , ztmp  )
-  deallocate( fx_sum, fy_sum, fz_sum )
   deallocate( gx  , gy  , gz )
   deallocate( hx  , hy  , hz )
   deallocate( xix , xiy , xiz )
-
+  deallocate( fx_sum, fy_sum, fz_sum )
+  deallocate( xtmp , ytmp , ztmp  )
 
   return
 

@@ -345,19 +345,20 @@ PROGRAM main_MDFF
     endif
  
     ! ==============================================
-    ! deallocate prop quantities
+    ! Deallocate prop quantities
     ! ==============================================
     CALL msd_dealloc
     CALL vacf_dealloc
 
     ! ==============================================
-    ! deallocate coulombic related quantities
+    ! Deallocate coulombic related quantities
     ! ==============================================
     CALL finalize_coulomb
     ! ==============================================
-    ! deallocate principal quantites
+    ! Deallocate principal quantites
     ! ==============================================
     CALL config_dealloc
+    CALL extended_coordinates_dealloc
 
 ! test
 #ifdef block
@@ -382,7 +383,7 @@ PROGRAM main_MDFF
   stotime
   addtime(timetot) 
   CALL print_time_info ( stdout ) 
-  !CALL io_end
+  CALL io_end
   CALL MPI_FINALIZE(ierr)
 
 END PROGRAM main_MDFF
