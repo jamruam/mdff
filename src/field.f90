@@ -3295,6 +3295,7 @@ SUBROUTINE moment_from_WFc ( mu )
   if ( ionode .and. lwrite_dip_wfc ) then 
     OPEN ( UNIT = kunit_DIPWFC , FILE='DIPWFC' )     
     do ia= 1 , natm
+      if ( lwfc ( it ) .lt. 0 ) cycle
       WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype( ia ) , mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
     enddo
     CLOSE ( kunit_DIPWFC ) 

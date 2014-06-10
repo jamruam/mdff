@@ -112,7 +112,7 @@ SUBROUTINE gen_tab_period
   ! # 31
   ! # 32
   tabper(32)%elename='Ge'
-  tabper(32)%numoxyd=4
+  tabper(32)%numoxyd=4.0_dp
   tabper(32)%valence=4
   tabper(32)%massele=72.92_dp
   ! # 33
@@ -141,7 +141,7 @@ SUBROUTINE gen_tab_period
   ! # 56
   ! # 57
   tabper(57)%elename='La'
-  tabper(57)%numoxyd=3
+  tabper(57)%numoxyd=3.0_dp
   tabper(57)%valence=9
   tabper(57)%massele=138.90547_dp
 
