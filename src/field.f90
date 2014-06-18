@@ -114,34 +114,39 @@ MODULE field
   real(kind=dp) :: BDbmhftd ( ntypemax , ntypemax )
 
 
-
   ! ============================================================  
-  !                    FORCE FIELD 
+  !                    force field type info 
   ! ============================================================  
 
   ! type dependent properties
-  real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet tested one everywhere )
+  real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet tested everywhere )
   real(kind=dp)    :: qch      ( ntypemax )            !< charges 
   real(kind=dp)    :: quad_efg ( ntypemax )            !< quadrupolar moment
   real(kind=dp)    :: dip      ( ntypemax , 3 )        !< dipoles 
   real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    !< polarizability if lpolar( it ) = .true. 
-  real(kind=dp)    :: pol_damp_b ( ntypemax, ntypemax,ntypemax ) !< dipole damping : parameter b [length]^-1
-  real(kind=dp)    :: pol_damp_c ( ntypemax, ntypemax,ntypemax ) !< dipole damping : parameter c no units
-  integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax ) !< dipole damping : Tang-Toennies function order
 
-  logical          :: lpolar   ( ntypemax )            !< induced moment from pola 
+  ! =====================================================
+  !                 polarizability  
+  ! =====================================================  
+  real(kind=dp)    :: conv_tol_ind                                   !< convergence tolerance of the scf induced dipole calculation
+  integer          :: min_scf_pol_iter                               !< 
+  integer          :: max_scf_pol_iter                               !< 
+  logical          :: lpolar   ( ntypemax )                          !< induced moment from pola. Is this type of ion polarizable ?
   logical          :: ldip_damping ( ntypemax , ntypemax , ntypemax) !< dipole damping 
-  integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
-  real(kind=dp)    :: conv_tol_ind                     !< convergence tolerance of the scf induced dipole calculation
-  integer          :: min_scf_pol_iter
-  integer          :: max_scf_pol_iter
+  real(kind=dp)    :: pol_damp_b ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter b [length]^-1
+  real(kind=dp)    :: pol_damp_c ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter c no units
+  integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax )     !< dipole damping : Tang-Toennies function order
+
+
   character(len=3) :: algo_moment_from_pola            !< set the algorithm used to get induced moments from polarization 
   character(len=3) :: algo_moment_from_pola_allowed(2) !< set the algorithm used to get induced moments from polarization 
   data                algo_moment_from_pola_allowed / 'scf', 'cng' /  !! scf ( self consistent ) or cng ( conjugate gradient )
-  real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
   
+  integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
+  real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
+
   ! ewald sum related 
-  logical          :: lrecip_coul                      !< add reciprocal contribution to coulombic terms
+  logical          :: lrecip_coul                      !< calculate reciprocal contribution to coulombic terms
   real(kind=dp)    :: epsw                             !< accuracy of the ewald sum 
   real(kind=dp)    :: alphaES                          !< Ewald sum parameter 
   real(kind=dp)    :: cutshortrange                    !< Ewald sum parameter cutoff shortrange 
@@ -153,7 +158,6 @@ MODULE field
   TYPE ( rmesh )   :: rm_coul                          !< real space mesh ( see rspace.f90 )
   logical          :: doefield , doefg
 
-  
   real(kind=dp), dimension ( : , : )     , allocatable :: ef_t  !< electric field vector
   real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t !< electric field gradient tensor
 
@@ -196,7 +200,7 @@ SUBROUTINE field_default_tag
 
   
   ! Coulomb
-  lrecip_coul   = .true. ! reciprocal could be switch off
+  lrecip_coul   = .true. ! reciprocal can be switch off
 
   ! direct convergence
   ncelldirect   =  2
@@ -1630,9 +1634,9 @@ END SUBROUTINE finalize_coulomb
 ! ******************************************************************************
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
-  USE constants,        ONLY :  coul_factor
-  USE config, ONLY : natm , itype , atypei, ntype , polia
-  USE io, ONLY : stdout
+  USE constants,        ONLY : coul_unit
+  USE config,           ONLY : natm , itype , atypei, ntype , polia
+  USE io,               ONLY : stdout
 
   implicit none
 
@@ -1725,7 +1729,7 @@ END SUBROUTINE induced_moment
 SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
 
   USE control,          ONLY :  lsurf
-  USE constants,        ONLY :  tpi , piroot, coul_factor, press_unit
+  USE constants,        ONLY :  tpi , piroot, coul_unit, press_unit
   USE config,           ONLY :  natm, qia, rx ,ry ,rz, simu_cell, fx, fy, fz, tau_coul, atype 
   USE thermodynamic,    ONLY :  u_coul, u_pol, pvirial_coul
   USE io,               ONLY :  stdout
@@ -1869,27 +1873,27 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   ! =====================================================
 
   if ( lsurf ) then
-    u_coul   =      ( u_dir   + u_rec   + u_surf   + u_self  + u_pol  ) * coul_factor
+    u_coul   =      ( u_dir   + u_rec   + u_surf   + u_self  + u_pol  ) * coul_unit
     ef       =      ( ef_dir  + ef_rec  + ef_surf  + ef_self          ) 
-    efg      =      ( efg_dir + efg_rec + efg_self                    ) * coul_factor
-    tau_coul =      ( tau_dir + tau_rec                               ) * coul_factor / press_unit
-    fx       = fx + ( fx_rec  + fx_dir  + fx_surf                     ) * coul_factor
-    fy       = fy + ( fy_rec  + fy_dir  + fy_surf                     ) * coul_factor
-    fz       = fz + ( fz_rec  + fz_dir  + fz_surf                     ) * coul_factor
+    efg      =      ( efg_dir + efg_rec + efg_self                    ) * coul_unit
+    tau_coul =      ( tau_dir + tau_rec                               ) * coul_unit / press_unit
+    fx       = fx + ( fx_rec  + fx_dir  + fx_surf                     ) * coul_unit
+    fy       = fy + ( fy_rec  + fy_dir  + fy_surf                     ) * coul_unit
+    fz       = fz + ( fz_rec  + fz_dir  + fz_surf                     ) * coul_unit
   else
-    u_coul   =      ( u_dir   + u_rec   + u_self  + u_pol  ) * coul_factor
+    u_coul   =      ( u_dir   + u_rec   + u_self  + u_pol  ) * coul_unit
     ef       =      ( ef_dir  + ef_rec  + ef_self          ) 
-    efg      =      ( efg_dir + efg_rec + efg_self         ) * coul_factor
-    tau_coul =      ( tau_dir + tau_rec                    ) * coul_factor / press_unit
-    fx       = fx + ( fx_rec  + fx_dir                     ) * coul_factor
-    fy       = fy + ( fy_rec  + fy_dir                     ) * coul_factor
-    fz       = fz + ( fz_rec  + fz_dir                     ) * coul_factor
-!    fx       = fx + ( fx_dir                     ) * coul_factor
-!    fy       = fy + ( fy_dir                     ) * coul_factor
-!    fz       = fz + ( fz_dir                     ) * coul_factor
-!    fx       = fx + ( fx_rec                     ) * coul_factor
-!    fy       = fy + ( fy_rec                     ) * coul_factor
-!    fz       = fz + ( fz_rec                     ) * coul_factor
+    efg      =      ( efg_dir + efg_rec + efg_self         ) * coul_unit
+    tau_coul =      ( tau_dir + tau_rec                    ) * coul_unit / press_unit
+    fx       = fx + ( fx_rec  + fx_dir                     ) * coul_unit
+    fy       = fy + ( fy_rec  + fy_dir                     ) * coul_unit
+    fz       = fz + ( fz_rec  + fz_dir                     ) * coul_unit
+!    fx       = fx + ( fx_dir                     ) * coul_unit
+!    fy       = fy + ( fy_dir                     ) * coul_unit
+!    fz       = fz + ( fz_dir                     ) * coul_unit
+!    fx       = fx + ( fx_rec                     ) * coul_unit
+!    fy       = fy + ( fy_rec                     ) * coul_unit
+!    fz       = fz + ( fz_rec                     ) * coul_unit
   endif
 
   
@@ -1917,16 +1921,16 @@ do ia = 1 , natm
  enddo
 
 !#endif
- WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir*coul_factor , &
-                                    ' u_rec      = ', u_rec*coul_factor , &
-                                    ' u_surf     = ', u_surf*coul_factor, & 
-                                    ' u_self     = ', u_self*coul_factor, &
-                                    ' u_pol      = ', u_pol*coul_factor , &
+ WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir  * coul_unit , &
+                                    ' u_rec      = ', u_rec  * coul_unit , &
+                                    ' u_surf     = ', u_surf * coul_unit , & 
+                                    ' u_self     = ', u_self * coul_unit , &
+                                    ' u_pol      = ', u_pol  * coul_unit , &
                                     ' u_coul     = ', u_coul
 
 
-  tau_dir  = tau_dir  / press_unit * coul_factor
-  tau_rec  = tau_rec  / press_unit * coul_factor
+  tau_dir  = tau_dir  / press_unit * coul_unit
+  tau_rec  = tau_rec  / press_unit * coul_unit
   CALL print_tensor( tau_dir  ( : , : )     , 'TAU_DIR ' )
   CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
   CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
@@ -2105,8 +2109,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         F3    = F2 + 8.0_dp * alpha5  * d5 * expon / 15.0_dp
 
         ! damping if no damping fdamp == 1 and fdampdiff == 0
-        F1d  = - fdamp + 1.0d0 
-        F2d  = F1d + ( d / 3.0_dp ) * fdampdiff ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
+        F1d   = - fdamp + 1.0d0 
+        F2d   = F1d  + ( d / 3.0_dp ) * fdampdiff  ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
         F1d2  = - fdamp2 + 1.0d0 
         F2d2  = F1d2 + ( d / 3.0_dp ) * fdampdiff2 ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
 
@@ -2951,7 +2955,7 @@ END SUBROUTINE engforce_morse_pbc
 SUBROUTINE moment_from_pola_scf ( mu_ind ) 
 
   USE io,               ONLY :  ionode , stdout , ioprintnode
-  USE constants,        ONLY :  coul_factor
+  USE constants,        ONLY :  coul_unit
   USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , dipia_ind , qia , ntypemax, polia , itype 
   USE control,          ONLY :  longrange
   USE thermodynamic,    ONLY :  u_pol, u_coul
@@ -3085,7 +3089,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
 !#ifdef debug_scf_pola
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
-    'scf = ',iscf,' u_pol = ',u_pol * coul_factor , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
+    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
 !#endif 
 
   enddo ! end of SCF loop

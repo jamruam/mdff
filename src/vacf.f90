@@ -45,8 +45,8 @@ MODULE vacf
   integer , dimension (:) , allocatable :: nvacf                          ! tmax
   real(kind=dp) , dimension (:)   , allocatable :: vacff               ! tmax 
   real(kind=dp) , dimension (:,:) , allocatable :: vxt0 , vyt0 , vzt0  ! natm , t0max
-  integer :: nprop
-  logical :: lvacf
+!  integer :: nprop
+!  logical :: lvacf
 
 CONTAINS
 
@@ -58,6 +58,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE vacf_init
 
+  USE control,          ONLY :  lvacf
   USE io,  ONLY :  stdin , stdout , ionode
 
   implicit none
@@ -161,8 +162,9 @@ END SUBROUTINE vacf_print_info
 ! ******************************************************************************
 SUBROUTINE vacf_alloc
 
-  USE md,       ONLY :  dt
-  USE config,   ONLY :  natm
+  USE control,          ONLY :  lvacf
+  USE md,               ONLY :  dt , npropr
+  USE config,           ONLY :  natm
 
   implicit none
 
@@ -178,7 +180,7 @@ SUBROUTINE vacf_alloc
 
   t0 = 0
   tvacf = 0
-  dtime = nprop * dt 
+  dtime = npropr * dt 
   do i = 1, tmax
     nvacf(i) = 0
     vacff(i) = 0
@@ -194,6 +196,8 @@ END SUBROUTINE vacf_alloc
 ! 
 ! ******************************************************************************
 SUBROUTINE vacf_dealloc
+
+  USE control,          ONLY :  lvacf
 
   implicit none
 

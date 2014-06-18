@@ -476,7 +476,7 @@ END SUBROUTINE beeman
 SUBROUTINE nhcn
 
   USE io,                       ONLY :  ioprint, ioprintnode, stdout
-  USE constants,                ONLY :  dp , boltz
+  USE constants,                ONLY :  dp 
   USE config,                   ONLY :  natm , rx , ry , rz , vx , vy , vz , fx , fy , fz , center_of_mass, ntypemax
   USE md,                       ONLY :  dt, vxi, xi , timesca_thermo, nhc_n,temp
   USE thermodynamic,            ONLY :  temp_r , e_kin , e_nvt , e_tot,u_lj_r,h_tot

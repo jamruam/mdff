@@ -57,15 +57,17 @@ SUBROUTINE md_run ( offset )
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
                                         write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell
   USE control,                  ONLY :  ltraj , longrange , calc , lstatic , lvnlist , lnmlj , lcoulomb , lmorse , &
-                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format
+                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format , lmsd, lvacf
   USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint , ioprintnode
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
-                                        fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n
+                                        fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n, npropr,npropr_start
 
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
   USE field,                    ONLY :  engforce_driver , doefg
   USE mpimdff
+  USE msd
+  USE vacf
 
   implicit none
 
@@ -360,29 +362,28 @@ MAIN:  do itime = offset , npas + (offset-1)
          !  properties on-the-fly
          ! =======================
          ! -----------------------------------------------------------------------------------------
-!         if ( MOD (itime,nprop) .eq. 0 .and. itime.gt.nprop_start) then 
-
+         if ( MOD (itime,npropr) .eq. 0 .and. itime .gt. npropr_start ) then 
            ! =======
            !  lvacf
            ! =======
-!           if ( lvacf ) then
-!             CALL vacf_main 
-!           endif
+           if ( lvacf ) then
+             CALL vacf_main 
+           endif
 
            ! =======
            !  lmsd
            ! =======
-!           if ( lmsd ) then
-!             nmsd = nmsd + 1
-!             CALL msd_main ( nmsd )
-!           endif
+           if ( lmsd ) then
+             CALL msd_sample ( nmsd ) 
+             nmsd = nmsd + 1
+           endif
   
 !#ifdef multi_tau
 !             ntau = ntau + 1
 !             CALL multi_tau_main ( vx , vy , vz , ntau )
 !#endif
 
-!         endif 
+        endif 
         ! ----------------------------------------------------------------------------------
         ! =============================================
         !  compute main thermodynamic quantities
@@ -450,16 +451,16 @@ MAIN:  do itime = offset , npas + (offset-1)
   ! =======
   !  lmsd
   ! =======
-!  if ( lmsd ) then
-!    CALL msd_write_output ( 1 )
-!  endif
+  if ( lmsd ) then
+    CALL msd_write_output ( 1 )
+  endif
 
   ! =======
   !  lvacf
   ! =======
-!  if ( lvacf ) then
-!   CALL vacf_write_output 
-!  endif 
+  if ( lvacf ) then
+   CALL vacf_write_output 
+  endif 
 
 !#ifdef multi_tau
 !    CALL multi_tau_write_output

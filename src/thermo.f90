@@ -115,7 +115,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE calc_thermo
 
-  USE constants,                ONLY :  boltz , press_unit
+  USE constants,                ONLY :  boltz_unit , press_unit
   USE control,                  ONLY :  lreduced , lcsvr
   USE config,                   ONLY :  natm , rho , simu_cell 
   USE md,                       ONLY :  integrator, press
@@ -156,7 +156,7 @@ SUBROUTINE calc_thermo
   pvirial_morse = vir_morse    / omega 
   pvirial_bmhft = vir_bmhft    / omega 
   pvirial_tot   = pvirial_lj + pvirial_coul + pvirial_morse + pvirial_bmhft
-  pressure_tot  = pvirial_tot +  temp_r * boltz / omega
+  pressure_tot  = pvirial_tot +  temp_r * boltz_unit / omega
   pressure_lj   = pvirial_lj   
   pressure_morse= pvirial_morse
   pressure_bmhft= pvirial_bmhft
@@ -173,7 +173,7 @@ SUBROUTINE calc_thermo
     pvirial_bmhft_r = pvirial_bmhft / press_unit
   endif
   pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r + pvirial_morse_r + pvirial_bmhft_r 
-  pressure_tot_r  = ( pvirial_tot_r + temp_r *boltz / omega ) / press_unit
+  pressure_tot_r  = ( pvirial_tot_r + temp_r * boltz_unit / omega ) / press_unit
   pressure_lj_r   = pvirial_lj_r    / press_unit
   pressure_morse_r= pvirial_morse_r / press_unit   
   pressure_bmhft_r= pvirial_bmhft_r / press_unit  

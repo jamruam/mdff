@@ -43,6 +43,7 @@ MODULE config
 
   integer                                      :: natm               !< number of atoms
   integer                                      :: ntype              !< number of types
+  integer                                      :: npairs             !< number of types pairs
   integer, dimension(:),           allocatable :: itype              !< type of atome i array 
   integer, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
   integer, dimension(0:ntypemax)               :: natmi              !< number of atoms (per type)
@@ -121,6 +122,8 @@ SUBROUTINE config_init
 
   verlet_vdw%cut=cutshortrange
   verlet_coul%cut=cutlongrange
+
+  npairs =  ntype * ( ntype + 1 ) / 2
 
   return
  

@@ -33,7 +33,6 @@ MODULE control
       
   implicit none
 
-  integer,           SAVE :: nprop            !< properties period
   integer                 :: itraj_start      !< write trajectory from step itraj_start
   integer                 :: itraj_period     !< write trajectory each itraj_period steps 
   integer                 :: itraj_format     !< format of TRAJFF file ( = 0 BINARY, = 1 FORMATED)
@@ -56,6 +55,8 @@ MODULE control
   logical,           SAVE :: lsurf            !< add surface contribution in electrostatic quantities  
   logical,           SAVE :: ltest            !< testing flag
   logical,           SAVE :: lcsvr            !< Stochastic velocity rescaling
+  logical,           SAVE :: lmsd             !< mean square displacement switch
+  logical,           SAVE :: lvacf            !< velocity auto-correlation function switch
 
   real(kind=dp),     SAVE :: cutlongrange     !< longrange cutoff
   real(kind=dp),     SAVE :: cutshortrange    !< shortrange cutoff
@@ -123,10 +124,10 @@ SUBROUTINE control_init ( MDFF )
   character(len=132) :: filename
 
   namelist /controltag/  lnmlj          , &
+                         lcoulomb       , &
                          lmorse         , &
                          lbmhft         , &
                          lbmhftd        , &
-                         lcoulomb       , &
                          lsurf          , &
                          lcsvr          , &
                          lharm          , &
@@ -135,6 +136,8 @@ SUBROUTINE control_init ( MDFF )
                          lstatic        , &
                          lreduced       , & 
                          ltest          , &
+                         lmsd           , &
+                         lvacf          , &
                          lrestart       , &
                          cutlongrange   , &
                          cutshortrange  , &
@@ -209,6 +212,8 @@ SUBROUTINE control_default_tag
   lstatic       = .false.
   lreduced      = .false.
   ltest         = .false.
+  lmsd          = .false.
+  lvacf         = .false.
   lrestart      = .false.
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
@@ -216,7 +221,6 @@ SUBROUTINE control_default_tag
   skindiff      = 0.15_dp
   cutshortrange = 0.0_dp
   cutlongrange  = 0.0_dp
-  nprop         = 1
   itraj_start   = 1          
   itraj_period  = 10000
   itraj_format  = 1
@@ -238,13 +242,15 @@ END SUBROUTINE control_default_tag
 ! ******************************************************************************
 SUBROUTINE control_check_tag
 
-  USE io,       ONLY :  stdout , ionode
+  USE io,               ONLY :  stdout , ionode
+  USE constants,        ONLY : reduced_units 
 
   implicit none
 
   ! local
   logical :: allowed
   integer :: i
+
 
   ! ======
   !  calc
@@ -321,6 +327,11 @@ SUBROUTINE control_check_tag
    if ( ionode )  WRITE ( stdout , '(a)' ) 'ERROR controltag: nmlj, harm , morse, bmhftd or coulomb or all of them . Anyway make a choice !! '
    STOP
   endif
+
+  if ( lreduced ) then
+    CALL reduced_units 
+  endif
+
 
   return
 

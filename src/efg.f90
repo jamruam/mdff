@@ -328,7 +328,7 @@ SUBROUTINE efgcalc
 
   USE io,                       ONLY :  ionode , ioprint, ioprintnode , stdout , stderr , kunit_EFGALL , kunit_TRAJFF , &
                                         kunit_NMRFF , kunit_DTETAFF , kunit_DTVZZFF , kunit_DTIBUFF , kunit_DTIBSFF , io_open , io_close
-  USE constants,                ONLY :  fpi , coul_factor 
+  USE constants,                ONLY :  fpi , coul_unit
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
                                         ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
@@ -390,7 +390,7 @@ SUBROUTINE efgcalc
     CALL typeinfo_init
     verlet_coul%listname='coul' 
     verlet_coul%cut=cutlongrange
-    if ( lvnlist )    CALL vnlist_pbc( verlet_coul )  
+    if ( lvnlist )    CALL vnlist_pbc !( verlet_coul )  
     ! =============
     !  print info
     ! =============
@@ -415,7 +415,7 @@ SUBROUTINE efgcalc
       ttt1 = MPI_WTIME(ierr)
 
       CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data )
-      if ( lvnlist ) CALL vnlist_pbc( verlet_coul )
+      if ( lvnlist ) CALL vnlist_pbc !( verlet_coul )
 
       CALL lattice ( simu_cell )
 
@@ -486,7 +486,7 @@ SUBROUTINE efgcalc
       efg_t    = efg_ia 
 
       if ( .not. lefg_reduced_units ) then
-        efg_t    =  efg_t    * coul_factor 
+        efg_t    =  efg_t    * coul_unit
       endif
       ! opposite sign in DFT codes ( charge of electron ? )
       if ( lefg_vasp_sign ) then

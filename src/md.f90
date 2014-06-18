@@ -37,6 +37,8 @@ MODULE md
   integer :: nequil                        !< number of equilibration steps
   integer :: nequil_period                 !< equilibration period
   integer :: spas                          !< save configuration each spas step 
+  integer :: npropr                        !< period to calculate on-the fly property 
+  integer :: npropr_start                  !<        starting from npropr_start
   integer :: nprint                        !< print thermo info to standard output
   integer :: fprint                        !< print thermo info to file OSZIFF
   integer :: updatevnl                     !< number of verlet list update  
@@ -110,6 +112,7 @@ SUBROUTINE md_init
                       nequil        , &
                       nequil_period , & 
                       annealing     , &
+                      npropr        , & 
                       nprint        , & 
                       fprint        , & 
                       spas          , & 
@@ -193,6 +196,8 @@ SUBROUTINE md_default_tag
   nhc_mults     = 2 
   nhc_n         = 4
   annealing     = 1.0_dp
+  npropr        = 1
+  npropr_start  = 1
 
   first_time_xe0 = .true.
 
@@ -207,8 +212,8 @@ END SUBROUTINE md_default_tag
 ! ******************************************************************************
 SUBROUTINE md_check_tag
 
-  USE constants,        ONLY :  boltz , time_unit, press_unit
-  USE control,          ONLY :  lstatic
+  USE constants,        ONLY :  boltz_unit , time_unit, press_unit
+  USE control,          ONLY :  lstatic, lmsd, lvacf
   USE config,           ONLY :  simu_cell
   USE io,               ONLY :  ionode , stdout
   USE mpimdff,          ONLY :  myrank
@@ -218,6 +223,13 @@ SUBROUTINE md_check_tag
   ! local
   logical :: allowed
   integer :: i
+
+  ! ===========
+  ! properties on-the-fly
+  ! ===========
+  if ( ( lmsd .or. lvacf) .and. npropr .eq. 0) then
+    if ( ionode ) WRITE ( stdout , '(a)' ) 'ERROR controltag: npropr need to be defined for lmsd, lvacf ... properties on-the-fly '
+  endif
 
   if (dt.eq.0.0_dp .and. .not. lstatic ) then
     if ( ionode )  WRITE ( stdout ,'(a)') 'ERROR mdtag: timestep dt is zero'
@@ -297,7 +309,7 @@ SUBROUTINE md_check_tag
 
   ! units          
   !  eV             K     eV/K
-  temp           = temp * boltz ! temp = kB * T
+  temp           = temp * boltz_unit ! temp = kB * T
   ! eV / A**3    =  GPa     eV/A**3/GPa
   press          = press * press_unit
   ! angstrom*(atomicmassunit/eV)** 0.5  <= ps
@@ -366,7 +378,7 @@ END SUBROUTINE extended_coordinates_dealloc
 ! ******************************************************************************
 SUBROUTINE md_print_info(kunit)
 
-  USE constants,        ONLY :  boltz, time_unit, press_unit
+  USE constants,        ONLY :  boltz_unit , time_unit, press_unit
   USE control,          ONLY :  ltraj , lstatic , lvnlist , lreduced , lcsvr , itraj_start , itraj_period , itraj_format  
   USE io,               ONLY :  ionode 
 
@@ -422,10 +434,10 @@ SUBROUTINE md_print_info(kunit)
         endif !integrator
       endif !static
                                           WRITE ( kunit ,'(a,i12)')     'number of steps                       = ',npas
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                              = ',dt/time_unit           ,'  ps'
-                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                            = ',dt*npas/time_unit      ,'  ps'
-                                          WRITE ( kunit ,'(a,f12.5,a)') 'temperature                           = ',temp/boltz             ,'   K'
-                                          WRITE ( kunit ,'(a,f12.5,a)') 'pressure                              = ',press/press_unit       ,' GPa'
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'timestep                              = ',dt / time_unit         ,'  ps'
+                                          WRITE ( kunit ,'(a,e12.5,a)') 'time range                            = ',dt * npas / time_unit  ,'  ps'
+                                          WRITE ( kunit ,'(a,f12.5,a)') 'temperature                           = ',temp / boltz_unit      ,'   K'
+                                          WRITE ( kunit ,'(a,f12.5,a)') 'pressure                              = ',press / press_unit     ,' GPa'
       if ( integrator .eq. 'nve-vv' .and. nequil .ne. 0 ) then           
                                           WRITE ( kunit ,'(a,i12)')     'number of equilibration steps         = ',nequil
                                           WRITE ( kunit ,'(a,i12)')     'equilibration period                  = ',nequil_period

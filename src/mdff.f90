@@ -188,8 +188,8 @@ PROGRAM main_MDFF
     if ( calc .eq. 'md' ) then
       verlet_vdw%listname ='vdw ' 
       verlet_coul%listname='coul' 
-      if ( lvnlist .and. non_bonded )    CALL vnlist_pbc( verlet_vdw  )    
-      if ( lvnlist .and. lcoulomb   )    CALL vnlist_pbc( verlet_coul )    
+      if ( lvnlist .and. non_bonded )    CALL vnlist_pbc!( verlet_vdw  )    
+      if ( lvnlist .and. lcoulomb   )    CALL vnlist_pbc!( verlet_coul )    
     endif  
 
     !IF MD
