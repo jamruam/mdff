@@ -5,20 +5,15 @@
 # description : convert POSFF file (mdff) to POSCAR (vasp)
 # ==================================================================
 separetor="=========================================================="
-echo $separetor
-date
-echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
-echo "Running fftocar ..."
-echo "This script generate POSCAR file from POSFF file"
-USAGE="Usage: -i [inputfile] -o [outputfile] "
+USAGE="Usage: -i [inputfile] -o [outputfile] -q (quiet)"
 
 if [ $# -eq 0 ]
 then
     echo "$USAGE"
     exit 1
 fi
-while getopts ":i:o:" opt
+quiet=0
+while getopts "i:o:q" opt
 do
     case $opt in
         i)
@@ -26,6 +21,9 @@ do
             ;;
         o)
             poscar="$OPTARG"
+            ;;
+        q)
+            quiet=1
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -37,6 +35,15 @@ do
             ;;
     esac
 done
+if [ "$quiet" -eq 0 ]
+then
+	echo $separetor
+	date
+	echo "author : filipe.manuel.vasconcelos@gmail.com"
+	echo $separetor
+	echo "Running fftocar ..."
+	echo "This script generate POSCAR file from POSFF file"
+fi
 #        2048
 #LJLARGE                                                     
 #     45.755230000000      0.000000000000      0.000000000000
