@@ -19,7 +19,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug_readpos
+#define debug_read_pos
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE read_pos **********************************

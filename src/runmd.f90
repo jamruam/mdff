@@ -374,8 +374,8 @@ MAIN:  do itime = offset , npas + (offset-1)
            !  lmsd
            ! =======
            if ( lmsd ) then
-             CALL msd_sample ( nmsd ) 
              nmsd = nmsd + 1
+             CALL msd_sample ( nmsd ) 
            endif
   
 !#ifdef multi_tau

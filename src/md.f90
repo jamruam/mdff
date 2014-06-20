@@ -197,7 +197,7 @@ SUBROUTINE md_default_tag
   nhc_n         = 4
   annealing     = 1.0_dp
   npropr        = 1
-  npropr_start  = 1
+  npropr_start  = 0
 
   first_time_xe0 = .true.
 

@@ -19,6 +19,8 @@
 ! ======= Hardware =======
 #include "symbol.h"
 #define debug
+!#define debug_otf_frenkel
+!#define debug_otf_multiwin
 ! ======= Hardware =======
 
 ! *********************** MODULE msd *******************************************
@@ -38,7 +40,7 @@ MODULE msd
 
   character(len=60), SAVE                         :: msdalgo           !< algorithm for sampling msd
   character(len=60), SAVE                         :: msdalgo_allowed(3)
-  data msdalgo_allowed / 'oft_frenkel', 'oft_multwin' , 'pp_win' /
+  data msdalgo_allowed / 'otf_frenkel', 'otf_multwin' , 'pp_win' /
 
   integer                                         :: nblcel   ! max number of block elements
   integer                                         :: nblocks  ! max number of block
@@ -58,7 +60,8 @@ MODULE msd
 !  integer ,dimension (:,:) , allocatable          :: msd_data%cnt  ! msd count
 !  integer ,dimension (:)   , allocatable          :: ibl    ! block length
 
-  real(kind=dp) :: tdifmax , dtime
+  real(kind=dp) :: tcormax  !< correlation time maximum
+  real(kind=dp) :: dtime    !< correlation time minimum ( dt * npropr )
 
 CONTAINS
 
@@ -83,7 +86,7 @@ SUBROUTINE msd_init
   namelist /msdtag/  nblcel  , &
                      nblocks , &
                      msdalgo , &
-                     tdifmax 
+                     tcormax 
 
   if ( .not. lmsd ) return
 
@@ -124,8 +127,8 @@ SUBROUTINE msd_default_tag
 
   implicit none
 
-  msdalgo = 'oft_frenkel'
-  tdifmax = 100.0_dp
+  msdalgo = 'otf_frenkel'
+  tcormax = 100.0_dp
   nblcel  = 10
   nblocks   = 20
 
@@ -166,7 +169,7 @@ SUBROUTINE msd_check_tag
   allowed = .false.
 
 
-  tdifmax = tdifmax * time_unit
+  tcormax = tcormax * time_unit
 
   return 
  
@@ -191,14 +194,14 @@ SUBROUTINE msd_print_info(kunit)
   if ( ionode  ) then
     blankline(kunit)
     WRITE ( kunit ,'(a)')           'mean square displacement:'
-    if ( msdalgo .eq. 'oft_frenkel' ) then
+    if ( msdalgo .eq. 'otf_frenkel' ) then
       WRITE ( kunit ,'(a)')         'using on-the-fly order-n frenkel-smit algorithm'
     endif
-    if ( msdalgo .eq. 'oft_multwin' ) then
+    if ( msdalgo .eq. 'otf_multwin' ) then
       WRITE ( kunit ,'(a)')         'using on-the-fly multi-window algorithm '
       WRITE ( kunit ,'(a)')         'Dubbeldam et al. Molecular Simulation  v35 n12 (2009) p1084'
     endif
-    WRITE ( kunit ,'(a,f10.4)')     'maximum time correlation     (tdifmax)  = ',tdifmax
+    WRITE ( kunit ,'(a,f10.4)')     'maximum time correlation     (tcormax)  = ',tcormax
     WRITE ( kunit ,'(a,i10)')       'max number of blocks         (nblocks)  = ',nblocks
     WRITE ( kunit ,'(a,i10)')       'max number of block elements (nblcel) = ',nblcel
     WRITE ( kunit ,'(a)')           'output file                             : MSDFF'
@@ -234,7 +237,7 @@ SUBROUTINE msd_alloc
 
   dtime = npropr * dt
   
-  msd_data % ibl  = 0 
+  msd_data % ibl  = 1 
   msd_data % cnt  = 0
   msd_data % aver = 0.0_dp
   msd_data % x    = 0.0_dp
@@ -275,8 +278,8 @@ SUBROUTINE msd_sample ( nmsd )
   ! global
   integer :: nmsd
 
-  if ( msdalgo .eq. 'oft_frenkel' ) CALL msd_onthefly_frenkel     ( nmsd ) 
-  if ( msdalgo .eq. 'oft_multwin' ) CALL msd_onthefly_multiwindow ( nmsd ) 
+  if ( msdalgo .eq. 'otf_frenkel' ) CALL msd_onthefly_frenkel     ( nmsd ) 
+  if ( msdalgo .eq. 'otf_multwin' ) CALL msd_onthefly_multiwindow ( nmsd ) 
 
   return
 
@@ -307,7 +310,7 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
   integer :: nmsd
 
   ! local
-  integer :: ia , iblock, ib, ie,  inp, ii, inmax, ierr , iblm , it
+  integer :: ia , iblock, ib, ie,  inp, ii, current_block_length, ierr , iblm , it
   real(kind=dp) :: delx, dely, delz, xtime
 #ifdef debug 
   real(kind=dp) :: r2asum
@@ -326,28 +329,31 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
     iblm = iblm+ 1
     ii   = ii / nblcel
   ! ===========================================
-  !  test maximu time not longer than tdifmax:
+  !  test maximu time not longer than tcormax:
   ! ===========================================
     xtime = dtime * ( nblcel ** ( iblm ) )
-    if ( xtime .gt. tdifmax ) ii = 0
+    if ( xtime .gt. tcormax ) ii = 0
   enddo
   msd_data % n = iblm
+
+#ifdef debug_otf_frenkel
   if ( ioprintnode ) then
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
+    WRITE ( stdout ,'(a)')                  ' ------------------------------------------------------------------------------'
     WRITE ( stdout ,'(a)')                  '   msd on-the-fly : order -n frenkel and smit ' 
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
-    WRITE ( stdout ,'(a,i12)')              ' number of elements/block      : ', nblcel 
+    WRITE ( stdout ,'(a)')                  ' ------------------------------------------------------------------------------'
+    WRITE ( stdout ,'(a,i12)')              ' number of elements/block    : ', nblcel 
     WRITE ( stdout ,'(a,i12)')              ' property calc. period       : ', npropr
     WRITE ( stdout ,'(a,f12.4)')            ' dt min                      : ', dtime/time_unit
-    WRITE ( stdout ,'(a,i12,a6,i12,a)')     ' number of blocks      (max) : ', iblm,           '(',nblocks,')'
-    WRITE ( stdout ,'(a,f12.3,a6,f12.3,a)') ' current time interval (max) : ', xtime/time_unit,'(',tdifmax/time_unit,')'
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
+    WRITE ( stdout ,'(a,i12,a6,i12,a)')     ' number of blocks      (max) : ', msd_data % n,           '(',nblocks,')'
+    WRITE ( stdout ,'(a,f12.3,a6,f12.3,a)') ' current time interval (max) : ', xtime/time_unit,'(',tcormax/time_unit,')'
   endif
+#endif
+
   ! =====================================
   !  limit the maximum number of blocks ! well needed only if memory is an issue
   ! =====================================
-  iblm= MIN( iblm, nblocks )
-  blocks : do ib = 1, iblm
+  msd_data%n=MIN( msd_data%n , nblocks )
+  blocks : do ib = 1, msd_data % n 
     iblock = nblcel ** ( ib - 1 )
     ! ==============================
     !  test for blocking operation
@@ -358,10 +364,20 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
     ! ==============================
     !  limit to length n (=nblcel)
     ! ==============================
-    inmax = MIN( msd_data%ibl ( ib ) , nblcel )
+    current_block_length = MIN( msd_data%ibl ( ib ) , nblcel )
 #ifdef debug
      r2asum = 0
 #endif
+
+#ifdef debug_otf_frenkel
+    ! print info
+    if ( ioprintnode ) then
+      WRITE ( stdout ,'(a)')                         ' ------------------------------------------------------------------------------'
+      WRITE ( stdout ,'(a,i5,a,i5)')                 ' block : ' , ib , ' /', msd_data%n 
+      WRITE ( stdout ,'(a,i5,a,i5,a,f12.5)')         ' block : ' , ib , ' /', msd_data%n, ' time : ' , dtime / time_unit * ( nblcel ** ( ib - 1 ) )
+    endif
+#endif
+
     ions : do ia = 1 , natm 
 
       it = itype ( ia ) ! type speciation 
@@ -381,10 +397,10 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
         dely = msd_data%y ( ib-1 , 1 , ia )
         delz = msd_data%z ( ib-1 , 1 , ia )
       endif
-      do ie = 1, inmax
+      do ie = 1, current_block_length
         inp = ie
         if ( msd_data%ibl ( ib ) .gt. nblcel ) inp = ie + 1
-        if ( ie .lt. inmax ) then
+        if ( ie .lt. current_block_length ) then
           msd_data%x ( ib , ie , ia ) = msd_data%x ( ib , inp , ia ) + delx
           msd_data%y ( ib , ie , ia ) = msd_data%y ( ib , inp , ia ) + dely
           msd_data%z ( ib , ie , ia ) = msd_data%z ( ib , inp , ia ) + delz
@@ -394,24 +410,25 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
           msd_data%z ( ib , ie , ia ) = delz
         endif
       enddo
-      do ie = 1, inmax
+      do ie = 1, current_block_length
         msd_data%cnt  ( ib , ie , 0  ) = msd_data%cnt  ( ib , ie , 0  ) + 1
         msd_data%cnt  ( ib , ie , it ) = msd_data%cnt  ( ib , ie , it ) + 1
 
         msd_data%aver ( ib , ie , 0 ) = msd_data%aver ( ib , ie , 0 ) &
-                                               + ( msd_data%x ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%y ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%z ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2
+                                               + ( msd_data%x ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%y ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%z ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp
+
         msd_data%aver ( ib , ie , it ) = msd_data%aver ( ib , ie , it ) &
-                                               + ( msd_data%x ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%y ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%z ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2
+                                               + ( msd_data%x ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%y ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%z ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp
 
 #ifdef debug
         !  print*,'debug'
-        if ( ie .eq. 1 ) r2asum = r2asum       + ( msd_data%x ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%y ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2 &
-                                               + ( msd_data%z ( ib , inmax - ie + 1 , ia ) * dtime ) ** 2
+        if ( ie .eq. 1 ) r2asum = r2asum       + ( msd_data%x ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%y ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp &
+                                               + ( msd_data%z ( ib , current_block_length - ie + 1 , ia ) * dtime ) ** 2.0_dp
 #endif
       enddo
 
@@ -471,11 +488,11 @@ SUBROUTINE msd_onthefly_multiwindow ( nmsd )
   integer :: nmsd
 
   ! local
-  integer :: ia , ie , ib , ii , it , iblock, inmax
-  integer :: index_origin , index_t
+  integer :: ia , ie , ib , ii , it , iblock, current_block_length , iblm
+  integer :: index_origin , index_t , key
 
-  real(kind=dp ) :: vx0 , vy0 , vz0 ! origin 
-  real(kind=dp ) :: xtime  , iblm
+  real(kind=dp ) :: x0 , y0 , z0 ! origin 
+  real(kind=dp ) :: xtime  
 
   ! ===================================================
   !  determine current maximum number of blocks: iblm
@@ -483,42 +500,70 @@ SUBROUTINE msd_onthefly_multiwindow ( nmsd )
   iblm= 1
   ii = nmsd / nblcel
   do while  (ii.ne.0)
-    iblm= iblm+ 1
+    iblm= iblm+1
     ii = ii / nblcel
   enddo
-  msd_data % n = iblm
-  if ( ioprintnode ) then
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
-    WRITE ( stdout ,'(a)')                  '   msd on-the-fly : multi window              ' 
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
-    WRITE ( stdout ,'(a,i12)')              ' number of elements/block     : ', nblcel 
-    WRITE ( stdout ,'(a,i12)')              ' property calc. period       : ', npropr
-    WRITE ( stdout ,'(a,f12.4)')            ' dt min                      : ', dtime/time_unit
-    WRITE ( stdout ,'(a,i12,a6,i12,a)')     ' number of blocks      (max) : ', iblm,           '(',nblocks,')'
-    WRITE ( stdout ,'(a)')                  ' ---------------------------------------------'
-  endif
+  msd_data%n=iblm
 
+#ifdef debug_otf_multiwin
+  if ( ioprintnode ) then
+    WRITE ( stdout ,'(a)')                   ' ------------------------------------------------------------------------------'
+    WRITE ( stdout ,'(a)')                   '                         msd on-the-fly : multi window              ' 
+    WRITE ( stdout ,'(a)')                   ' ------------------------------------------------------------------------------'
+    WRITE ( stdout ,'(a,i12)')               ' property calc. period             : ', npropr
+    WRITE ( stdout ,'(a,f12.4,a6,f12.4,a)')  ' Dt correlation min          (max) : ', dtime/time_unit,'(',tcormax,')'
+    WRITE ( stdout ,'(a,i12)')               ' maximum number of blocks          : ', nblocks
+    WRITE ( stdout ,'(a,i12)')               ' maximum number of elements/blocks : ', nblcel
+    do ib = 1 , msd_data%n
+      WRITE ( stdout ,'(a,i5,a,i5)')         ' block : ',ib, '    filled elem. : ', msd_data%ibl(ib)
+    enddo 
+  endif
+#endif
+
+  ! ============================================================
   ! loop over all the blocks to test wich blocks need sampling
-  blocks : do ib = 1 , iblm
+  ! ============================================================
+  blocks : do ib = 1 , msd_data%n 
+
+    key = 0 ! just for printing not fondamental 
+
     iblock = nblcel ** ( ib - 1 )
     ! ==============================
     !  test for blocking operation
     ! ==============================
     if ( MOD ( nmsd , iblock ) .ne. 0 ) cycle
 
-    msd_data%ibl ( ib ) = msd_data%ibl ( ib ) + 1
     ! ==============================
-    !  compute the current length of the block : inmax
+    !  compute the current length of the block 
+    !  current_block_length 
     !  limit to length n (=nblcel)
     ! ==============================
-    inmax = MIN( msd_data%ibl ( ib ) , nblcel )
+    current_block_length = MIN( msd_data%ibl ( ib ) , nblcel )
+
+#ifdef debug_otf_multiwin
+    ! print info
+    if ( ioprintnode ) then
+      WRITE ( stdout ,'(a)')                         ' ------------------------------------------------------------------------------'
+      WRITE ( stdout ,'(a,i5,a,i5,a,f12.5)')         ' block : ' , ib , ' /', msd_data%n, ' time : ' , dtime / time_unit * ( nblcel ** ( ib - 1 ) )
+    endif
+#endif
+
+    ! =================
     ! loop over ions 
+    ! =================
     ions : do ia = 1 , natm 
       
       it = itype ( ia ) 
 
+      index_origin = nblcel-current_block_length+1
+#ifdef debug_otf_multiwin
+      if ( ioprintnode .and. ia .eq. 1 ) write( stdout , '(a,i5)') ' index_origin     = ',index_origin
+#endif
       ! shift to the left, and set last index to the correlation value
-      do ie= 2 , nblcel
+      do ie= index_origin+1 , nblcel
+#ifdef debug_otf_multiwin
+          if ( ioprintnode .and. ia .eq. 1 ) write( stdout , '(a,i5,a,i5,a,i5)') ' shift on ', current_block_length , ' elements : ',ie-1,' <= ',ie
+#endif
           msd_data%x ( ib , ie-1 , ia ) = msd_data%x ( ib , ie , ia )
           msd_data%y ( ib , ie-1 , ia ) = msd_data%y ( ib , ie , ia )
           msd_data%z ( ib , ie-1 , ia ) = msd_data%z ( ib , ie , ia ) 
@@ -526,38 +571,55 @@ SUBROUTINE msd_onthefly_multiwindow ( nmsd )
       msd_data%x ( ib , nblcel , ia ) = rx ( ia )
       msd_data%y ( ib , nblcel , ia ) = ry ( ia )
       msd_data%z ( ib , nblcel , ia ) = rz ( ia ) 
-
-      
+#ifdef debug_otf_multiwin
+      if ( ioprintnode .and. ia .eq. 1 ) write( stdout , '(a,i5)') ' store new positions to = ',nblcel 
+      if ( ioprintnode .and. ia .eq. 1 ) write( stdout , '(a)')    ''
+#endif
       ! get the origin, take into account that blocks can be partially filled
-      index_origin = nblcel-inmax+1
-      vx0 = msd_data%x ( ib , index_origin , ia )  
-      vy0 = msd_data%y ( ib , index_origin , ia )  
-      vz0 = msd_data%z ( ib , index_origin , ia )  
+      x0 = msd_data%x ( ib , index_origin , ia )  
+      y0 = msd_data%y ( ib , index_origin , ia )  
+      z0 = msd_data%z ( ib , index_origin , ia )  
       ! sample msd using proper reference position
-      do ie = 1 , inmax
-        index_t = index_origin + ie -1 
-        !if ( ioprintnode .and. ia .eq. 1 ) then
-        !  write(stdout,'(a)') '     ib      ie   inmax     r(0)     r(t)'
-        !  write(stdout,'(5i8)') ib,ie,inmax,index_origin,index_t 
-        !endif
-        msd_data%cnt  ( ib , ie , 0 ) = msd_data%cnt ( ib , ie , 0 ) + 1
-        msd_data%aver ( ib , ie , 0 ) = msd_data%aver ( ib , ie , 0 ) &
-                                               + ( msd_data%x ( ib , index_t , ia ) - vx0 ) ** 2 &
-                                               + ( msd_data%y ( ib , index_t , ia ) - vy0 ) ** 2 &
-                                               + ( msd_data%z ( ib , index_t , ia ) - vz0 ) ** 2
-        msd_data%cnt  ( ib , ie , it ) = msd_data%cnt ( ib , ie , it ) + 1
+      block_element : do ie = 1 , current_block_length
+        index_t = index_origin + ie - 1 
+
+        msd_data%cnt  ( ib , ie , 0 )  = msd_data%cnt  ( ib , ie , 0 ) + 1
+        msd_data%aver ( ib , ie , 0 )  = msd_data%aver ( ib , ie , 0 ) &
+                                               + ( msd_data%x ( ib , index_t , ia ) - x0 ) ** 2.0_dp &
+                                               + ( msd_data%y ( ib , index_t , ia ) - y0 ) ** 2.0_dp &
+                                               + ( msd_data%z ( ib , index_t , ia ) - z0 ) ** 2.0_dp
+
+        msd_data%cnt  ( ib , ie , it ) = msd_data%cnt  ( ib , ie , it ) + 1
         msd_data%aver ( ib , ie , it ) = msd_data%aver ( ib , ie , it ) &
-                                               + ( msd_data%x ( ib , index_t , ia ) - vx0 ) ** 2 &
-                                               + ( msd_data%y ( ib , index_t , ia ) - vy0 ) ** 2 &
-                                               + ( msd_data%z ( ib , index_t , ia ) - vz0 ) ** 2
-      enddo
+                                               + ( msd_data%x ( ib , index_t , ia ) - x0 ) ** 2.0_dp &
+                                               + ( msd_data%y ( ib , index_t , ia ) - y0 ) ** 2.0_dp &
+                                               + ( msd_data%z ( ib , index_t , ia ) - z0 ) ** 2.0_dp
+
+#ifdef debug_otf_multiwin
+        if ( ioprintnode ) then
+          if ( ia .eq. 1 .and. ie .eq. 1 ) write ( stdout , '(a)' ) '     ia      ib     ie_max   ie     r(0)    r(t)           aver        aver_tot'
+
+          write(stdout,'(6i8,2e16.8)') ia,ib,current_block_length,ie,index_origin,index_t , &
+                                                                        ( msd_data%x ( ib , index_t , ia ) - x0 ) ** 2.0_dp & 
+                                                                      + ( msd_data%y ( ib , index_t , ia ) - y0 ) ** 2.0_dp &
+                                                                      + ( msd_data%z ( ib , index_t , ia ) - z0 ) ** 2.0_dp , msd_data%aver ( ib , ie , 0 )
+ 
+        endif
+#endif
+      enddo block_element
 
     enddo ions
+
+#ifdef debug_otf_multiwin
       if ( ioprintnode ) then
-        do ie = 1, inmax
-          write(stdout,'(3i8,f16.6,i14)') ib,ie, inmax,msd_data%aver ( ib , ie , 0 ) ,  msd_data%cnt ( ib , ie , 0 )
+        write(stdout,'(a)') '      ib      ie    ie_max    aver(ib,ie)    cnt(ib,ie)'
+        do ie = 1, current_block_length
+          write(stdout,'(3i8,f16.6,i14)') ib,ie,current_block_length,msd_data%aver ( ib , ie , 0 ) ,  msd_data%cnt ( ib , ie , 0 )
         enddo
       endif
+#endif
+
+    if ( msd_data%ibl(ib) .lt. nblcel ) msd_data%ibl(ib) = msd_data%ibl(ib)+1
 
   enddo blocks
 
@@ -575,7 +637,7 @@ END SUBROUTINE msd_onthefly_multiwindow
 ! ******************************************************************************
 SUBROUTINE msd_write_output ( quite ) 
 
-  USE config,           ONLY :  ntype
+  USE config,           ONLY :  ntype, natm
   USE constants,        ONLY :  time_unit
   USE io,               ONLY :  ionode , kunit_MSDFF , stdout
   USE md,               ONLY :  npropr
@@ -586,29 +648,49 @@ SUBROUTINE msd_write_output ( quite )
   integer :: quite
 
   ! local
-  integer :: j, ib, ihbmax , it
+  integer :: j, ib, ihbmax , it , ie
   real(kind=dp) :: thmax
 
   if ( ionode ) then
     OPEN( kunit_MSDFF , file = 'MSDFF' ) 
-    WRITE ( kunit_MSDFF, 99003 ) nblcel , nblocks , tdifmax
+    WRITE ( kunit_MSDFF, 99003 ) nblcel , nblocks , tcormax
     thmax = 0
     ihbmax = 0
     do ib = 1 , MIN( nblocks , msd_data % n  )
-      do j = 2, MIN( msd_data % ibl ( ib ) , nblcel )
-        if ( msd_data % cnt (ib,j,0) .eq. 0 ) cycle
-          WRITE ( kunit_MSDFF , 99002 ) &
-          j * dtime / time_unit * ( nblcel ** ( ib - 1 ) ), ( msd_data%aver ( ib , j , it ) / REAL ( msd_data%cnt ( ib , j , it ) , kind = dp ), it=0,ntype ) , msd_data%cnt ( ib , j , 0 ) 
-
-      enddo
+      if ( msdalgo .eq. 'otf_frenkel' ) then
+        do j = 2, MIN( msd_data%ibl(ib), nblcel )
+          if ( msd_data%cnt ( ib , j , 0 ) .lt. nblcel*natm ) cycle 
+          WRITE ( kunit_MSDFF , 99002 )  &
+          REAL ( j , kind = dp ) * dtime / time_unit * ( nblcel ** ( ib - 1 ) ), &
+          ( msd_data%aver ( ib , j , it ) / REAL ( msd_data%cnt ( ib , j , it ) , kind = dp ), it = 0,ntype ) , msd_data%cnt ( ib , j , 0 )
+        enddo
+      endif
+    
+      if ( msdalgo .eq. 'otf_multwin' ) then
+        do j = 2 , MIN( msd_data%ibl(ib), nblcel ) 
+          if ( msd_data%cnt ( ib , j , 0 ) .lt. nblcel*natm ) cycle 
+          WRITE ( kunit_MSDFF , 99002 )  &
+          REAL ( j-1 , kind = dp ) * dtime / time_unit * ( nblcel ** ( ib - 1 ) ), &
+          ( msd_data%aver ( ib , j , it ) / REAL ( msd_data%cnt ( ib , j , it ) , kind = dp ), it = 0,ntype ) , msd_data%cnt ( ib , j , 0 )
+        enddo    
+      endif
     enddo
+
+#ifdef debug
+     do ib=1, msd_data % n 
+       WRITE(100000,'(a,i16)') 'ib : ',ib
+       WRITE(100000,'(<nblcel>e16.8)') ( msd_data%aver ( ib , ie , 0 ) , ie = 1 , size ( msd_data%aver ( ib , : , 0 ) ) )
+       WRITE(100000,'(<nblcel>i16)')   ( msd_data%cnt  ( ib , ie , 0 ) , ie = 1 , size ( msd_data%aver ( ib , : , 0 ) ) )
+     enddo
+#endif
+
     CLOSE ( kunit_MSDFF ) 
   endif
 
   return 
 
-99002 FORMAT ( 2x,e14.4,<ntype+1>(2x,e14.4),2x,i10 )
-99003 FORMAT ('# nblcel =', i6, ' nblocks = ', i6 , ' tdifmax = ', f10.4 )
+99002 FORMAT ( 2x,e16.8,<ntype+1>(2x,e16.8),2x,i10 )
+99003 FORMAT ('# nblcel =', i6, ' nblocks = ', i6 , ' tcormax = ', f10.4 )
 
 END SUBROUTINE msd_write_output
 
