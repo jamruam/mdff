@@ -110,13 +110,8 @@ SUBROUTINE md_run ( offset )
   ntau = 0
 
   ! ioprint condition
-  if ( lstatic ) then
-    ioprint = .true.
-    if ( ionode ) ioprintnode = .true.
-  else
-    ioprint = .false.
-    ioprintnode = .false.
-  endif
+  ioprint = .true.
+  if ( ionode ) ioprintnode = .true.
   
   CALL init_general_accumulator
 
