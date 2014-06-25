@@ -267,7 +267,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( integrator.eq.'nvt-and' )      CALL prop_velocity_verlet 
          if ( integrator.eq.'nvt-nhc2')      CALL nhc2 
          if ( integrator.eq.'nvt-nhcn')      CALL nhcn 
-         if ( integrator.eq.'npt-nhcpn')     CALL nhcpn
+         if ( integrator.eq.'npt-nhcnp')     CALL nhcnp
 
          if ( lvnlist ) CALL vnlistcheck
 

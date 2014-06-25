@@ -66,7 +66,6 @@ MODULE config
   real(kind=dp), dimension(:)    , allocatable :: qia                !< charge on ion 
   real(kind=dp), dimension(:)    , allocatable :: quadia             !< quadrupolar moment on ion
   real(kind=dp), dimension(:,:)  , allocatable :: dipia              !< dipole on ion 
-  real(kind=dp), dimension(:,:)  , allocatable :: dipia_ind          !< induced dipole on ion 
   real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          !< induced dipole on ion from Wannier centers
   real(kind=dp), dimension(:,:,:), allocatable :: polia              !< polarisation on ion
 
@@ -275,7 +274,6 @@ SUBROUTINE config_alloc
   allocate( massia ( natm ) )
   allocate( quadia ( natm ) )
   allocate( dipia ( natm , 3 ) )
-  allocate( dipia_ind ( natm , 3 ) )
   allocate( dipia_wfc ( natm , 3 ) )
   allocate( polia ( natm , 3 , 3 ) )
   allocate( ipolar ( natm ) )
@@ -308,7 +306,6 @@ SUBROUTINE config_alloc
   massia    = 1.0_dp
   quadia    = 0.0_dp
   dipia   = 0.0_dp
-  dipia_ind = 0.0_dp
   dipia_wfc = 0.0_dp
   polia     = 0.0_dp
   ipolar    = 0
@@ -347,7 +344,6 @@ SUBROUTINE config_dealloc
   deallocate( massia ) 
   deallocate( quadia ) 
   deallocate( dipia ) 
-  deallocate( dipia_ind ) 
   deallocate( dipia_wfc ) 
   deallocate( polia ) 
   deallocate( ipolar ) 

@@ -48,6 +48,7 @@ MODULE opt
   integer :: nconf               !< number of configurations in TRAJFF  
   integer :: nmaxopt             !< number of configurations optimized  
   integer :: nperiodopt          !< (internal) period between optimized points
+  integer :: nprint           
 
   real(kind=dp) :: epsrel_m1qn3  !< gradient stop criterion for m1qn3
   real(kind=dp) :: epsrel_lbfgs  !< gradient stop criterion for lbfgs
@@ -82,6 +83,7 @@ SUBROUTINE opt_init
                     epsrel_m1qn3  , & 
                     epsrel_lbfgs  , & 
                     lforce        , &
+                    nprint        , &
                     nmaxopt       
 
   ! ===============================
@@ -134,6 +136,7 @@ SUBROUTINE opt_default_tag
   optalgo      = 'sastry' 
   nconf        = 0
   nmaxopt      = 1 
+  nprint       = 1 
   epsrel_m1qn3 = 1.0e-5
   epsrel_lbfgs = 1.0e-5
   lforce       = .true.
@@ -249,9 +252,9 @@ SUBROUTINE opt_main
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , vx , vy ,vz , fx , fy , fz , &
                                 atype  , rho , config_alloc , simu_cell , &
-                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header 
-  USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , trajff_data 
-  USE io,               ONLY :  ionode , stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
+                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header , verlet_coul , verlet_vdw, write_CONTFF
+  USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , trajff_data,cutlongrange,cutshortrange , lvnlist
+  USE io,               ONLY :  ionode , ioprint, ioprintnode, stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
   USE constants,        ONLY :  dzero
   USE cell,             ONLY :  lattice , dirkar
@@ -299,6 +302,8 @@ SUBROUTINE opt_main
   if ( lcoulomb ) CALL do_split ( km_coul%nk , myrank , numprocs , km_coul%kpt_dec ,'kpts-dec' )
 
   conf : do ic = 1, nconf
+    ioprint = .true.
+    if ( ionode ) ioprintnode = .true.
 
     ttt1p = MPI_WTIME(ierr)
     ! ===================================
@@ -310,6 +315,11 @@ SUBROUTINE opt_main
     rho = DBLE ( natm )  / simu_cell%omega
 
     CALL typeinfo_init  
+    verlet_vdw%listname='vdw'
+    verlet_vdw%cut = cutshortrange
+    verlet_coul%listname='coul'
+    verlet_coul%cut=cutlongrange
+    if ( lvnlist )    CALL vnlist_pbc
 
     if ( ( MOD ( ic , nperiodopt ) .eq. 0) .or. nopt.lt.nmaxopt ) then 
       nopt=nopt+1 
@@ -352,6 +362,8 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
+        WRITE ( stdout ,'(a)') 'DEBUG : first energy calc before opt'
+        CALL write_CONTFF 
         CALL m1qn3_driver ( iter, Eis , phigrad )
         neng = iter ! the number of function call is iter
       endif
@@ -441,7 +453,7 @@ END SUBROUTINE opt_main
 SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
   USE config,                   ONLY :  natm , rx , ry , rz , fx , fy , fz , write_trajff_xyz
-  USE io,                  ONLY :  ionode , stdout
+  USE io,                       ONLY :  ionode , stdout , ioprint, ioprintnode
   USE thermodynamic,            ONLY :  u_tot      
   USE field,                    ONLY :  engforce_driver 
 
@@ -536,6 +548,12 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
     if ( ionode .and. MOD ( its , kl ) .eq. 0 ) then
       WRITE (stdout,'(2i6,2E20.8,i6)') its , nstep , phigrad , u_tot
       kl = 2 * kl 
+      ! ioprint condition
+      ioprint = .true.
+      if ( ionode ) ioprintnode = .true.
+    else
+      ioprint = .false.
+      ioprintnode = .false.
 !#ifdef debug
 !  call print_config_sample(its,0)
 !#endif
@@ -957,7 +975,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
   USE config,                   ONLY :  natm, rx, ry, rz , fx , fy , fz 
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver
-  USE io,                  ONLY :  ionode , stdout
+  USE io,                       ONLY :  ionode , stdout, ioprintnode, ioprint
 
   implicit none
 
@@ -1016,8 +1034,8 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
   !                                variables,
   !                IPRINT(2) = 3 : same as IPRINT(2)=2, plus gradient vector.
   !=================================================================================
-  IPRINT(1)= -1
-  IPRINT(2)= 0
+  IPRINT(1)= -1 
+  IPRINT(2)= 0 
 
   !=================================================================================
   ! We do not wish to provide the diagonal matrices Hk0, and 
@@ -1041,7 +1059,8 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
   !         terminate if the relative width of the interval of uncertainty
   !         is less than XTOL.
   !=================================================================================
-  XTOL = 1.0D-14
+  XTOL = tiny(1.0_dp) 
+  !XTOL = 1.0D-14
   
   ICALL = 0
   !=================================================================================
@@ -1103,11 +1122,16 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
   !==============================================================
   do its=1,itmax
 
+#ifdef debug
+     call print_config_sample(icall,0)
+     WRITE ( stdout , '(a)') 'print before first engforce_driver in opt'
+#endif
     CALL engforce_driver 
     CALL calc_thermo
 
 #ifdef debug
      call print_config_sample(icall,0)
+     WRITE ( stdout , '(a)') 'print after first engforce_driver in opt'
 #endif
 
     ! ===============================
@@ -1151,6 +1175,12 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
     if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
+      ! ioprint condition
+      ioprint = .true.
+      if ( ionode ) ioprintnode = .true.
+    else
+      ioprint = .false.
+      ioprintnode = .false.
     endif
 
   enddo 
@@ -1174,8 +1204,8 @@ END SUBROUTINE lbfgs_driver
 SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
   USE control,                  ONLY :  myrank , numprocs
-  USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz
-  USE io,                       ONLY :  stdout, ionode
+  USE config,                   ONLY :  natm , rx , ry , rz, fx ,fy ,fz , write_CONTFF
+  USE io,                       ONLY :  stdout, ionode, ioprintnode, ioprint
   USE thermodynamic,            ONLY :  u_tot , u_lj_r , calc_thermo
   USE field,                    ONLY :  engforce_driver
 
@@ -1218,14 +1248,24 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
     X( 2 * natm + ia ) = rz( ia )
   enddo
 
+#ifdef debug
+     call print_config_sample(icall,0)
+     WRITE ( stdout , '(a)') 'print before first engforce_driver in opt'
+#endif
+
   CALL engforce_driver 
   CALL calc_thermo
 
 #ifdef debug
-     call print_config_sample(0,0)
+     call print_config_sample(icall,0)
+     WRITE ( stdout , '(a)') 'print after first engforce_driver in opt'
 #endif
 
   f=u_tot
+
+  !CALL write_CONTFF
+  !stop
+
 
   ! ===============================
   !  set the gradient to fx,fy,fz
@@ -1260,6 +1300,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   do while ( reverse .ge. 0 ) 
 
     icall = icall + 1
+
 #ifdef debug_m1qn3
     print*,'call m1qn3'
 #endif
@@ -1275,8 +1316,16 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
       rz( ia )   = X ( 2* natm + ia )
     enddo
 
+#ifdef debug
+     call print_config_sample(icall,0)
+     WRITE ( stdout , '(a,i5)') 'print before in opt loop',icall
+#endif
     CALL engforce_driver 
     CALL calc_thermo
+#ifdef debug
+     call print_config_sample(icall,0)
+     WRITE ( stdout , '(a,i5)') 'print after in opt loop',icall
+#endif
 
     f=u_tot
 
@@ -1300,6 +1349,12 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
     if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
       kl = 2 * kl
+      ! ioprint condition
+      ioprint = .true.
+      if ( ionode ) ioprintnode = .true.
+    else
+      ioprint = .false.
+      ioprintnode = .false.
     endif
 
     enddo

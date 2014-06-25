@@ -123,7 +123,7 @@ SUBROUTINE control_init ( MDFF )
   character(len=80)  :: MDFF
   character(len=132) :: filename
 
-  namelist /controltag/  lnmlj          , &
+  namelist /controltag/  lnmlj          , & ! #1
                          lcoulomb       , &
                          lmorse         , &
                          lbmhft         , &

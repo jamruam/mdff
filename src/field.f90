@@ -19,6 +19,8 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !#define debug
+!#define debug_ES
+!#define debug_ES_dir
 !#define debug_multipole_ES
 !#define debug_multipole_ES2
 !#define debug_multipole_ES3
@@ -29,6 +31,7 @@
 !#define debug_nmlj_pbc
 !#define debug_quadratic
 !#define debug_para
+!#define debug_mu
 ! ======= Hardware =======
 
 ! *********************** MODULE field *****************************************
@@ -38,6 +41,7 @@
 MODULE field 
 
   USE constants,                        ONLY :  dp 
+  USE tensors_rk,                       ONLY :  interaction
   USE config,                           ONLY :  ntypemax 
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
@@ -131,6 +135,7 @@ MODULE field
   real(kind=dp)    :: conv_tol_ind                                   !< convergence tolerance of the scf induced dipole calculation
   integer          :: min_scf_pol_iter                               !< 
   integer          :: max_scf_pol_iter                               !< 
+  integer          :: extrapolate_order                              !< 
   logical          :: lpolar   ( ntypemax )                          !< induced moment from pola. Is this type of ion polarizable ?
   logical          :: ldip_damping ( ntypemax , ntypemax , ntypemax) !< dipole damping 
   real(kind=dp)    :: pol_damp_b ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter b [length]^-1
@@ -160,6 +165,10 @@ MODULE field
 
   real(kind=dp), dimension ( : , : )     , allocatable :: ef_t  !< electric field vector
   real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t !< electric field gradient tensor
+  
+  TYPE ( interaction ) , dimension (:,:) , allocatable :: inter_ewald
+
+  real(kind=dp), dimension(:,:,:)  , allocatable :: dipia_ind_t        !< induced dipole on ion at (t)
 
 
 CONTAINS
@@ -198,7 +207,6 @@ SUBROUTINE field_default_tag
   Dbmhftd  = 0.0_dp
   BDbmhftd = 0.0_dp
 
-  
   ! Coulomb
   lrecip_coul   = .true. ! reciprocal can be switch off
 
@@ -230,6 +238,7 @@ SUBROUTINE field_default_tag
   conv_tol_ind  = 1e-6
   min_scf_pol_iter = 3
   max_scf_pol_iter = 100
+  extrapolate_order = 2
   algo_moment_from_pola = 'scf'
 
   ! wannier centers related
@@ -406,6 +415,7 @@ SUBROUTINE field_init
                          pol_damp_b    , &  
                          pol_damp_c    , &  
                          pol_damp_k    , &  
+                         extrapolate_order , &
                          conv_tol_ind  , &  
                          min_scf_pol_iter, &
                          max_scf_pol_iter, &
@@ -799,6 +809,7 @@ SUBROUTINE ewald_param
     !alphaES = aaa
     !kES=nc
   endif
+  
 
   return
 
@@ -995,7 +1006,7 @@ END SUBROUTINE initialize_param_non_bonded
 ! ******************************************************************************
 SUBROUTINE engforce_driver 
 
-  USE config,                   ONLY :  natm , ntype, system , simu_cell, atypei ,natmi, atype, itype
+  USE config,                   ONLY :  natm , ntype, system , simu_cell, atypei ,natmi, atype, itype 
   USE control,                  ONLY :  lnmlj , lcoulomb , lbmhft , lbmhftd, lmorse , lharm , longrange, non_bonded, iefgall_format
   USE io,                       ONLY :  ionode , stdout , kunit_DIPFF
 
@@ -1030,8 +1041,8 @@ SUBROUTINE engforce_driver
   ! =================================
   if ( lcoulomb ) then
                                    CALL get_dipole_moments(mu)
-    
-    if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( eftmp , efg_t , mu , .true. , task_coul , do_efield=doefield , do_efg=doefg )
+
+    if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( eftmp , efg_t , mu , task_coul , damp_ind=.true. , do_efield=doefield , do_efg=doefg , do_forces=.true. , do_stress=.true. , do_scf = .false. )
 
    
     ! ================================
@@ -1080,8 +1091,6 @@ SUBROUTINE engforce_driver
       enddo
       CLOSE ( kunit_DIPFF )
     endif
-
-
 
 
   endif
@@ -1538,6 +1547,7 @@ SUBROUTINE initialize_coulomb
 
   allocate ( ef_t ( natm , 3 ) )
   allocate ( efg_t ( natm , 3 , 3 ) )
+  allocate ( dipia_ind_t ( extrapolate_order, natm , 3 ) )
 
   ! ============
   !  direct sum
@@ -1598,6 +1608,7 @@ SUBROUTINE finalize_coulomb
 
   deallocate ( ef_t )
   deallocate ( efg_t )
+  deallocate( dipia_ind_t )
   ! ============
   !  direct sum
   ! ============
@@ -1726,7 +1737,7 @@ END SUBROUTINE induced_moment
 !> \todo
 !! make it more condensed 
 ! ******************************************************************************
-SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
+SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_scf )
 
   USE control,          ONLY :  lsurf
   USE constants,        ONLY :  tpi , piroot, coul_unit, press_unit
@@ -1741,7 +1752,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   real(kind=dp)     :: ef     ( natm , 3 )
   real(kind=dp)     :: efg    ( natm , 3 , 3 )
   real(kind=dp)     :: mu     ( natm , 3 )
-  logical           :: damp_ind , do_efield , do_efg
+  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_scf
   logical           :: task(3)
 
   ! local 
@@ -1759,6 +1770,11 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   real(kind=dp) :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 )
   real(kind=dp) :: tpi_V, tpi_3V , fpi_3V , alpha2 , selfa , selfa2
   real(kind=dp) :: ttt1, ttt2
+
+#ifdef debug_ES
+        call print_config_sample(0,0)
+#endif
+
 
   allocate( ef_dir(natm,3) , ef_rec(natm,3) , ef_surf(natm,3) ,ef_self(natm,3) )
   allocate( efg_dir(natm,3,3), efg_rec(natm,3,3), efg_self(natm,3,3) )
@@ -1810,7 +1826,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   !        direct space part
   ! ==============================================
   ttt1 = MPI_WTIME(ierr)
-  CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield , do_efg )
+  CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_scf )
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
 
@@ -1820,7 +1836,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   ! ==============================================
   if ( lrecip_coul ) then
     ttt1 = MPI_WTIME(ierr)
-    CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg )
+    CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg , do_forces , do_stress )
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot2 = fcoultimetot2 + ( ttt2 - ttt1 )  
   endif
@@ -1897,7 +1913,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , damp_ind , task , do_efield , do_efg )
   endif
 
   
-#ifdef debug
+#ifdef debug_ES
   WRITE ( stdout , '(a)' )     'Electric field at atoms :                           Forces at atoms :'
   do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
@@ -1957,13 +1973,16 @@ do ia = 1 , natm
 END SUBROUTINE multipole_ES
 
 
-SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , do_efield , do_efg )
+SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , & 
+                              task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_scf )
 
   USE control,                  ONLY :  lvnlist
   USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  stdout, ionode
+  USE tensors_rk,               ONLY : tensor_rank0, tensor_rank1, tensor_rank2, tensor_rank3
+ 
  
   implicit none
 
@@ -1974,7 +1993,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: fx_dir(natm) , fy_dir(natm) , fz_dir(natm)
   real(kind=dp) :: tau_dir ( 3 , 3)
   real(kind=dp) :: mu     ( natm , 3 )
-  logical       :: task(3), damp_ind, do_efield , do_efg
+  logical       :: task(3), damp_ind, do_efield , do_efg , do_forces , do_stress , do_scf
 
   ! local 
   integer       :: ia , ja , ita, jta, j1 , jb ,je , it_tgt, it_tgt2
@@ -1993,20 +2012,17 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: F0 , F1 , F2 , F3
   real(kind=dp) :: F1d , F2d , F3d
   real(kind=dp) :: F1d2 , F2d2 , F3d2
-  real(kind=dp) :: T
-  real(kind=dp) :: Tx , Ty , Tz
-  real(kind=dp) :: Txd , Tyd , Tzd
-  real(kind=dp) :: Txd2 , Tyd2 , Tzd2
-  real(kind=dp) :: Txx , Tyy , Tzz , Txy , Txz , Tyz
-  real(kind=dp) :: Txxd , Tyyd , Tzzd , Txyd , Txzd , Tyzd
-  real(kind=dp) :: Txxd2 , Tyyd2 , Tzzd2 , Txyd2 , Txzd2 , Tyzd2
-  real(kind=dp) :: Txxx,  Tyyy,  Tzzz, Txxy, Txxz, Tyyx, Tyyz, Tzzx, Tzzy, Txyz
   real(kind=dp) :: alpha2 , alpha3 , alpha5 , expon 
   real(kind=dp), external :: errfc
   real(kind=dp) :: fdamp , fdampdiff
   real(kind=dp) :: fdamp2 , fdampdiff2
   logical       :: ldamp 
-  logical       :: charge_charge, charge_dipole, dipole_dipole, double_damping , dip_i , dip_j
+  logical       :: charge_charge, charge_dipole, dipole_dipole, dip_i , dip_j
+  TYPE ( tensor_rank0 ) :: T0
+  TYPE ( tensor_rank1 ) :: T1
+  TYPE ( tensor_rank2 ) :: T2
+  TYPE ( tensor_rank3 ) :: T3
+
 
   charge_charge = task(1)
   charge_dipole = task(2)
@@ -2015,6 +2031,10 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
+
+#ifdef debug_ES_dir
+        write(stdout,'(a,e16.8)') 'debug multipole_ES_dir : cutsq',cutsq
+#endif
 
   ! ======================================
   !         cartesian to direct 
@@ -2077,7 +2097,10 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         ryij = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
         d2  = rxij * rxij + ryij * ryij + rzij * rzij
+
         if ( d2 .gt. cutsq ) cycle
+
+          !dipind : if ( .not. do_scf ) then
           d   = SQRT ( d2 )
           d3  = d2 * d
           d5  = d3 * d2
@@ -2086,310 +2109,270 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           dm5 = dm3 / d2
           dm7 = dm5 / d2
 
-        ! damping function 
-        ldamp = .false.
-        if ( ldip_damping(ita,ita,jta) .or. ldip_damping(jta,ita,jta) ) ldamp = .true.
-        if ( .not. damp_ind ) ldamp = .false. 
-        if ( ldamp ) then
-          double_damping = .false.
-          if ( ldip_damping(ita,ita,jta) .and. ldip_damping(jta,ita,jta) ) double_damping = .true.
-          CALL TT_damping_functions(pol_damp_b(ita,ita,jta),pol_damp_c(ita,ita,jta),d,fdamp,fdampdiff,pol_damp_k(ita,ita,jta) )
-          CALL TT_damping_functions(pol_damp_b(jta,ita,jta),pol_damp_c(jta,ita,jta),d,fdamp2,fdampdiff2,pol_damp_k(jta,ita,jta) )
-        else
-          fdamp = 1.0_dp
-          fdamp2 = 1.0_dp
-          fdampdiff = 0.0d0
-          fdampdiff2 = 0.0d0
-        endif
+          ! damping function 
+          ldamp = .false.
+          if ( ldip_damping(ita,ita,jta) .or. ldip_damping(jta,ita,jta) ) ldamp = .true.
+          if ( .not. damp_ind ) ldamp = .false. 
+          if ( ldamp ) then
+            CALL TT_damping_functions(pol_damp_b(ita,ita,jta),pol_damp_c(ita,ita,jta),d,fdamp,fdampdiff,pol_damp_k(ita,ita,jta) )
+            CALL TT_damping_functions(pol_damp_b(jta,ita,jta),pol_damp_c(jta,ita,jta),d,fdamp2,fdampdiff2,pol_damp_k(jta,ita,jta) )
+          else
+            fdamp = 1.0_dp
+            fdamp2 = 1.0_dp
+            fdampdiff = 0.0d0
+            fdampdiff2 = 0.0d0
+          endif
 
-        expon = EXP ( - alpha2 * d2 )    / piroot
-        F0    = errfc( alphaES * d )
-        F1    = F0 + 2.0_dp * alphaES * d  * expon
-        F2    = F1 + 4.0_dp * alpha3  * d3 * expon / 3.0_dp
-        F3    = F2 + 8.0_dp * alpha5  * d5 * expon / 15.0_dp
+          expon = EXP ( - alpha2 * d2 )    / piroot
+          F0    = errfc( alphaES * d )
+          F1    = F0 + 2.0_dp * alphaES * d  * expon
+          F2    = F1 + 4.0_dp * alpha3  * d3 * expon / 3.0_dp
+          F3    = F2 + 8.0_dp * alpha5  * d5 * expon / 15.0_dp
 
-        ! damping if no damping fdamp == 1 and fdampdiff == 0
-        F1d   = - fdamp + 1.0d0 
-        F2d   = F1d  + ( d / 3.0_dp ) * fdampdiff  ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
-        F1d2  = - fdamp2 + 1.0d0 
-        F2d2  = F1d2 + ( d / 3.0_dp ) * fdampdiff2 ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
+          ! damping if no damping fdamp == 1 and fdampdiff == 0
+          F1d   = - fdamp + 1.0d0 
+          F2d   = F1d  + ( d / 3.0_dp ) * fdampdiff  ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
+          F1d2  = - fdamp2 + 1.0d0 
+          F2d2  = F1d2 + ( d / 3.0_dp ) * fdampdiff2 ! recursive relation (10) in J. Chem. Phys. 133, 234101 (2010) 
 
-        ! multipole interaction tensor rank = 0 
-        T  = dm1 * F0
+          ! multipole interaction tensor rank = 0 
+          T0%ab = dm1 * F0
 
-        ! multipole interaction tensor rank = 1
-        Tx  = - rxij * F1 * dm3
-        Ty  = - ryij * F1 * dm3
-        Tz  = - rzij * F1 * dm3
-        if ( ldamp ) then
-          Txd = - rxij * F1d * dm3  
-          Tyd = - ryij * F1d * dm3  
-          Tzd = - rzij * F1d * dm3  
-          Txd2 = - rxij * F1d2 * dm3  
-          Tyd2 = - ryij * F1d2 * dm3  
-          Tzd2 = - rzij * F1d2 * dm3  
-        endif
+          ! multipole interaction tensor rank = 1
+          T1 % ab(1)  = - rxij *  dm3
+          T1 % ab(2)  = - ryij *  dm3
+          T1 % ab(3)  = - rzij *  dm3
+          if ( ldamp ) then
+            T1%ab_damp  = T1%ab * F1d
+            T1%ab_damp2 = T1%ab * F1d2
+          endif
+          T1%ab = T1%ab * F1
+  
+          ! multipole interaction tensor rank = 2
+          T2%ab (1,1) = ( 3.0_dp * rxij * rxij * F2 - d2 *  F1 ) * dm5
+          T2%ab (2,2) = ( 3.0_dp * ryij * ryij * F2 - d2 *  F1 ) * dm5
+          T2%ab (3,3) = ( 3.0_dp * rzij * rzij * F2 - d2 *  F1 ) * dm5
+          T2%ab (1,2) = ( 3.0_dp * rxij * ryij * F2            ) * dm5
+          T2%ab (1,3) = ( 3.0_dp * rxij * rzij * F2            ) * dm5
+          T2%ab (2,3) = ( 3.0_dp * ryij * rzij * F2            ) * dm5
+          T2%ab (2,1) = T2%ab (1,2)
+          T2%ab (3,1) = T2%ab (1,3)
+          T2%ab (3,2) = T2%ab (2,3)
+          ! damping
+          if ( ldamp ) then
+            T2%ab_damp  (1,1) = ( 3.0_dp * rxij * rxij * F2d - d2 * F1d ) * dm5
+            T2%ab_damp  (2,2) = ( 3.0_dp * ryij * ryij * F2d - d2 * F1d ) * dm5
+            T2%ab_damp  (3,3) = ( 3.0_dp * rzij * rzij * F2d - d2 * F1d ) * dm5
+            T2%ab_damp  (1,2) = ( 3.0_dp * rxij * ryij * F2d ) * dm5
+            T2%ab_damp  (1,3) = ( 3.0_dp * rxij * rzij * F2d ) * dm5
+            T2%ab_damp  (2,3) = ( 3.0_dp * ryij * rzij * F2d ) * dm5
+            T2%ab_damp  (2,1) = T2%ab_damp (1,2)
+            T2%ab_damp  (3,1) = T2%ab_damp (1,3)
+            T2%ab_damp  (3,2) = T2%ab_damp (2,3)
+            T2%ab_damp2 (1,1) = ( 3.0_dp * rxij * rxij * F2d2 - d2 * F1d2 ) * dm5
+            T2%ab_damp2 (2,2) = ( 3.0_dp * ryij * ryij * F2d2 - d2 * F1d2 ) * dm5
+            T2%ab_damp2 (3,3) = ( 3.0_dp * rzij * rzij * F2d2 - d2 * F1d2 ) * dm5
+            T2%ab_damp2 (1,2) = ( 3.0_dp * rxij * ryij * F2d2 ) * dm5
+            T2%ab_damp2 (1,3) = ( 3.0_dp * rxij * rzij * F2d2 ) * dm5
+            T2%ab_damp2 (2,3) = ( 3.0_dp * ryij * rzij * F2d2 ) * dm5
+            T2%ab_damp2 (2,1) = T2%ab_damp2 (1,2)
+            T2%ab_damp2 (3,1) = T2%ab_damp2 (1,3)
+            T2%ab_damp2 (3,2) = T2%ab_damp2 (2,3)
+          endif
 
-        ! multipole interaction tensor rank = 2
-        Txx = ( 3.0_dp * rxij * rxij * F2 - d2 *  F1 ) * dm5
-        Tyy = ( 3.0_dp * ryij * ryij * F2 - d2 *  F1 ) * dm5
-        Tzz = ( 3.0_dp * rzij * rzij * F2 - d2 *  F1 ) * dm5
-        Txy = ( 3.0_dp * rxij * ryij * F2            ) * dm5
-        Txz = ( 3.0_dp * rxij * rzij * F2            ) * dm5
-        Tyz = ( 3.0_dp * ryij * rzij * F2            ) * dm5
-        ! damping
-        if ( ldamp ) then
-          Txxd = ( 3.0_dp * rxij * rxij * F2d - d2 * F1d ) * dm5
-          Tyyd = ( 3.0_dp * ryij * ryij * F2d - d2 * F1d ) * dm5
-          Tzzd = ( 3.0_dp * rzij * rzij * F2d - d2 * F1d ) * dm5
-          Txyd = ( 3.0_dp * rxij * ryij * F2d ) * dm5
-          Txzd = ( 3.0_dp * rxij * rzij * F2d ) * dm5
-          Tyzd = ( 3.0_dp * ryij * rzij * F2d ) * dm5
-          Txxd2 = ( 3.0_dp * rxij * rxij * F2d2 - d2 * F1d2 ) * dm5
-          Tyyd2 = ( 3.0_dp * ryij * ryij * F2d2 - d2 * F1d2 ) * dm5
-          Tzzd2 = ( 3.0_dp * rzij * rzij * F2d2 - d2 * F1d2 ) * dm5
-          Txyd2 = ( 3.0_dp * rxij * ryij * F2d2 ) * dm5
-          Txzd2 = ( 3.0_dp * rxij * rzij * F2d2 ) * dm5
-          Tyzd2 = ( 3.0_dp * ryij * rzij * F2d2 ) * dm5
-        endif
+          ! multipole interaction tensor rank = 3  
+          T3 % ab(1,1,1) = ( - 5.0_dp * rxij * rxij * rxij * F3 +  3.0_dp * d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(2,2,2) = ( - 5.0_dp * ryij * ryij * ryij * F3 +  3.0_dp * d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(3,3,3) = ( - 5.0_dp * rzij * rzij * rzij * F3 +  3.0_dp * d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(1,1,2) = ( - 5.0_dp * rxij * rxij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(1,1,3) = ( - 5.0_dp * rxij * rxij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(2,2,1) = ( - 5.0_dp * ryij * ryij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(2,2,3) = ( - 5.0_dp * ryij * ryij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(3,3,1) = ( - 5.0_dp * rzij * rzij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(3,3,2) = ( - 5.0_dp * rzij * rzij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
+          T3 % ab(1,2,3) = ( - 5.0_dp * rxij * ryij * rzij * F3                                ) * dm7 * 3.0_dp
+          T3 % ab(1,3,2) = T3 % ab(1,2,3)
+          T3 % ab(2,3,1) = T3 % ab(1,2,3)
+          T3 % ab(1,2,1) = T3 % ab(1,1,2)
+          T3 % ab(1,2,2) = T3 % ab(2,2,1)
+          T3 % ab(1,3,1) = T3 % ab(1,1,3)
+          T3 % ab(1,3,3) = T3 % ab(3,3,1)
+          T3 % ab(2,3,2) = T3 % ab(2,2,3)
+          T3 % ab(2,3,3) = T3 % ab(3,3,2)
 
-        ! multipole interaction tensor rank = 3  
-        Txxx = ( - 5.0_dp * rxij * rxij * rxij * F3 +  3.0_dp * d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
-        Tyyy = ( - 5.0_dp * ryij * ryij * ryij * F3 +  3.0_dp * d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
-        Tzzz = ( - 5.0_dp * rzij * rzij * rzij * F3 +  3.0_dp * d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Txxy = ( - 5.0_dp * rxij * rxij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
-        Txxz = ( - 5.0_dp * rxij * rxij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Tyyx = ( - 5.0_dp * ryij * ryij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
-        Tyyz = ( - 5.0_dp * ryij * ryij * rzij * F3 +           d2 * ( rzij ) * F2 ) * dm7 * 3.0_dp
-        Tzzx = ( - 5.0_dp * rzij * rzij * rxij * F3 +           d2 * ( rxij ) * F2 ) * dm7 * 3.0_dp
-        Tzzy = ( - 5.0_dp * rzij * rzij * ryij * F3 +           d2 * ( ryij ) * F2 ) * dm7 * 3.0_dp
-        Txyz = ( - 5.0_dp * rxij * ryij * rzij * F3                                ) * dm7 * 3.0_dp
+        !endif dipind
 
         ! ===========================================================
         !                  charge-charge interaction
         ! ===========================================================
 
-        if ( charge_charge ) then
+        qq : if ( charge_charge ) then
+          
           ! energy
-          u_dir = u_dir + qij * T
+          u_dir = u_dir + qij * T0 % ab
 
           if ( do_efield ) then
             ! electric field
-            ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) - qj * Tx 
-            ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) - qj * Ty
-            ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) - qj * Tz
-            ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) + qi * Tx 
-            ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) + qi * Ty
-            ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) + qi * Tz
+            ef_dir ( ia , : )   = ef_dir ( ia , : ) - qj * T1 % ab(:) 
+            ef_dir ( ja , : )   = ef_dir ( ja , : ) + qi * T1 % ab(:)
             if ( ldamp ) then
-                ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + qj * Txd
-                ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + qj * Tyd
-                ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + qj * Tzd
-                ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) - qi * Txd2
-                ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) - qi * Tyd2
-                ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) - qi * Tzd2
+              ef_dir ( ia , : ) = ef_dir ( ia , : ) + qj * T1 % ab_damp(:) 
+              ef_dir ( ja , : ) = ef_dir ( ja , : ) - qi * T1 % ab_damp2(:)
             endif
           endif
 
           if ( do_efg ) then
-            efg_dir ( ia , 1 , 1 ) = efg_dir( ia , 1 , 1 ) - qj * Txx
-            efg_dir ( ia , 2 , 2 ) = efg_dir( ia , 2 , 2 ) - qj * Tyy
-            efg_dir ( ia , 3 , 3 ) = efg_dir( ia , 3 , 3 ) - qj * Tzz
-            efg_dir ( ia , 1 , 2 ) = efg_dir( ia , 1 , 2 ) - qj * Txy
-            efg_dir ( ia , 1 , 3 ) = efg_dir( ia , 1 , 3 ) - qj * Txz
-            efg_dir ( ia , 2 , 3 ) = efg_dir( ia , 2 , 3 ) - qj * Tyz
-
-            efg_dir ( ja , 1 , 1 ) = efg_dir( ja , 1 , 1 ) - qi * Txx
-            efg_dir ( ja , 2 , 2 ) = efg_dir( ja , 2 , 2 ) - qi * Tyy
-            efg_dir ( ja , 3 , 3 ) = efg_dir( ja , 3 , 3 ) - qi * Tzz
-            efg_dir ( ja , 1 , 2 ) = efg_dir( ja , 1 , 2 ) - qi * Txy
-            efg_dir ( ja , 1 , 3 ) = efg_dir( ja , 1 , 3 ) - qi * Txz
-            efg_dir ( ja , 2 , 3 ) = efg_dir( ja , 2 , 3 ) - qi * Tyz
+            efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) - qj * T2 % ab ( : , : ) 
+            efg_dir ( ja , : , : ) = efg_dir ( ja , : , : ) - qi * T2 % ab ( : , : ) 
           endif
 
           ! forces
-          fxij = qij * Tx
-          fyij = qij * Ty
-          fzij = qij * Tz
+          if ( do_forces ) then
+            fxij = qij * T1 % ab (1) 
+            fyij = qij * T1 % ab (2)
+            fzij = qij * T1 % ab (3)
 
-          fx_dir ( ia ) = fx_dir ( ia ) - fxij
-          fy_dir ( ia ) = fy_dir ( ia ) - fyij
-          fz_dir ( ia ) = fz_dir ( ia ) - fzij
+            fx_dir ( ia ) = fx_dir ( ia ) - fxij
+            fy_dir ( ia ) = fy_dir ( ia ) - fyij
+            fz_dir ( ia ) = fz_dir ( ia ) - fzij
+            fx_dir ( ja ) = fx_dir ( ja ) + fxij
+            fy_dir ( ja ) = fy_dir ( ja ) + fyij
+            fz_dir ( ja ) = fz_dir ( ja ) + fzij
 
-          fx_dir ( ja ) = fx_dir ( ja ) + fxij
-          fy_dir ( ja ) = fy_dir ( ja ) + fyij
-          fz_dir ( ja ) = fz_dir ( ja ) + fzij
+            ! stress tensor
+            tau_dir(1,1) = tau_dir(1,1) - (rxij * fxij + rxij * fxij) 
+            tau_dir(1,2) = tau_dir(1,2) - (rxij * fyij + ryij * fxij)
+            tau_dir(1,3) = tau_dir(1,3) - (rxij * fzij + rzij * fxij)
+            tau_dir(2,1) = tau_dir(2,1) - (ryij * fxij + rxij * fyij) 
+            tau_dir(2,2) = tau_dir(2,2) - (ryij * fyij + ryij * fyij)
+            tau_dir(2,3) = tau_dir(2,3) - (ryij * fzij + rzij * fyij)
+            tau_dir(3,1) = tau_dir(3,1) - (rzij * fxij + rxij * fzij)
+            tau_dir(3,2) = tau_dir(3,2) - (rzij * fyij + ryij * fzij)
+            tau_dir(3,3) = tau_dir(3,3) - (rzij * fzij + rzij * fzij)
+  
+          endif
 
-          ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) - (rxij * fxij + rxij * fxij) 
-          tau_dir(1,2) = tau_dir(1,2) - (rxij * fyij + ryij * fxij)
-          tau_dir(1,3) = tau_dir(1,3) - (rxij * fzij + rzij * fxij)
-          tau_dir(2,1) = tau_dir(2,1) - (ryij * fxij + rxij * fyij) 
-          tau_dir(2,2) = tau_dir(2,2) - (ryij * fyij + ryij * fyij)
-          tau_dir(2,3) = tau_dir(2,3) - (ryij * fzij + rzij * fyij)
-          tau_dir(3,1) = tau_dir(3,1) - (rzij * fxij + rxij * fzij)
-          tau_dir(3,2) = tau_dir(3,2) - (rzij * fyij + ryij * fzij)
-          tau_dir(3,3) = tau_dir(3,3) - (rzij * fzij + rzij * fzij)
-
-
-        endif
+        endif qq
         ! ===========================================================
         !                  dipole-dipole interaction
         ! ===========================================================
 
-        if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
-        !if ( dipole_dipole ) then
+        dd : if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
           
           ! energy
-          u_dir = u_dir - ( muix * Txx * mujx + &
-                            muix * Txy * mujy + &
-                            muix * Txz * mujz + &
-                            muiy * Txy * mujx + &
-                            muiy * Tyy * mujy + &
-                            muiy * Tyz * mujz + &
-                            muiz * Txz * mujx + &
-                            muiz * Tyz * mujy + &
-                            muiz * Tzz * mujz )
+          u_dir = u_dir - ( muix * T2 % ab(1,1) * mujx + &
+                            muix * T2 % ab(1,2) * mujy + &
+                            muix * T2 % ab(1,3) * mujz + &
+                            muiy * T2 % ab(1,2) * mujx + &
+                            muiy * T2 % ab(2,2) * mujy + &
+                            muiy * T2 % ab(2,3) * mujz + &
+                            muiz * T2 % ab(1,3) * mujx + &
+                            muiz * T2 % ab(2,3) * mujy + &
+                            muiz * T2 % ab(3,3) * mujz )
 
           ! electric field
           if ( do_efield ) then
-            ef_dir ( ia , 1 ) = ef_dir ( ia , 1 ) + ( Txx * mujx + Txy * mujy + Txz * mujz ) 
-            ef_dir ( ia , 2 ) = ef_dir ( ia , 2 ) + ( Txy * mujx + Tyy * mujy + Tyz * mujz ) 
-            ef_dir ( ia , 3 ) = ef_dir ( ia , 3 ) + ( Txz * mujx + Tyz * mujy + Tzz * mujz ) 
-            ef_dir ( ja , 1 ) = ef_dir ( ja , 1 ) + ( Txx * muix + Txy * muiy + Txz * muiz ) 
-            ef_dir ( ja , 2 ) = ef_dir ( ja , 2 ) + ( Txy * muix + Tyy * muiy + Tyz * muiz ) 
-            ef_dir ( ja , 3 ) = ef_dir ( ja , 3 ) + ( Txz * muix + Tyz * muiy + Tzz * muiz ) 
+            ef_dir ( ia , : ) = ef_dir ( ia , : ) + ( T2 % ab(:,1) * mujx + T2 % ab(:,2) * mujy + T2 % ab(:,3) * mujz )
+            ef_dir ( ja , : ) = ef_dir ( ja , : ) + ( T2 % ab(:,1) * muix + T2 % ab(:,2) * muiy + T2 % ab(:,3) * muiz )
           endif
 
           ! electric field gradient 
           if ( do_efg ) then
-            efg_dir ( ia , 1 , 1 ) = efg_dir ( ia , 1 , 1 ) + ( Txxx * mujx + Txxy * mujy + Txxz * mujz )
-            efg_dir ( ia , 2 , 2 ) = efg_dir ( ia , 2 , 2 ) + ( Tyyx * mujx + Tyyy * mujy + Tyyz * mujz )
-            efg_dir ( ia , 3 , 3 ) = efg_dir ( ia , 3 , 3 ) + ( Tzzx * mujx + Tzzy * mujy + Tzzz * mujz )
-            efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) + ( Txxy * mujx + Tyyx * mujy + Txyz * mujz )
-            efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) + ( Txxz * mujx + Txyz * mujy + Tzzx * mujz )
-            efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) + ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz )
-
-            efg_dir ( ja , 1 , 1 ) = efg_dir ( ja , 1 , 1 ) - ( Txxx * muix + Txxy * muiy + Txxz * muiz )
-            efg_dir ( ja , 2 , 2 ) = efg_dir ( ja , 2 , 2 ) - ( Tyyx * muix + Tyyy * muiy + Tyyz * muiz )
-            efg_dir ( ja , 3 , 3 ) = efg_dir ( ja , 3 , 3 ) - ( Tzzx * muix + Tzzy * muiy + Tzzz * muiz )
-            efg_dir ( ja , 1 , 2 ) = efg_dir ( ja , 1 , 2 ) - ( Txxy * muix + Tyyx * muiy + Txyz * muiz )
-            efg_dir ( ja , 1 , 3 ) = efg_dir ( ja , 1 , 3 ) - ( Txxz * muix + Txyz * muiy + Tzzx * muiz )
-            efg_dir ( ja , 2 , 3 ) = efg_dir ( ja , 2 , 3 ) - ( Txyz * muix + Tyyz * muiy + Tzzy * muiz )
+             efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) + ( T3 % ab (:,:,1) * mujx + T3 % ab (:,:,2) * mujy + T3 % ab (:,:,3) * mujz )
+             efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) - ( T3 % ab (:,:,1) * muix + T3 % ab (:,:,2) * muiy + T3 % ab (:,:,3) * muiz )
           endif
 
           ! forces
-          fxij = ( muix * Txxx * mujx + &
-                   muix * Txxy * mujy + &
-                   muix * Txxz * mujz + &
-                   muiy * Txxy * mujx + &
-                   muiy * Tyyx * mujy + &
-                   muiy * Txyz * mujz + &
-                   muiz * Txxz * mujx + &
-                   muiz * Txyz * mujy + &
-                   muiz * Tzzx * mujz )
+          if ( do_forces ) then
+            fxij = ( muix * T3 % ab (1,1,1) * mujx + &
+                     muix * T3 % ab (1,1,2) * mujy + &
+                     muix * T3 % ab (1,1,3) * mujz + &
+                     muiy * T3 % ab (1,1,2) * mujx + &
+                     muiy * T3 % ab (2,2,1) * mujy + &
+                     muiy * T3 % ab (1,2,3) * mujz + &
+                     muiz * T3 % ab (1,1,3) * mujx + &
+                     muiz * T3 % ab (1,2,3) * mujy + &
+                     muiz * T3 % ab (3,3,1) * mujz )
 
-          fyij = ( muix * Txxy * mujx + &
-                   muix * Tyyx * mujy + &
-                   muix * Txyz * mujz + &
-                   muiy * Tyyx * mujx + &
-                   muiy * Tyyy * mujy + &
-                   muiy * Tyyz * mujz + &
-                   muiz * Txyz * mujx + &
-                   muiz * Tyyz * mujy + &
-                   muiz * Tzzy * mujz )
+            fyij = ( muix * T3 % ab (1,1,2) * mujx + &
+                     muix * T3 % ab (2,2,1) * mujy + &
+                     muix * T3 % ab (1,2,3) * mujz + &
+                     muiy * T3 % ab (2,2,1) * mujx + &
+                     muiy * T3 % ab (2,2,2) * mujy + &
+                     muiy * T3 % ab (2,2,3) * mujz + &
+                     muiz * T3 % ab (1,2,3) * mujx + &
+                     muiz * T3 % ab (2,2,3) * mujy + &
+                     muiz * T3 % ab (3,3,2) * mujz )
+  
+            fzij = ( muix * T3 % ab (1,1,3) * mujx + &
+                     muix * T3 % ab (1,2,3) * mujy + &
+                     muix * T3 % ab (3,3,1) * mujz + &
+                     muiy * T3 % ab (1,2,3) * mujx + &
+                     muiy * T3 % ab (2,2,3) * mujy + &
+                     muiy * T3 % ab (3,3,2) * mujz + &
+                     muiz * T3 % ab (3,3,1) * mujx + &
+                     muiz * T3 % ab (3,3,2) * mujy + &
+                     muiz * T3 % ab (3,3,3) * mujz )
 
-          fzij = ( muix * Txxz * mujx + &
-                   muix * Txyz * mujy + &
-                   muix * Tzzx * mujz + &
-                   muiy * Txyz * mujx + &
-                   muiy * Tyyz * mujy + &
-                   muiy * Tzzy * mujz + &
-                   muiz * Tzzx * mujx + &
-                   muiz * Tzzy * mujy + &
-                   muiz * Tzzz * mujz )
-
-          fx_dir ( ia ) = fx_dir ( ia ) + fxij
-          fy_dir ( ia ) = fy_dir ( ia ) + fyij
-          fz_dir ( ia ) = fz_dir ( ia ) + fzij
-          fx_dir ( ja ) = fx_dir ( ja ) - fxij
-          fy_dir ( ja ) = fy_dir ( ja ) - fyij
-          fz_dir ( ja ) = fz_dir ( ja ) - fzij
+            fx_dir ( ia ) = fx_dir ( ia ) + fxij
+            fy_dir ( ia ) = fy_dir ( ia ) + fyij
+            fz_dir ( ia ) = fz_dir ( ia ) + fzij
+            fx_dir ( ja ) = fx_dir ( ja ) - fxij
+            fy_dir ( ja ) = fy_dir ( ja ) - fyij
+            fz_dir ( ja ) = fz_dir ( ja ) - fzij
+          endif 
 
           ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
-          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
-          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
-          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
-          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
-          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
-          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
-          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
-          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
+          if ( do_stress ) then 
+            tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
+            tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
+            tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
+            tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
+            tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
+            tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
+            tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
+            tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
+            tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
+          endif 
 
-        endif
+        endif dd
 
         ! ===========================================================
         !                  charge-dipole interaction
         ! ===========================================================
 
-        if ( charge_dipole .and. ( dip_i .or. dip_j ) ) then
-        !if ( charge_dipole ) then
+        qd : if ( charge_dipole .and. ( dip_i .or. dip_j ) ) then
+          
           ! electrostatic energy
-          u_dir = u_dir - ( qi * ( Tx * mujx + Ty * mujy + Tz * mujz ) ) + ( qj * ( Tx * muix + Ty * muiy + Tz * muiz ) )
+          u_dir = u_dir - ( qi * ( T1 % ab(1) * mujx + T1 % ab(2) * mujy + T1 % ab(3) * mujz ) ) 
+          u_dir = u_dir + ( qj * ( T1 % ab(1) * muix + T1 % ab(2) * muiy + T1 % ab(3) * muiz ) )
       
           if ( ldamp ) then
-              u_dir = u_dir + ( qi * ( Txd2 * mujx + Tyd2 * mujy + Tzd2 * mujz ) ) - ( qj * ( Txd * muix + Tyd * muiy + Tzd * muiz ) )
+              u_dir = u_dir + ( qi * ( T1 % ab_damp2 (1) * mujx + T1 % ab_damp2 (2) * mujy + T1 % ab_damp2 (3) * mujz ) ) 
+              u_dir = u_dir - ( qj * ( T1 % ab_damp  (1) * muix + T1 % ab_damp  (2) * muiy + T1 % ab_damp  (3) * muiz ) )
           endif
 
-          ! forces 
-          fxij = qi * ( Txx * mujx + Txy * mujy + Txz * mujz ) - &
-                 qj * ( Txx * muix + Txy * muiy + Txz * muiz )
+          if ( do_forces ) then
+            ! forces 
+            fxij = qi * ( T2 % ab(1,1) * mujx + T2 % ab(1,2) * mujy + T2 % ab(1,3) * mujz ) - &
+                   qj * ( T2 % ab(1,1) * muix + T2 % ab(1,2) * muiy + T2 % ab(1,3) * muiz )
+ 
+            fyij = qi * ( T2 % ab(1,2) * mujx + T2 % ab(2,2) * mujy + T2 % ab(2,3) * mujz ) - &
+                   qj * ( T2 % ab(1,2) * muix + T2 % ab(2,2) * muiy + T2 % ab(2,3) * muiz )
 
-          fyij = qi * ( Txy * mujx + Tyy * mujy + Tyz * mujz ) - &
-                 qj * ( Txy * muix + Tyy * muiy + Tyz * muiz )
-
-          fzij = qi * ( Txz * mujx + Tyz * mujy + Tzz * mujz ) - &
-                 qj * ( Txz * muix + Tyz * muiy + Tzz * muiz )
-
-          fx_dir ( ia ) = fx_dir ( ia ) + fxij
-          fy_dir ( ia ) = fy_dir ( ia ) + fyij
-          fz_dir ( ia ) = fz_dir ( ia ) + fzij
-          fx_dir ( ja ) = fx_dir ( ja ) - fxij
-          fy_dir ( ja ) = fy_dir ( ja ) - fyij
-          fz_dir ( ja ) = fz_dir ( ja ) - fzij
-
-          ! stress tensor
-          tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
-          tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
-          tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
-          tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
-          tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
-          tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
-          tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
-          tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
-          tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
-
-
-          if ( ldamp ) then
-
-            fxij = qj * ( Txxd * muix + Txyd * muiy + Txzd * muiz ) - &
-                   qi * ( Txxd2 * mujx + Txyd2 * mujy + Txzd2 * mujz ) 
-                    
-            fyij = qj * ( Txyd * muix + Tyyd * muiy + Tyzd * muiz ) - &
-                   qi * ( Txyd2 * mujx + Tyyd2 * mujy + Tyzd2 * mujz ) 
-
-            fzij = qj * ( Txzd * muix + Tyzd * muiy + Tzzd * muiz ) - &
-                   qi * ( Txzd2 * mujx + Tyzd2 * mujy + Tzzd2 * mujz ) 
+            fzij = qi * ( T2 % ab(1,3) * mujx + T2 % ab(2,3) * mujy + T2 % ab(3,3) * mujz ) - &
+                   qj * ( T2 % ab(1,3) * muix + T2 % ab(2,3) * muiy + T2 % ab(3,3) * muiz )
 
             fx_dir ( ia ) = fx_dir ( ia ) + fxij
             fy_dir ( ia ) = fy_dir ( ia ) + fyij
             fz_dir ( ia ) = fz_dir ( ia ) + fzij
-
             fx_dir ( ja ) = fx_dir ( ja ) - fxij
             fy_dir ( ja ) = fy_dir ( ja ) - fyij
             fz_dir ( ja ) = fz_dir ( ja ) - fzij
 
+          endif
+
+          if ( do_stress ) then
             ! stress tensor
             tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
             tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
@@ -2402,7 +2385,43 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
           endif
 
-        endif
+          qd_damp : if ( ldamp ) then
+
+            if ( do_forces ) then
+              fxij = qj * ( T2 % ab_damp  (1,1) * muix + T2 % ab_damp  (1,2) * muiy + T2 % ab_damp  (1,3) * muiz ) - &
+                     qi * ( T2 % ab_damp2 (1,1) * mujx + T2 % ab_damp2 (1,2) * mujy + T2 % ab_damp2 (1,3) * mujz ) 
+                      
+              fyij = qj * ( T2 % ab_damp  (1,2) * muix + T2 % ab_damp  (2,2) * muiy + T2 % ab_damp  (2,3) * muiz ) - &
+                     qi * ( T2 % ab_damp2 (1,2) * mujx + T2 % ab_damp2 (2,2) * mujy + T2 % ab_damp2 (2,3) * mujz ) 
+
+              fzij = qj * ( T2 % ab_damp  (1,3) * muix + T2 % ab_damp  (2,3) * muiy + T2 % ab_damp  (3,3) * muiz ) - &
+                     qi * ( T2 % ab_damp2 (1,3) * mujx + T2 % ab_damp2 (2,3) * mujy + T2 % ab_damp2 (3,3) * mujz ) 
+
+              fx_dir ( ia ) = fx_dir ( ia ) + fxij
+              fy_dir ( ia ) = fy_dir ( ia ) + fyij
+              fz_dir ( ia ) = fz_dir ( ia ) + fzij
+
+              fx_dir ( ja ) = fx_dir ( ja ) - fxij
+              fy_dir ( ja ) = fy_dir ( ja ) - fyij
+              fz_dir ( ja ) = fz_dir ( ja ) - fzij
+            endif
+
+            ! stress tensor
+            if ( do_stress ) then
+              tau_dir(1,1) = tau_dir(1,1) + (rxij * fxij + rxij * fxij)
+              tau_dir(1,2) = tau_dir(1,2) + (rxij * fyij + ryij * fxij)
+              tau_dir(1,3) = tau_dir(1,3) + (rxij * fzij + rzij * fxij)
+              tau_dir(2,1) = tau_dir(2,1) + (ryij * fxij + rxij * fyij)
+              tau_dir(2,2) = tau_dir(2,2) + (ryij * fyij + ryij * fyij)
+              tau_dir(2,3) = tau_dir(2,3) + (ryij * fzij + rzij * fyij)
+              tau_dir(3,1) = tau_dir(3,1) + (rzij * fxij + rxij * fzij)
+              tau_dir(3,2) = tau_dir(3,2) + (rzij * fyij + ryij * fzij)
+              tau_dir(3,3) = tau_dir(3,3) + (rzij * fzij + rzij * fzij)
+            endif
+
+          endif qd_damp
+
+        endif qd
 
     enddo
 
@@ -2413,6 +2432,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
   if ( do_efield ) then
     CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 1 ) , natm )
     CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 2 ) , natm )
@@ -2426,15 +2446,17 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
     CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
   endif
-  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fz_dir , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 1 , : ) , 3 )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 2 , : ) , 3 )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
-
-  tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
+  if ( do_forces ) then
+    CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fy_dir , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fz_dir , natm )
+  endif
+  if ( do_stress ) then
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 1 , : ) , 3 )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 2 , : ) , 3 )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
+    tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
+  endif
 
   return
 
@@ -2442,7 +2464,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 END SUBROUTINE multipole_ES_dir
 
 
-SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg)
+SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg , do_forces , do_stress )
 
   USE constants,                ONLY :  imag, tpi
   USE config,                   ONLY :  natm, rx ,ry, rz, qia, simu_cell
@@ -2458,7 +2480,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp) :: fx_rec(natm) , fy_rec(natm) , fz_rec(natm)
   real(kind=dp) :: tau_rec ( 3 , 3)
   real(kind=dp) :: mu     ( natm , 3 )
-  logical       :: task(3), do_efield , do_efg
+  logical       :: task(3), do_efield , do_efg , do_forces , do_stress 
 
   ! local
   integer           :: ia , ik 
@@ -2467,7 +2489,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp)     :: kx   , ky   , kz , kk, Ak
   real(kind=dp)     :: rxi  , ryi  , rzi
   real(kind=dp)     :: fxij , fyij , fzij
-  real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe , rhonk_R , rhonk_I,recarg2
+  real(kind=dp)     :: str, k_dot_r ,  k_dot_mu , recarg, recargi, kcoe , rhonk_R , rhonk_I, recarg2
   real(kind=dp)     :: alpha2, tpi_V , fpi_V
   complex(kind=dp ) :: rhonk , ik_dot_mu , expikrAk, expikmAk , expikr
   real(kind=dp)     ,dimension (:), allocatable :: ckr , skr 
@@ -2524,13 +2546,13 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
      u_rec   = u_rec   + str
 
     do ia = 1 , natm
-      qi  = qia ( ia )
-      recarg  = Ak * ( rhonk_I * ckr(ia) - rhonk_R * skr(ia) )
-      recarg2 = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) )
 
-      fxij = kx * recarg
-      fyij = ky * recarg
-      fzij = kz * recarg
+      if ( do_efield .or. do_forces ) then
+        recarg  = Ak * ( rhonk_I * ckr(ia) - rhonk_R * skr(ia) )
+        fxij = kx * recarg
+        fyij = ky * recarg
+        fzij = kz * recarg
+      endif
 
       if ( do_efield ) then
         ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
@@ -2540,6 +2562,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 
       ! electric field gradient
       if ( do_efg ) then
+        recarg2 = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) )
         efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) + kx * kx * recarg2
         efg_rec ( ia , 2 , 2 ) = efg_rec ( ia , 2 , 2 ) + ky * ky * recarg2
         efg_rec ( ia , 3 , 3 ) = efg_rec ( ia , 3 , 3 ) + kz * kz * recarg2
@@ -2548,22 +2571,27 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
         efg_rec ( ia , 2 , 3 ) = efg_rec ( ia , 2 , 3 ) + ky * kz * recarg2
       endif
 
-      ! charges
-      fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
-      fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
-      fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
-      ! dipoles ( k_alpha * Ak * mu.k * recarg ) 
-      if ( .not. ldip ) cycle
-      muix = mu ( ia , 1 )
-      muiy = mu ( ia , 2 )
-      muiz = mu ( ia , 3 )
-      recarg  = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) ) ! ak rhon_R ckr + ak rhon_I skr
-      k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
-      fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
-      fy_rec ( ia ) = fy_rec ( ia ) + ky * k_dot_mu
-      fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
+      if ( do_forces ) then
+        qi  = qia ( ia )
+        ! charges
+        fx_rec ( ia ) = fx_rec ( ia ) - qi * fxij
+        fy_rec ( ia ) = fy_rec ( ia ) - qi * fyij
+        fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
+        ! dipoles ( k_alpha * Ak * mu.k * recarg ) 
+        if ( .not. ldip ) cycle
+        muix = mu ( ia , 1 )
+        muiy = mu ( ia , 2 )
+        muiz = mu ( ia , 3 )
+        recarg  = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) ) ! ak rhon_R ckr + ak rhon_I skr
+        k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
+        fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
+        fy_rec ( ia ) = fy_rec ( ia ) + ky * k_dot_mu
+        fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
+      endif
+
     enddo
 
+    if ( do_stress ) then
      ! stress tensor symmetric !
      ! keep it out from the ia loop ! stupid bug ! 
      tau_rec(1,1) = tau_rec(1,1) + ( 1.0_dp - kcoe * kx * kx ) * str
@@ -2575,16 +2603,18 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
      tau_rec(3,1) = tau_rec(3,1) -            kcoe * kz * kx   * str
      tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
      tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
-
+   endif
 
   enddo kpoint
 
   ! "half" mesh
   if ( do_efield ) ef_rec  = ef_rec  * 2.0_dp
   if ( do_efg    ) efg_rec = efg_rec * 2.0_dp
-  fx_rec  = fx_rec  * 2.0_dp
-  fy_rec  = fy_rec  * 2.0_dp
-  fz_rec  = fz_rec  * 2.0_dp
+  if ( do_forces ) then
+    fx_rec  = fx_rec  * 2.0_dp
+    fy_rec  = fy_rec  * 2.0_dp
+    fz_rec  = fz_rec  * 2.0_dp
+  endif
   u_rec   = u_rec   * 2.0_dp
   tau_rec = tau_rec * 2.0_dp
 
@@ -2602,12 +2632,16 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 3 ) , natm )
     CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 3 ) , natm )
   endif
-  CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 1 , : ) , 3 )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 2 , : ) , 3 )
-  CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 3 , : ) , 3 )
+  if ( do_forces ) then
+    CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
+  endif
+  if ( do_stress ) then
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 1 , : ) , 3 )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 2 , : ) , 3 )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 3 , : ) , 3 )
+  endif
 
   ! ======================================================
   ! remark on the unit :
@@ -2956,8 +2990,8 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
   USE io,               ONLY :  ionode , stdout , ioprintnode
   USE constants,        ONLY :  coul_unit
-  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , dipia_ind , qia , ntypemax, polia , itype 
-  USE control,          ONLY :  longrange
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax, polia , itype 
+  USE control,          ONLY :  longrange , calc
   USE thermodynamic,    ONLY :  u_pol, u_coul
   USE time,             ONLY :  time_moment_from_pola
   USE dumb
@@ -3007,7 +3041,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   if ( ldip ) then
     task_static = .true.        
   endif
-  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , .true. , task_static , do_efield=.true. , do_efg=.false. ) 
+  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , task_static , & 
+                                                      damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
+                                                      do_forces=.false. , do_stress = .false. , do_scf=.false. ) 
   u_coul_stat = u_coul 
 
   fx      = 0.0_dp
@@ -3041,12 +3077,12 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     tttt = MPI_WTIME(ierr)
     ! ==========================================================
     !  calculate mu_ind from Efield = Efield_stat + Efield_ind
-    !  if first step keep previous dipia_ind ( previous md step ) 
+    !  if first extrapolate from previous md step  
     ! ==========================================================
-    if ( iscf.ne.1 ) then
+    if ( iscf.ne.1 .or. calc .ne. 'md' ) then
       CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
     else
-      mu_ind = dipia_ind
+      CALL extrapolate_dipole ( mu_ind ) 
     endif
     tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
@@ -3063,7 +3099,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     !  calculate Efield_ind from mu_ind
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
     ! ==========================================================
-    if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_ind , efg_dummy, mu_ind , .false. , task_ind , do_efield=.true. , do_efg = .false. ) 
+    if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_ind , efg_dummy, mu_ind , task_ind , & 
+                                                        damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                                                        do_forces = .false. , do_stress =.false. , do_scf = .true.) 
     u_coul_ind = u_coul 
     u_coul_pol = u_coul_stat+u_coul_ind
 
@@ -3107,7 +3145,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
     blankline(stdout)
   endif
-#ifdef debug
+#ifdef debug_mu
   if ( ionode ) then
     WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
     do ia = 1 , natm
@@ -3117,6 +3155,11 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     blankline(stdout)
   endif
 #endif
+  ! store induced dipole at t 
+  dipia_ind_t(extrapolate_order,:,:) = mu_ind
+
+  write(1000000,'(e16.8)') u_pol * coul_unit
+  write(1001000,'(e16.8)') mu_ind (  68 , 1 ) , mu_ind (  68 , 2 ) , mu_ind ( 68 , 3 )
 
   stotime
   addtime(time_moment_from_pola)
@@ -3346,7 +3389,7 @@ END SUBROUTINE moment_from_WFc
 ! ******************************************************************************
 SUBROUTINE get_dipole_moments ( mu )
 
-  USE config,           ONLY : natm , ntype , dipia , dipia_ind , dipia_wfc, fx,fy,fz
+  USE config,           ONLY : natm , ntype , dipia , dipia_wfc, fx,fy,fz
   USE io,               ONLY : ionode , stdout
 
   implicit none
@@ -3358,6 +3401,8 @@ SUBROUTINE get_dipole_moments ( mu )
   integer :: it
   logical :: lwannier
   real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
+  real(kind=dp), dimension ( natm, 3  ) :: dipia_ind
+
 
   ! save total force fx,fy,fz as they are overwritted by moment_from_pola
   allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  )
@@ -3406,6 +3451,9 @@ SUBROUTINE get_dipole_moments ( mu )
   fz = fz_save
   deallocate ( fx_save, fy_save, fz_save ) 
  
+#ifdef debug_mu
+        write( stdout,'(a)')  
+#endif
 
   return
 
@@ -3450,6 +3498,98 @@ SUBROUTINE TT_damping_functions(b,c,r,f,fd,order)
   return
 
 END SUBROUTINE TT_damping_functions
+
+SUBROUTINE extrapolate_dipole ( mu_ind )
+
+  USE config,           ONLY :  natm 
+
+  implicit none
+
+  ! global  
+  real(kind=dp) , intent (out):: mu_ind (natm,3) 
+
+  ! integer 
+  real(kind=dp) :: err(3)
+  integer :: xa (extrapolate_order) 
+  integer :: ia , ie
+
+  if ( extrapolate_order .eq. 2 ) then
+    do ia = 1, natm
+      mu_ind ( ia, : ) = 2.0_dp * dipia_ind_t ( 2 , ia, : ) - dipia_ind_t ( 1 , ia, : ) 
+    enddo 
+    do ie = 1 , extrapolate_order
+      dipia_ind_t(1,:,:) = dipia_ind_t(2,:,:)
+    enddo
+  endif
+
+  !do ie = 1 , extrapolate_order 
+  !  xa(ie) = ie - extrapolate_order  
+  !enddo
+
+  !do ia = 1, natm 
+  !  CALL polint(xa , dipia_ind_t( : , ia , 1 ) , extrapolate_order , mu_ind ( ia, 1 ) , err(1) )  
+  !  CALL polint(xa , dipia_ind_t( : , ia , 2 ) , extrapolate_order , mu_ind ( ia, 2 ) , err(2) )  
+  !  CALL polint(xa , dipia_ind_t( : , ia , 3 ) , extrapolate_order , mu_ind ( ia, 3 ) , err(3) )  
+  !  write(10000,'(3e16.8)') err(1), err(2) , err(3)
+  !enddo
+  
+  !do ie = 1 , extrapolate_order 
+  !  dipia_ind_t(ie,:,:) = dipia_ind_t(ie+1,:,:)
+  !enddo
+
+  return 
+
+END SUBROUTINE extrapolate_dipole
+
+SUBROUTINE polint(xa,ya,n,y,dy)
+
+  implicit none
+  INTEGER       :: n
+  integer       :: xa(n)
+  REAL(kind=dp) :: dy,y,ya(n)
+  integer, PARAMETER :: NMAX=10
+  INTEGER       :: i,m,ns
+  REAL(kind=dp) ::  den,dif,dift,ho,hp,w,c(NMAX),d(NMAX)
+
+  ns=1
+  dif=abs(1-xa(1))
+  do i=1,n
+    dift=abs(1-xa(i))
+    if (dift.lt.dif) then
+      ns=i
+      dif=dift
+    endif
+  c = ya
+  d = ya
+  enddo
+  !ns = n
+
+  y=ya(ns)
+  ns=ns-1
+  do m=1,n-1
+    do i=1,n-m
+      ho=REAL(xa(i)-1,kind=dp)
+      hp=REAL(xa(i+1)-1,kind=dp)
+      w=c(i+1)-d(i)
+      den=ho-hp
+      if(den.eq.0.) stop 'failure in polint'
+      den=w/den
+      d(i)=hp*den
+      c(i)=ho*den
+    enddo
+    if (2*ns.lt.n-m)then
+      dy=c(ns+1)
+    else
+      dy=d(ns)
+      ns=ns-1
+    endif
+    y=y+dy
+  enddo
+
+  return
+
+END SUBROUTINE
+
 
 END MODULE field 
 ! ===== fmV =====

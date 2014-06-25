@@ -68,10 +68,10 @@ MODULE md
   data                 yosh_allowed / 1, 3 , 5 , 7 , 9 / 
 
   character(len=60) :: integrator               !< integration method   
-  character(len=60) :: integrator_allowed(10)    
-  data                 integrator_allowed / 'nve-vv' , 'nve-lf', 'nve-be' ,  'nve-lfq',  &
-                                            'nvt-and' , 'nvt-nh' , 'nvt-nhc2' , 'nvt-nhcn', & 
-                                            'npe-vv' , 'npt-nhcpn' /
+  character(len=60) :: integrator_allowed(9)    
+  data                 integrator_allowed / 'nve-vv'  , 'nve-lf'   , 'nve-be' ,  'nve-lfq',  &
+                                            'nvt-and' , 'nvt-nhc2' , 'nvt-nhcn', & 
+                                            'npe-vv'  , 'npt-nhcnp' /
 
   character(len=60) :: nve_ensemble(4)
   data                 nve_ensemble / 'nve-vv' , 'nve-lf', 'nve-be' , 'nve-lfq' /
@@ -80,7 +80,7 @@ MODULE md
   character(len=60) :: npe_ensemble(1) 
   data                 npe_ensemble / 'npe-vv' /
   character(len=60) :: npt_ensemble(1) 
-  data                 npt_ensemble / 'npt-nhcpn' /
+  data                 npt_ensemble / 'npt-nhcnp' /
 
   ! ================================================
   !  velocity distribution (Maxwell-Boltzmann or uniform)
@@ -113,6 +113,8 @@ SUBROUTINE md_init
                       nequil_period , & 
                       annealing     , &
                       npropr        , & 
+                      npropr_start  , & 
+                      nprint        , & 
                       nprint        , & 
                       fprint        , & 
                       spas          , & 
@@ -198,6 +200,8 @@ SUBROUTINE md_default_tag
   annealing     = 1.0_dp
   npropr        = 1
   npropr_start  = 0
+  timesca_thermo= 1.0_dp
+  timesca_baro  = 1.0_dp
 
   first_time_xe0 = .true.
 
@@ -334,11 +338,11 @@ SUBROUTINE extended_coordinates_alloc
     xi   = 0.0_dp
     nhc_n= 2
   endif
-  if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then
+  if ( integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcnp' ) then
     allocate ( vxi(nhc_n) , xi(nhc_n) )
     vxi = 0.0_dp
     xi  = 0.0_dp
-    if ( integrator .eq. 'npt-nhcpn' ) then
+    if ( integrator .eq. 'npt-nhcnp' ) then
       allocate ( vxib(nhc_n) , xib(nhc_n) )
       vxib = 0.0_dp
       xib  = 0.0_dp
@@ -360,9 +364,9 @@ SUBROUTINE extended_coordinates_dealloc
   if ( integrator .eq. 'nvt-nhc2' ) then
     deallocate ( vxi , xi )
   endif
-  if (  integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcpn' ) then
+  if (  integrator .eq. 'nvt-nhcn' .or. integrator .eq. 'npt-nhcnp' ) then
     deallocate ( vxi , xi )
-    if ( integrator .eq. 'npt-nhcpn' ) then
+    if ( integrator .eq. 'npt-nhcnp' ) then
       deallocate ( vxib , xib )
     endif
   endif
@@ -418,7 +422,7 @@ SUBROUTINE md_print_info(kunit)
         if ( integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a)')       ' + Nose Hoover chain N thermostat  (see Martyna et al.)'
         if ( integrator .eq. 'nvt-nhc2' .or. & 
              integrator .eq. 'nvt-nhcn' ) WRITE ( kunit ,'(a,f12.5,a)') 'time scale thermostat: timesca_thermo = ',timesca_thermo/time_unit,' ps'
-        if ( integrator .eq. 'npt-nhcpn') WRITE ( kunit ,'(a,f12.5,a)') 'time scale barostat  : timesca_baro   = ',timesca_baro/time_unit  ,' ps'
+        if ( integrator .eq. 'npt-nhcnp') WRITE ( kunit ,'(a,f12.5,a)') 'time scale barostat  : timesca_baro   = ',timesca_baro/time_unit  ,' ps'
         if ( ( integrator .ne. 'nvt-and' )  .and. &
              ( integrator .ne. 'nvt-nhc2' ) .and. &
              ( integrator .ne. 'nvt-nhcn' ) .and. &

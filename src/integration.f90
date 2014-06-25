@@ -22,7 +22,7 @@
 !#define debug
 !#define debug_nvt_nhc2
 !#define debug_nvt_nhcn
-!#define debug_npt_nhcpn
+!#define debug_npt_nhcnp
 ! ======= Hardware =======
 
 !================================================================================
@@ -712,7 +712,7 @@ enddo msloop
 
 END SUBROUTINE chain_nhcn
 
-! *********************** SUBROUTINE chain_nhcpn ***********************
+! *********************** SUBROUTINE chain_nhcnp ***********************
 !
 !> \brief
 ! ref : 
@@ -720,7 +720,7 @@ END SUBROUTINE chain_nhcn
 ! [2] Phys Lett. A, (1190), v150 n5,6,7, p262, Yoshida
 !
 ! ******************************************************************************
-SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , trotter_order )
+SUBROUTINE chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , trotter_order )
 
   USE constants,                ONLY :  dp, press_unit
   USE config,                   ONLY :  simu_cell, massia , natm , vx , vy , vz
@@ -797,14 +797,14 @@ SUBROUTINE chain_nhcpn ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
   G(1)  = 2.0_dp*kin - L * temp
   Gb(1) = 0.5_dp * ve * ve / W - temp
  
-#ifdef debug_npt_nhcpn
+#ifdef debug_npt_nhcnp
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve in  ',s,sb,ve/W,Ge,pvirial_tot,press
 #endif
   if ( trotter_order == 2 ) then
     P_kin = odnf * kin  / ( 3.0_dp * simu_cell%omega )  
     Ge    = 3.0_dp * simu_cell%omega * ( P_kin + pvirial_tot - press ) 
     ve    = ve + Ge * dt2 ! pe 
-#ifdef debug_npt_nhcpn
+#ifdef debug_npt_nhcnp
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve in  ',s,sb,ve/W,Ge,pvirial_tot,press
 #endif
   endif
@@ -940,7 +940,7 @@ enddo msloop
   enddo
   kin = kin * 0.5_dp
 
-#ifdef debug_npt_nhcpn
+#ifdef debug_npt_nhcnp
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve out ',s,sb,ve/W,Ge,pvirial_tot,press
 #endif
   ! barostat
@@ -950,7 +950,7 @@ enddo msloop
     P_kin = odnf * kin  / ( 3.0_dp * simu_cell%omega )  
     Ge    = 3.0_dp * simu_cell%omega * ( P_kin + pvirial_tot - press ) 
     ve = ve + Ge * dt2 ! pe 
-#ifdef debug_npt_nhcpn
+#ifdef debug_npt_nhcnp
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve out ',s,sb,ve/W,Ge,pvirial_tot,press
 #endif
   endif
@@ -961,14 +961,14 @@ enddo msloop
 
   return
 
-END SUBROUTINE chain_nhcpn
+END SUBROUTINE chain_nhcnp
 
-! *********************** SUBROUTINE nhcpn ***********************
+! *********************** SUBROUTINE nhcnp ***********************
 !
 !> \brief
 !
 ! ******************************************************************************
-SUBROUTINE nhcpn
+SUBROUTINE nhcnp
 
   USE io,                       ONLY :  stdout, ioprint , ioprintnode, ionode
   USE constants,                ONLY :  dp
@@ -997,7 +997,7 @@ SUBROUTINE nhcpn
 
   CALL calc_temp ( tempi , kin )
 
-  CALL chain_nhcpn( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , -1 )
+  CALL chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , -1 )
                                                                         !^
   CALL prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )          !trotter_order
 
@@ -1005,7 +1005,7 @@ SUBROUTINE nhcpn
   e_kin = kin
   temp_r = tempi
 
-  CALL chain_nhcpn( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 1 )
+  CALL chain_nhcnp ( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 1 )
 
 #ifdef debug
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xi   ',(xi(inhc)  , inhc=1,nhc_n)
@@ -1039,7 +1039,7 @@ SUBROUTINE nhcpn
 
   return
 
-END SUBROUTINE nhcpn
+END SUBROUTINE nhcnp
 
 ! *********************** SUBROUTINE prop_pos_vel_verlet ***********************
 !
