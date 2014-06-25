@@ -1753,11 +1753,11 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   implicit none
 
   ! global 
-  real(kind=dp)     :: ef     ( natm , 3 )
-  real(kind=dp)     :: efg    ( natm , 3 , 3 )
-  real(kind=dp)     :: mu     ( natm , 3 )
+  real(kind=dp)     :: ef     ( : , : )
+  real(kind=dp)     :: efg    ( : , : , : )
+  real(kind=dp)     :: mu     ( : , : )
+  logical           :: task   ( : )
   logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_scf
-  logical           :: task(3)
 
   ! local 
   integer         :: ia , ierr
@@ -2462,12 +2462,12 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 
   ! global
   real(kind=dp) :: u_rec
-  real(kind=dp) :: ef_rec  (:,3)
-  real(kind=dp) :: efg_rec (:,3,3)
-  real(kind=dp) :: fx_rec (:) , fy_rec (:) , fz_rec (:)
-  real(kind=dp) :: tau_rec ( 3 , 3)
-  real(kind=dp) :: mu     ( natm , 3 )
-  logical       :: task(3), do_efield , do_efg , do_forces , do_stress 
+  real(kind=dp) :: ef_rec  (:,:)
+  real(kind=dp) :: efg_rec (:,:,:)
+  real(kind=dp) :: fx_rec  (:) , fy_rec (:) , fz_rec (:)
+  real(kind=dp) :: tau_rec (:,:)
+  real(kind=dp) :: mu      (:,:)
+  logical       :: task(:), do_efield , do_efg , do_forces , do_stress 
 
   ! local
   integer           :: ia , ik 
