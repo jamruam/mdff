@@ -54,17 +54,17 @@ SUBROUTINE md_run ( offset )
 
 
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
-                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell
+  USE config,                   ONLY :  natm , natmi , ntype , atype , atypei , itype , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
+                                        write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell , system
   USE control,                  ONLY :  ltraj , longrange , calc , lstatic , lvnlist , lnmlj , lcoulomb , lmorse , &
-                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format , iefall_format , lmsd, lvacf
-  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EFALL , kunit_EQUILFF, ioprint , ioprintnode
+                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format , iefall_format , idipall_format , lmsd, lvacf
+  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EFALL , kunit_EQUILFF, ioprint , ioprintnode, kunit_DIPFF
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n, npropr,npropr_start
 
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
-  USE field,                    ONLY :  engforce_driver , doefg , doefield
+  USE field,                    ONLY :  engforce_driver , doefg , doefield , ef_t , efg_t , mu_t , lwfc , lwrite_dip
   USE mpimdff
   USE msd
   USE vacf
@@ -75,7 +75,7 @@ SUBROUTINE md_run ( offset )
   integer, intent(in)                      :: offset
 
   ! local
-  integer                                  :: ia 
+  integer                                  :: ia , it
 #ifdef debug_para
   integer                                  :: ip
 #endif
@@ -125,6 +125,11 @@ SUBROUTINE md_run ( offset )
   io_node WRITE ( stdout , '(a)' )      'properties at t=0'
  
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
+
+  if ( lwrite_dip ) then
+    if ( idipall_format .ne. 0 ) OPEN (unit = kunit_DIPFF ,file = 'DIPFF', STATUS='REPLACE')
+    if ( idipall_format .eq. 0 ) OPEN (unit = kunit_DIPFF ,file = 'DIPFF', STATUS='REPLACE' , form ='unformatted')
+  endif 
 
   if ( doefield ) then
     if ( iefall_format .ne. 0 ) OPEN (unit = kunit_EFALL  ,file = 'EFALL', STATUS='REPLACE')
@@ -306,7 +311,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          if ( (integrator.eq.'nvt-and') ) CALL andersen_velocities
 
          ! ===================
-         !  print trajectory 
+         !  print trajectory and tensor/vectors efield,efg,dipoles
          ! ===================
          if ( ltraj .and. (itime .gt. itraj_start ) .and. MOD (itime,itraj_period) .eq. 0 ) then
            xtmp = rx
@@ -316,6 +321,90 @@ MAIN:  do itime = offset , npas + (offset-1)
            rx = xtmp
            ry = ytmp
            rz = ztmp
+
+           ! ================================
+           !  write EFGALL file (trajectory)
+           ! ================================
+           efg : if ( ionode .and. doefg ) then
+
+             if ( iefgall_format .ne. 0 ) then
+               WRITE ( kunit_EFGALL , * )  natm
+               WRITE ( kunit_EFGALL , * )  system
+               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+               WRITE ( kunit_EFGALL , * )  ntype
+               WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
+               WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+               WRITE ( kunit_EFGALL ,'(a)') &
+              '      ia type                   vxx                   vyy                    vzz                   vxy                   vxz                   vyz'
+               do ia = 1 , natm
+                 it = itype ( ia )
+                 if ( lwfc( it ) .ge. 0 ) then
+                   WRITE ( kunit_EFGALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , efg_t ( ia , 1 , 1) , efg_t ( ia , 2 , 2) , &
+                                                                                   efg_t ( ia , 3 , 3) , efg_t ( ia , 1 , 2) , &
+                                                                                   efg_t ( ia , 1 , 3) , efg_t ( ia , 2 , 3)
+                 endif
+               enddo
+             endif
+
+             if ( iefgall_format .eq. 0 ) then
+               WRITE ( kunit_EFGALL )  natm
+               WRITE ( kunit_EFGALL )  system
+               WRITE ( kunit_EFGALL )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+               WRITE ( kunit_EFGALL )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+               WRITE ( kunit_EFGALL )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+               WRITE ( kunit_EFGALL )  ntype
+               WRITE ( kunit_EFGALL )  ( atypei ( it ) , it = 1 , ntype )
+               WRITE ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
+               WRITE ( kunit_EFGALL )  efg_t
+             endif
+           endif efg
+
+           ! ================================
+           !  write DIPFF file (trajectory)
+           ! ================================
+             if ( ionode .and. lwrite_dip ) then
+               WRITE ( kunit_DIPFF , * )  natm
+               WRITE ( kunit_DIPFF , * )  system
+               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+               WRITE ( kunit_DIPFF , * )  ntype
+               WRITE ( kunit_DIPFF , * )  ( atypei ( it ) , it = 1 , ntype )
+               WRITE ( kunit_DIPFF , * )  ( natmi  ( it ) , it = 1 , ntype )
+               WRITE ( kunit_DIPFF ,'(a)') &
+              '      ia type                   mux                  muy                  muz'
+               do ia= 1 , natm
+                 WRITE ( kunit_DIPFF , '(a,3e16.8)' ) ia , atype( ia ) , mu_t ( ia , 1 ) , mu_t ( ia , 2 ) , mu_t ( ia , 3 )
+               enddo
+             endif
+
+           ! ================================
+           !  write EFALL electric field file (trajectory)
+           ! ================================
+           ef : if ( ionode .and. doefield ) then
+             WRITE ( kunit_EFALL , * )  natm
+             WRITE ( kunit_EFALL , * )  system
+             WRITE ( kunit_EFALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+             WRITE ( kunit_EFALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+             WRITE ( kunit_EFALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+             WRITE ( kunit_EFALL , * )  ntype
+             WRITE ( kunit_EFALL , * )  ( atypei ( it ) , it = 1 , ntype )
+             WRITE ( kunit_EFALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+             WRITE ( kunit_EFALL ,'(a)') &
+            '      ia type                   Ex                   Ey                Ez'
+             do ia = 1 , natm
+               it = itype ( ia )
+               if ( lwfc( it ) .ge. 0 ) then
+                 WRITE ( kunit_EFALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , ef_t ( ia , 1 ) , ef_t ( ia , 2) ,  ef_t ( ia , 3) 
+               endif
+             enddo
+        
+           endif ef
+
+
+
          endif
 
 #ifdef stress_t

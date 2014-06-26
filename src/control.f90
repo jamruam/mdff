@@ -39,6 +39,7 @@ MODULE control
   integer                 :: iscff_format     !< format of ISCFF  file      0 = BINARY
   integer                 :: iefall_format    !< format of EFALL  file  0 = BINARY
   integer                 :: iefgall_format   !< format of EFGALL file  0 = BINARY
+  integer                 :: idipall_format   !< format of EFGALL file  0 = BINARY
   character(len=8),  SAVE :: DATE             !< execution DATE
   character(len=10), SAVE :: HOUR             !< execution HOUR
 
@@ -153,6 +154,7 @@ SUBROUTINE control_init ( MDFF )
                          iscff_data     , & 
                          iefall_format  , & 
                          iefgall_format , & 
+                         idipall_format , & 
                          restart_data   , & 
                          skindiff     
                
@@ -227,11 +229,12 @@ SUBROUTINE control_default_tag
   itraj_period  = 10000
   itraj_format  = 1
   iscff_format  = 1
+  iefall_format = 1
+  iefgall_format= 1
+  idipall_format= 1
   trajff_data   = 'rnn'
   iscff_data    = 'rnn'
   restart_data  = 'rnn'
-  iefall_format = 1
-  iefgall_format= 1
 
   return 
  

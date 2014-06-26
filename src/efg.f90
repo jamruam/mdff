@@ -19,13 +19,13 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !// general debug flag
-#define debug 
-#define debug_input
-#define debug_es
-#define debug_multipole
-#define debug_efg_stat
+!#define debug 
+!#define debug_input
+!#define debug_es
+!#define debug_multipole
+!#define debug_efg_stat
 !#define fix_grid
-#define debug_non_null_trace_ewald
+!#define debug_non_null_trace_ewald
 ! ======= Hardware =======
 
 ! *********************** MODULE efg  **********************************
@@ -140,10 +140,10 @@ SUBROUTINE efg_init
   OPEN ( stdin , file = filename)
   READ ( stdin , efgtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-    io_node WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent'
+    io_node WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent',ioerr
     STOP
   elseif ( ioerr .gt. 0 )  then
-    io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : efgtag wrong tag'
+    io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : efgtag wrong tag',ioerr
     STOP
   endif
 
@@ -426,13 +426,12 @@ SUBROUTINE efgcalc
       CALL kardir ( natm , rx , ry , rz , simu_cell%B )
       CALL periodicbc ( natm , rx , ry , rz , simu_cell ) 
       CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
-     
-
+    
       ! =======================
       !  total tensor (efg_t)
       ! =======================
       efg_t    = 0.0_dp
-
+      mu = 0.0_dp
       CALL get_dipole_moments ( mu )
 
 !#if defined(debug_multipole) || defined(debug)
@@ -480,19 +479,17 @@ SUBROUTINE efgcalc
         if ( longrange .eq. 'ewald' )   CALL multipole_efg_ES ( km_coul , alphaES , mu )
       endif
 
-      efg_t    = efg_ia 
-
+      efg_t      = efg_ia 
       ! unit
       efg_t    =  efg_t    * coul_unit
       ! opposite sign in DFT codes ( charge of electron ? )
       if ( lefg_vasp_sign ) then
-        efg_t     = - efg_t 
+        efg_t    = - efg_t 
       endif
 
 #ifdef debug
       CALL print_tensor( efg_t( 1 , : , : ) , 'TOTEFG  ' )
 #endif
-
       ! =======================================
       ! write efg for each atom in file EFGALL ( not the wannier centres )
       ! note : 
@@ -1358,6 +1355,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
     enddo
     WRITE( stdout , '(a,2i8)')      'debug : atom decomposition istart,iend  ', atom_dec%istart ,atom_dec%iend
     WRITE( stdout , '(a,f20.5)')    'debug : alphaES        ', alphaES
+    WRITE( stdout , '(a,f20.5)')    'debug : alphaES        ', alphaES
   endif
 #endif 
 
@@ -1479,8 +1477,6 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
         efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) + ( Txxy * mujx + Tyyx * mujy + Txyz * mujz ) 
         efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) + ( Txxz * mujx + Txyz * mujy + Tzzx * mujz )
         efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) + ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz )
-        write(stdout,'(a,i,3e16.8)') 'debug : ',ia,Txxx,Tyyx,Tzzx
-        write(stdout,'(a,2e16.8)')   'debug : ',efg_dir ( 1 , 1 , 1 ),efg_dir( 1 , 1 , 2 )
  
       endif
 

@@ -56,7 +56,8 @@ EXE= mdff.x
 # =================
 #   on mario / babar / charrue
 # =================
-FCFLAGS = -O3 -xSSE4.2 -align all 
+#FCFLAGS = -O3 -xSSE4.2 -align all 
+FCFLAGS = -O3 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all
 #FCFLAGS = -O3 -ip -xW
@@ -88,6 +89,13 @@ $(info FCFLAGS :  $(FCFLAGS))
 #INC=-I/opt/intel/Compiler/11.1/064/mkl/include/fftw
 #LDFLAGS=-Wl,-rpath,/home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/ -Wl,--start-group /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_intel_lp64.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_sequential.a /home/shared_apps/intel/composerxe-2011.0.084/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread  -limf -lm
 
+# =================
+#   on fer 
+# =================
+ifeq ($(HOST),iram-ca-004157)
+	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+	INC=-I/opt/intel/composerxe/mkl/include/fftw/
+endif
 # =================
 #   on T5600
 # =================
