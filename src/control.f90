@@ -37,6 +37,7 @@ MODULE control
   integer                 :: itraj_period     !< write trajectory each itraj_period steps 
   integer                 :: itraj_format     !< format of TRAJFF file ( = 0 BINARY, = 1 FORMATED)
   integer                 :: iscff_format     !< format of ISCFF  file      0 = BINARY
+  integer                 :: iefall_format    !< format of EFALL  file  0 = BINARY
   integer                 :: iefgall_format   !< format of EFGALL file  0 = BINARY
   character(len=8),  SAVE :: DATE             !< execution DATE
   character(len=10), SAVE :: HOUR             !< execution HOUR
@@ -150,6 +151,7 @@ SUBROUTINE control_init ( MDFF )
                          trajff_data    , & 
                          iscff_format   , & 
                          iscff_data     , & 
+                         iefall_format  , & 
                          iefgall_format , & 
                          restart_data   , & 
                          skindiff     
@@ -228,6 +230,7 @@ SUBROUTINE control_default_tag
   trajff_data   = 'rnn'
   iscff_data    = 'rnn'
   restart_data  = 'rnn'
+  iefall_format = 1
   iefgall_format= 1
 
   return 
@@ -321,6 +324,10 @@ SUBROUTINE control_check_tag
     STOP  
   endif
   
+  if ( lreduced ) then
+    CALL reduced_units 
+  endif
+  
   if ( calc .ne. 'md' ) return 
 
   if ( .not. lnmlj .and. .not. lcoulomb .and. .not. lmorse .and. .not. lharm .and. .not. lbmhftd .and. .not. lbmhft ) then
@@ -328,9 +335,6 @@ SUBROUTINE control_check_tag
    STOP
   endif
 
-  if ( lreduced ) then
-    CALL reduced_units 
-  endif
 
 
   return

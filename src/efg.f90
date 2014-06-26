@@ -19,13 +19,13 @@
 ! ======= Hardware =======
 #include "symbol.h"
 !// general debug flag
-!#define debug 
-!#define debug_input
-!#define debug_es
-!#define debug_multipole
-!#define debug_efg_stat
+#define debug 
+#define debug_input
+#define debug_es
+#define debug_multipole
+#define debug_efg_stat
 !#define fix_grid
-!#define debug_non_null_trace_ewald
+#define debug_non_null_trace_ewald
 ! ======= Hardware =======
 
 ! *********************** MODULE efg  **********************************
@@ -51,7 +51,6 @@ MODULE efg
   logical :: lefg_restart               !< if EFGALL files are ready
   logical :: lefg_old                   !< use efg_DS and efg_ES ( old routines ) 
   logical :: lefg_stat                  !< compute statitics distribution on EFG's 
-  logical :: lefg_reduced_units         !< 1/4piepsilon0 = 1
   logical :: lefg_vasp_sign             !< opposite sign definition in vasp ( on other DFT codes e- has a negative charge )
   logical :: lefg_it_contrib            !< only on kind is contributing too efg (default false)
   logical :: lmp_correction
@@ -101,7 +100,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE efg_init
 
-  USE io,                  ONLY :  ionode , stdin , stdout , stderr 
+  USE io,                       ONLY :  ionode , stdin , stdout , stderr 
   USE control,                  ONLY :  calc
  
   implicit none
@@ -122,7 +121,6 @@ SUBROUTINE efg_init
                      reseta             , &
                      resu               , &
                      vzzmin             , &
-                     lefg_reduced_units , &
                      lefg_vasp_sign     , &
                      dt                 , & 
                      it_efg             , &
@@ -180,7 +178,6 @@ SUBROUTINE efg_default_tag
   lefg_old           = .false.
   lefg_restart       = .false.
   lefg_stat          = .false.
-  lefg_reduced_units = .false.
   lefg_vasp_sign     = .false.
   lmp_correction     = .false.
   reseta             =   0.1_dp
@@ -204,8 +201,8 @@ END SUBROUTINE efg_default_tag
 ! ******************************************************************************
 SUBROUTINE efg_check_tag
 
-  USE control,                  ONLY :  calc , longrange
-  USE io,                  ONLY :  ionode , stderr , stdout 
+  USE control,                  ONLY :  calc , longrange , lreduced
+  USE io,                       ONLY :  ionode , stderr , stdout 
   USE config,                   ONLY :  ntype
 
   implicit none
@@ -242,7 +239,7 @@ SUBROUTINE efg_check_tag
     STOP
   endif
 
-  if ( lefg_reduced_units ) then
+  if ( lreduced ) then
     io_node WRITE ( stdout, '(a)' ) 'reduced units for electric field gradient (1/4pi epsilon_0 = 1)'
   else
     io_node WRITE ( stdout, '(a)' ) 'eV/A^2 units for electric field gradient'
@@ -371,8 +368,6 @@ SUBROUTINE efgcalc
 
 
 
-    allocate ( ef_tmp  ( natm , 3     ) )
-    allocate ( efg_tmp ( natm , 3 , 3 ) )
 
     CALL lattice ( simu_cell ) 
     rho = natm / simu_cell%omega
@@ -441,6 +436,8 @@ SUBROUTINE efgcalc
       CALL get_dipole_moments ( mu )
 
 !#if defined(debug_multipole) || defined(debug)
+!    allocate ( ef_tmp  ( natm , 3     ) )
+!    allocate ( efg_tmp ( natm , 3 , 3 ) )
 !      if ( longrange .eq. 'ewald' )  CALL multipole_ES ( ef_tmp , efg_tmp , mu , u_coul_tot , vir_coul_tot , phi_coul_tot ) 
 !
 !      WRITE ( 10000, * ) '#electric field'
@@ -453,8 +450,8 @@ SUBROUTINE efgcalc
 !        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
 !        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
 !      enddo
-    deallocate ( ef_tmp  )
-    deallocate ( efg_tmp )
+!    deallocate ( ef_tmp  )
+!    deallocate ( efg_tmp )
 !#endif
 
       ! =======================================
@@ -485,9 +482,8 @@ SUBROUTINE efgcalc
 
       efg_t    = efg_ia 
 
-      if ( .not. lefg_reduced_units ) then
-        efg_t    =  efg_t    * coul_unit
-      endif
+      ! unit
+      efg_t    =  efg_t    * coul_unit
       ! opposite sign in DFT codes ( charge of electron ? )
       if ( lefg_vasp_sign ) then
         efg_t     = - efg_t 
@@ -1221,6 +1217,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
               efg_ia ( ia , 1 , 2 )  = efg_ia ( ia , 1 , 2 ) - qj * Txy 
               efg_ia ( ia , 1 , 3 )  = efg_ia ( ia , 1 , 3 ) - qj * Txz  
               efg_ia ( ia , 2 , 3 )  = efg_ia ( ia , 2 , 3 ) - qj * Tyz
+              print*,qj * Txx
 
               ! ===========================================================
               !                  dipole-dipole interaction
@@ -1482,6 +1479,8 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
         efg_dir ( ia , 1 , 2 ) = efg_dir ( ia , 1 , 2 ) + ( Txxy * mujx + Tyyx * mujy + Txyz * mujz ) 
         efg_dir ( ia , 1 , 3 ) = efg_dir ( ia , 1 , 3 ) + ( Txxz * mujx + Txyz * mujy + Tzzx * mujz )
         efg_dir ( ia , 2 , 3 ) = efg_dir ( ia , 2 , 3 ) + ( Txyz * mujx + Tyyz * mujy + Tzzy * mujz )
+        write(stdout,'(a,i,3e16.8)') 'debug : ',ia,Txxx,Tyyx,Tzzx
+        write(stdout,'(a,2e16.8)')   'debug : ',efg_dir ( 1 , 1 , 1 ),efg_dir( 1 , 1 , 2 )
  
       endif
 

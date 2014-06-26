@@ -57,14 +57,14 @@ SUBROUTINE md_run ( offset )
   USE config,                   ONLY :  natm , rx , ry , rz , rxs , rys , rzs , vx , vy , vz , fx, fy , fz , &
                                         write_CONTFF , center_of_mass , ntypemax , tau_nonb , tau_coul , write_trajff_xyz , simu_cell
   USE control,                  ONLY :  ltraj , longrange , calc , lstatic , lvnlist , lnmlj , lcoulomb , lmorse , &
-                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format , lmsd, lvacf
-  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EQUILFF, ioprint , ioprintnode
+                                        non_bonded, numprocs, myrank , itraj_period , itraj_start , itraj_format, iefgall_format , iefall_format , lmsd, lvacf
+  USE io,                       ONLY :  ionode , stdout, kunit_OSZIFF, kunit_TRAJFF,  kunit_EFGALL , kunit_EFALL , kunit_EQUILFF, ioprint , ioprintnode
   USE md,                       ONLY :  npas , lleapequi , nequil , nequil_period , nprint, &
                                         fprint, spas , dt,  temp , updatevnl , integrator , itime, xi ,vxi, nhc_n, npropr,npropr_start
 
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
-  USE field,                    ONLY :  engforce_driver , doefg
+  USE field,                    ONLY :  engforce_driver , doefg , doefield
   USE mpimdff
   USE msd
   USE vacf
@@ -125,6 +125,11 @@ SUBROUTINE md_run ( offset )
   io_node WRITE ( stdout , '(a)' )      'properties at t=0'
  
   allocate( xtmp(natm), ytmp(natm), ztmp(natm) )
+
+  if ( doefield ) then
+    if ( iefall_format .ne. 0 ) OPEN (unit = kunit_EFALL  ,file = 'EFALL', STATUS='REPLACE')
+    if ( iefall_format .eq. 0 ) OPEN (unit = kunit_EFALL  ,file = 'EFALL', STATUS='REPLACE' , form ='unformatted')
+  endif
 
   if ( doefg ) then
     if ( iefgall_format .ne. 0 ) OPEN (unit = kunit_EFGALL  ,file = 'EFGALL', STATUS='REPLACE')

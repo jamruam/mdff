@@ -31,7 +31,7 @@
 !#define debug_nmlj_pbc
 !#define debug_quadratic
 !#define debug_para
-!#define debug_mu
+#define debug_mu
 !#define debug_extrapolate
 ! ======= Hardware =======
 
@@ -42,7 +42,6 @@
 MODULE field 
 
   USE constants,                        ONLY :  dp 
-  USE tensors_rk,                       ONLY :  interaction
   USE config,                           ONLY :  ntypemax 
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
@@ -167,8 +166,6 @@ MODULE field
   real(kind=dp), dimension ( : , : )     , allocatable :: ef_t  !< electric field vector
   real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t !< electric field gradient tensor
   
-  TYPE ( interaction ) , dimension (:,:) , allocatable :: inter_ewald
-
   real(kind=dp), dimension(:,:,:)  , allocatable :: dipia_ind_t        !< induced dipole on ion at (t)
 
 
@@ -594,14 +591,28 @@ SUBROUTINE field_print_info ( kunit , quiet )
     if ( lcoulomb )    then 
       lseparator(kunit) 
       WRITE ( kunit ,'(a)')             'coulombic interaction : '
-      do k=1,3
-      WRITE ( kunit ,'(a,i,l)')         'task : ',k, task_coul(k)
-      enddo
+      WRITE ( kunit ,'(a,l)')         'task : charge-charge', task_coul(1)
+      WRITE ( kunit ,'(a,l)')         'task : charge-dipole', task_coul(2)
+      WRITE ( kunit ,'(a,l)')         'task : dipole-dipole', task_coul(3)
       lseparator(kunit) 
       blankline(kunit)
-      WRITE ( kunit ,'(a)')             '        qi qj   '
-      WRITE ( kunit ,'(a)')             ' Vij = -------  '
-      WRITE ( kunit ,'(a)')             '         rij    '          
+      if ( task_coul(1) .and. .not. task_coul(3)) then
+        WRITE ( kunit ,'(a)')             '        qi qj   '
+        WRITE ( kunit ,'(a)')             ' Vij = -------  '
+        WRITE ( kunit ,'(a)')             '         rij    '          
+      endif
+      if ( task_coul(1) .and. task_coul(3)) then
+        WRITE ( kunit ,'(a)')             '                      -->   -->               /                  -->  -->     -->   -->   \'      
+        WRITE ( kunit ,'(a)')             '        qi qj      qi muj . rij          1    | -->   -->      ( mui .rij ) ( rij . muj )  |' 
+        WRITE ( kunit ,'(a)')             ' Vij = ------- +  ---------------- +  ------- | mui . muj - 3 ---------------------------  |'
+        WRITE ( kunit ,'(a)')             '         rij          rij^3            rij^3  \                            rij^2          /'
+      endif
+      if ( .not. task_coul(1) .and. task_coul(3)) then 
+        WRITE ( kunit ,'(a)')             '                /                  -->  -->     -->   -->   \'      
+        WRITE ( kunit ,'(a)')             '           1    | -->   -->      ( mui .rij ) ( rij . muj )  |' 
+        WRITE ( kunit ,'(a)')             ' Vij =  ------- | mui . muj - 3 ---------------------------  |'
+        WRITE ( kunit ,'(a)')             '         rij^3  \                            rij^2          /'
+      endif
       blankline(kunit)
       ! =================================
       !         Direct Summation
@@ -1011,17 +1022,15 @@ SUBROUTINE engforce_driver
 
   USE config,                   ONLY :  natm , ntype, system , simu_cell, atypei ,natmi, atype, itype 
   USE control,                  ONLY :  lnmlj , lcoulomb , lbmhft , lbmhftd, lmorse , lharm , longrange, non_bonded, iefgall_format
-  USE io,                       ONLY :  ionode , stdout , kunit_DIPFF
+  USE io,                       ONLY :  ionode , stdout , kunit_DIPFF, kunit_EFGALL , kunit_EFALL
 
   implicit none
 
   ! local 
-  real(kind=dp) :: eftmp( natm , 3 ) , efg_t ( natm , 3 , 3 ) 
+  real(kind=dp) :: ef_t ( natm , 3 ) , efg_t ( natm , 3 , 3 ) 
   real(kind=dp) :: mu(natm,3)
   integer :: ia, it 
-  integer :: kunit_EFGALL
-  
-  kunit_EFGALL=10000
+
 
   ! test purpose only
   ! harmonic oscillator ( test purpose )
@@ -1045,14 +1054,14 @@ SUBROUTINE engforce_driver
   if ( lcoulomb ) then
                                    CALL get_dipole_moments(mu)
 
-    if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( eftmp , efg_t , mu , task_coul , damp_ind=.true. , &
+    if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( ef_t , efg_t , mu , task_coul , damp_ind=.true. , &
                                                        do_efield=doefield , do_efg=doefg , do_forces=.true. , do_stress=.true. , do_scf = .false. )
 
    
     ! ================================
     !  write EFGALL file (trajectory)
     ! ================================
-    if ( doefg ) then
+    efg : if ( ionode .and. doefg ) then
 
       if ( iefgall_format .ne. 0 ) then
         WRITE ( kunit_EFGALL , * )  natm
@@ -1086,8 +1095,11 @@ SUBROUTINE engforce_driver
         WRITE ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
         WRITE ( kunit_EFGALL )  efg_t
       endif
-    endif
+    endif efg
 
+    ! ================================
+    !  write DIPFF file (trajectory)
+    ! ================================
     if ( ionode .and. lwrite_dip ) then
       OPEN ( UNIT = kunit_DIPFF , FILE='DIPFF' )
       do ia= 1 , natm
@@ -1096,9 +1108,30 @@ SUBROUTINE engforce_driver
       CLOSE ( kunit_DIPFF )
     endif
 
+    ! ================================
+    !  write EFALL electric field file (trajectory)
+    ! ================================
+    ef : if ( ionode .and. doefield ) then
+        WRITE ( kunit_EFALL , * )  natm
+        WRITE ( kunit_EFALL , * )  system
+        WRITE ( kunit_EFALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
+        WRITE ( kunit_EFALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
+        WRITE ( kunit_EFALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
+        WRITE ( kunit_EFALL , * )  ntype
+        WRITE ( kunit_EFALL , * )  ( atypei ( it ) , it = 1 , ntype )
+        WRITE ( kunit_EFALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+        WRITE ( kunit_EFALL ,'(a)') &
+            '      ia type                   Ex                   Ey                Ez'
+        do ia = 1 , natm
+          it = itype ( ia )
+          if ( lwfc( it ) .ge. 0 ) then
+            WRITE ( kunit_EFALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , ef_t ( ia , 1 ) , ef_t ( ia , 2) ,  ef_t ( ia , 3) 
+          endif
+        enddo
+        
+    endif ef
 
   endif
-
   ! ===========================
   !   other potentials ...
   ! ===========================
@@ -1942,6 +1975,7 @@ do ia = 1 , natm
  enddo
 
 !#endif
+#endif
  WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir  * coul_unit , &
                                     ' u_rec      = ', u_rec  * coul_unit , &
                                     ' u_surf     = ', u_surf * coul_unit , & 
@@ -1961,7 +1995,6 @@ do ia = 1 , natm
   CALL print_tensor( efg_self ( 1 , : , : ) , 'EFG_SELN' )
   CALL print_tensor( efg      ( 1 , : , : ) , 'EFG_TOTN' )
 
-#endif
 
 
   deallocate( ef_dir  , ef_rec  , ef_surf ,ef_self)
@@ -2022,6 +2055,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: fdamp2 , fdampdiff2
   logical       :: ldamp 
   logical       :: charge_charge, charge_dipole, dipole_dipole, dip_i , dip_j
+  
   TYPE ( tensor_rank0 ) :: T0
   TYPE ( tensor_rank1 ) :: T1
   TYPE ( tensor_rank2 ) :: T2
@@ -2067,7 +2101,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     qi  = qia(ia)
     mui = mu ( ia , : )
 
-    dip_i = all ( mui .ne. 0.0d0 ) 
+    dip_i = any ( mui .ne. 0.0d0 ) 
 
     ion2 : do j1 = jb, je
 
@@ -2082,7 +2116,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         jta  = itype(ja)
         qj   = qia(ja)
         muj = mu ( ja , : )
-        dip_j = all ( muj .ne. 0.0d0 ) 
+        dip_j = any ( muj .ne. 0.0d0 ) 
         qij  = qi * qj
         rxj  = rx(ja)
         ryj  = ry(ja)
@@ -2098,7 +2132,6 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           enddo
         enddo
         d2  = rij(1) * rij(1) + rij(2) * rij(2) + rij(3) * rij(3)
-
         if ( d2 .gt. cutsq ) cycle
 
           d   = SQRT ( d2 )
@@ -2138,17 +2171,17 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! =========================================
           !   multipole interaction tensor rank = 0 
           ! =========================================
-          T0%ab = dm1 * F0
+          T0%sca = dm1 * F0
 
           ! =========================================
           !   multipole interaction tensor rank = 1
           ! =========================================
-          T1%ab(:)  = - rij(:) * dm3
+          T1%a(:)  = - rij(:) * dm3
           if ( ldamp ) then
-            T1%ab_damp  = T1%ab * F1d
-            T1%ab_damp2 = T1%ab * F1d2
+            T1%a_damp  = T1%a * F1d
+            T1%a_damp2 = T1%a * F1d2
           endif
-          T1%ab = T1%ab * F1
+          T1%a = T1%a * F1
   
           ! =========================================
           !   multipole interaction tensor rank = 2
@@ -2190,67 +2223,67 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! =========================================
           !   multipole interaction tensor rank = 3  
           ! =========================================
-          T3%ab = 0.0_dp
+          T3%abc = 0.0_dp
           do i = 1 , 3
             do j = 1 , 3
               do k = 1 , 3
                 if ( j .gt. k ) cycle 
                 if ( i .gt. j ) cycle 
-                T3%ab(i,j,k) = - rij(i) * rij(j) * rij(k) * F3 * dm7 * 15.0_dp
+                T3%abc (i,j,k) = - rij(i) * rij(j) * rij(k) * F3 * dm7 * 15.0_dp
                 if ( i .eq. j .and. j.eq.k ) then
-                  T3%ab(i,j,k) = T3%ab(i,j,k) +    rij(i) * F2 * dm5 * 9.0_dp
+                  T3%abc (i,j,k) = T3%abc (i,j,k) +    rij(i) * F2 * dm5 * 9.0_dp
                 else
-                  if ( i.eq.j ) T3%ab(i,j,k) = T3%ab(i,j,k) + rij(k) * F2 * dm5 * 3.0_dp
-                  if ( i.eq.k ) T3%ab(i,j,k) = T3%ab(i,j,k) + rij(j) * F2 * dm5 * 3.0_dp 
-                  if ( j.eq.k ) T3%ab(i,j,k) = T3%ab(i,j,k) + rij(i) * F2 * dm5 * 3.0_dp
+                  if ( i.eq.j ) T3%abc (i,j,k) = T3%abc (i,j,k) + rij(k) * F2 * dm5 * 3.0_dp
+                  if ( i.eq.k ) T3%abc (i,j,k) = T3%abc (i,j,k) + rij(j) * F2 * dm5 * 3.0_dp 
+                  if ( j.eq.k ) T3%abc (i,j,k) = T3%abc (i,j,k) + rij(i) * F2 * dm5 * 3.0_dp
                 endif
               enddo
             enddo
           enddo
-          T3%ab(1,3,2) = T3%ab(1,2,3)
-          T3%ab(3,1,2) = T3%ab(1,2,3)
-          T3%ab(3,2,1) = T3%ab(1,2,3)
-          T3%ab(2,3,1) = T3%ab(1,2,3)
-          T3%ab(2,1,3) = T3%ab(1,2,3)
-          T3%ab(1,2,1) = T3%ab(1,1,2)
-          T3%ab(2,1,1) = T3%ab(1,1,2)
-          T3%ab(1,3,1) = T3%ab(1,1,3)
-          T3%ab(3,1,1) = T3%ab(1,1,3)
-          T3%ab(2,2,1) = T3%ab(1,2,2)
-          T3%ab(2,1,2) = T3%ab(1,2,2)
-          T3%ab(3,3,1) = T3%ab(1,3,3) 
-          T3%ab(3,1,3) = T3%ab(1,3,3) 
-          T3%ab(2,3,2) = T3%ab(2,2,3)
-          T3%ab(3,2,2) = T3%ab(2,2,3)
-          T3%ab(3,3,2) = T3%ab(2,3,3) 
-          T3%ab(3,2,3) = T3%ab(2,3,3) 
+          T3%abc(1,3,2) = T3%abc(1,2,3)
+          T3%abc(3,1,2) = T3%abc(1,2,3)
+          T3%abc(3,2,1) = T3%abc(1,2,3)
+          T3%abc(2,3,1) = T3%abc(1,2,3)
+          T3%abc(2,1,3) = T3%abc(1,2,3)
+          T3%abc(1,2,1) = T3%abc(1,1,2)
+          T3%abc(2,1,1) = T3%abc(1,1,2)
+          T3%abc(1,3,1) = T3%abc(1,1,3)
+          T3%abc(3,1,1) = T3%abc(1,1,3)
+          T3%abc(2,2,1) = T3%abc(1,2,2)
+          T3%abc(2,1,2) = T3%abc(1,2,2)
+          T3%abc(3,3,1) = T3%abc(1,3,3) 
+          T3%abc(3,1,3) = T3%abc(1,3,3) 
+          T3%abc(2,3,2) = T3%abc(2,2,3)
+          T3%abc(3,2,2) = T3%abc(2,2,3)
+          T3%abc(3,3,2) = T3%abc(2,3,3) 
+          T3%abc(3,2,3) = T3%abc(2,3,3) 
 
         ! ===========================================================
         !                  charge-charge interaction
         ! ===========================================================
         qq : if ( charge_charge ) then
           ! energy
-          u_dir = u_dir + qij * T0%ab
+          u_dir = u_dir + qij * T0%sca
 
           ! electric field
           if ( do_efield ) then
-            ef_dir ( ia , : )   = ef_dir ( ia , : ) - qj * T1 % ab(:) 
-            ef_dir ( ja , : )   = ef_dir ( ja , : ) + qi * T1 % ab(:)
+            ef_dir ( ia , : )   = ef_dir ( ia , : ) - qj * T1%a(:) 
+            ef_dir ( ja , : )   = ef_dir ( ja , : ) + qi * T1%a(:)
             if ( ldamp ) then
-              ef_dir ( ia , : ) = ef_dir ( ia , : ) + qj * T1 % ab_damp(:) 
-              ef_dir ( ja , : ) = ef_dir ( ja , : ) - qi * T1 % ab_damp2(:)
+              ef_dir ( ia , : ) = ef_dir ( ia , : ) + qj * T1%a_damp(:) 
+              ef_dir ( ja , : ) = ef_dir ( ja , : ) - qi * T1%a_damp2(:)
             endif
           endif
           
           ! electric field gradient
           if ( do_efg ) then
-            efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) - qj * T2 % ab ( : , : ) 
-            efg_dir ( ja , : , : ) = efg_dir ( ja , : , : ) - qi * T2 % ab ( : , : ) 
+            efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) - qj * T2%ab ( : , : ) 
+            efg_dir ( ja , : , : ) = efg_dir ( ja , : , : ) - qi * T2%ab ( : , : ) 
           endif
 
           ! forces
           if ( do_forces ) then
-            fij(:)  = qij * T1%ab(:)
+            fij(:)  = qij * T1%a(:)
             fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
             fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
             fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
@@ -2272,13 +2305,24 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         ! ===========================================================
         !                  dipole-dipole interaction
         ! ===========================================================
-
         dd : if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
+
+          ! energy
+!          u_dir = u_dir - ( muix * Txx * mujx + &
+!                            muix * Txy * mujy + &
+!                            muix * Txz * mujz + &
+!                            muiy * Txy * mujx + &
+!                            muiy * Tyy * mujy + &
+!                            muiy * Tyz * mujz + &
+!                            muiz * Txz * mujx + &
+!                            muiz * Tyz * mujy + &
+!                            muiz * Tzz * mujz )
+
           
           ! energy
           do j = 1, 3
             do k = 1, 3 
-               if ( j .gt. k ) cycle
+!               if ( j .gt. k ) cycle
                u_dir = u_dir - mui(j) * T2%ab(j,k) * muj(k) 
             enddo
           enddo
@@ -2294,8 +2338,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! electric field gradient 
           if ( do_efg ) then
             do k = 1 , 3
-              efg_dir ( : , : , ia ) = efg_dir ( : , : , ia ) + T3 % ab (:,:,k) * muj(k)
-              efg_dir ( : , : , ja ) = efg_dir ( : , : , ja ) - T3 % ab (:,:,k) * mui(k)
+              efg_dir ( ia , : , : ) = efg_dir ( ia , : , :  ) + T3%abc (:,:,k) * muj(k)
+              efg_dir ( ja , : , : ) = efg_dir ( ja , : , :  ) - T3%abc (:,:,k) * mui(k)
             enddo
           endif
 
@@ -2305,9 +2349,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             fij=0.0_dp
             do j = 1 , 3 
               do k = 1, 3
-                fij(1) = fij(1) + mui(j) * T3%ab (j,1,k) * muj(k) 
-                fij(2) = fij(2) + mui(j) * T3%ab (j,2,k) * muj(k) 
-                fij(3) = fij(3) + mui(j) * T3%ab (j,3,k) * muj(k) 
+                fij(1) = fij(1) + mui(j) * T3%abc (j,1,k) * muj(k) 
+                fij(2) = fij(2) + mui(j) * T3%abc (j,2,k) * muj(k) 
+                fij(3) = fij(3) + mui(j) * T3%abc (j,3,k) * muj(k) 
               enddo
             enddo
 
@@ -2339,13 +2383,14 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           
           ! electrostatic energy
           do k = 1 , 3 
-            u_dir = u_dir - qi * ( T1%ab(k) * muj(k) ) 
-            u_dir = u_dir + qj * ( T1%ab(k) * mui(k) )
+            u_dir = u_dir - qi *  T1%a(k) * muj(k)  
+            u_dir = u_dir + qj *  T1%a(k) * mui(k) 
             if ( ldamp ) then
-              u_dir = u_dir + qi * ( T1%ab_damp2 (k) * muj(k) ) 
-              u_dir = u_dir - qj * ( T1%ab_damp  (k) * mui(k) )
+              u_dir = u_dir + qi *  T1%a_damp2 (k) * muj(k)  
+              u_dir = u_dir - qj *  T1%a_damp  (k) * mui(k) 
             endif
           enddo
+
 
           ! forces
           if ( do_forces ) then
@@ -3073,6 +3118,16 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
       CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
     else
       CALL extrapolate_dipole ( mu_ind ) 
+#ifdef debug_mu
+      if ( ionode ) then
+        WRITE ( stdout , '(a)' )     'Induced dipoles at atoms from extrapolation: '
+        do ia = 1 , natm
+          WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+          ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
+        enddo
+        blankline(stdout)
+      endif
+#endif
     endif
     tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
@@ -3110,7 +3165,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
       if ( .not. lpolar( it ) ) cycle
       npol = npol + 1
       do alpha = 1 , 3
+        if ( polia ( ia,  alpha , alpha ) .eq. 0.0_dp ) cycle
         rmsd  = rmsd  + ( mu_ind ( ia , alpha ) / polia ( ia,  alpha , alpha ) - Efield ( ia , alpha ) ) ** 2 
+        write(stdout,'(2i5,3e16.8)') ia,alpha,mu_ind ( ia , alpha ),polia ( ia,  alpha , alpha ),Efield ( ia , alpha )
       enddo
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 

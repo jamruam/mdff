@@ -66,6 +66,9 @@ MODULE io
   integer, PARAMETER :: kunit_NMRFF     = 65
   integer, PARAMETER :: kunit_NMRFFIT1  = 66
   integer, PARAMETER :: kunit_NMRFFIT2  = 67 
+  
+  !> all Efield for each atoms (if doefield)
+  integer, PARAMETER :: kunit_EFALL    = 68 
 
   !> EFG eta distribution (average) 
   integer, PARAMETER :: kunit_DTETAFF   = 70

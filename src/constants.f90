@@ -133,6 +133,7 @@ SUBROUTINE print_kind_info (stdout)
 
 
    SUBROUTINE reduced_units
+
      implicit none
 
      time_unit   = 1.0_dp
