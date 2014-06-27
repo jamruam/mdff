@@ -20,10 +20,11 @@
 #include "symbol.h"
 !#define debug
 !#define debug_ES
+!#define debug_ES_field_forces
+!#define debug_ES_energy
+!#define debug_ES_stress
+!#define debug_ES_efg
 !#define debug_ES_dir
-!#define debug_multipole_ES
-!#define debug_multipole_ES2
-!#define debug_multipole_ES3
 !#define debug_scf_pola
 !#define debug_wfc
 !#define debug_morse
@@ -1027,9 +1028,11 @@ SUBROUTINE engforce_driver
   implicit none
 
   ! local 
-  real(kind=dp) :: ef ( natm , 3 ) , efg ( natm , 3 , 3 ) 
-  real(kind=dp) :: mu (natm,3)
+  real(kind=dp) , allocatable :: ef ( : , : ) , efg ( : , : , : ) 
+  real(kind=dp) , allocatable :: mu ( : , : )
   integer :: ia, it 
+
+
 
 
   ! test purpose only
@@ -1052,12 +1055,15 @@ SUBROUTINE engforce_driver
   !   coulombic potential 
   ! =================================
   if ( lcoulomb ) then
+   allocate( ef(natm,3) , efg(natm,3,3) , mu(natm,3) )     
+                                   mu=0.0d0
                                    CALL get_dipole_moments ( mu )
-                                   mu_t = mu
     if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( ef , efg , mu , task_coul , damp_ind=.true. , &
                                                        do_efield=doefield , do_efg=doefg , do_forces=.true. , do_stress=.true. , do_scf = .false. )
+    mu_t  = mu
     ef_t  = ef
     efg_t = efg
+   deallocate( ef , efg , mu )     
    
   endif
   ! ===========================
@@ -1885,7 +1891,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   endif
 
   
-#ifdef debug_ES
+#ifdef debug_ES_field_forces
   WRITE ( stdout , '(a)' )     'Electric field at atoms :                           Forces at atoms :'
   do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
@@ -1907,29 +1913,33 @@ do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
    ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) ,   ef_self ( ia , 3 )
  enddo
+#endif
 
-!#endif
+#ifdef debug_ES_energy
  WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir  * coul_unit , &
                                     ' u_rec      = ', u_rec  * coul_unit , &
                                     ' u_surf     = ', u_surf * coul_unit , & 
                                     ' u_self     = ', u_self * coul_unit , &
                                     ' u_pol      = ', u_pol  * coul_unit , &
                                     ' u_coul     = ', u_coul
+#endif
 
-
+#ifdef debug_ES_stress
   tau_dir  = tau_dir  / press_unit * coul_unit
   tau_rec  = tau_rec  / press_unit * coul_unit
   CALL print_tensor( tau_dir  ( : , : )     , 'TAU_DIR ' )
   CALL print_tensor( tau_rec  ( : , : )     , 'TAU_REC ' )
   CALL print_tensor( tau_coul ( : , : )     , 'TAU_COUL' )
+#endif
 
+#ifdef debug_ES_efg
   CALL print_tensor( efg_dir  ( 1 , : , : ) , 'EFG_DIRN' )
   CALL print_tensor( efg_rec  ( 1 , : , : ) , 'EFG_RECN' )
   CALL print_tensor( efg_self ( 1 , : , : ) , 'EFG_SELN' )
   CALL print_tensor( efg      ( 1 , : , : ) , 'EFG_TOTN' )
-
-
 #endif
+
+
 
   deallocate( ef_dir  , ef_rec  , ef_surf ,ef_self)
   deallocate( efg_dir , efg_rec , efg_self)
@@ -2315,6 +2325,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             endif
           enddo
 
+
           ! forces
           if ( do_forces ) then
             fij=0.0_dp
@@ -2461,7 +2472,6 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   ! ==============================================
   kpoint : do ik = km_coul%kpt_dec%istart, km_coul%kpt_dec%iend
     
-
     if (km_coul%kptk(ik) .eq. 0.0_dp ) cycle
 
     kx     = km_coul%kptx(ik)
@@ -2559,6 +2569,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   enddo kpoint
 
   ! "half" mesh
+  u_rec   = u_rec   * 2.0_dp
   if ( do_efield ) ef_rec  = ef_rec  * 2.0_dp
   if ( do_efg    ) efg_rec = efg_rec * 2.0_dp
   if ( do_forces ) then
@@ -2566,8 +2577,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     fy_rec  = fy_rec  * 2.0_dp
     fz_rec  = fz_rec  * 2.0_dp
   endif
-  u_rec   = u_rec   * 2.0_dp
-  tau_rec = tau_rec * 2.0_dp
+  if ( do_stress) tau_rec = tau_rec * 2.0_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
   if ( do_efield ) then
@@ -2952,7 +2962,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   implicit none
 
   ! global
-  real(kind=dp) , intent (out) :: mu_ind ( natm , 3 ) 
+  real(kind=dp) , intent (out) :: mu_ind ( : , : ) 
 
   ! local
   integer :: ia , iscf , it , npol, alpha
@@ -2974,6 +2984,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     if ( lpolar ( it ) ) linduced = .true.
   enddo
   if ( .not. linduced ) then
+#ifdef debug
+    write(stdout,'(a,e16.8)') 'quick return from moment_from_pola_scf',mu_ind(1,1)
+#endif
     return
   endif
 
@@ -3360,18 +3373,20 @@ SUBROUTINE get_dipole_moments ( mu )
   implicit none
 
   ! global
-  real(kind=dp) :: mu (:,:)
+  real(kind=dp) , intent ( out ) :: mu (:,:)
 
   ! local
   integer :: it
   logical :: lwannier
   real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
-  real(kind=dp), dimension ( natm, 3  ) :: dipia_ind
+  real(kind=dp), dimension ( : , :  ) , allocatable :: dipia_ind
 
 
   ! save total force fx , fy, fz as they are overwritted by moment_from_pola
   allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  )
+  allocate ( dipia_ind ( natm,3)  )
   fx_save = fx ; fy_save = fy ; fz_save = fz
+  dipia_ind = 0.0d0
 
   ! ======================================
   !     induced moment from polarisation 
@@ -3416,6 +3431,7 @@ SUBROUTINE get_dipole_moments ( mu )
   fz = fz_save
 
   deallocate ( fx_save, fy_save, fz_save ) 
+  deallocate ( dipia_ind  )
  
 #ifdef debug_mu
         write( stdout,'(a)')  
