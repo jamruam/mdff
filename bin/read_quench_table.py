@@ -50,6 +50,10 @@ def read_quench():
         print item[0]
     print
 
+#+--------+--------+--------------+-------------+----------+--------------+------+------------+
+#|  TEMP  |   ENS. |  npas [ps]   | fprint [ps] |  traj    |  period [ps] |  POT |    flag    |
+#+--------+--------+--------------+-------------+----------+--------------+------+------------+
+
     print "found ",len ( table), " runs defined in quench.config :"
     newtable=[]
     for item in table:
@@ -161,7 +165,7 @@ def write_script(var,table):
             print >> fdo, 'Docontrol "'+item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'_'+item[7]+'.F'\
                           +' '+item[1]+' '+item[6]+' '+item[7]+' '+str(k)
             print >> fdo2, 'DoMD "'+item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'_'+item[7]+'.F'\
-                          +' '+item[1]+' '+item[6]+' '+item[7]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]
+                          +' '+item[1]+' '+item[6]+' '+item[7]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]+'_'+item[7]
         # QUENCH
         else:
 
@@ -211,7 +215,7 @@ def write_script(var,table):
 
 
             print >> fdo, 'Docontrol "'+item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'.F'+' '+item[1]+' '+item[6]+' '+item[0]+' '+str(k) 
-            print >> fdo2,'DoMD "'     +item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'.F'+' '+item[1]+' '+item[6]+' '+item[0]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]
+            print >> fdo2,'DoMD "'     +item[1]+' '+item[6]+' '+item[0]+'" control'+'_'+item[1]+'_'+item[6]+'_'+item[0]+'.F'+' '+item[1]+' '+item[6]+' '+item[0]+' '+str(k)+' '+item[1]+'_'+item[0]+'_'+item[6]+'_'+item[6]
         first=False
 
     fout.close()
