@@ -226,9 +226,6 @@ SUBROUTINE msd_alloc
 
   implicit none
 
-  ! local
-  integer :: ib , i , j
-
   if ( .not. lmsd ) return
 
   allocate ( msd_data%x ( nblocks , nblcel , natm ) , msd_data%y ( nblocks , nblcel , natm )  , msd_data%z ( nblocks , nblcel , natm )  ) 
@@ -457,16 +454,16 @@ END SUBROUTINE msd_onthefly_frenkel
 !! write results to file MSDFF
 !
 ! ******************************************************************************
-SUBROUTINE msd_postprocess_window ( nmsd )
-
-  implicit none
-
-  ! global
-  integer :: nmsd
-
-  return
-
-END SUBROUTINE msd_postprocess_window
+!SUBROUTINE msd_postprocess_window ( nmsd )
+!
+!  implicit none
+!
+!  ! global
+!  integer :: nmsd
+!
+!  return
+!
+!END SUBROUTINE msd_postprocess_window
 
 ! *********************** SUBROUTINE msd_onthefly_multiwindow **********************
 !
@@ -492,7 +489,6 @@ SUBROUTINE msd_onthefly_multiwindow ( nmsd )
   integer :: index_origin , index_t , key
 
   real(kind=dp ) :: x0 , y0 , z0 ! origin 
-  real(kind=dp ) :: xtime  
 
   ! ===================================================
   !  determine current maximum number of blocks: iblm
@@ -635,7 +631,7 @@ END SUBROUTINE msd_onthefly_multiwindow
 !! write results to file MSDFF
 !
 ! ******************************************************************************
-SUBROUTINE msd_write_output ( quite ) 
+SUBROUTINE msd_write_output 
 
   USE config,           ONLY :  ntype, natm
   USE constants,        ONLY :  time_unit
@@ -643,9 +639,6 @@ SUBROUTINE msd_write_output ( quite )
   USE md,               ONLY :  npropr
 
   implicit none
-
-  ! global
-  integer :: quite
 
   ! local
   integer :: j, ib, ihbmax , it , ie

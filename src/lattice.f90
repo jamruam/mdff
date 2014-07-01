@@ -266,14 +266,13 @@ END SUBROUTINE dirkar
 !! \param[in] latt lattice type
 !! \param[in,out] xxx , yyy , zzz position vectors 
 ! ******************************************************************************
-SUBROUTINE periodicbc ( natm , xxx , yyy , zzz , latt )
+SUBROUTINE periodicbc ( natm , xxx , yyy , zzz )
 
   implicit none
 
   ! global
   integer :: natm
   real(kind=dp) :: xxx ( natm ) , yyy ( natm ) , zzz ( natm )
-  TYPE(celltype) latt
 
   ! local
   integer :: ia

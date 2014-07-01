@@ -47,6 +47,7 @@ MODULE field
   USE kspace,                           ONLY :  kmesh 
   USE rspace,                           ONLY :  rmesh
   USE io,                               ONLY :  ionode
+  USE tensors_rk,                       ONLY :  interaction
   USE mpimdff
 
   implicit none
@@ -169,6 +170,7 @@ MODULE field
   real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t        !< electric field gradient tensor
   real(kind=dp), dimension ( : , : , : ) , allocatable :: dipia_ind_t  !< induced dipole on ion at (t)
 
+  TYPE(interaction) , dimension(:,:) , allocatable :: elec_tensors
 
 CONTAINS
 
@@ -509,7 +511,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
 
   !local
   logical , optional :: quiet
-  integer :: kunit, it , it1 , it2 , i , j , k
+  integer :: kunit, it , it1 , it2 , i , j 
   real(kind=dp) :: rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2
   logical :: linduced, ldamp
 
@@ -1030,10 +1032,6 @@ SUBROUTINE engforce_driver
   ! local 
   real(kind=dp) , allocatable :: ef ( : , : ) , efg ( : , : , : ) 
   real(kind=dp) , allocatable :: mu ( : , : )
-  integer :: ia, it 
-
-
-
 
   ! test purpose only
   ! harmonic oscillator ( test purpose )
@@ -1059,7 +1057,7 @@ SUBROUTINE engforce_driver
                                    mu=0.0d0
                                    CALL get_dipole_moments ( mu )
     if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( ef , efg , mu , task_coul , damp_ind=.true. , &
-                                                       do_efield=doefield , do_efg=doefg , do_forces=.true. , do_stress=.true. , do_scf = .false. )
+                                                       do_efield=doefield , do_efg=doefg , do_forces=.true. , do_stress=.true. )
     mu_t  = mu
     ef_t  = ef
     efg_t = efg
@@ -1520,6 +1518,7 @@ SUBROUTINE initialize_coulomb
   allocate ( efg_t ( natm , 3 , 3 ) )
   allocate ( dipia_ind_t ( extrapolate_order+1, natm , 3 ) )
   allocate ( mu_t ( natm , 3 ) )
+  allocate ( elec_tensors ( natm,natm ) )
   ef_t        = 0.0_dp
   efg_t       = 0.0_dp
   dipia_ind_t = 0.0_dp
@@ -1586,6 +1585,7 @@ SUBROUTINE finalize_coulomb
   deallocate ( efg_t )
   deallocate ( dipia_ind_t )
   deallocate ( mu_t )
+  deallocate ( elec_tensors )
   ! ============
   !  direct sum
   ! ============
@@ -1714,7 +1714,7 @@ END SUBROUTINE induced_moment
 !> \todo
 !! make it more condensed 
 ! ******************************************************************************
-SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_scf )
+SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg , do_forces , do_stress )
 
   USE control,          ONLY :  lsurf
   USE constants,        ONLY :  tpi , piroot, coul_unit, press_unit
@@ -1730,7 +1730,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   real(kind=dp)     :: efg    ( : , : , : )
   real(kind=dp)     :: mu     ( : , : )
   logical           :: task   ( : )
-  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_scf
+  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress
 
   ! local 
   integer         :: ia , ierr
@@ -1803,7 +1803,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   ! ==============================================
   ttt1 = MPI_WTIME(ierr)
   CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , & 
-                          do_efield , do_efg , do_forces , do_stress , do_scf )
+                          do_efield , do_efg , do_forces , do_stress )
   ttt2 = MPI_WTIME(ierr)
   fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
 
@@ -1956,7 +1956,7 @@ END SUBROUTINE multipole_ES
 
 
 SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , & 
-                              task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_scf )
+                              task , damp_ind , do_efield , do_efg , do_forces , do_stress )
 
   USE control,                  ONLY :  lvnlist
   USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype
@@ -1975,7 +1975,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: fx_dir ( : ) , fy_dir ( : ) , fz_dir ( : )
   real(kind=dp) :: tau_dir ( : , : )
   real(kind=dp) :: mu     ( : , :  )
-  logical       :: task ( : ) , damp_ind, do_efield , do_efg , do_forces , do_stress , do_scf
+  logical       :: task ( : ) , damp_ind, do_efield , do_efg , do_forces , do_stress 
 
   ! local 
   integer       :: ia , ja , ita, jta, j1 , jb ,je , i , j , k
@@ -2126,6 +2126,11 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             T1%a_damp2 = T1%a * F1d2
           endif
           T1%a = T1%a * F1
+          
+          ! keep interaction for cg solver
+          elec_tensors(ia,ja)%T1%a       = T1%a       
+          elec_tensors(ia,ja)%T1%a_damp  = T1%a_damp  
+          elec_tensors(ia,ja)%T1%a_damp2 = T1%a_damp2 
   
           ! =========================================
           !   multipole interaction tensor rank = 2
@@ -2166,6 +2171,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             T2%ab_damp2 (3,1) = T2%ab_damp2 (1,3)
             T2%ab_damp2 (3,2) = T2%ab_damp2 (2,3)
           endif
+          ! keep interaction for cg solver
+          elec_tensors(ia,ja)%T2%ab = T2%ab
+          !print*,'in ewald subroutine',elec_tensors(ia,ja)%T2%ab(1,1)
 
           ! =========================================
           !   multipole interaction tensor rank = 3  
@@ -2307,6 +2315,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             enddo
           endif 
 
+
+
         endif dd
 
         ! ===========================================================
@@ -2381,6 +2391,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
               enddo
             endif
           endif
+
 
         endif qd
 
@@ -3009,7 +3020,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   endif
   if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , task_static , & 
                                                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
-                                                      do_forces=.false. , do_stress = .false. , do_scf=.false. ) 
+                                                      do_forces=.false. , do_stress = .false. ) 
   u_coul_stat = u_coul 
 
   fx      = 0.0_dp
@@ -3045,7 +3056,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     !  calculate mu_ind from Efield = Efield_stat + Efield_ind
     !  if first extrapolate from previous md step  
     ! ==========================================================
-    if ( iscf.ne.1 .or. calc .ne. 'md' ) then
+    if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
       CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
     else
       CALL extrapolate_dipole ( mu_ind ) 
@@ -3077,7 +3088,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     ! ==========================================================
     if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_ind , efg_dummy, mu_ind , task_ind , & 
                                                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-                                                        do_forces = .false. , do_stress =.false. , do_scf = .true.) 
+                                                        do_forces = .false. , do_stress =.false. ) 
     u_coul_ind = u_coul 
     u_coul_pol = u_coul_stat+u_coul_ind
 
@@ -3106,12 +3117,16 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
 
 !#ifdef debug_scf_pola
+    if ( calc .ne. 'opt' ) then
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
+    endif
 !#endif 
 
   enddo ! end of SCF loop
+  if ( calc .ne. 'opt' ) then
   io_printnode WRITE ( stdout, '(a)' ) ''
+  endif
 
   ! ===========================
   !  charge/force info is recovered
@@ -3119,7 +3134,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   qch = qch_tmp
   qia = qia_tmp
 
-  if ( ioprintnode ) then
+  if ( ioprintnode .and.  calc .ne. 'opt' ) then
     blankline(stdout)
     WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
     WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
@@ -3137,6 +3152,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 #endif
   ! store induced dipole at t 
   dipia_ind_t(1,:,:) = mu_ind
+  
 
 
   stotime
@@ -3145,6 +3161,312 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   return
 
 END SUBROUTINE moment_from_pola_scf
+
+SUBROUTINE moment_from_pola_cng ( mu_ind )
+
+  USE io,               ONLY :  ionode , stdout , ioprintnode
+  USE constants,        ONLY :  coul_unit , sp
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia, qia , ntypemax, polia , itype
+  USE control,          ONLY :  longrange
+  USE thermodynamic,    ONLY :  u_pol, u_coul
+  USE time,             ONLY :  time_moment_from_pola
+  USE dumb
+
+
+
+  implicit none
+
+  ! global
+  real(kind=dp) , intent (out) :: mu_ind ( natm , 3 )
+
+  ! local
+  integer :: ia , ja , it , npol, alpha
+  logical :: linduced
+  real(kind=dp) :: tttt , tttt2
+  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol!, u_coul_ind
+  real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), efg_dummy(natm,3,3)
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax )
+  logical       :: task_static (3), task_ind(3), ldip
+  dectime
+
+!c
+!c --- parameters to set
+!c     np = dimension of the problem
+!c
+  integer np,mp
+!      parameter (np=100,mp=100)
+!c
+!c --- computed parameters
+!c
+  integer nwp,nilmp,nwlmp
+!      parameter (nwp=15*natm+mp,nilmp=mp+4,nwlmp=mp*(2*np+1)+1)
+!c
+  logical two
+  character*2 ctest
+  character*3 marker(3)
+  integer i,j,k,kk,absrel,iter,iter0,imp,iom,imode(3),mode,bfgsb,&
+  select,bfgsp,izs(1),nc,test,p(10),m
+  integer, dimension (:), allocatable :: ilm1,ilm0 
+  real(kind=sp) ::  rzs(1)
+  real(kind=dp) :: r,epsneg,restol,dzs(1)
+  real(kind=dp), dimension (:)  , allocatable :: b,bb,X,XX,w,wlm1,wlm0
+  real(kind=dp), dimension (:,:), allocatable :: l,a,pmat1,pmat0
+!      external mvprod
+!c     double precision drand
+!c
+!c     --- Lapack variables
+!c
+!  integer info,imin
+!  real(kind=dp) :: eigmin
+  real(kind=dp) , dimension (:)    , allocatable :: eig,work
+  real(kind=dp) , dimension (:,:)  , allocatable :: mat
+!c
+  integer ln
+  common /cquad/ln
+
+  np=3*natm
+  ln=np
+  mp=np
+  nwp=5*np+mp
+  nilmp=mp+4
+  nwlmp=mp*(2*np+1)+1
+
+  allocate ( ilm1(nilmp),ilm0(nilmp) )
+  allocate ( l(np,np),a(np,np),b(np),bb(np),x(np),xx(np),&
+  w(nwp),pmat1(np,np),pmat0(np,np),wlm1(nwlmp),wlm0(nwlmp) )
+  allocate ( mat(np,np) , eig(np),work(3*np-1) ) 
+
+
+  tttt2=0.0_dp
+  statime
+
+  ! =========================================================
+  !  Is there any polarizability ? if yes linduced = .TRUE.
+  ! =========================================================
+  linduced = .false.
+  do it = 1 , ntype
+    if ( lpolar ( it ) ) linduced = .true.
+  enddo
+  if ( .not. linduced ) then
+    return
+  endif
+
+  ! =============================================
+  !  calculate static Efield ( charge + dipoles )
+  ! =============================================
+  Efield_stat = 0.0_dp
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+
+  ! =============================================
+  !  coulombic energy , forces (field) and virial
+  ! =============================================
+  ldip=.false.
+  task_static(1) = .true.
+  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
+  if ( ldip ) then
+    task_static = .true.
+  endif
+  ! ==========================================================
+  !  calculate Efield_ind from mu_ind
+  !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
+  ! ==========================================================
+  if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_ind , efg_dummy, mu_ind , task_ind , &
+                                                        damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                                                        do_forces = .false. , do_stress =.false. )
+
+  u_coul_stat = u_coul
+
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+
+  ! =============================================
+  !  init total Efield to static only
+  ! =============================================
+  Efield = Efield_stat
+
+  iter = 0
+  rmsd = HUGE(0.0d0)
+  ! =========================
+  !  charges are set to zero 
+  ! =========================
+  qch_tmp = qch
+  qia_tmp = qia
+  qch = 0.0_dp
+  qia = 0.0_dp
+  task_ind(1) = .false.
+  task_ind(2) = .false.
+  task_ind(3) = .true.
+  ! ================================
+  !   m1cg1 call
+  ! ================================
+    write (stdout,'(a,t100,a)') "= LS solved by the unpreconditioned CG", "="
+!c
+  do ia = 1, natm
+    X( ia )            = mu_ind( ia ,1 )
+    X( natm + ia )     = mu_ind( ia ,2 )
+    X( 2 * natm + ia ) = mu_ind( ia ,3 )
+  enddo
+
+  np = 3 * natm
+  epsneg=1.d-8
+  restol=1.d-10
+  absrel=0
+  iter=10*np
+  imp=2
+  iom=stdout
+  imode(1)=0
+  imode(2)=0
+  imode(3)=0
+
+  ! A
+  do ia = 1 , natm
+    do ja= ia + 1  , natm 
+      
+      a( ia , ja )                       = elec_tensors(ia,ja)%T2%ab(1,1)  ! x,x
+      a( ia , natm + ja )                = elec_tensors(ia,ja)%T2%ab(1,2)  ! x,y
+      a( ia , 2 * natm + ja )            = elec_tensors(ia,ja)%T2%ab(1,3)  ! x,z  
+
+      a( natm + ia , ja )                = elec_tensors(ia,ja)%T2%ab(2,2)  ! x,y
+      a( natm + ia , natm + ja )         = elec_tensors(ia,ja)%T2%ab(2,2)  ! y,y  
+      a( natm + ia , 2 * natm + ja )     = elec_tensors(ia,ja)%T2%ab(2,2)  ! y,z
+
+      a( 2 * natm + ia , ja )            = elec_tensors(ia,ja)%T2%ab(3,2)  ! x,z
+      a( 2 * natm + ia , natm + ja )     = elec_tensors(ia,ja)%T2%ab(3,2)  ! y,z
+      a( 2 * natm + ia , 2 * natm + ja ) = elec_tensors(ia,ja)%T2%ab(3,2)  ! z,z 
+
+      a( ja , ia )                       = a( ia , ja )
+      a( natm + ja , ia )                = a( ia , natm + ja )
+      a( 2 * natm + ja , ia )            = a( ia , 2 * natm + ja )
+
+      a( ja , natm + ia )                = a( natm + ia , ja )
+      a( natm + ja , natm + ia )         = a( natm + ia , natm + ja )
+      a( 2 * natm + ja , natm + ia )     = a( natm + ia , 2 * natm + ja )
+
+      a( ja , 2 * natm + ia )            = a( 2 * natm + ia , ja )
+      a( natm + ja , 2 * natm + ia )     = a( 2 * natm + ia , natm + ja)
+      a( 2 * natm + ja , 2 * natm + ia ) = a( 2 * natm + ia , 2 * natm + ja )
+
+    enddo
+  enddo
+
+   ! electrostatic energy
+!          do k = 1 , 3
+!            u_dir = u_dir - qi *  T1%a(k) * muj(k)
+!            u_dir = u_dir + qj *  T1%a(k) * mui(k)
+!            if ( ldamp ) then
+!              u_dir = u_dir + qi *  T1%a_damp2 (k) * muj(k)
+!              u_dir = u_dir - qj *  T1%a_damp  (k) * mui(k)
+!            endif
+!          enddo
+
+  ! B 
+  do ia = 1 , natm
+!    b( ia )            = - elec_tensors(ia,ia)%T1%a(1) * qi + elec_tensors(ia,ia)%T1%a_damp2(1) * qi 
+!    b( natm + ia )     = - elec_tensors(ia,ia)%T1%a(2) * qi + elec_tensors(ia,ia)%T1%a_damp2(2) * qi
+!    b( 2 * natm + ia ) = - elec_tensors(ia,ia)%T1%a(3) * qi + elec_tensors(ia,ia)%T1%a_damp2(3) * qi
+  enddo
+
+!c
+!c         --- use a preconditioning matrix ?
+!c
+          bfgsp=0
+!c
+!c         --- build a preconditioning matrix ?
+!c
+          bfgsb=1
+          pmat1(1,1)=0.d0
+          select=2
+!c
+!c         --- two LS to wolve ?
+!c
+          two=.false.
+!c
+!c         --- call the solver
+!c
+          call m1cg1 (mvprod,np,x,b,a,xx,bb,two,epsneg,restol,absrel,&
+                      iter,imp,iom,imode,mode,w,nwp,&
+                      bfgsp,pmat0,np**2,mp,ilm0,nilmp,wlm0,nwlmp,&
+                      bfgsb,pmat1,np**2,mp,ilm1,nilmp,wlm1,nwlmp,&
+                      select,izs,rzs,dzs)
+          if ((mode.eq.1) .or. (mode.eq.7)) return
+ 
+
+    do ia = 1, natm
+      mu_ind ( ia , 1 )   = X ( ia )
+      mu_ind ( ia , 2 )   = X ( natm + ia )
+      mu_ind ( ia , 3 )   = X ( 2* natm + ia )
+    enddo
+
+
+
+  ! ===========================
+  !  charge/force info is recovered
+  ! ===========================
+  qch = qch_tmp
+  qia = qia_tmp
+
+  if ( ioprintnode ) then
+    blankline(stdout)
+    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iter, ' iterations '
+    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
+    blankline(stdout)
+  endif
+#ifdef debug
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
+    do ia = 1 , natm
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind
+      ( ia , 3 )
+    enddo
+    blankline(stdout)
+  endif
+#endif
+
+  stotime
+  addtime(time_moment_from_pola)
+
+      deallocate ( ilm1,ilm0 )
+      deallocate ( l,a,b,bb,x,xx,w,pmat1,pmat0,wlm1,wlm0 )
+      deallocate ( mat , eig , work ) 
+
+  ! store induced dipole at t 
+  dipia_ind_t(1,:,:) = mu_ind
+
+ 
+  return
+
+END SUBROUTINE moment_from_pola_cng
+
+SUBROUTINE mvprod (n,a,v,av,izs,rzs,dzs)
+
+  USE constants,                ONLY : dp
+!c
+      integer ln
+      common /cquad/ln
+!c
+      integer n,izs(1)
+      real(kind=dp) ::  rzs(1)
+      real(kind=dp) :: a(ln,n),v(n),av(n),dzs(1)
+!c
+      integer i,j
+      real(kind=dp) :: r
+!c
+!c --- compute the matrix-vector product Av
+!c
+
+      av = MATMUL ( a , v ) 
+        !print*,'in mvprod',av 
+        !print*,'a',a
+
+  RETURN
+
+END SUBROUTINE
+
+
 
 ! *********************** SUBROUTINE moment_from_WFc ***************************
 !
@@ -3394,7 +3716,7 @@ SUBROUTINE get_dipole_moments ( mu )
   if ( algo_moment_from_pola .eq. 'scf' ) then
     CALL moment_from_pola_scf ( dipia_ind )
   else if ( algo_moment_from_pola .eq. 'cng' ) then
-  !  CALL moment_from_pola_cng ( dipia_ind )
+    CALL moment_from_pola_cng ( dipia_ind )
   endif
 
   ! =========================================================
@@ -3527,14 +3849,14 @@ SUBROUTINE extrapolate_dipole ( mu_ind )
     enddo
 
 #ifdef debug_extrapolate
-      write(stdout,'(a)') ' error in extrapolated dipole'
+!      write(stdout,'(a)') ' error in extrapolated dipole'
 #endif
     do ia = 1, natm 
       CALL polint(xa , dipia_ind_t( : , ia , 1 ) , extrapolate_order+1 , mu_ind ( ia, 1 ) , err(1) )  
       CALL polint(xa , dipia_ind_t( : , ia , 2 ) , extrapolate_order+1 , mu_ind ( ia, 2 ) , err(2) )  
       CALL polint(xa , dipia_ind_t( : , ia , 3 ) , extrapolate_order+1 , mu_ind ( ia, 3 ) , err(3) )  
 #ifdef debug_extrapolate
-      write(stdout,'(a,3e16.8)') ia, err(1), err(2) , err(3)
+!      write(stdout,'(a,3e16.8)') ia, err(1), err(2) , err(3)
 #endif
     enddo
   

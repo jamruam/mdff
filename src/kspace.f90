@@ -391,7 +391,7 @@ END SUBROUTINE reorder_kpt
 !END SUBROUTINE struc_fact
 
 ! similar as in kspace.f90 but with type conditions for efg calculation
-SUBROUTINE charge_density_k ( km , mu , ldip , update_mu )
+SUBROUTINE charge_density_k ( km , mu , ldip )
 
   USE constants,        ONLY :  imag
   USE config,           ONLY :  natm , rx , ry , rz , qia , itype
@@ -401,7 +401,6 @@ SUBROUTINE charge_density_k ( km , mu , ldip , update_mu )
   ! global
   TYPE ( kmesh ), intent(inout) :: km
   real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
-  logical                       :: update_mu
   logical                       :: ldip
 
   ! local

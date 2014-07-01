@@ -670,7 +670,7 @@ SUBROUTINE eval_chisq_rmc ( grr_exp , grr_calc , chisq_rmc )
 
   implicit none
 
-  integer :: mp , bin, ierr
+  integer :: mp , bin
   real(kind=dp) :: chisq_rmc
   real(kind=dp) , dimension ( 0 :npairs , 0: nbins-1) :: grr_exp, grr_calc
  
@@ -697,7 +697,7 @@ SUBROUTINE eval_chisq_Uefg ( dibU_exp , dibU_calc , chisq_uefg )
 
   implicit none
 
-  integer :: mp , bin, ierr, ui
+  integer :: mp , bin, ui
   real(kind=dp) :: chisq_uefg
   real(kind=dp) , dimension ( 6 , 0:ntype , 0:PANU ) :: dibU_exp, dibU_calc
 
@@ -726,7 +726,7 @@ SUBROUTINE eval_chisq_vzz ( dibvzz_exp , dibvzz_calc , chisq_vzz )
 
   implicit none
 
-  integer :: mp , bin, ierr, ui
+  integer :: mp , bin
   real(kind=dp) :: chisq_vzz
   real(kind=dp) , dimension ( 0:ntype , 0:PANvzz ) :: dibvzz_exp, dibvzz_calc
 
@@ -753,7 +753,7 @@ SUBROUTINE eval_chisq_eta ( dibeta_exp , dibeta_calc , chisq_eta )
 
   implicit none
 
-  integer :: mp , bin, ierr
+  integer :: mp , bin
   real(kind=dp) :: chisq_eta
   real(kind=dp) , dimension ( 0:ntype , 0:PANeta ) :: dibeta_exp, dibeta_calc
 
@@ -790,7 +790,7 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
 
   ! local
   integer       :: nmax
-  integer       :: ia, ja , it , n , it1 ,it2, ierr , errcode
+  integer       :: ia, ja , it , n , it1 ,it2, ierr 
   real(kind=dp) :: rijsq, d 
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
@@ -802,7 +802,7 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
   integer       , dimension ( :,: )   , allocatable :: nm 
   integer       , dimension ( :,: )   , allocatable :: np 
   real(kind=dp)     :: ttt1 , ttt2 , ttt3 ,ttt4, ttt5
-  real(kind=dp)     :: ttt2_1
+!  real(kind=dp)     :: ttt2_1
   ! merging working array
   real(kind=dp) , dimension (:)       , allocatable :: tab
   integer       , dimension (:)       , allocatable :: lab
@@ -1081,15 +1081,15 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
   real(kind=dp) ,intent (out) :: chisq_var
 
   ! local
-  integer            :: ia, ja , it , n , it1 ,it2, k , ierr
+  integer            :: ia, ja , it , n , it1 ,it2, ierr
   integer            :: nmax
   real(kind=dp)      :: rijsq, d 
   real(kind=dp) :: rxi , ryi , rzi
   real(kind=dp) :: rxij , ryij , rzij
   real(kind=dp) :: sxij , syij , szij
-  real(kind=dp) :: ttt1,ttt2 
-  real(kind=dp) :: ttt3,ttt4
-  real(kind=dp) :: ttt5,ttt6
+  real(kind=dp) :: ttt1!,ttt2 
+!  real(kind=dp) :: ttt3,ttt4
+  real(kind=dp) :: ttt5!,ttt6
 
   real(kind=dp) , dimension ( :,:,: ) , allocatable :: dab_sorted
   real(kind=dp) , dimension ( :,:,: ) , allocatable :: dab_sorted_shifted

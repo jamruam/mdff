@@ -1709,7 +1709,7 @@ SUBROUTINE write_IBZKPTFF ( km )
   TYPE ( kmesh ), intent(in) :: km
 
   ! local
-  integer :: ik , i 
+  integer :: ik 
   integer :: wi , nktot
 
   wi = 1

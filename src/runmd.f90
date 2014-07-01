@@ -541,7 +541,7 @@ MAIN:  do itime = offset , npas + (offset-1)
   !  lmsd
   ! =======
   if ( lmsd ) then
-    CALL msd_write_output ( 1 )
+    CALL msd_write_output 
   endif
 
   ! =======

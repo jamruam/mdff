@@ -301,7 +301,7 @@ SUBROUTINE grcalc
     print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 #endif
     CALL kardir     ( natm , rx , ry , rz , simu_cell%B ) 
-    CALL periodicbc ( natm , rx , ry , rz , simu_cell   )
+    CALL periodicbc ( natm , rx , ry , rz  )
     CALL dirkar     ( natm , rx , ry , rz , simu_cell%A ) 
 
     ngr=ngr+1 

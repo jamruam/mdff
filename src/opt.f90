@@ -48,7 +48,7 @@ MODULE opt
   integer :: nconf               !< number of configurations in TRAJFF  
   integer :: nmaxopt             !< number of configurations optimized  
   integer :: nperiodopt          !< (internal) period between optimized points
-  integer :: nprint           
+  integer :: nopt_print 
 
   real(kind=dp) :: epsrel_m1qn3  !< gradient stop criterion for m1qn3
   real(kind=dp) :: epsrel_lbfgs  !< gradient stop criterion for lbfgs
@@ -80,10 +80,10 @@ SUBROUTINE opt_init
 
   namelist /opttag/ optalgo       , &
                     nconf         , & 
+                    nopt_print    , &
                     epsrel_m1qn3  , & 
                     epsrel_lbfgs  , & 
                     lforce        , &
-                    nprint        , &
                     nmaxopt       
 
   ! ===============================
@@ -136,10 +136,10 @@ SUBROUTINE opt_default_tag
   optalgo      = 'sastry' 
   nconf        = 0
   nmaxopt      = 1 
-  nprint       = 1 
   epsrel_m1qn3 = 1.0e-5
   epsrel_lbfgs = 1.0e-5
   lforce       = .true.
+  nopt_print   = 2
 
   return 
  
@@ -362,7 +362,6 @@ SUBROUTINE opt_main
           WRITE ( stdout ,'(a,2f16.8)')      'initial energy&pressure  = ',pot0,pressure0
           WRITE ( stdout ,'(a)')             '    its       grad              ener'
         endif
-        WRITE ( stdout ,'(a)') 'DEBUG : first energy calc before opt'
         CALL write_CONTFF 
         CALL m1qn3_driver ( iter, Eis , phigrad )
         neng = iter ! the number of function call is iter
@@ -489,7 +488,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
   ztmp = 0.0_dp
  
  
-  ftol = 1.0E-14
+  ftol = tiny(1.0_dp) 
   epsilon = 1.0E-14
   itmax = 10000
   nskp = 1
@@ -547,7 +546,7 @@ SUBROUTINE sastry ( iter , Eis , phigrad , neng )
 
     if ( ionode .and. MOD ( its , kl ) .eq. 0 ) then
       WRITE (stdout,'(2i6,2E20.8,i6)') its , nstep , phigrad , u_tot
-      kl = 2 * kl 
+      kl = nopt_print * kl 
       ! ioprint condition
       ioprint = .true.
       if ( ionode ) ioprintnode = .true.
@@ -859,7 +858,7 @@ END SUBROUTINE sastry
 !! S. Sastry
 !
 !> \note
-!! readapted for mdff by FMV
+!! adapted for mdff by FMV
 !
 ! ******************************************************************************
 SUBROUTINE eforce1d( x , pot , vir , f1d , xix , xiy , xiz , neng ) 
@@ -1174,7 +1173,7 @@ SUBROUTINE lbfgs_driver ( icall, Eis , phigrad )
 
     if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
       WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
-      kl = 2 * kl
+      kl = nopt_print * kl
       ! ioprint condition
       ioprint = .true.
       if ( ionode ) ioprintnode = .true.
@@ -1232,7 +1231,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   !   initialization
   ! =====================
   n=3*natm
-  ndz=4*n+2*(2*n+1)
+  ndz=4*n+5*(2*n+1)
   icall = 0
   kl = 1
   ALLOCATE ( x (N) )
@@ -1282,8 +1281,8 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
   !                  'two' for 2-norm, 
   !                  'dfn' for the norm defined by prosca
   ! =========================================================
-  dxmin    = 1.e-14       
-  df1      = 1500.0_dp     
+  dxmin    = tiny(1.0_dp) 
+  df1      = 1.0_dp     
   epsrel   = epsrel_m1qn3 
   niter    = 6000     
   nsim     = 6000     
@@ -1347,8 +1346,8 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 
     ! write step information
     if ( ionode .and. MOD ( icall , kl ) .eq. 0 ) then
-      WRITE (stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
-      kl = 2 * kl
+      WRITE (stdout,'(i6,2E24.16)') icall , phigrad , u_tot
+      kl = nopt_print * kl
       ! ioprint condition
       ioprint = .true.
       if ( ionode ) ioprintnode = .true.
@@ -1362,7 +1361,7 @@ SUBROUTINE m1qn3_driver ( icall, Eis , phigrad )
 !  101 continue
 
   if ( ionode ) then
-    WRITE ( stdout,'(i6,2E20.8,i6)') icall , phigrad , u_tot
+    WRITE ( stdout,'(i6,2E24.16)') icall , phigrad , u_tot
     WRITE ( stdout , '(a,i5,a)' ) 'minimum reached in ',icall,' iterations'
   endif
   if ( omode .ne. 0 .and. omode .ne. 1 .and. omode .ne. 6  ) then

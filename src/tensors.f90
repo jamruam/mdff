@@ -26,10 +26,8 @@ MODULE tensors_rk
   END TYPE
  
   TYPE :: interaction
-    TYPE ( tensor_rank0 ) :: T0
     TYPE ( tensor_rank1 ) :: T1
     TYPE ( tensor_rank2 ) :: T2
-    TYPE ( tensor_rank3 ) :: T3
   END TYPE
 
 

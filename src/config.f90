@@ -222,7 +222,7 @@ SUBROUTINE write_CONTFF
   !                  PBC
   ! ======================================
   CALL kardir     ( natm , xxx , yyy , zzz , simu_cell%B )
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell   )
+  CALL periodicbc ( natm , xxx , yyy , zzz )
   CALL dirkar     ( natm , xxx , yyy , zzz , simu_cell%A )
   
   if ( ionode ) then
@@ -553,7 +553,7 @@ SUBROUTINE write_trajff_xyz
   !             PBC
   ! ======================================
   CALL kardir     ( natm , xxx , yyy , zzz , simu_cell%B )
-  CALL periodicbc ( natm , xxx , yyy , zzz , simu_cell )
+  CALL periodicbc ( natm , xxx , yyy , zzz )
   CALL dirkar     ( natm , xxx , yyy , zzz , simu_cell%A )
 
 

@@ -980,7 +980,7 @@ SUBROUTINE nhcnp
   implicit none
 
   ! local
-  integer                :: inhc, np, ierr
+  integer                :: inhc
   real(kind=dp)          :: kin , tempi , W, L 
   real(kind=dp), dimension ( : ) , allocatable :: Q, Qb 
 
@@ -1063,9 +1063,9 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
   real(kind=dp) :: kin, xe, ve , xe0, L, W
 
   ! local
-  integer :: ia, inhc
+  integer :: ia
   real(kind=dp) :: dt2 , dt4 , e2, e4, e6, e8
-  real(kind=dp) :: AA , AA2 , BB , poly , ARG , ARG2, odnf , tempi 
+  real(kind=dp) :: AA , AA2 , BB , poly , ARG , ARG2, odnf 
 
   ! useful constants 
   odnf = 1.0_dp + 3.0_dp / L 

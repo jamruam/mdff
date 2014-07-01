@@ -56,7 +56,7 @@ MODULE constants
   ! kind definitions 
  
   integer, PARAMETER, PUBLIC    :: dp          = selected_real_kind(15,300)            !< double precision definition 
-  integer, PARAMETER, PUBLIC    :: sgl         = selected_real_kind(6,30)              !< single precision definition 
+  integer, PARAMETER, PUBLIC    :: sp          = selected_real_kind(6,30)              !< single precision definition 
   ! -------------------------------------------------------------------------------------------------------------------
   ! mathematical constants
   real(kind=dp),      PARAMETER :: pi          = 3.14159265358979323846264338327950_dp !< pi
@@ -112,11 +112,11 @@ SUBROUTINE print_kind_info (stdout)
           epsilon(0.0_DP), '      Smallest positive number:', tiny(0.0_DP), &
           '      Largest representable number:', huge(0.0_DP)
         WRITE( stdout,'(/,T2,A,T78,A,2(/,T2,A,T75,I6),3(/,T2,A,T67,E15.8))') &
-          '      Data type name:', 'sgl', '      Kind value:', kind(0.0_sgl), &
-          '      Precision:', precision(0.0_sgl), &
+          '      Data type name:', 'sp', '      Kind value:', kind(0.0_SP), &
+          '      Precision:', precision(0.0_SP), &
           '      Smallest nonnegligible quantity relative to 1:', &
-          epsilon(0.0_sgl), '      Smallest positive number:', tiny(0.0_sgl), &
-          '      Largest representable number:', huge(0.0_sgl)
+          epsilon(0.0_SP), '      Smallest positive number:', tiny(0.0_SP), &
+          '      Largest representable number:', huge(0.0_SP)
         WRITE( stdout,'(/,T2,A,T72,A,4(/,T2,A,T61,I20))') &
           'INTEGER: Data type name:', '(default)', '         Kind value:', &
           kind(0), '         Bit size:', bit_size(0), &

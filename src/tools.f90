@@ -283,14 +283,14 @@ SUBROUTINE vnlist_pbc
   implicit none
 
   ! local
-  integer :: ia , ja , it , jt , j1
+  integer :: ia , ja
   integer :: icount_vdw , icount_coul
   integer :: k_vdw , k_coul
   integer :: p1 , p2
   real(kind=dp)  :: rskinsq_vdw , rskinsq_coul 
   real(kind=dp) :: rxi , ryi , rzi , rxij , ryij , rzij , rijsq , sxij , syij , szij 
   !debug
-  integer :: iv
+  !integer :: iv
 
   verlet_vdw%list=0
   verlet_coul%list=0

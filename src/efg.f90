@@ -343,8 +343,8 @@ SUBROUTINE efgcalc
   ! local
   integer                                               :: ia , iconf , it , ierr
   real(kind=dp)                                         :: ttt1 , ttt2
-  real(kind=dp) , dimension ( : , : )     , allocatable :: ef_tmp
-  real(kind=dp) , dimension ( : , : , : ) , allocatable :: efg_tmp
+!  real(kind=dp) , dimension ( : , : )     , allocatable :: ef_tmp
+!  real(kind=dp) , dimension ( : , : , : ) , allocatable :: efg_tmp
 #ifdef fix_grid
   real(kind=dp) , dimension ( : , : )     , allocatable :: rave !average positions
 #endif
@@ -423,9 +423,9 @@ SUBROUTINE efgcalc
       call print_config_sample(0,0)  
       write(stdout,'(a,f16.8)') 'volume = ',simu_cell%omega
 #endif
-      CALL kardir ( natm , rx , ry , rz , simu_cell%B )
-      CALL periodicbc ( natm , rx , ry , rz , simu_cell ) 
-      CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+      CALL kardir     ( natm , rx , ry , rz , simu_cell%B )
+      CALL periodicbc ( natm , rx , ry , rz ) 
+      CALL dirkar     ( natm , rx , ry , rz , simu_cell%A )
     
       ! =======================
       !  total tensor (efg_t)
