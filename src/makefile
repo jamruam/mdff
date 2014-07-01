@@ -120,6 +120,14 @@ ifeq ($(HOST),curie71)
 	INC=-I/usr/local/fftw3-3.3.1/include/
 endif
 
+# =================
+#   on drama 
+# =================
+ifeq ($(HOST),iram-ce-004819)
+	LDFLAGS=-lmkl_intel_lp64  -lmkl_sequential -lmkl_core -lfftw3
+	INC=-I/usr/local/fftw3-3.3.1/include/ -I$(MPI_INCLUDE)
+endif
+
 
 $(info LDFLAGS:  $(LDFLAGS))
 $(info INC:  $(INC))
@@ -150,7 +158,7 @@ CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)
 all: $(OBJ) $(EXE)
 
 $(EXE): $(OBJ) mdff.o
-	$(FCL) -openmp -o $@ $^ $(LDFLAGS)
+	$(FCL) -o $@ $^ $(LDFLAGS)
 
 fft_t.o: fft_t.f90
 	$(CPP)

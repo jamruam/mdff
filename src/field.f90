@@ -191,15 +191,15 @@ SUBROUTINE field_default_tag
 
   ! LJ
   lKA           = .false.
-  epslj         = 1.0_dp
-  sigmalj       = 1.0_dp
+  epslj         = 0.0_dp
+  sigmalj       = 0.0_dp
   qlj           = 12.0_dp
   plj           = 6.0_dp
 
   ! morse
-  epsmor        = 1.0_dp 
-  sigmamor      = 1.0_dp 
-  rhomor        = 3.0_dp 
+  epsmor        = 0.0_dp 
+  sigmamor      = 0.0_dp 
+  rhomor        = 0.0_dp 
 
   ! bmhftd
   Abmhftd  = 0.0_dp 
