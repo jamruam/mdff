@@ -64,7 +64,7 @@ SUBROUTINE md_run ( offset )
 
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
-  USE field,                    ONLY :  engforce_driver , doefg , doefield , ef_t , efg_t , mu_t , lwfc , lwrite_dip
+  USE field,                    ONLY :  engforce_driver , doefg , doefield , ef_t , efg_t , mu_t , lwfc , lwrite_dip , write_DIPFF
   USE mpimdff
   USE msd
   USE vacf
@@ -364,20 +364,8 @@ MAIN:  do itime = offset , npas + (offset-1)
            ! ================================
            !  write DIPFF file (trajectory)
            ! ================================
-             if ( ionode .and. lwrite_dip ) then
-               WRITE ( kunit_DIPFF , * )  natm
-               WRITE ( kunit_DIPFF , * )  system
-               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
-               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
-               WRITE ( kunit_DIPFF , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-               WRITE ( kunit_DIPFF , * )  ntype
-               WRITE ( kunit_DIPFF , * )  ( atypei ( it ) , it = 1 , ntype )
-               WRITE ( kunit_DIPFF , * )  ( natmi  ( it ) , it = 1 , ntype )
-               WRITE ( kunit_DIPFF ,'(a)') &
-              '      ia type                   mux                  muy                  muz'
-               do ia= 1 , natm
-                 WRITE ( kunit_DIPFF , '(a,3e16.8)' ) ia , atype( ia ) , mu_t ( ia , 1 ) , mu_t ( ia , 2 ) , mu_t ( ia , 3 )
-               enddo
+             if ( lwrite_dip ) then
+               CALL write_DIPFF
              endif
 
            ! ================================

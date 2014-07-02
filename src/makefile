@@ -100,7 +100,7 @@ endif
 #   on T5600
 # =================
 ifeq ($(HOST),IRAM-CE-004776)
-	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_thread.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -limf -lm
+	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -limf -lm
 	INC=-I/opt/intel/composerxe/mkl/include/fftw/
 endif
 
