@@ -117,7 +117,7 @@ def write_script(var,table):
             valtemp=item[1]
             if valtemp == "NVE"   : VAL="\\'nve-vv\\'"
             if valtemp == "NVT"   : VAL="\\'nvt-nhcn\\'"
-            if valtemp == "NPT_I" : VAL="\\'npt-nhcpn\\'"
+            if valtemp == "NPT_I" : VAL="\\'npt-nhcnp\\'"
             print >> fout,  "   -e s/__"+NAME+"__/"+VAL+"/g",
 
             if item[1] == "NVE" and item[7] == "rescaling" :
