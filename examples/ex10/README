@@ -37,18 +37,18 @@ TABLE:
 
 
   les premiers parametres sont communs a tous les runs et seront remplacés dans le control_template.F
-  A partir de TABLE on definit les runs. On peut en definir autant que l'on veux, seul le nombre de colonnes est fixé.
+  A partir de TABLE on definit les runs. On peut en definir autant que l'on veux, seul le nombre de colonnes est fixé (8).
   un run commence par "|" mais tous les autres caracteres sont ignorés.
 
   Colonnes : 
   #1 temperature en K
   #2 ensemble (NVE,NVT,NPT_I)
   #3 nombre de pas en ps ( => npas = int ( val / dt )   )
-  #4 period d'ecriture des infos vers OSZIFF fprint = int ( val / dt) )
+  #4 periode d'écriture des infos vers OSZIFF fprint = int ( val / dt) )
   #5 oui ou non la trajectoire est sauvegardé
   #6 periode de la trajectoire
-  #7 potentiels utilisés ( selon le flag PIM.POT ou PIM.POT/BMHFTD.POT sont utilisés )
-  #8 flag important pour definit un NVE rescaling et la valeur de annealing pour le quench 
+  #7 potentiels utilisés ( selon le flag PIM == PIM.POT&BMHFTD.POT ou RI == BMHFTD.POT sont utilisés )
+  #8 flag important pour definir NVE rescaling et la valeur de annealing pour le quench 
 
 
   2) preparer les fichiers de potentiels :

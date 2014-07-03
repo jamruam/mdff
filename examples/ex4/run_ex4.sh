@@ -22,8 +22,8 @@ cat > control.F << eof
 &end
 &efgtag
         lefgprintall=.true.
-        lvasp_units=.false.
         ncefg=1
+	lefg_reduced_units=.true.
 &end
 &fieldtag
 	qch(1) =  1.0
@@ -51,11 +51,12 @@ cat > control.F << eof
         calc='efg'
         lcoulomb  = .true.
         longrange = 'ewald'
+	cutlongrange = 1000.0D0
 &end
 &efgtag
         lefgprintall=.true.
-        lvasp_units=.false.
         ncefg=1
+	lefg_reduced_units=.true.
 &end
 &fieldtag
 	qch(1) =  1.0
@@ -93,11 +94,16 @@ cat > control.F << eof
         calc='efg'
         lcoulomb  = .true.
         longrange = 'direct'
+	cutlongrange = 100.0d0
 &end
 &efgtag
         lefgprintall=.true.
-        lvasp_units=.true.
+        lefg_vasp_sign=.true.
+	lefg_stat=.true.
         ncefg=1
+	umin=-15.0
+	smax=25.0
+	vzzmin=-50.0
 &end
 &fieldtag
 	qch(1) =  0.1 -0.8,
@@ -125,8 +131,12 @@ cat > control.F << eof
 &end
 &efgtag
         lefgprintall=.true.
-        lvasp_units=.true.
+        lefg_vasp_sign=.true.
+	lefg_stat=.true.
         ncefg=1
+	umin=-15.0
+	smax=25.0
+	vzzmin=-50.0
 &end
 &fieldtag
 	qch =  0.1 -0.8, 

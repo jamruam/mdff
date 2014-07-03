@@ -20,7 +20,7 @@
         !nequil =100000        
         !nequil_period =10
 
-        integrator    = 'npt-nhcpn'
+        integrator    = 'npt-nhcnp'
         dt            = 0.001
         temp          = 119.8d0
         press         = 0.0d0
