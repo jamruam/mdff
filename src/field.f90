@@ -2348,7 +2348,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           if ( do_stress ) then 
             do j = 1, 3 
               do k = 1, 3 
-                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+                tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
               enddo
             enddo
           endif 
@@ -2397,7 +2397,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           if ( do_stress ) then
             do j = 1, 3
               do k = 1, 3
-                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+                tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
               enddo
             enddo
           endif
@@ -2424,7 +2424,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             if ( do_stress ) then
               do j = 1, 3
                 do k = 1, 3
-                  tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+                  tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
                 enddo
               enddo
             endif
