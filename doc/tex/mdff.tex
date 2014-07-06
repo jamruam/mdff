@@ -480,7 +480,6 @@ MD:
 For this minimum setting, the code generates 4 files:
 
 \begin{itemize}
-\item OUTFF  : close to the standard output
 \item OSZIFF : thermodynamic parameters 
 \item TRAJFF : trajectory file (empty in this case) 
 \item CONTFF : final configuration
@@ -528,13 +527,15 @@ Parameter        &  Type              &          Short Description              
 \verb?lmsd?      & (LOGICAL)          & calculate mean square displacment on the fly during the md (see \verb?&msdtag? )    & \verb?.FALSE? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lvacf?       & (LOGICAL)        & calculate velocity autocorrelation function on the fly during the md (see \verb?&vacftag? not the final version ) & \verb?.FALSE? \\
+\verb?lvacf?     & (LOGICAL)          & calculate velocity autocorrelation function on the fly during the md 
+                                        (see \verb?&vacftag? not the final version )                                        & \verb?.FALSE? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lsurf?     & (LOGICAL)          &  use periodic boundary conditions (if .FALSE. should be tested)                     & \verb?.TRUE.?  \\
+\verb?lsurf?     & (LOGICAL)          &  add "surface" contribution to electrostatic quantities                             & \verb?.FALSE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lreduced?  & (LOGICAL)          &  \newline reduced units and reduced the output quantities by the total number of particules \newline
+\verb?lreduced?  & (LOGICAL)          &  \newline reduced units and reduced the output quantities by the 
+                                         total number of particules \newline
 
 					 Units are discussed in section \ref{sec:units} \newline                            & \verb?.FALSE.? \\ 
 \hline
@@ -542,14 +543,15 @@ Parameter        &  Type              &          Short Description              
 \verb?ltest?     & (LOGICAL)          &  get around the main code (for test purpose only)                                   & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?restart?  & (LOGICAL)           &  restart calculation and consider previous positions and velocities                 & \verb?.FALSE.? \\
+\verb?restart?   & (LOGICAL)          &  restart calculation and consider previous positions and velocities                 & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?restart_data?  & (CHARACTER)    &  format of  \verb?POSFF? file : 'rvf' , 'rnn' , 'rnf' , 'rvn' \newline
+\verb?restart_data?  
+                 & (CHARACTER)        &  format of  \verb?POSFF? file : 'rvf' , 'rnn' , 'rnf' , 'rvn' \newline
 
                                          \verb?'rnn'? : positions only                   (ion\_type + 3 columns) \newline 
                                          \verb?'rnf'? : positions and forces             (ion\_type + 6 columns) \newline 
-                                         \verb?'rvn'? : positions and ivelocities        (ion\_type + 6 columns) \newline 
+                                         \verb?'rvn'? : positions and velocities         (ion\_type + 6 columns) \newline 
                                          \verb?'rvf'? : positions, velocities and forces (ion\_type + 9 columns) 
 
                                                                                                                             & \verb?'rnn'? \tabularnewline
@@ -570,7 +572,7 @@ Parameter        &  Type              &          Short Description              
 					(see section~\ref{sec:EFG})\newline
 
 					\verb?'gr'? : radial distribution function of configurations in TRAJFF
-					(see section~\ref{sec:GR}) \newline                                                & \verb?'md'?   \tabularnewline
+					(see section~\ref{sec:GR}) \newline                                                 & \verb?'md'?   \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?dgauss?    & (CHARACTER)        & \newline algorithm for gaussian distribution (no fondamental differences test purpose only) 
@@ -592,28 +594,35 @@ Parameter        &  Type              &          Short Description              
 					\verb?'ewald'? : Ewald summation technique \newline                                 &  \verb?'ewald?'      \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?cutshortrange?    & (REAL)      &  real-space cut-off for short-range interactions  (lnmlj, lmorse, lbmhft, lmhftd )  & \verb?-?\\
+\verb?cutshortrange?    
+                 & (REAL)             &  real-space cut-off for short-range interactions  
+                                         [(lnmlj, lmorse, lbmhft, lmhftd )  & \verb?-?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?cutlongrange?    & (REAL)       &  real-space cut-off for long-range interactions ( lcoulomb )                        & \verb?-?\\
+\verb?cutlongrange?     
+                 & (REAL)             &  real-space cut-off for long-range interactions ( lcoulomb )                        & \verb?-?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?skindiff?  & (REAL)             &  verlet-list cutoff ( cutoff + skindiff )                                           & \verb?0.1?\\
+\verb?skindiff?  
+                 & (REAL)             &  verlet-list cutoff ( cutoff + skindiff )                                           & \verb?0.1?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?ltraj?     & (LOGICAL)          &  save trajectory (pos, vel, forces) during MD                                       & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?itraj_start?   & (INTEGER)      &  write trajectory from step \verb?itraj_start?                                      & \verb?1? \\
+\verb?itraj_start?   
+                 & (INTEGER)          &  write trajectory from step \verb?itraj_start?                                      & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?itraj_period?  & (INTEGER)      &  write trajectory each \verb?itraj_period? steps                                    & \verb?10000? \\
+\verb?itraj_period?  
+                 & (INTEGER)          &  write trajectory each \verb?itraj_period? steps                                    & \verb?10000? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?itraj_format?  & (INTEGER)      &  format of TRAJFF file ( = 0 BINARY, = 1 FORMATED )                               & \verb?1? \\
+\verb?itraj_format?  
+                 & (INTEGER)          &  format of TRAJFF file ( = 0 BINARY, = 1 FORMATED )                                 & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?traj_data?  & (INTEGER)         &  type of data in TRAJFF (see \verb?restart_data?)                                   & \verb?'rnn'? \\
+\verb?traj_data? & (INTEGER)          &  type of data in TRAJFF (see \verb?restart_data?)                                   & \verb?'rnn'? \\
 \hline
 \end{longtable}
 
@@ -632,7 +641,7 @@ Parameter        &  Type              &          Short Description              
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?integrator?    & (CHARACTER)    &  \newline algorithm for dynamic integration (see section~\ref{sec:integrator}) \newline                   
+\verb?integrator?& (CHARACTER)        &  \newline algorithm for dynamic integration (see section~\ref{sec:integrator}) \newline                   
 
                                          \verb?'nve-vv'?    : NVE velocity-verlet \newline
 					  
@@ -650,79 +659,92 @@ Parameter        &  Type              &          Short Description              
 
 					 \verb?'nvt-nhcn'?  : NVT Nosé-Hoover chains \newline
 
-					 \verb?'npt-nhcnp'? : NPT Martyna-Tuckerman-Tobias-Klein + Nosé-Hoover thermostat \newline & \verb?'nve-vv'? \tabularnewline
+					 \verb?'npt-nhcnp'? : NPT Martyna-Tuckerman-Tobias-Klein + Nosé-Hoover thermostat \newline 
+                                                                                                                            & \verb?'nve-vv'? \tabularnewline
 					 
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?setvel?        & (CHARACTER)    &  \newline velocity distribution \newline 
+\verb?setvel?    & (CHARACTER)        &  \newline velocity distribution \newline 
                                         
 					 \verb?'MaxwBoltz'? : Maxwell-Boltzmann distribution \newline 
 
 					 \verb?'uniform'?   : Uniform distribution (test purpose) \newline                  & \verb?'MaxwBoltz'? \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?npas?          & (INTEGER)      &  total number of time steps                                                         & \verb?10?    \\
+\verb?npas?      & (INTEGER)          &  total number of time steps                                                         & \verb?10?    \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nequil?        & (INTEGER)      &  total number of equilibration steps                                                & \verb?10? \\
+\verb?nequil?    & (INTEGER)          &  total number of equilibration steps                                                & \verb?10? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nequil_period? & (INTEGER)      &  equilibration period                                                               & \verb?1? \\
+\verb?nequil_period? 
+                 & (INTEGER)          &  equilibration period                                                               & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?annealing?    & (REAL)          &  rescaling factor for annealing velocities                                          & \verb?1.0? \\
+\verb?annealing? & (REAL)             &  rescaling factor for annealing velocities                                          & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nprint?        & (INTEGER)      &  print thermo info to standard output and OUTFF (period)                            & \verb?1? \\
+\verb?nprint?    & (INTEGER)          &  print thermo info to standard output (period)                                      & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?fprint?        & (INTEGER)      &  print thermo info to file OSZIFF (period)                                          & \verb?1? \\
+\verb?fprint?    & (INTEGER)          &  print thermo info to file OSZIFF (period)                                          & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?npropr?        & (INTEGER)      &  period to calculate on-the-fly properties (\verb?lmsd,lvacf?)                      & \verb?1? \\
+\verb?npropr?    & (INTEGER)          &  period to calculate on-the-fly properties (\verb?lmsd,lvacf?)                      & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?npropr_start?  & (INTEGER)      &  starting point to calculate on-the-fly properties (\verb?lmsd,lvacf?)              & \verb?0? \\
+\verb?npropr_start?   
+                 & (INTEGER)          &  starting point to calculate on-the-fly properties (\verb?lmsd,lvacf?)              & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?spas?          & (INTEGER)      &  save configuration each \verb?spas? steps in file CONTFF                           & \verb?1000? \\
+\verb?spas?      & (INTEGER)          &  save configuration each \verb?spas? steps in file CONTFF                           & \verb?1000? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?dt?            & (REAL)         &  time step for integration                                                          & \verb?0.001? \\
+\verb?dt?        & (REAL)             &  time step for integration [ps]                                                     & \verb?0.001? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?temp?          & (REAL)         &  temperature                                                                        & \verb?1.0?\\
+\verb?temp?      & (REAL)             &  temperature [K]                                                                    & \verb?1.0?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?press?          & (REAL)        &  pressure                                                                           & \verb?0.0?\\
+\verb?press?     & (REAL)             &  pressure [GPa]                                                                     & \verb?0.0?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?timesca_thermo? & (REAL)         &  time scale of thermostat                                                          & \verb?NULL? \\
+\verb?timesca_thermo? 
+                 & (REAL)             &  time scale of thermostat [ps]                                                      & \verb?NULL? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?timesca_baro? & (REAL)          &  time scale of barostat                                                             & \verb?NULL? \\
+\verb?timesca_baro?   
+                 & (REAL)             &   time scale of barostat [ps]                                                       & \verb?NULL? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?taucsvr?     & (REAL)           &  characteristic time in Stochastic velocity rescale method by Bussi-Donadio-Parrinello
-                                         need to be switch on in \verb?&controltag?                                          & \verb?-? \\
+\verb?taucsvr?   & (REAL)             &  characteristic time in Stochastic velocity rescale method by 
+                                         Bussi-Donadio-Parrinello (see \verb?&controltag lcvsr?)                            & \verb?-? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nuandersen?    & (REAL)         &  characteristic frequency in andersen thermostat                                    & \verb?NULL? \\
+\verb?nuandersen?     
+                 & (REAL)             &  characteristic frequency in andersen thermostat (obsolete)                         & \verb?NULL? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?tauTberendsen?  & (REAL)        &  characteristic time in berendsen thermostat (simple rescale if tauberendsen = dt ) & \verb?dt? \\
+\verb?tauTberendsen?  
+                 & (REAL)             &  characteristic time in berendsen thermostat [ps] 
+                                         (simple rescale if tauberendsen = dt )                                             & \verb?dt? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?tauPberendsen?  & (REAL)        &  characteristic time in berendsen barostat   (simple rescale if tauberendsen = dt ) & \verb?dt? \\
+\verb?tauPberendsen?  
+                 & (REAL)             &  characteristic time in berendsen barostat [ps]
+                                         (simple rescale if tauberendsen = dt )                                             & \verb?dt? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nhc_n?          & (INTEGER)     &  Nose-Hoover Chain : number of multiple timesteps                                   & \verb?4? \\
+\verb?nhc_n?     & (INTEGER)          &  Nose-Hoover Chain : number of chains (extended variable)                           & \verb?4? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nhc_yosh_order? & (INTEGER)     &  order of the yoshida integrator $(2n+1) \, \mathrm{from}\, n=0\, \mathrm{to}\, 4$       & \verb?3? \\
+\verb?nhc_yosh_order? 
+                 & (INTEGER)          &  Nose-Hoover Chain : order of the yoshida integrator 
+                                         $(2n+1) \, \mathrm{from}\, n=0\, \mathrm{to}\, 4$                                  & \verb?3? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nhc_mults?      & (INTEGER)     &  Nose-Hoover Chain : number of multiple timesteps                                   & \verb?2? \\
+\verb?nhc_mults?      
+                 & (INTEGER)          &  Nose-Hoover Chain : number of multiple timesteps                                   & \verb?2? \\
 \hline
 \hline
 \end{longtable}
@@ -739,119 +761,135 @@ Where : \verb?SUBROUTINE field_init? in \verb?field.f90?
 \begin{longtable}{l|c|m{8cm}|m{2cm}}
 \hline
 \hline
-Parameter          &  Type              &          Short Description                                                          & Default value \\
+Parameter        &  Type              &          Short Description                                                          & Default value \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lKA?         &  (LOGICAL)         & use the Kob-Andersen model for BMLJ (see \S \ref{sec:KA})                           & \verb?.FALSE.? \\
+\verb?lKA?       &  (LOGICAL)         & use the Kob-Andersen model for BMLJ (see \S \ref{sec:KA})                           & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ctrunc?      &  (CHARACTER)       & \newline truncation and shift of the potential \newline 
+\verb?ctrunc?    &  (CHARACTER)       & \newline truncation and shift of the potential \newline 
 
-                                         \verb?'linear'?: linear correction (potential discontinuity at $r=r_{cut}$) \newline 
-					 
-                   			 \verb?'quadratic'?: quadratic correction ( potential and force 
-					 discontinuity at $r=r_{cut}$) \newline                                               & \verb?'linear'? \tabularnewline
+                                                    \verb?'notrunc'? : no shift of the truncation \newline 
+                                                    \verb?'linear'?  : linear correction (potential 
+                                                                       discontinuity at $r=r_{cut}$) \newline 
+                   			            \verb?'quadratic'?: quadratic correction ( potential and force 
+                                                    discontinuity at $r=r_{cut}$) \newline                                  & \verb?'notrunc'? \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?symmetric_pot? & (LOGICAL)        &  make all potentials symmetric ( default .true. but who knows ?) \newline  
-	                                   only the upper triangle in matrices in needed                                     & \verb?.TRUE.? \tabularnewline
+\verb?symmetric_pot?         
+                 & (LOGICAL)          &  make all potentials symmetric ( default .true. but who knows ?) \newline  
+	                                   only the upper triangle in matrices in needed                                    & \verb?.TRUE.? \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?mass(X)?        &  vector (REAL)         & mass of the particule type with X = 1 , 2 \ldots \verb?ntype? (not used yet)        & \verb?1.0? \\
+\verb?mass(X)?   &  (REAL)            & mass of the particule type with X = 1 , 2 \ldots \verb?ntype? [a.m.u]               & \verb?1.0? \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
- &  & if \verb?lcoulomb=.TRUE.? & \\
+                 &                    & if \verb?lcoulomb=.TRUE.? & \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?qch(X)?          &  vector (REAL)        & charge of the particule type with X = 1 , 2 \ldots \verb?ntype?                     & \verb?0.0?\\
+\verb?qch(X)?    &  (REAL)            & charge of the particule type with X = 1 , 2 \ldots \verb?ntype? [e]                 & \verb?0.0?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ncelldirect? &  (INTEGER)        & \newline number of neighboring cells in the direct summation 
+\verb?ncelldirect?           
+                 &  (INTEGER)         & \newline number of neighboring cells in the direct summation 
                                          (total number of cells $=ncelldirect^3$ \newline 
 
                                           for \verb?lcoulomb=.TRUE.? and \verb?longrange='direct'?  \newline                  
 					  
-					  not efficient for coulombic interaction < electric field gradient                  & \verb?2? \\
+					  not efficient for coulombic quantities < electric field gradient                 & \verb?2? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?kES(3)?  &  vector (INTEGER)     & \newline number of kpoints in the reciprocal contribution of the Ewald summation
+\verb?kES(3)?    &  (INTEGER)         & \newline number of kpoints in the reciprocal contribution of the Ewald summation
                                          (total number of cells $=ncellewald^3$ \newline                                      
 					 
-					 for \verb?lcoulomb=.TRUE.? and \verb?longrange='ewald'?  \newline                    & \verb?10 10 10? \\
+					 for \verb?lcoulomb=.TRUE.? and \verb?longrange='ewald'?  \newline                  & \verb?10 10 10? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?alphaES?     &  (REAL)            & Ewald screening parameter                                                           & \verb?1.0? \\
+\verb?alphaES?   &  (REAL)            & Ewald screening parameter                                                           & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lautoES?     &  (LOGICAL)         & auto-determination of Ewald parameter (\verb?kES?, \verb?alphaES?) from \verb?epsw? (accuracy) and \verb?cutlongrange? ( accuracy)  & \verb?.FALSE.? \\
-\hline
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
- &  & if \verb?lnmlj=.TRUE.? & \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?epslj(X,Y)?       &  \verb?ntype?$\times$\verb?ntype? (REAL)  & depth of the potential well of the Lennard jones potential with X,Y = 1 , 2 \ldots \verb?ntype?   & \verb?1.0? \tabularnewline
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?sigmalj(X,Y)?     & \verb?ntype?$\times$\verb?ntype?  (REAL)         & finite distance at which the inter-particle potential is zero with 
-                                          X,Y = 1 , 2 \ldots \verb?ntype?                                                     & \verb?1.0? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?qlj(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)            & exponent of the repulsive part with X,Y = 1 , 2 \ldots \verb?ntype?                 & \verb?12? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?plj(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)            & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?6? \\
+\verb?lautoES?   & (LOGICAL)          & auto-determination of Ewald parameter (\verb?kES?, \verb?alphaES?) 
+                                        from \verb?epsw? (accuracy) and \verb?cutlongrange? ( accuracy )                    & \verb?.FALSE.? \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
- &  & if \verb?lbmhft=.TRUE.? or \verb?lbmhftd=.TRUE.? & \\
+                 &                    & if \verb?lnmlj=.TRUE.?                                                              & \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?Abmhftd(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)        & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?0.0? \\
+\verb?epslj(X,Y)?& (REAL)             & depth of the potential well of the Lennard jones potential 
+                                        with X,Y = 1 , 2 \ldots \verb?ntype? [eV]                                           & \verb?1.0? \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?Bbmhftd(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)        & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?0.0? \\
+\verb?sigmalj(X,Y)?          
+                 & (REAL)             & finite distance at which the inter-particle potential is zero with 
+                                          X,Y = 1 , 2 \ldots \verb?ntype? [\AA]                                             & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?Cbmhftd(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)        & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?0.0? \\
+\verb?qlj(X,Y)?  & (REAL)             & exponent of the repulsive part with X,Y = 1 , 2 \ldots \verb?ntype?                 & \verb?12? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?Dbmhftd(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)        & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?0.0? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?BDbmhftd(X,Y)?    & \verb?ntype?$\times$\verb?ntype? (REAL)       & only \verb?lbmhftd=.TRUE.?                                                          & \verb?0.0? \\
+\verb?plj(X,Y)?  & (REAL)             & exponent of the attractive part with X,Y = 1 , 2 \ldots \verb?ntype?                & \verb?6? \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
- &  & for polarizabilities & \\
+                 &                    & if \verb?lbmhft=.TRUE.? or \verb?lbmhftd=.TRUE.?                                    & \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?Abmhftd(X,Y)?          
+                 & (REAL)             & parameter of the Born-Meyer-Huggins potential 
+                                        with X,Y = 1 , 2 \ldots \verb?ntype? [eV]                                           & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?Bbmhftd(X,Y)?          
+                 & (REAL)             & parameter of the Born-Meyer-Huggins potential 
+                                        with X,Y = 1 , 2 \ldots \verb?ntype? [\AA$^1$]                                      & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?Cbmhftd(X,Y)?          
+                 & (REAL)             & parameter of the Born-Meyer-Huggins potential
+                                        with X,Y = 1 , 2 \ldots \verb?ntype? [eV\AA$^6$]                                    & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?Dbmhftd(X,Y)?          
+                 & (REAL)             & parameter of the Born-Meyer-Huggins potential
+                                        with X,Y = 1 , 2 \ldots \verb?ntype? [eV\AA$^8$]                                    & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?BDbmhftd(X,Y)?         
+                 & (REAL)             &  damping terms of dispersion contribution only \verb?lbmhftd=.TRUE.?                & \verb?0.0? \\
+\hline
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+                 &                    & for polarizabilities                                                                &  \\
 
- conv_tol_ind  = 1e-6
-  min_scf_pol_iter = 3
-  max_scf_pol_iter = 100
-  algo_moment_from_pola = 'scf'
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?algo_moment_from_pola? & (CHARACTER) & 'scf' : self-consistent determination of induced field from polarizabilities & \verb?.FALSE.?\\
+\verb?algo_pol?  & (CHARACTER)        & \verb?'scf'? : self-consistent determination of induced field from polarizabilities
+                                        \verb?'cg'? :  dev. stage                                                           & \verb?.FALSE.?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lpolar(X)? & vector (LOGICAL) & switch polarizabilities for ion X= 1 , 2 \ldots \verb?ntype? & \verb?.FALSE.?\\
+\verb?lpolar(X)? & (LOGICAL)          & switch polarizabilities for ion X= 1 , 2 \ldots \verb?ntype?                        & \verb?.FALSE.?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol(X,3,3)? & \verb?ntype?$\times$3$\times$3 (REAL) & polarizability diagonal for type X=1 , 2 \ldots \verb?ntype? & \verb?0.0? \\
+\verb?pol(X,3,3)?& (REAL)             & polarizability tensor for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ldip_damp(X,3,3)? & \verb?ntype?$\times$3$\times$3 (REAL) & polarizability diagonal for type X=1 , 2 \ldots \verb?ntype? & \verb?0.0? \\
+\verb?ldip_damp(X,3,3)?      
+                 & (LOGICAL)          & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_b(X,3,3)? & \verb?ntype?$\times$3$\times$3 (REAL) & polarizability diagonal for type X=1 , 2 \ldots \verb?ntype? & \verb?0.0? \\
+\verb?pol_damp_b(X,3,3)?     
+                 & (REAL)             & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_c(X,3,3)? & \verb?ntype?$\times$3$\times$3 (REAL) & polarizability diagonal for type X=1 , 2 \ldots \verb?ntype? & \verb?0.0? \\
+\verb?pol_damp_c(X,3,3)?     
+                 & (REAL)             & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_k(X,3,3)? & \verb?ntype?$\times$3$\times$3 (INTEGER) & polarizability diagonal for type X=1 , 2 \ldots \verb?ntype? & \verb?4? \\
+\verb?pol_damp_k(X,3,3)?     
+                 & (INTEGER)          & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?4? \\
 \hline
 \hline
 \end{longtable}
@@ -905,35 +943,38 @@ Where : \verb?SUBROUTINE vib_init? in \verb?vib.f90?
 \begin{longtable}{l|c|m{8cm}|m{2cm}}
 \hline
 \hline
-Parameter            &  Type              &          Short Description                                                          & Default value \\
+Parameter        &  Type              &          Short Description                                                          & Default value \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lwrite_vectff? & (LOGICAL)          & write the vector field (i.e eigenvectors) in VECTFF file                            & \verb?.FALSE.?  \\
+\verb?lwrite_vectff? 
+                 & (LOGICAL)          & write the vector field (i.e eigenvectors) in VECTFF file                            & \verb?.FALSE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ncvib?         & (INTEGER)          & number of configurations in ISCFF to be analysed                                    & \verb?0? \\
+\verb?ncvib?     & (INTEGER)          & number of configurations in ISCFF to be analysed                                    & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ngconf?        & (INTEGER)          & number of configurations generated with \verb?calc='vib+gmod'?                      & \verb?0? \\
+\verb?ngconf?    & (INTEGER)          & number of configurations generated with \verb?calc='vib+gmod'?                      & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?imod?          & (INTEGER)          & if \verb?calc='vib+gmod'? generate the mode \verb?imod?                             & \verb?4? \\
+\verb?imod?      & (INTEGER)          & if \verb?calc='vib+gmod'? generate the mode \verb?imod?                             & \verb?4? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?nkphon?        & (INTEGER)          & number of kpoint between ks and kf used when calc = 'vib+band'                      & \verb?NULL? \\
+\verb?nkphon?    & (INTEGER)          & number of kpoint between ks and kf used when calc = 'vib+band'                      & \verb?NULL? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resdos?       & (REAL)              & resolution in vibrational density of states distribution                            & \verb?1.0? \\
+\verb?resdos?    & (REAL)             & resolution in vibrational density of states distribution [\AA]                      & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?omegamax?     & (REAL)              & maximum value in dos                                                                & \verb?100.0? \\
+\verb?omegamax?  & (REAL)             & maximum value in dos                                                                & \verb?100.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ksx,ksy,ksz?  & (REAL)              & first kpoint & \verb?NULL? \\
+\verb?ksx,ksy,ksz?  
+                 & (REAL)             & first kpoint                                                                        & \verb?NULL? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?kfx,kfy,kfz?  & (REAL)              & last kpoint  & \verb?NULL? \\
+\verb?kfx,kfy,kfz?  
+                 & (REAL)             & last kpoint                                                                         & \verb?NULL? \\
 \hline
 \hline
 \end{longtable}
@@ -950,56 +991,40 @@ Where : \verb?SUBROUTINE efg_init? in \verb?efg.f90?
 \begin{longtable}{l|c|m{8cm}|m{2cm}}
 \hline
 \hline
-Parameter              &  Type              &          Short Description                                                          & Default value \\
+Parameter        &  Type              &          Short Description                                                          & Default value \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lefgprintall?    & (LOGICAL)          &  whether or not we want to print all the efg for each atoms and 
-                                               configurations in file EFGALL                                                      & \verb?.FALSE.? \\
+\verb?lefgprintall?    
+                 & (LOGICAL)          &  whether or not we want to print all the efg for each atoms and 
+                                               configurations in file EFGALL                                                & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lefg_it_contrib? & (LOGICAL)          & if one wants to get the contribution to EFG separated in types 
-                                              (only \verb?'direct'? and test purpose)                                             & \verb?.FALSE.? \\
+\verb?lefg_it_contrib? 
+                 & (LOGICAL)          & if one wants to get the contribution to EFG separated in types 
+                                              (only \verb?'direct'? and test purpose)                                       & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ncefg?           & (INTEGER)          & number of configurations read in TRAJFF for EFG calculation ( \verb?calc='efg'? )    & \verb?0? \\
+\verb?ncefg?     & (INTEGER)          & number of configurations read in TRAJFF for EFG calculation ( \verb?calc='efg'? )   & \verb?0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ntcor?           & (INTEGER)          & maximum number of steps for the efg auto-correlation function( \verb?calc='efg+acf'?)& \verb?10? \\
+\verb?ntcor?     & (INTEGER)          & maximum number of steps for the efg auto-correlation function( \verb?calc='efg+acf'?)
+                                                                                                                            & \verb?10? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ncellewald?      & (INTEGER)          & \newline number of kpoints in the reciprocal contribution of the Ewald summation
-                                              (total number of cells $=ncellewald^3$ \newline
-					 
-                                              for \verb?longrange='ewald'?  \newline                                               & \verb?0? \\
+\verb?resvzz?    & (REAL)             & resolution in $V_{zz}$ distribution                                                 & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?ncelldirect?     & (INTEGER)          & \newline number of neighboring cells in the direct summation
-                                              (total number of cells $=ncelldirect^3$ \newline
-					 
-                                              for \verb?longrange='direct'?  only \newline                                         & \verb?0? \\
+\verb?reseta?    & (REAL)             & resolution in $\eta_Q$ distribution                                                 & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?cutefg?          & (REAL)             & cut-off distance for efg calculation in for direct summation 
-                                              (\verb?longrange='direct'?) & \verb?30.0? \\
+\verb?resu?      & (REAL)             & resolution in $U_i$ ditribution                                                     & \verb?0.1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?alphaES?         & (REAL)             & Ewald sum screening parameter                                                        & \verb?1.0? \\
+\verb?vzzmin?    & (REAL)             & minimum value of $V_{zz}$ distribution which is then between [vzzmin, -vzzmin]      & \verb?-4.0? \\ 
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?resvzz?          & (REAL)             & resolution in $V_{zz}$ distribution                                                       & \verb?0.1? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?reseta?          & (REAL)             & resolution in $\eta_Q$ distribution                                                       & \verb?0.1? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?resu?            & (REAL)             & resolution in $U_i$ ditribution                                                         & \verb?0.1? \\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?vzzmin?          & (REAL)             & minimum value of $V_{zz}$ distribution which is then between [vzzmin, -vzzmin]            & \verb?-4.0? \\ 
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
-\verb?umin?            & (REAL)             & minimum value of umin distribution which is then between [umin, -umin]               & \verb?-4.0? \\
+\verb?umin?      & (REAL)             & minimum value of umin distribution which is then between [umin, -umin]              & \verb?-4.0? \\
 \hline
 \hline
 \end{longtable}
