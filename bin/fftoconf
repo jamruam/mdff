@@ -4,15 +4,16 @@
 # author      : fmv
 # description : convert POSFF file (mdff) to CONFIG (dl_poly)
 # ==================================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running fftoconf ..."
 echo "This script generate CONFIG file from POSFF file"
 USAGE="Usage: -i [inputfile] -o [outputfile] -s <scale> "
 
+scale=1.0
 if [ $# -eq 0 ]
 then
     echo "$USAGE"
@@ -41,22 +42,26 @@ do
     esac
 done
 
-head -n 2 $posff | tail -n 1                 >  $config
+
+
+
+
+head -n 2 $posff | tail -n 1                                                                                           > $config
 natm=`head -n 1 $posff`
-echo "         0         1       $natm  0.0" >> $config
+echo "         0         1       $natm  0.0"                                                                          >> $config
 head -n 5 $posff | tail -n 3  | awk -v s=$scale '{printf("%20.12f %20.12f %20.12f\n",$1*s,$2*s,$3*s)}'                >> $config
 cell=`head -n 3 $posff | tail -n 1  | awk '{print $1}'`
-echo $cell
+echo "found cell parameter : " $cell
 cpos=`head -n 9 $posff | tail -n 1`
-echo $cpos
+echo "coordinates in : " $cpos
 if [ "$cpos" == "Cartesian" ] ; then
 	awk -v s=$scale -v c=$cell '{ 
 	        if ((NF==10)||(NF==4)) { printf ("%2s %15s\n%15.9f %20.9f %20.9f\n",$1,NR-9,$2,$3,$4)  }
-	                            }' $posff >> $config
+	                            }' $posff                                                                         >> $config
 else
 	awk -v s=$scale -v c=$cell '{ 
 	        if ((NF==10)||(NF==4)) { printf ("%2s %15s\n%15.9f %20.9f %20.9f\n",$1,NR-9,$2*s*c,$3*s*c,$4*s*c)  }
-	                            }' $posff >> $config
+	                            }' $posff                                                                         >> $config
 fi
 	
 

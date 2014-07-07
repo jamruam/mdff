@@ -4,11 +4,11 @@
 # author     : fmv
 # description: This script generate gnuplot plots from input OSZIFF file
 # ===============================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running poszi ..."
 echo "This script generate gnuplot plots from input OSZIFF file"
 USAGE="Usage: -i [inputfile] -l [n_last_steps] -n (no plot)"
@@ -142,6 +142,6 @@ chmod u+x plot.vol
 fi
 
 #rm plot.temp plot.etot plot.econf  plot.all
-echo $separetor
+echo $separator
 exit 0;
 

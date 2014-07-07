@@ -3,6 +3,7 @@ tail -n+3 STATIS > tmpfile
 nline=`wc tmpfile | awk '{print $1}'`
 echo "## input file has $nline lines"
 nsteps=`grep steps CONTROL | awk '{print $NF}'`
+nsteps=$((nsteps+1))
 echo "## nsteps = $nsteps"
 nstat=`grep stat CONTROL | awk '{print $NF}'`
 echo "## nstat = $nstat"
@@ -34,7 +35,7 @@ fi
 
 
 awk -v skey=$skey -v natom=$natom 'BEGIN{start=0;tstep=0;htot=0.0;etot=0.0;ekin=0.0;vdw=0.0;vol=0.0;a=0.0;b=0.0;c=0.0;
-                              if (skey==9)  print "#           time             htot             etot             ekin             temp              vdw              vol"; 
+                              if (skey==9)  print "#           time             htot             etot             ekin             temp              vdw              vol            press"; 
                               if (skey==11) print "#           time             htot             etot             ekin             temp              vdw              vol                a                b                c            press"}
           { start+=1;  
               
@@ -44,8 +45,10 @@ awk -v skey=$skey -v natom=$natom 'BEGIN{start=0;tstep=0;htot=0.0;etot=0.0;ekin=
             { if ((skey==11)&&(start==9))  { a=$3                                                    } }    
             { if ((skey==11)&&(start==10)) { b=$2                                                    } } 
             { if ((skey==11)&&(start==11)) { c=$1                                                    } } 
-            { if ((skey==11)&&(start==7))  { press=$2                                                } } 
-            { if (start==skey) { start=0; if (skey==9)  { printf("%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e \n",tstep, htot, etot, ekin, temp, vdw, vol) }
+            { if ((start==7))  { press=$2                                                } } 
+            { if (start==skey) { start=0; if (skey==9)  { printf("%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e \n",tstep, htot, etot, ekin, temp, vdw, vol,press) }
                                           if (skey==11) { printf("%16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e\n",tstep, htot, etot, ekin, temp , vdw, vol,a,b,c,press) }
                               }   }
           }' tmpfile 
+
+rm tmpfile

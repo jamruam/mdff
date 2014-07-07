@@ -54,7 +54,8 @@ MODULE field
   implicit none
 
   integer :: cccc=0
-  real(kind=dp)     :: utail               !< long-range correction of short-range interaction 
+  real(kind=dp)     :: utail               !< long-range correction (energy) of short-range interaction 
+  real(kind=dp)     :: ptail               !< long-range correction (virial) of short-range interaction 
   character(len=60) :: ctrunc                                                     !< truncation of nmlj
   character(len=60) :: ctrunc_allowed(3)                                          !< truncation of nmlj 
   data                 ctrunc_allowed / 'notrunc', 'linear' , 'quadratic' /       !< see initialize_param_nmlj
@@ -186,7 +187,7 @@ SUBROUTINE field_default_tag
   !  default values
   ! =================
 
-  ctrunc        = 'linear' 
+  ctrunc        = 'notrunc' 
   symmetric_pot = .true.
 
   ! LJ
@@ -675,7 +676,8 @@ SUBROUTINE field_print_info ( kunit , quiet )
       WRITE ( kunit ,'(a,f10.5)')       'cutoff      = ',cutshortrange
       WRITE ( kunit ,'(a,a)')           'truncation  = ',ctrunc
       if ( .not.lreduced ) &
-      WRITE ( kunit ,'(a,2f20.9)')      'long range correction : ',utail
+      WRITE ( kunit ,'(a,2f20.9)')      'long range correction (energy)   : ',utail
+      WRITE ( kunit ,'(a,2f20.9)')      'long range correction (pressure) : ',ptail
       blankline(kunit)
       blankline(kunit)
       do it1 = 1 , ntype
@@ -834,7 +836,7 @@ END SUBROUTINE ewald_param
 ! ******************************************************************************
 SUBROUTINE initialize_param_non_bonded
 
-  USE constants,                ONLY :  tpi
+  USE constants,                ONLY :  tpi , press_unit
   USE config,                   ONLY :  ntypemax , natm , natmi , rho , atype , itype  , ntype , simu_cell
   USE control,                  ONLY :  skindiff , cutshortrange , lreduced, calc
   USE io,                       ONLY :  ionode, stdout
@@ -848,6 +850,7 @@ SUBROUTINE initialize_param_non_bonded
   real(kind=dp) :: rskin ( ntypemax , ntypemax ) 
   real(kind=dp) :: rskinsq ( ntypemax , ntypemax ) 
   real(kind=dp) :: ut ( ntypemax , ntypemax ) 
+  real(kind=dp) :: pt ( ntypemax , ntypemax ) 
 
   real(kind=dp) :: rcut ( ntype , ntype ) 
   real(kind=dp) :: ppqq ( ntype , ntype )
@@ -862,6 +865,7 @@ SUBROUTINE initialize_param_non_bonded
 
   rskinmax = 0.0_dp
   utail    = 0.0_dp
+  ptail    = 0.0_dp
   rcut3    = 0.0_dp
   rcut     = 0.0_dp
   rskin    = 0.0_dp
@@ -896,6 +900,7 @@ SUBROUTINE initialize_param_non_bonded
   !    -------------------------- |  ----------   | ------- |    --   ----------   | -------- |    |
   !         ( q - p )   V          \ ( q - 3 )     \   rc   /          ( p - 3 )    \  rc     /    /
   !
+  !  virial the same with qp in the first term
   !
   ! rskinmax ??????
   ! ==================================================================================================
@@ -986,17 +991,26 @@ SUBROUTINE initialize_param_non_bonded
            ! tail energy
            ut ( it , jt ) = epsp ( it , jt ) * ( pp ( it , jt ) * srq ( it , jt ) / qq3 ( it , jt ) - &
                                                  qq ( it , jt ) * srp ( it , jt ) / pp3 ( it , jt )  )       
+           pt ( it , jt ) = ppqq ( it , jt ) * epsp ( it , jt ) * ( srq ( it , jt ) / qq3 ( it , jt ) - &
+                                                                    srp ( it , jt ) / pp3 ( it , jt )  )       
+
            ut ( it , jt ) = ut ( it , jt ) * rcut3 ( it , jt ) * tpi 
+           pt ( it , jt ) = pt ( it , jt ) * rcut3 ( it , jt ) * tpi
+
            if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
            utail = utail + ut ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
+           if ( ( natmi ( it ) .ne. 0 ) .and. ( natmi ( jt ) .ne. 0 ) ) &
+           ptail = ptail + pt ( it , jt ) * natmi ( it ) * natmi ( jt ) / simu_cell%omega
 
-           io_node write(stdout,*) 'long range correction (init)',utail
 
 !#ifdef debug
 !  WRITE ( stdout , '(2i6,7e16.6)' ) it , jt , uc ( it , jt )  , epsp ( it , jt ) , pp ( it , jt ) , qq ( it , jt ) , srq( it , jt ) , srp( it , jt ) ,rcutsq ( it , jt ) 
 !#endif
     enddo
   enddo
+           ptail = ptail /press_unit/simu_cell%omega/3.0d0 ! virial to pressure
+           io_node write(stdout,*) 'long range correction (init) energy   ',utail
+           io_node write(stdout,*) 'long range correction (init) pressure ',ptail
  
 #ifdef debug_quadratic
   do it = 1 , ntype 
@@ -1629,7 +1643,7 @@ END SUBROUTINE finalize_coulomb
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   USE constants,        ONLY : coul_unit
-  USE config,           ONLY : natm , itype , atypei, ntype , polia
+  USE config,           ONLY : natm , itype , atypei, ntype , polia, invpolia
   USE io,               ONLY : stdout
 
   implicit none
@@ -1671,27 +1685,11 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   u_pol = 0.0_dp 
   do ia = 1 , natm
-    it = itype(ia) 
-    ! invpol should be done once for all sites   
-    if ( lpolar ( it ) ) then 
-      invpol ( : , : )  = polia ( ia , : , : )
-      CALL DGETRF( 3, 3, invpol, 3, ipiv, ierr )
-      if ( ierr.lt.0 ) then
-          WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRF failed in induced_moment',ierr
-          STOP
-      endif
-      CALL DGETRI( 3 , invpol , 3 ,  ipiv , WORK, LWORK, ierr )
-      if ( ierr.lt.0 ) then
-          WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRI failed in induced_moment',ierr
-          STOP
-      endif
-      do alpha = 1 , 3
-        do beta = 1 , 3
-           u_pol = u_pol + mu_ind ( ia , alpha ) * invpol ( alpha , beta ) * mu_ind ( ia , beta ) 
-        enddo
+    do alpha = 1 , 3
+      do beta = 1 , 3
+        u_pol = u_pol + mu_ind ( ia , alpha ) * invpolia ( ia , alpha , beta ) * mu_ind ( ia , beta ) 
       enddo
-
-    endif
+    enddo
   enddo
 
   ! ===============================================================
@@ -1892,12 +1890,6 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
     fx       = fx + ( fx_rec  + fx_dir                     ) * coul_unit
     fy       = fy + ( fy_rec  + fy_dir                     ) * coul_unit
     fz       = fz + ( fz_rec  + fz_dir                     ) * coul_unit
-!    fx       = fx + ( fx_dir                     ) * coul_unit
-!    fy       = fy + ( fy_dir                     ) * coul_unit
-!    fz       = fz + ( fz_dir                     ) * coul_unit
-!    fx       = fx + ( fx_rec                     ) * coul_unit
-!    fy       = fy + ( fy_rec                     ) * coul_unit
-!    fz       = fz + ( fz_rec                     ) * coul_unit
   endif
 
   
@@ -1925,14 +1917,14 @@ do ia = 1 , natm
  enddo
 #endif
 
-!#ifdef debug_ES_energy
+#ifdef debug_ES_energy
  WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir  * coul_unit , &
                                     ' u_rec      = ', u_rec  * coul_unit , &
                                     ' u_surf     = ', u_surf * coul_unit , & 
                                     ' u_self     = ', u_self * coul_unit , &
                                     ' u_pol      = ', u_pol  * coul_unit , &
                                     ' u_coul     = ', u_coul
-!#endif
+#endif
 
 #ifdef debug_ES_stress
   tau_dir  = tau_dir  / press_unit * coul_unit

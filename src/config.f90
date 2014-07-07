@@ -68,6 +68,7 @@ MODULE config
   real(kind=dp), dimension(:,:)  , allocatable :: dipia              !< dipole on ion 
   real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          !< induced dipole on ion from Wannier centers
   real(kind=dp), dimension(:,:,:), allocatable :: polia              !< polarisation on ion
+  real(kind=dp), dimension(:,:,:), allocatable :: invpolia           !< polarisation on ion
 
   real(kind=dp), dimension(:)    , allocatable   :: phi_coul_tot       !< coulombic potential 
 
@@ -276,6 +277,7 @@ SUBROUTINE config_alloc
   allocate( dipia ( natm , 3 ) )
   allocate( dipia_wfc ( natm , 3 ) )
   allocate( polia ( natm , 3 , 3 ) )
+  allocate( invpolia ( natm , 3 , 3 ) )
   allocate( ipolar ( natm ) )
   allocate( phi_coul_tot ( natm ) ) !< only if we calculated coulombic interactions
 
@@ -346,6 +348,7 @@ SUBROUTINE config_dealloc
   deallocate( dipia ) 
   deallocate( dipia_wfc ) 
   deallocate( polia ) 
+  deallocate( invpolia ) 
   deallocate( ipolar ) 
   deallocate( phi_coul_tot ) !< well only if we calculated coulombic interactions
 

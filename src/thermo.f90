@@ -162,15 +162,15 @@ SUBROUTINE calc_thermo
   pressure_bmhft= pvirial_bmhft
   pressure_coul = pvirial_coul 
   if (lreduced) then
-    pvirial_lj_r    = pvirial_lj    / REAL ( natm , kind = dp ) / press_unit
-    pvirial_morse_r = pvirial_morse / REAL ( natm , kind = dp ) / press_unit
-    pvirial_coul_r  = pvirial_coul  / REAL ( natm , kind = dp ) / press_unit
-    pvirial_bmhft_r = pvirial_bmhft / REAL ( natm , kind = dp ) / press_unit
+    pvirial_lj_r    = pvirial_lj    / REAL ( natm , kind = dp )
+    pvirial_morse_r = pvirial_morse / REAL ( natm , kind = dp ) 
+    pvirial_coul_r  = pvirial_coul  / REAL ( natm , kind = dp ) 
+    pvirial_bmhft_r = pvirial_bmhft / REAL ( natm , kind = dp ) 
   else
-    pvirial_lj_r    = pvirial_lj    / press_unit
-    pvirial_morse_r = pvirial_morse / press_unit
-    pvirial_coul_r  = pvirial_coul  / press_unit 
-    pvirial_bmhft_r = pvirial_bmhft / press_unit
+    pvirial_lj_r    = pvirial_lj   
+    pvirial_morse_r = pvirial_morse 
+    pvirial_coul_r  = pvirial_coul  
+    pvirial_bmhft_r = pvirial_bmhft 
   endif
   pvirial_tot_r   = pvirial_lj_r + pvirial_coul_r + pvirial_morse_r + pvirial_bmhft_r 
   pressure_tot_r  = ( pvirial_tot_r + temp_r * boltz_unit / omega ) / press_unit

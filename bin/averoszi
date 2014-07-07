@@ -4,7 +4,7 @@
 # author     : fmv
 # decription : convert POSCAR (vasp) to POSFF (mdff)
 # ===============================================================
-separetor="=========================================================="
+separator="=========================================================="
 USAGE="Usage: -i [inputfile] -l [n_last_steps] -n <0 or 1>"
 
 no=0
@@ -37,10 +37,10 @@ do
 done
 if [ $no -eq 0 ];
 then
-	echo $separetor
+	echo $separator
 	date
 	echo "author : filipe.manuel.vasconcelos@gmail.com"
-	echo $separetor
+	echo $separator
 	echo "Running averoszi ..."
 	echo "This script calculate simple average value along OSZIFF file"
 fi
@@ -110,7 +110,7 @@ awk -v np=$last     'BEGIN  { sum_temp=0        ; sum_press=0          ; sum_Pvd
 
 if [ $no -eq 0 ];
 then
-	echo $separetor
+	echo $separator
 fi
 exit 0;
 

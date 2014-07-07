@@ -5,11 +5,11 @@
 # decription : convert OUTCAR (vasp) to EFGALL (mdff)
 #            : extract efg's from VASP OUTCAR
 # ===============================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running outoff ..."
 echo "This script generate EFGALL file from OUTCAR file"
 USAGE="Usage: -i [inputfile] -o [outputfile] "
@@ -128,5 +128,5 @@ awk -v sys="$system" -v ntype=$ntype -v labels="${l[*]}" -v itype="${n[*]}" -v n
 pct=100
 echo "config readed "$pct"%"
 echo "file $efgall generated"
-echo $separetor
+echo $separator
 exit 0;

@@ -5,11 +5,11 @@
 #author      : fmv
 #description : convert TRAJFF (mdff) file to HISTORY (dl_poly)
 # ==================================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running fftohis ..."
 echo "This script generate HISTORY file from TRAJFF file"
 USAGE="Usage: -i [inputfile] -o [outputfile] -t <timestep> "
@@ -113,5 +113,5 @@ awk -v natm=$natm -v sys="$system" -v step=0 -v dt=$timestep '{
                                     }' $trajff > $histo
 #
 echo "file $histo generated"
-echo $separetor
+echo $separator
 exit 0;

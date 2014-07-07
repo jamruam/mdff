@@ -19,11 +19,11 @@ cat > control.F << eof
         lcoulomb  = .true.
         longrange = 'direct'
 	cutlongrange = 1000.0D0
+	lreduced=.true.
 &end
 &efgtag
         lefgprintall=.true.
         ncefg=1
-	lefg_reduced_units=.true.
 &end
 &fieldtag
 	qch(1) =  1.0
@@ -52,11 +52,11 @@ cat > control.F << eof
         lcoulomb  = .true.
         longrange = 'ewald'
 	cutlongrange = 1000.0D0
+	lreduced=.true.
 &end
 &efgtag
         lefgprintall=.true.
         ncefg=1
-	lefg_reduced_units=.true.
 &end
 &fieldtag
 	qch(1) =  1.0

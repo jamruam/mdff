@@ -10,11 +10,11 @@
 #              atype[]
 #              itype[]
 # ==================================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running histoff ..."
 echo "This script generate TRAJFF file from HISTORY file"
 USAGE="Usage: -i [inputfile] -o [outputfile] -t [typeinfo] "
@@ -117,5 +117,5 @@ awk -v natm=$natm -v sys="$system" -v labels="$labels" -v ntype=$ntype -v itype=
                                     }' $histo > $trajff
 
 echo "file $trajff generated"
-echo $separetor
+echo $separator
 exit 0;

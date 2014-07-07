@@ -4,7 +4,7 @@
 # author      : fmv
 # description : convert POSFF file (mdff) to POSCAR (vasp)
 # ==================================================================
-separetor="=========================================================="
+separator="=========================================================="
 USAGE="Usage: -i [inputfile] -o [outputfile] -q (quiet)"
 
 if [ $# -eq 0 ]
@@ -37,10 +37,10 @@ do
 done
 if [ "$quiet" -eq 0 ]
 then
-	echo $separetor
+	echo $separator
 	date
 	echo "author : filipe.manuel.vasconcelos@gmail.com"
-	echo $separetor
+	echo $separator
 	echo "Running fftocar ..."
 	echo "This script generate POSCAR file from POSFF file"
 fi

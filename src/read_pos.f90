@@ -19,7 +19,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug_read_pos
+!#define debug_read_pos
 ! ======= Hardware =======
 
 ! *********************** SUBROUTINE read_pos **********************************
@@ -161,14 +161,21 @@ END SUBROUTINE read_pos
 ! ******************************************************************************
 SUBROUTINE typeinfo_init
 
-  USE config ,  ONLY : atype , atypei , itype , natmi , natm , ntype , massia, dipia , qia , quadia , ipolar , polia  
-  USE field ,   ONLY : mass, qch , quad_efg , dip , lpolar , pol
+  USE constants, ONLY :  dp
+  USE config ,  ONLY :  atype , atypei , itype , natmi , natm , ntype , massia, dipia , qia , quadia , ipolar , polia , invpolia 
+  USE field ,   ONLY :  mass, qch , quad_efg , dip , lpolar , pol
+  USE io,       ONLY :  stdout
   
   implicit none
 
   ! local  
   integer :: ccs , cc
   integer :: ia , it, i , j 
+  integer, parameter :: LWORK=1000
+  real(kind=dp) :: WORK ( LWORK )
+  integer :: ipiv ( 3 )
+  integer :: ierr
+
 
   !print*,'in typeinfo_init'
   ! ==========================
@@ -194,6 +201,18 @@ SUBROUTINE typeinfo_init
           polia ( ia , i , j ) = pol ( it , i , j )
         enddo
       enddo 
+      if ( .not. lpolar ( it ) ) cycle
+      invpolia ( ia , : , : )  = polia ( ia , : , : )
+      CALL DGETRF( 3, 3, invpolia(ia,:,:), 3, ipiv, ierr )  
+      if ( ierr.lt.0 ) then
+        WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRF failed in induced_moment',ierr
+        STOP
+      endif
+      CALL DGETRI( 3 , invpolia(ia,:,:) , 3 ,  ipiv , WORK, LWORK, ierr )
+      if ( ierr.lt.0 ) then
+        WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRI failed in induced_moment',ierr
+        STOP
+      endif
     enddo
   enddo
   natmi  ( 0 ) = natm

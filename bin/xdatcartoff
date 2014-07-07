@@ -4,11 +4,11 @@
 # author      : fmv
 # description : convert XDATCAR file (vasp) to TRAJFF ( mdff )
 # ==================================================================
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running xdatcartoff ..."
 echo "This script generate TRAJFF file from XDATCAR file"
 USAGE="Usage: -i [inputfile] -o [outputfile]" 

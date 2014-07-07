@@ -10,11 +10,11 @@
 # notes       : execute random_struct qui peut etre appeler séparement
 #
 # ------------------------------------------------------------
-separetor="=========================================================="
-echo $separetor
+separator="=========================================================="
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running random_struct+stochio ..."
 echo "This script generate POSFF random structures according to the "
 echo "stochiometry defined in control_stochio.F"
@@ -110,5 +110,6 @@ fi
 done
 rm control.F appro exact atype itype  
 exit 0;
+echo $separator
 
 

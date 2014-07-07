@@ -4,12 +4,12 @@
 # author     : fmv
 # decription : extract forces from OUTCAR file given in input 
 # ===============================================================
-separetor="=========================================================="
+separator="=========================================================="
 USAGE="Usage: -i [inputfile] "
-echo $separetor
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running forceoutcar ..."
 echo "This script extract forces from OUTCAR file given in input"
 
@@ -72,3 +72,6 @@ awk -v natm=$natm -v l1="${ll[*]}" 'BEGIN{ split(l1,l," ");
 	
 
      }' $outcar
+
+echo $separator
+exit 0;

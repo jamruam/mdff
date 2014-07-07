@@ -4,12 +4,12 @@
 # author     : fmv
 # decription : extract forces from cp2k output
 # ===============================================================
-separetor="=========================================================="
+separator="=========================================================="
 USAGE="Usage: -i [inputfile] "
-echo $separetor
+echo $separator
 date
 echo "author : filipe.manuel.vasconcelos@gmail.com"
-echo $separetor
+echo $separator
 echo "Running forcecp2k ..."
 echo "This script extract forces from CP2K output"
 
@@ -48,3 +48,6 @@ awk -v natm=$natm '{
 	
 
                     }' $cp2kout
+
+echo $separator
+exit 0;
