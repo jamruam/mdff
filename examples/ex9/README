@@ -1,0 +1,3 @@
+executables :
+config/run_cp2k
+config/run_mdff
