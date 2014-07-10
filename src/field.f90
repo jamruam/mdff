@@ -147,6 +147,10 @@ MODULE field
   integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax )     !< dipole damping : Tang-Toennies function order
 
 
+  character(len=4) :: algo_ext_dipole                  !< set the algorithm used to get induced moments from polarization 
+  character(len=4) :: algo_ext_dipole_allowed(2)
+  data                algo_ext_dipole_allowed       / 'poly','aspc'/
+
   character(len=6) :: algo_moment_from_pola            !< set the algorithm used to get induced moments from polarization 
   character(len=6) :: algo_moment_from_pola_allowed(3) !< set the algorithm used to get induced moments from polarization 
   data                algo_moment_from_pola_allowed / 'scf', 'scf_ov', 'cng' /  !! scf ( self consistent ) or cng ( conjugate gradient )
@@ -238,6 +242,7 @@ SUBROUTINE field_default_tag
   min_scf_pol_iter = 3
   max_scf_pol_iter = 100
   extrapolate_order = 0 
+  algo_ext_dipole = 'poly'
   algo_moment_from_pola = 'scf'
 
   ! wannier centers related
@@ -418,6 +423,7 @@ SUBROUTINE field_init
                          min_scf_pol_iter, &
                          max_scf_pol_iter, &
                          algo_moment_from_pola, &
+                         algo_ext_dipole , &
                          epsw          , &  
                          lautoES       , &  
                          lwfc          , &            
@@ -2999,6 +3005,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   USE control,          ONLY :  longrange , calc
   USE thermodynamic,    ONLY :  u_pol, u_coul
   USE time,             ONLY :  time_moment_from_pola
+  USE md,               ONLY :  itime
   USE dumb
 
   implicit none
@@ -3007,7 +3014,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   real(kind=dp) , intent (out) :: mu_ind ( : , : ) 
 
   ! local
-  integer :: ia , iscf , it , npol, alpha
+  integer :: ia , iscf , it , npol, alpha, t 
   logical :: linduced
   real(kind=dp) :: tttt , tttt2 
   real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
@@ -3049,11 +3056,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   if ( ldip ) then
     task_static = .true.        
   endif
-  !print*,'before E_stat'
   if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , task_static , & 
                                                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
                                                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true.) 
-  !print*,'after E_stat'
   u_coul_stat = u_coul 
 
   fx      = 0.0_dp
@@ -3077,7 +3082,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   task_ind(1) = .false. 
   task_ind(2) = .false. 
   task_ind(3) = .true. 
-  !doscf =.true.    
+  io_printnode WRITE ( stdout ,'(a)') '' 
   ! =============================
   !           SCF LOOP
   ! =============================
@@ -3085,17 +3090,19 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
     iscf = iscf + 1
 
-    
-
     tttt = MPI_WTIME(ierr)
     ! ==========================================================
     !  calculate mu_ind from Efield = Efield_stat + Efield_ind
-    !  if first extrapolate from previous md step  
+    !  extrapolate from previous md steps :
+    !   two methods : 
+    !                  simple linear/polynomial extrapolation   ( algo_ext_dipole .eq. 'poly' ) : instable for extrapolate_order > 1  
+    !                  ASPC (Always Stable Predictor Corrector) ( algo_ext_dipole .eq. 'aspc  ) by Kolafa J. Comp. Chem. v25 n3 (2003)
     ! ==========================================================
     if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
       CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
     else
-      CALL extrapolate_dipole ( mu_ind ) 
+      if ( algo_ext_dipole .eq. 'poly' ) CALL extrapolate_dipole_poly ( mu_ind ) 
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , key=1 )  ! predictor
 #ifdef debug_mu
       if ( ionode ) then
         WRITE ( stdout , '(a)' )     'Induced dipoles at atoms from extrapolation: '
@@ -3107,16 +3114,8 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
       endif
 #endif
     endif
-    tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
-#ifdef debug
-   do ia =1 , natm
-     WRITE ( stdout , '(a,3f12.5)' ) 'debug : induced moment from pola ', mu_ind ( ia , 1 ),  mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
-   enddo
-   do ia =1 , natm
-     WRITE ( stdout , '(a,3f12.5)' ) 'debug : Efield                  ', Efield ( ia , 1 ),  Efield ( ia , 2 ) , Efield ( ia , 3 )
-   enddo
-#endif
+    tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
     ! ==========================================================
     !  calculate Efield_ind from mu_ind
@@ -3136,6 +3135,10 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     fy      = 0.0_dp
     fz      = 0.0_dp
 
+    ! ASPC corrector 
+    if ( iscf.eq.1 .and. calc .eq. 'md' ) then
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , 2 ) ! corrector
+    endif
     ! ===================
     !  stopping criteria
     ! ===================
@@ -3159,6 +3162,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
     endif
+!    if ( algo_ext_dipole .eq. 'aspc' ) exit
 
   enddo ! end of SCF loop
 
@@ -3188,6 +3192,14 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   ! store induced dipole at t 
   dipia_ind_t(1,:,:) = mu_ind
   
+#ifdef debug_extrapolate
+    if ( ioprintnode ) then
+      print*,'previous step',itime
+      do ia=1,natm
+        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( ia, 1 ), (dipia_ind_t ( t , ia, 1 ) , t=1, extrapolate_order+1 )
+      enddo
+    endif
+#endif
 
 
   stotime
@@ -3334,7 +3346,7 @@ SUBROUTINE moment_from_pola_scf_ov ( mu_ind )
       if ( iscf_in.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
         CALL induced_moment ( Efield , mu_ind , u_pol )  ! Efield in ; mu_ind and u_pol out
       else if ( iscf_out .eq. 1 ) then 
-        CALL extrapolate_dipole ( mu_ind ) 
+        if ( algo_ext_dipole .eq. 'poly' ) CALL extrapolate_dipole_poly ( mu_ind ) 
       endif
       !print*,'before E_dir'
       if ( longrange .eq. 'ewald' )  CALL  multipole_ES ( Efield_ind_dir , efg_dummy , mu_ind , task_ind , &
@@ -4143,7 +4155,7 @@ SUBROUTINE TT_damping_functions(b,c,r,f,fd,order)
 
 END SUBROUTINE TT_damping_functions
 
-SUBROUTINE extrapolate_dipole ( mu_ind )
+SUBROUTINE extrapolate_dipole_poly ( mu_ind )
 
   USE config,           ONLY :  natm
   USE md,               ONLY :  itime 
@@ -4173,9 +4185,11 @@ SUBROUTINE extrapolate_dipole ( mu_ind )
     mu_ind ( : , : ) = 2.0_dp * dipia_ind_t ( 1 , : , : ) - dipia_ind_t ( 2 , :, : ) 
     dipia_ind_t( 2 , : , : ) = dipia_ind_t ( 1 , : , : )
   else if ( extrapolate_order .eq. 1 .and. itime .le. extrapolate_order ) then
+    print*,'zero order because itime <= extrapolate_order'
     ! first point : zeroth order
     mu_ind     ( : , : )     = dipia_ind_t ( 1 , : , : )
     dipia_ind_t( 2 , : , : ) = dipia_ind_t ( 1 , : , : )
+    print*,'store mu(t-h)=mu(t)'
   endif
 
 
@@ -4207,7 +4221,7 @@ SUBROUTINE extrapolate_dipole ( mu_ind )
   else if ( extrapolate_order .ge. 2 .and. itime .le. extrapolate_order ) then
 
                                    
-      if ( itime .eq. 1 ) mu_ind ( : , : ) =          dipia_ind_t ( 1 , : , : ) ! y(t+1) = y(t) 
+      if ( itime .eq. 1 ) mu_ind ( : , : ) =          dipia_ind_t ( 1 , : , : )                            ! y(t+1) = y(t) 
       if ( itime .eq. 2 ) mu_ind ( : , : ) = 2.0_dp * dipia_ind_t ( 1 , : , : ) - dipia_ind_t ( 2 , :, : ) ! y(t+1) = 2 y(t) - y(t-1) 
       if ( itime .gt. 2 ) then
         do t = 1 , itime+1 
@@ -4225,19 +4239,106 @@ SUBROUTINE extrapolate_dipole ( mu_ind )
     enddo
   endif
 
-
-#ifdef debug_extrapolate
-    if ( ioprintnode ) then
-      print*,'previous step',itime
-      do ia=1,natm
-        write(stdout,'(i5,<extrapolate_order+1>e16.8)') ia, mu_ind ( ia, 1 ), (dipia_ind_t ( t , ia, 1 ) , t=1,extrapolate_order )
-      enddo
-    endif
-#endif
-
   return 
 
-END SUBROUTINE extrapolate_dipole
+END SUBROUTINE extrapolate_dipole_poly
+
+! order of extrapolation is k+1 of Kolafa original derivation.
+! as the zero order is taking juste 
+SUBROUTINE extrapolate_dipole_aspc ( mu_ind , Efield , key ) 
+
+  USE config,           ONLY :  natm
+  USE md,               ONLY :  itime 
+  USE io,               ONLY :  stdout, ioprintnode
+  USE thermodynamic,    ONLY :  u_pol
+
+  implicit none
+  ! global  
+  real(kind=dp) , intent (out):: mu_ind (:,:) 
+  real(kind=dp) , intent (in) :: Efield (:,:) 
+  integer :: key 
+  ! local
+  integer :: ia, k,t ,ext_ord
+  real(kind=dp)               :: mu_p (natm,3) 
+  real(kind=dp)               :: mu_p_save (natm,3) 
+  real(kind=dp)               :: u_pol_dumb
+  ! ASPC coefficient
+  real(kind=dp) :: B_ASPC(6), w_ASPC
+
+  ! switch to lower order of extrapolation 
+  ! if time step is not large enough to store previous dipoles steps
+  if ( itime .ge. extrapolate_order+1 ) then
+    ext_ord = extrapolate_order
+  else
+    if (itime.eq.1.or.itime.eq.0)   then
+      ext_ord = 0 
+    else
+      ext_ord = itime - 1
+    endif
+  endif
+
+  SELECT CASE ( ext_ord ) 
+  CASE DEFAULT
+    io_node WRITE(stdout,'(a)') 'value of aspc extrapolation order not available should be 0<= extrapolate_order <= 4'
+    STOP
+  CASE(0)
+    B_ASPC(1) =  1.0_dp 
+    W_ASPC    =  0.0_dp
+  CASE(1) 
+    B_ASPC(1) =  2.0_dp
+    B_ASPC(2) = -1.0_dp
+    W_ASPC    =  2.0_dp/3.0_dp
+  CASE(2)
+    B_ASPC(1) =  2.5_dp
+    B_ASPC(2) = -2.0_dp
+    B_ASPC(3) = -0.5_dp
+    W_ASPC    =  0.6_dp
+  CASE(3)
+    B_ASPC(1) =  2.8_dp
+    B_ASPC(2) = -2.8_dp
+    B_ASPC(3) =  1.2_dp
+    B_ASPC(4) = -0.2_dp
+    W_ASPC    =  4.0_dp/7.0_dp 
+  CASE(4)
+    B_ASPC(1) =  3.0_dp
+    B_ASPC(2) = -24.0_dp/7.0_dp
+    B_ASPC(3) =  27.0_dp/14.0_dp
+    B_ASPC(4) = -4.0_dp/7.0_dp
+    B_ASPC(5) =  1.0_dp/14.0_dp
+    W_ASPC    =  5.0_dp/9.0_dp
+  CASE(5)
+    B_ASPC(1) =  22.0_dp/7.0_dp
+    B_ASPC(2) = -55.0_dp/14.0_dp
+    B_ASPC(3) =  55.0_dp/21.0_dp
+    B_ASPC(4) = -22.0_dp/21.0_dp
+    B_ASPC(5) =  5.0_dp/21.0_dp
+    B_ASPC(6) = -1.0_dp/42.0_dp
+    W_ASPC    =  6.0_dp/11.0_dp
+  END SELECT
+        
+  ! predictor
+  if ( key .eq. 1 ) then 
+    mu_p = 0.0_dp
+    do k=1 , ext_ord+1
+      mu_p = mu_p + B_ASPC( k  ) * dipia_ind_t ( k , : , : )
+    enddo
+    mu_ind=mu_p
+    do k = ext_ord + 1, 2, -1
+      dipia_ind_t(k,:,:) = dipia_ind_t(k-1,:,:)
+    enddo
+  endif
+
+  ! corrector
+  if ( key.eq.2) then 
+    mu_p_save = mu_ind
+    CALL induced_moment ( Efield , mu_ind , u_pol ) 
+    mu_ind = w_ASPC * mu_ind + ( 1.0_dp - w_ASPC ) * mu_p_save 
+  endif
+
+  return
+
+END SUBROUTINE extrapolate_dipole_aspc
+
 
 SUBROUTINE polint(xa,ya,n,y,dy)
 

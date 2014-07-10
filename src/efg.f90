@@ -156,7 +156,7 @@ SUBROUTINE efg_init
   ! =============
   !  print info
   ! =============
-  CALL efg_print_info( stdout )
+  !CALL efg_print_info( stdout )
 
   return
 
@@ -367,8 +367,6 @@ SUBROUTINE efgcalc
     if ( itraj_format .eq. 0 ) OPEN ( UNIT = kunit_TRAJFF  , FILE = 'TRAJFF' , form = 'unformatted')
 
 
-
-
     CALL lattice ( simu_cell ) 
     rho = natm / simu_cell%omega
     ! ===================================
@@ -545,21 +543,22 @@ SUBROUTINE efgcalc
           enddo
         endif
         if ( iefgall_format .eq. 0 ) then
+          write(stdout,'(a)') 'unformatted EFGALL'
           if ( any_wfc ) then
             WRITE ( kunit_EFGALL )  natm - nwfc
           else
-            WRITE ( kunit_EFGALL , * )  natm
+            WRITE ( kunit_EFGALL )  natm
           endif
           WRITE ( kunit_EFGALL )  system
           WRITE ( kunit_EFGALL )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
           WRITE ( kunit_EFGALL )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
           WRITE ( kunit_EFGALL )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
           if ( any_wfc ) then
-            WRITE ( kunit_EFGALL , * )  ntype - 1
+            WRITE ( kunit_EFGALL )  ntype - 1
           else
-            WRITE ( kunit_EFGALL , * )  ntype
-            WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
-            WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
+            WRITE ( kunit_EFGALL )  ntype
+            WRITE ( kunit_EFGALL )  ( atypei ( it ) , it = 1 , ntype )
+            WRITE ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
           endif
           WRITE ( kunit_EFGALL )  efg_t 
         endif
