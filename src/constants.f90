@@ -85,7 +85,7 @@ MODULE constants
   real(kind=dp)      :: press_unit  = 0.00624150964712042_dp                !< GPa = > internal unit of pressure ( eV / angstrom**3) 
   real(kind=dp)      :: boltz_unit  = 8.61734229648141e-05                  !< boltzmann constant ( energy in eV)
   real(kind=dp)      :: time_unit   = 98.2269514139276_dp                   !< unit of time picosecond => angstrom * ( atomicmassunit / eV ) ** 0.5
-  real(kind=dp)      :: Debye_unit  = 2.54174618782479816355_dp / bohr      !< Debye unit for dipole moments in eA
+  real(kind=dp)      :: Debye_unit  = 2.54174618782479816355_dp             !< Debye unit for dipole moments in eA
   real(kind=dp)      :: coul_unit   = 14.3996441494161_dp                   !< 1 / 4pi epsilon0  in eV
 
 

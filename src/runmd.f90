@@ -64,7 +64,7 @@ SUBROUTINE md_run ( offset )
 
   USE thermodynamic,            ONLY :  e_tot, u_lj_r, h_tot, e_kin , temp_r , init_general_accumulator , write_thermo ,  write_average_thermo , calc_thermo
   USE time,                     ONLY :  mdsteptimetot
-  USE field,                    ONLY :  engforce_driver , doefg , doefield , ef_t , efg_t , mu_t , lwfc , lwrite_dip , write_DIPFF
+  USE field,                    ONLY :  engforce_driver , doefg , doefield , ef_t , efg_t , mu_t , lwfc , lwrite_dip , lwrite_efg, lwrite_ef, write_DIPFF, write_EFGALL, write_EFALL
   USE mpimdff
   USE msd
   USE vacf
@@ -325,41 +325,9 @@ MAIN:  do itime = offset , npas + (offset-1)
            ! ================================
            !  write EFGALL file (trajectory)
            ! ================================
-           efg : if ( ionode .and. doefg ) then
-
-             if ( iefgall_format .ne. 0 ) then
-               WRITE ( kunit_EFGALL , * )  natm
-               WRITE ( kunit_EFGALL , * )  system
-               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
-               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
-               WRITE ( kunit_EFGALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-               WRITE ( kunit_EFGALL , * )  ntype
-               WRITE ( kunit_EFGALL , * )  ( atypei ( it ) , it = 1 , ntype )
-               WRITE ( kunit_EFGALL , * )  ( natmi  ( it ) , it = 1 , ntype )
-               WRITE ( kunit_EFGALL ,'(a)') &
-              '      ia type                   vxx                   vyy                    vzz                   vxy                   vxz                   vyz'
-               do ia = 1 , natm
-                 it = itype ( ia )
-                 if ( lwfc( it ) .ge. 0 ) then
-                   WRITE ( kunit_EFGALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , efg_t ( ia , 1 , 1) , efg_t ( ia , 2 , 2) , &
-                                                                                   efg_t ( ia , 3 , 3) , efg_t ( ia , 1 , 2) , &
-                                                                                   efg_t ( ia , 1 , 3) , efg_t ( ia , 2 , 3)
-                 endif
-               enddo
+             if ( lwrite_efg ) then
+               CALL write_EFGALL
              endif
-
-             if ( iefgall_format .eq. 0 ) then
-               WRITE ( kunit_EFGALL )  natm
-               WRITE ( kunit_EFGALL )  system
-               WRITE ( kunit_EFGALL )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
-               WRITE ( kunit_EFGALL )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
-               WRITE ( kunit_EFGALL )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-               WRITE ( kunit_EFGALL )  ntype
-               WRITE ( kunit_EFGALL )  ( atypei ( it ) , it = 1 , ntype )
-               WRITE ( kunit_EFGALL )  ( natmi  ( it ) , it = 1 , ntype )
-               WRITE ( kunit_EFGALL )  efg_t
-             endif
-           endif efg
 
            ! ================================
            !  write DIPFF file (trajectory)
@@ -371,25 +339,9 @@ MAIN:  do itime = offset , npas + (offset-1)
            ! ================================
            !  write EFALL electric field file (trajectory)
            ! ================================
-           ef : if ( ionode .and. doefield ) then
-             WRITE ( kunit_EFALL , * )  natm
-             WRITE ( kunit_EFALL , * )  system
-             WRITE ( kunit_EFALL , * )  simu_cell%A(1,1) , simu_cell%A(2,1) , simu_cell%A(3,1)
-             WRITE ( kunit_EFALL , * )  simu_cell%A(1,2) , simu_cell%A(2,2) , simu_cell%A(3,2)
-             WRITE ( kunit_EFALL , * )  simu_cell%A(1,3) , simu_cell%A(2,3) , simu_cell%A(3,3)
-             WRITE ( kunit_EFALL , * )  ntype
-             WRITE ( kunit_EFALL , * )  ( atypei ( it ) , it = 1 , ntype )
-             WRITE ( kunit_EFALL , * )  ( natmi  ( it ) , it = 1 , ntype )
-             WRITE ( kunit_EFALL ,'(a)') &
-            '      ia type                   Ex                   Ey                Ez'
-             do ia = 1 , natm
-               it = itype ( ia )
-               if ( lwfc( it ) .ge. 0 ) then
-                 WRITE ( kunit_EFALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , ef_t ( ia , 1 ) , ef_t ( ia , 2) ,  ef_t ( ia , 3) 
-               endif
-             enddo
-        
-           endif ef
+             if ( lwrite_ef ) then
+               CALL write_EFALL
+             endif
 
 
 

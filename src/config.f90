@@ -45,7 +45,6 @@ MODULE config
   integer                                      :: ntype              !< number of types
   integer                                      :: npairs             !< number of types pairs
   integer, dimension(:),           allocatable :: itype              !< type of atome i array 
-  integer, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
   integer, dimension(0:ntypemax)               :: natmi              !< number of atoms (per type)
 
   TYPE ( celltype )                            :: simu_cell          !< simulation cell
@@ -64,11 +63,13 @@ MODULE config
 
   real(kind=dp), dimension(:)    , allocatable :: massia             !< mass on ion 
   real(kind=dp), dimension(:)    , allocatable :: qia                !< charge on ion 
-  real(kind=dp), dimension(:)    , allocatable :: quadia             !< quadrupolar moment on ion
+  real(kind=dp), dimension(:)    , allocatable :: quadia_nuclear     !< quadrupolar moment of nucleus
+  real(kind=dp), dimension(:,:,:), allocatable :: quadia             !< quadrupolar moment on ion
   real(kind=dp), dimension(:,:)  , allocatable :: dipia              !< dipole on ion 
   real(kind=dp), dimension(:,:)  , allocatable :: dipia_wfc          !< induced dipole on ion from Wannier centers
-  real(kind=dp), dimension(:,:,:), allocatable :: polia              !< polarisation on ion
-  real(kind=dp), dimension(:,:,:), allocatable :: invpolia           !< polarisation on ion
+  real(kind=dp), dimension(:,:,:), allocatable :: poldipia           !< dipole polarisability on ion
+  real(kind=dp), dimension(:,:,:), allocatable :: invpoldipia        !< invert dipole polarisability 
+  real(kind=dp), dimension(:,:,:,:), allocatable :: polquadia        !< quadrupole polarisability on ion
 
   real(kind=dp), dimension(:)    , allocatable   :: phi_coul_tot       !< coulombic potential 
 
@@ -138,7 +139,7 @@ END SUBROUTINE config_init
 ! ******************************************************************************
 SUBROUTINE config_print_info(kunit)
 
-  USE io,  ONLY :  ionode 
+  USE io,               ONLY :  ionode 
 
   implicit none
 
@@ -188,7 +189,6 @@ SUBROUTINE config_print_info(kunit)
     blankline(kunit)
     lseparator(kunit)
     blankline(kunit)
-    WRITE ( kunit ,'(a,f12.4)')      'density               = ',rho
     blankline(kunit)
     
   endif 
@@ -273,12 +273,13 @@ SUBROUTINE config_alloc
   allocate( verlet_coul%list ( natm * vnlmax ) , verlet_coul%point (  natm + 1 ) )
   allocate( qia ( natm ) )
   allocate( massia ( natm ) )
-  allocate( quadia ( natm ) )
+  allocate( quadia_nuclear ( natm ) )
+  allocate( quadia ( natm , 3 , 3 ) )
   allocate( dipia ( natm , 3 ) )
   allocate( dipia_wfc ( natm , 3 ) )
-  allocate( polia ( natm , 3 , 3 ) )
-  allocate( invpolia ( natm , 3 , 3 ) )
-  allocate( ipolar ( natm ) )
+  allocate( poldipia ( natm , 3 , 3 ) )
+  allocate( polquadia ( natm , 3 , 3 , 3 ) )
+  allocate( invpoldipia ( natm , 3 , 3 ) )
   allocate( phi_coul_tot ( natm ) ) !< only if we calculated coulombic interactions
 
   rx    = 0.0_dp
@@ -306,11 +307,11 @@ SUBROUTINE config_alloc
   verlet_coul%point  = 0
   qia       = 0.0_dp
   massia    = 1.0_dp
+  quadia_nuclear = 0.0_dp
   quadia    = 0.0_dp
   dipia   = 0.0_dp
   dipia_wfc = 0.0_dp
-  polia     = 0.0_dp
-  ipolar    = 0
+  poldipia     = 0.0_dp
   phi_coul_tot = 0.0_dp
 
   return 
@@ -344,12 +345,13 @@ SUBROUTINE config_dealloc
   deallocate( verlet_coul%list , verlet_coul%point )
   deallocate( qia ) 
   deallocate( massia ) 
+  deallocate( quadia_nuclear ) 
   deallocate( quadia ) 
   deallocate( dipia ) 
   deallocate( dipia_wfc ) 
-  deallocate( polia ) 
-  deallocate( invpolia ) 
-  deallocate( ipolar ) 
+  deallocate( poldipia ) 
+  deallocate( polquadia )
+  deallocate( invpoldipia ) 
   deallocate( phi_coul_tot ) !< well only if we calculated coulombic interactions
 
   return 

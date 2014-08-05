@@ -64,6 +64,7 @@ MODULE efg
 #endif
 
   real(kind=dp)   , dimension(:,:)  , allocatable :: mu   !< electric dipoles
+  real(kind=dp)   , dimension(:,:,:)  , allocatable :: theta !< electric quadrupoles
 
   ! ===================
   !  efg tensors 
@@ -328,13 +329,13 @@ SUBROUTINE efgcalc
   USE constants,                ONLY :  fpi , coul_unit
   USE config,                   ONLY :  system , natm , ntype , atype , rx , ry , rz , itype , & 
                                         atypei , natmi, rho , simu_cell , config_alloc , qia, &
-                                        ipolar , fx , fy , fz , phi_coul_tot , config_print_info, &
+                                        fx , fy , fz , phi_coul_tot , config_print_info, &
                                         coord_format_allowed, atom_dec , read_traj_header , read_traj , config_dealloc, verlet_coul
   
   USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data , lvnlist, cutlongrange, iefgall_format
-  USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lpolar , lwfc , & 
+  USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lwfc , & 
                                         rm_coul , &
-                                        km_coul , alphaES , field_print_info , ldip_wfc, get_dipole_moments, ewald_param
+                                        km_coul , alphaES , field_print_info , ldip_wfc, get_moments, ewald_param
   USE cell,                     ONLY :  lattice , dirkar , periodicbc, kardir
 
   implicit none
@@ -430,7 +431,8 @@ SUBROUTINE efgcalc
       ! =======================
       efg_t    = 0.0_dp
       mu = 0.0_dp
-      CALL get_dipole_moments ( mu )
+      theta = 0.0_dp
+      CALL get_moments ( mu ,theta )
 
 !#if defined(debug_multipole) || defined(debug)
 !    allocate ( ef_tmp  ( natm , 3     ) )
@@ -2056,7 +2058,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
 
   USE control,                  ONLY :  iefgall_format
   USE config,                   ONLY :  system , natm , natmi , ntype , itype , &
-                                        atype , atypei , simu_cell , rho, config_alloc , quadia
+                                        atype , atypei , simu_cell , rho, config_alloc , quadia_nuclear
   USE io,                       ONLY :  ionode , stdout , stderr 
   USE field,                    ONLY :  lwfc , field_init        
   USE constants,                ONLY :  CQ_UNIT
@@ -2295,7 +2297,7 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
           if ( lwfc ( it ) .ge. 0 ) then
             WRITE ( kunit_nmroutput , 150 ) ia , atype ( ia ) , &
                                                  nmr( ia , 1 ) , nmr( ia , 2 ) , &
-                                                 nmr( ia , 3 ) , nmr( ia , 3 ) * CQ_UNIT * quadia ( ia ) , nmr( ia , 4 )
+                                                 nmr( ia , 3 ) , nmr( ia , 3 ) * CQ_UNIT * quadia_nuclear ( ia ) , nmr( ia , 4 )
           endif
       endif
 
@@ -2675,7 +2677,9 @@ SUBROUTINE efg_alloc
   allocate( efg_t    ( natm , 3 , 3 ) )
   allocate( efg_ia    ( natm , 3 , 3 ) )
   allocate( mu ( natm , 3 ) ) 
+  allocate( theta ( natm , 3 ,3 ) ) 
   mu = 0.0_dp
+  theta = 0.0_dp
   efg_t = 0.0_dp
   efg_ia = 0.0_dp
 
@@ -2706,6 +2710,7 @@ SUBROUTINE efg_dealloc
   deallocate( efg_t )
   deallocate( efg_ia    )
   deallocate( mu ) 
+  deallocate( theta ) 
 
   return
 

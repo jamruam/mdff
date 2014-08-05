@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # ===============================================================
 # name        : read_test_table
 # author      : fmv
@@ -11,6 +10,8 @@
 # ===============================================================
 
 
+import sys
+
 # ------------------------------------------------
 # main function to read the quench.config file
 # it returns variables , newtable which are list of 
@@ -21,9 +22,9 @@
 #               item[1] = value
 # newtable  : quench table
 # ------------------------------------------------
-def read_quench():
+def read_quench(filename):
     
-    f=open('test.config')
+    f=open(filename)
 
     lines=f.readlines()
     f.close()
@@ -115,9 +116,11 @@ def write_script(var,table):
     return
 # ============================================================================
     
+filename=str(sys.argv[1])
+
 var=[]
 table=[]
-var,table = read_quench()
+var,table = read_quench(filename)
 write_script(var,table)
 
 

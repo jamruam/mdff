@@ -142,6 +142,8 @@ MODULE io
   integer, PARAMETER :: kunit_DIPWFC    = 270
   !> total dipole moments on atoms
   integer, PARAMETER :: kunit_DIPFF     = 271
+  !> total dipole moments on atoms
+  integer, PARAMETER :: kunit_QUADFF    = 272
 
   !> neighbor info
   integer, PARAMETER :: kunit_VOIS1FF   = 280
