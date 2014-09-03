@@ -1,0 +1,11 @@
+LJ
+UNITS K 
+molecules 1
+argon
+nummols 256
+atoms 1
+A  39.95 0.00000
+FINISH
+VDW      1 
+A       A       nm  119.8 12 6 3.821983
+CLOSE
