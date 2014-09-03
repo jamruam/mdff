@@ -24,16 +24,11 @@ MODULE tensors_rk
     real( kind=dp ) :: abc_damp(3,3,3)      
     real( kind=dp ) :: abc_damp2(3,3,3)      
   END TYPE
-  TYPE :: tensor_rank4
-    real( kind=dp ) :: abcd(3,3,3,3)      
-    real( kind=dp ) :: abcd_damp(3,3,3,3)      
-    real( kind=dp ) :: abcd_damp2(3,3,3,3)      
-  END TYPE
-  TYPE :: tensor_rank5
-    real( kind=dp ) :: abcde(3,3,3,3,3)      
-    real( kind=dp ) :: abcde_damp(3,3,3,3,3)      
-    real( kind=dp ) :: abcde_damp2(3,3,3,3,3)      
-  END TYPE
  
+  TYPE :: interaction
+    TYPE ( tensor_rank1 ) :: T1
+    TYPE ( tensor_rank2 ) :: T2
+  END TYPE
+
 
 END MODULE tensors_rk

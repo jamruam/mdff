@@ -337,10 +337,7 @@ PROGRAM main_MDFF
     ! ========================================================
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
-      if ( lwrite_dip  ) CALL write_DIPFF
-      if ( lwrite_quad ) CALL write_QUADFF
-      if ( lwrite_ef   ) CALL write_EFALL
-      if ( lwrite_efg  ) CALL write_EFGALL
+      if ( lwrite_dip ) CALL write_DIPFF
     endif
 
     if ( calc .eq. 'stochio' ) then

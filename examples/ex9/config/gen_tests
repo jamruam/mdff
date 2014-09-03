@@ -4,7 +4,7 @@
 usage()
 {
 
-cat test.config
+cat quench.config
 
 }
 
@@ -12,9 +12,9 @@ cat test.config
 init()
 {
         echo "--------------------------------------------------------------------------------"
-        echo " generate tests from $1                                                         "
+        echo " generate tests from test.config                                            "
         echo "--------------------------------------------------------------------------------"
-        python read_test_table.py $1
+        read_test_table.py
         echo " "
 
 }
@@ -109,9 +109,8 @@ DoALL()
 
 
 
-tests=$1
 
-init $tests
+init
 echo "--------------------------------------------------------------------------------"
 DoALL
 echo "--------------------------------------------------------------------------------"

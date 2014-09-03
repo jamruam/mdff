@@ -1,11 +1,10 @@
 #!/bin/bash
 
 pwds=$PWD
-tests=$1
 
 echo "generate control files"
 cd config 
-./gen_tests $tests
+./gen_tests
 ntest=`wc -l DOALLC | awk '{print $1}'`
 cd ..
 

@@ -252,7 +252,7 @@ SUBROUTINE opt_main
 
   USE config,           ONLY :  system , natm , ntype , rx , ry , rz , vx , vy ,vz , fx , fy , fz , &
                                 atype  , rho , config_alloc , simu_cell , &
-                                atypei , itype, natmi , qia , dipia , coord_format_allowed , atom_dec, read_traj , read_traj_header , verlet_coul , verlet_vdw, write_CONTFF
+                                atypei , itype, natmi , qia , dipia , ipolar, coord_format_allowed , atom_dec, read_traj , read_traj_header , verlet_coul , verlet_vdw, write_CONTFF
   USE control,          ONLY :  myrank , numprocs , lcoulomb , iscff_format , itraj_format , trajff_data,cutlongrange,cutshortrange , lvnlist
   USE io,               ONLY :  ionode , ioprint, ioprintnode, stdout , kunit_TRAJFF , kunit_ISTHFF , kunit_ISCFF
   USE thermodynamic,    ONLY :  u_tot , pressure_tot , calc_thermo
