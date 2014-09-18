@@ -17,10 +17,10 @@ MODULE oxyde
 ! necessaire... juste à partir de la liste des elements et du numero
 ! d'oxydation par exemple.
 
-  integer , PARAMETER :: noxyde = 8   
+  integer , PARAMETER :: noxyde = 10   
   integer , PARAMETER :: nelem  = 57
 
-  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3, geo2 , la2o3  ! valeur en entré
+  real(kind=dp)       :: sio2 , na2o , b2o3 , cao , p2o5 , al2o3, geo2 , la2o3, sro , moo3 ! valeur en entré
 
   ! type structur pour l'element chimique 
   TYPE element
@@ -40,7 +40,7 @@ MODULE oxyde
 
   ! tableau de type element = tableau periodique  ( nelem_max = 57 )
   TYPE(element), dimension (:) , allocatable :: tabper
-  ! tableau de type oxydes                        ( noxyde_max = 8 ) 
+  ! tableau de type oxydes                        ( noxyde_max = 9 ) 
   TYPE(oxy)    , dimension (:) , allocatable :: oxydes 
 
 CONTAINS
@@ -121,10 +121,18 @@ SUBROUTINE gen_tab_period
   ! # 36
   ! # 37
   ! # 38
+  tabper(38)%elename='Sr'
+  tabper(38)%numoxyd=2.0_dp
+  tabper(38)%valence=2
+  tabper(38)%massele=87.62_dp
   ! # 39
   ! # 40
   ! # 41
   ! # 42
+  tabper(42)%elename='Mo'
+  tabper(42)%numoxyd=6.0_dp
+  tabper(42)%valence=14
+  tabper(42)%massele=95.95_dp
   ! # 43
   ! # 44
   ! # 45
@@ -211,6 +219,20 @@ SUBROUTINE gen_oxydes
   oxydes(8)%nel_ox(1)=2
   oxydes(8)%nel_ox(2)=3
   oxydes(8)%relcon = la2o3 
+  ! # 9 
+  oxydes(9)%nameox='SrO'
+  oxydes(9)%ele_ox(1)='Sr'
+  oxydes(9)%ele_ox(2)='O'
+  oxydes(9)%nel_ox(1)=1
+  oxydes(9)%nel_ox(2)=1
+  oxydes(9)%relcon = sro 
+  ! # 10 
+  oxydes(10)%nameox='MoO3'
+  oxydes(10)%ele_ox(1)='Mo'
+  oxydes(10)%ele_ox(2)='O'
+  oxydes(10)%nel_ox(1)=1
+  oxydes(10)%nel_ox(2)=3
+  oxydes(10)%relcon = moo3 
 
   return
 

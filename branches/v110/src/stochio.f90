@@ -301,8 +301,10 @@ SUBROUTINE stochio_init
                            na2o          , &
                            b2o3          , &
                            la2o3         , &
+                           sro           , &
                            cao           , &
                            al2o3         , &
+                           moo3          , &
                            p2o5
 
   if ( calc .ne. 'stochio' ) return
@@ -361,6 +363,7 @@ SUBROUTINE stochio_default_tag
   na2o    = 0._dp
   b2o3    = 0._dp
   la2o3   = 0._dp
+  sro     = 0._dp
   cao     = 0._dp
   p2o5    = 0._dp
   al2o3   = 0._dp
@@ -403,11 +406,13 @@ SUBROUTINE stochio_check_tag
       STOP
   endif
 
-
+  ntype=0
   do iox = 1 , noxyde
-    if ( oxydes(iox)%relcon .ne. 0.0d0) ntype=ntype+1
+    if ( oxydes(iox)%relcon .ne. 0.0d0) then
+      ntype=ntype+1
+    endif
   enddo
-  WRITE ( stdout , '(a,i)' ) 'ntypes ', ntype
+  WRITE ( stdout , '(a,i)' ) 'number of oxydes : ', ntype
 
   return
 

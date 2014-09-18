@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug
+#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE radial_distrib ********************************
@@ -298,7 +298,8 @@ SUBROUTINE grcalc
     average_volume = average_volume + simu_cell%omega    
     io_node WRITE ( stdout , '(a,i6,a,i6,a,f12.3)' ) 'config : [ ',ic,' / ',nconf,' ]   vol : ',simu_cell%omega
 #ifdef debug
-    print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
+    CALL distance_tab
+!    print*,simu_cell%omega,average_volume/ REAL(ic,kind=dp)
 #endif
     CALL kardir     ( natm , rx , ry , rz , simu_cell%B ) 
     CALL periodicbc ( natm , rx , ry , rz  )

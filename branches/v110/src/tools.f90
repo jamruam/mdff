@@ -143,7 +143,7 @@ SUBROUTINE distance_tab
 
   USE control,                  ONLY :  calc
   USE constants,                ONLY :  dp
-  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype 
+  USE config,                   ONLY :  natm , rx , ry , rz , simu_cell , itype, atype
   USE field,                    ONLY :  sigmalj , lwfc
   USE io,                       ONLY :  ionode , stdout, stderr
   USE cell,                     ONLY :  kardir , dirkar 
@@ -207,7 +207,7 @@ SUBROUTINE distance_tab
         endif
         kdis = INT ( rij / resdis )
         if ( kdis .lt. 0 .or. kdis .gt. PANdis ) then
-          io_node WRITE ( stdout , '(a,2i12,f48.8,2i12)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja
+          io_node WRITE ( stdout , '(a,2i12,f48.8,2i12,2a)' ) 'ERROR: out of bound dist in distance_tab',kdis,PANdis,rij,ia,ja,atype(ia),atype(ja)
         endif
         dist ( kdis ) = dist ( kdis ) + 1
       endif
@@ -218,7 +218,7 @@ SUBROUTINE distance_tab
  
   if ( ionode ) then
     WRITE ( stderr ,'(a)')       'distance check subroutine'
-    WRITE ( stderr ,'(a,f13.5,2i6)') 'smallest distance = ',mindis,indxmin(1),indxmin(2)
+    WRITE ( stderr ,'(a,f13.5,2i6,2a6)') 'smallest distance = ',mindis,indxmin(1),indxmin(2),atype(indxmin(1)),atype(indxmin(2))
     if  ( any(lwfc .eq. -1) )  then
     WRITE ( stderr ,'(a)')       'WARNING : we do not check distance to wannier centers'
     endif

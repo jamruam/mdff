@@ -3629,7 +3629,7 @@ SUBROUTINE extrapolate_dipole_aspc ( mu_ind , Efield , key )
   CASE(2)
     B_ASPC(1) =  2.5_dp
     B_ASPC(2) = -2.0_dp
-    B_ASPC(3) = -0.5_dp
+    B_ASPC(3) =  0.5_dp
     W_ASPC    =  0.6_dp
   CASE(3)
     B_ASPC(1) =  2.8_dp
