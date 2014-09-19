@@ -438,7 +438,7 @@ END SUBROUTINE field_check_tag
 ! ******************************************************************************
 SUBROUTINE field_init
 
-  USE control,                  ONLY :  calc , lnmlj , lcoulomb , lmorse , longrange, non_bonded
+  USE control,                  ONLY :  calc , lnmlj , lcoulomb , lmorse , longrange, non_bonded , cutlongrange
   USE io,                       ONLY :  ionode, stdin, stdout 
 
   implicit none
@@ -529,7 +529,7 @@ SUBROUTINE field_init
   ! ===============================================
   !  this routines generates the ewald parameters
   ! ===============================================
-  if ( longrange .eq. 'ewald' .and. lcoulomb ) CALL ewald_param
+  if ( longrange .eq. 'ewald' .and. lcoulomb ) CALL ewald_param 
  
   ! =====================================  
   !  if efg print field info and return 
@@ -857,7 +857,7 @@ END SUBROUTINE field_print_info
 !> \note
 !! there is several methods ( we follow dl_poly )
 ! ******************************************************************************
-SUBROUTINE ewald_param
+SUBROUTINE ewald_param 
    
   USE constants,                ONLY :  pi , pisq
   USE config,                   ONLY :  simu_cell 
