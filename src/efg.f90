@@ -335,7 +335,7 @@ SUBROUTINE efgcalc
   USE control,                  ONLY :  longrange , myrank , numprocs, lcoulomb , itraj_format , trajff_data , lvnlist, cutlongrange, iefgall_format
   USE field,                    ONLY :  qch , dip , field_init , finalize_coulomb , lwfc , & 
                                         rm_coul , &
-                                        km_coul , alphaES , field_print_info , ldip_wfc, get_moments, ewald_param
+                                        km_coul , alphaES , field_print_info , ldip_wfc, get_moments
   USE cell,                     ONLY :  lattice , dirkar , periodicbc, kardir
 
   implicit none

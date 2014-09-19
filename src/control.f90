@@ -70,10 +70,10 @@ MODULE control
   !   type of calculation : md, opt, vib, efg ...              
   ! =====================================================
   character(len=60), SAVE :: calc             !< type of calculation : md, opt, vib, efg ...  
-  character(len=60), SAVE :: calc_allowed(14)    
+  character(len=60), SAVE :: calc_allowed(15)    
   data calc_allowed / 'md'       , 'opt'     , 'vib'        , 'vib+fvib'       , 'vib+gmod' , &
                       'vib+band' , 'vib+dos' , 'efg'        , 'efg+acf'        , 'gr'       , &
-                      'vois1'    , 'rmc'     , 'dist'       , 'stochio'  /
+                      'vois1'    , 'rmc'     , 'dist'       , 'stochio'        , 'polarizability' /
 
   ! =====================================================
   ! algorithm for long-range calculation
