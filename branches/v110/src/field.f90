@@ -54,7 +54,6 @@ MODULE field
   implicit none
 
   integer :: cccc=0
-  integer :: kkkk=0
   real(kind=dp)     :: utail               !< long-range correction (energy) of short-range interaction 
   real(kind=dp)     :: ptail               !< long-range correction (virial) of short-range interaction 
   character(len=60) :: ctrunc                                                     !< truncation of nmlj
@@ -3039,8 +3038,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   dectime
 
 
-  kkkk=itime * 100000
-
   tttt2=0.0_dp
   statime
   ! =========================================================
@@ -3107,7 +3104,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   ! =============================
   do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
 
-    kkkk = kkkk + 1 
     iscf = iscf + 1
 
     tttt = MPI_WTIME(ierr)
@@ -3182,11 +3178,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
     endif
-
-    !tmp
-    mu_t  = mu_ind
-    CALL write_DIPFF ( kkkk ) 
- 
 
   enddo ! end of SCF loop
 
@@ -3819,9 +3810,9 @@ END SUBROUTINE
 ! write configuration (pos,vel) to CONTFF file
 !
 ! ******************************************************************************
-SUBROUTINE write_DIPFF ( kunit_DIPFF ) 
+SUBROUTINE write_DIPFF  
 
-  USE io,                       ONLY :  ionode !,kunit_DIPFF
+  USE io,                       ONLY :  ionode ,kunit_DIPFF
   USE cell,                     ONLY :  kardir , periodicbc , dirkar
   USE control,                  ONLY :  lstatic
   USE config,                   ONLY :  system , natm , ntype , atype , simu_cell, atypei, natmi
@@ -3830,7 +3821,6 @@ SUBROUTINE write_DIPFF ( kunit_DIPFF )
 
   ! local
   integer :: ia , it
-  integer :: kunit_DIPFF
 
   if ( ionode ) then
 
