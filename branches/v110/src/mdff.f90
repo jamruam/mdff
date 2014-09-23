@@ -69,6 +69,7 @@ PROGRAM main_MDFF
   USE msd
   USE vacf 
   USE stochio
+  USE restart 
   USE block
   USE mpimdff
 
@@ -154,7 +155,11 @@ PROGRAM main_MDFF
     ! =============================================
     ! configuration initialization + force_field
     ! =============================================
-    CALL config_init 
+    if ( full_restart ) then
+      CALL restart_init ( MDFF ) 
+    else
+      CALL config_init 
+    endif
 
     ! =============================
     ! md initialization
@@ -248,8 +253,8 @@ PROGRAM main_MDFF
              ! time offset = zero is the static step (first step of dynamic) 
              ! this offset will be used if the OUTSIDE LOOP is used
              ! ===============================================================
-!             offset = ( ( irun - 1 ) * npas ) + 1  
-             CALL md_run ( 1 ) 
+             offset = itime  
+             CALL md_run ( offset ) 
 !                                            ^ 
 !                                           offset   
            endif
@@ -338,6 +343,7 @@ PROGRAM main_MDFF
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
       if ( lwrite_dip ) CALL write_DIPFF
+      CALL write_RESTART
     endif
 
     if ( calc .eq. 'stochio' ) then

@@ -54,6 +54,7 @@ MODULE field
   implicit none
 
   integer :: cccc=0
+  integer :: kkkk=0
   real(kind=dp)     :: utail               !< long-range correction (energy) of short-range interaction 
   real(kind=dp)     :: ptail               !< long-range correction (virial) of short-range interaction 
   character(len=60) :: ctrunc                                                     !< truncation of nmlj
@@ -145,6 +146,8 @@ MODULE field
   real(kind=dp)    :: pol_damp_b ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter b [length]^-1
   real(kind=dp)    :: pol_damp_c ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter c no units
   integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax )     !< dipole damping : Tang-Toennies function order
+  logical          :: thole_functions                                !< use thole functions correction on dipole-dipole interaction
+  real(kind=dp)    :: thole_coeff                                    !< use thole functions correction on dipole-dipole interaction
 
 
   character(len=4) :: algo_ext_dipole                  !< set the algorithm used to get induced moments from polarization 
@@ -161,7 +164,6 @@ MODULE field
   ! ewald sum related 
   real(kind=dp)    :: epsw                             !< accuracy of the ewald sum 
   real(kind=dp)    :: alphaES                          !< Ewald sum parameter 
-  real(kind=dp)    :: cutshortrange                    !< Ewald sum parameter cutoff shortrange 
   integer          :: kES(3)                           !< kmax of ewald sum in reciprocal space
   TYPE ( kmesh )   :: km_coul                          !< kpoint mesh ( see kspace.f90 )
   logical          :: task_coul(3)                     !< q-q, q-d qnd d-d task
@@ -243,6 +245,8 @@ SUBROUTINE field_default_tag
   extrapolate_order = 0 
   algo_ext_dipole = 'poly'
   algo_moment_from_pola = 'scf'
+  thole_coeff    = 1.662_dp
+  thole_functions = .false.
 
   ! wannier centers related
   lwfc           = 0
@@ -423,6 +427,8 @@ SUBROUTINE field_init
                          max_scf_pol_iter, &
                          algo_moment_from_pola, &
                          algo_ext_dipole , &
+                         thole_functions, &
+                         thole_coeff   , &
                          epsw          , &  
                          lautoES       , &  
                          lwfc          , &            
@@ -1799,7 +1805,6 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   !        direct space part
   ! ==============================================
   if ( do_dir ) then
-    !print*,'in dir'
     ttt1 = MPI_WTIME(ierr)
     CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , & 
                             do_efield , do_efg , do_forces , do_stress )
@@ -1812,7 +1817,6 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   !        reciprocal space part
   ! ==============================================
   if ( do_rec ) then
-    !print*,'in rec' 
     ttt1 = MPI_WTIME(ierr)
     CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , & 
                             do_efield , do_efg , do_forces , do_stress )
@@ -1954,10 +1958,10 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                               task , damp_ind , do_efield , do_efg , do_forces , do_stress )
 
   USE control,                  ONLY :  lvnlist
-  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype
+  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype, polia, ipolar
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
-  USE io,                       ONLY :  stdout, ionode
+  USE io,                       ONLY :  stdout, ionode, ioprintnode, ioprint
   USE tensors_rk,               ONLY : tensor_rank0, tensor_rank1, tensor_rank2, tensor_rank3
  
  
@@ -1992,6 +1996,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp), external :: errfc
   real(kind=dp) :: fdamp , fdampdiff
   real(kind=dp) :: fdamp2 , fdampdiff2
+  real(kind=dp) :: onesix, sthole, vthole, vthole3, vthole4, ialpha, jalpha
+  integer       :: cthole
+  logical       :: ipol, jpol
   logical       :: ldamp 
   logical       :: charge_charge, charge_dipole, dipole_dipole, dip_i , dip_j
   
@@ -2007,6 +2014,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   alpha2 = alphaES * alphaES
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
+  onesix = 1.0_dp / 6.0_dp
+
+  cthole = 0
 
 #ifdef debug_ES_dir
         write(stdout,'(a,e16.8)') 'debug multipole_ES_dir : cutsq',cutsq
@@ -2039,6 +2049,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     rzi = rz(ia)
     qi  = qia(ia)
     mui = mu ( ia , : )
+    ipol = ipolar(ia)
+    ialpha = polia(ia,1,1)
 
     dip_i = any ( mui .ne. 0.0d0 ) 
 
@@ -2065,6 +2077,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         rij(3) = rzi - rzj
         sij = rij - nint ( rij )
         rij=0.0_dp
+        jpol = ipolar(ja)
+        jalpha = polia(ja,1,1)
+        
         do j=1, 3
           do k=1, 3
             rij(j) = rij(j) + sij(k) * simu_cell%A(j,k) 
@@ -2127,15 +2142,57 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! =========================================
           T2%ab = 0.0_dp
           do j = 1 , 3
-            do k = 1 , 3 
+            do k = 1 , 3
               if ( j .gt. k ) cycle
-                                T2%ab (j,k) = ( 3.0_dp * rij(j) * rij(k) * F2 ) * dm5
-                if ( j .eq. k ) T2%ab (j,j) = T2%ab (j,j) - F1 * dm3
-             enddo
+                T2%ab (j,k) = ( 3.0_dp * rij(j) * rij(k) * F2 ) * dm5
+              if ( j .eq. k ) T2%ab (j,j) = T2%ab (j,j) - F1 * dm3
+            enddo
           enddo
           T2%ab (2,1) = T2%ab (1,2)
           T2%ab (3,1) = T2%ab (1,3)
           T2%ab (3,2) = T2%ab (2,3)
+          ! =========================================
+          !  thole functions (linear)
+          !  B.T. Thole, Chem. Phys. 59 p341 (1981)
+          ! ========================================
+          if ( thole_functions ) then
+
+            ! if both ions have polarizability
+            if ( ipol .and. jpol ) then
+              sthole = thole_coeff * ( ialpha * jalpha ) ** onesix
+              ! check distance acoording to s = 1.662 (alpha_ialpha_j)^(1/6)
+              ! rij < s
+              if ( d .lt. sthole ) then
+                io_print write(stdout,'(3a,2i)') 'thole function for',atype(ia),atype(ja),ia,ja
+                io_print write(stdout,'(a,f,a,f)') 's =', sthole,'  r =',d
+                cthole = cthole + 1 
+                vthole = d / sthole
+                vthole3 = vthole * vthole * vthole
+                vthole4 = vthole3 * vthole
+                T2%ab_thole = 0.0_dp
+                do j = 1 , 3
+                  do k = 1 , 3
+                    if ( j .gt. k ) cycle
+                      T2%ab_thole (j,k) = ( 3.0_dp * rij(j) * rij(k) * F2 * vthole4 ) * dm5       ! v^4
+                    if ( j .eq. k ) T2%ab_thole (j,j) = T2%ab_thole (j,j) - F1 * dm3 * ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) ! (4v^3-3v^4)
+                  enddo
+                enddo
+                T2%ab_thole (2,1) = T2%ab_thole (1,2)
+                T2%ab_thole (3,1) = T2%ab_thole (1,3)
+                T2%ab_thole (3,2) = T2%ab_thole (2,3)
+              ! if rij >= s
+              else
+                T2%ab_thole = T2%ab
+              endif
+            ! not both ions have polarizability
+            else
+              T2%ab_thole = T2%ab
+            endif
+          ! no thole functions
+          else
+            T2%ab_thole = T2%ab 
+          endif
+
           ! damping
           if ( ldamp ) then
             T2%ab_damp = 0.0_dp
@@ -2249,18 +2306,20 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         ! ===========================================================
         dd : if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
 
+          ! remind thole interaction function : T2_thole = T2 (regular) for r>s 
           ! energy
           do j = 1, 3
             do k = 1, 3 
-               u_dir = u_dir - mui(j) * T2%ab(j,k) * muj(k) 
+               u_dir = u_dir - mui(j) * T2%ab_thole(j,k) * muj(k) 
             enddo
           enddo
 
+          ! remind thole interaction function : T2_thole = T2 (regular) for r>s 
           ! electric field
           if ( do_efield ) then
             do k = 1 , 3
-              ef_dir ( ia , :  ) = ef_dir ( ia , : ) + T2%ab(:,k) * muj(k)
-              ef_dir ( ja , :  ) = ef_dir ( ja , : ) + T2%ab(:,k) * mui(k) 
+              ef_dir ( ia , :  ) = ef_dir ( ia , : ) + T2%ab_thole(:,k) * muj(k)
+              ef_dir ( ja , :  ) = ef_dir ( ja , : ) + T2%ab_thole(:,k) * mui(k) 
             enddo
           endif
 
@@ -2417,10 +2476,16 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   endif
 
+  ! thole function statistics
+  if ( thole_functions .and. cthole .ne. 0 ) then
+    CALL MPI_ALL_REDUCE_INTEGER_SCALAR ( cthole )
+    io_printnode write(stdout , '(a,i,a)') 'cthole for ',cthole,' pairs'
+  endif
+
   return
 
 
-END SUBROUTINE multipole_ES_dir
+END SUBROUTINE multipole_ES_dir 
 
 
 SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg , do_forces , do_stress )
@@ -2973,6 +3038,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   logical       :: task_static (3), task_ind(3), ldip
   dectime
 
+
+  kkkk=itime * 100000
+
   tttt2=0.0_dp
   statime
   ! =========================================================
@@ -3039,6 +3107,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   ! =============================
   do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
 
+    kkkk = kkkk + 1 
     iscf = iscf + 1
 
     tttt = MPI_WTIME(ierr)
@@ -3113,6 +3182,11 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
     endif
+
+    !tmp
+    mu_t  = mu_ind
+    CALL write_DIPFF ( kkkk ) 
+ 
 
   enddo ! end of SCF loop
 
@@ -3745,9 +3819,9 @@ END SUBROUTINE
 ! write configuration (pos,vel) to CONTFF file
 !
 ! ******************************************************************************
-SUBROUTINE write_DIPFF
+SUBROUTINE write_DIPFF ( kunit_DIPFF ) 
 
-  USE io,                       ONLY :  kunit_DIPFF, ionode
+  USE io,                       ONLY :  ionode !,kunit_DIPFF
   USE cell,                     ONLY :  kardir , periodicbc , dirkar
   USE control,                  ONLY :  lstatic
   USE config,                   ONLY :  system , natm , ntype , atype , simu_cell, atypei, natmi
@@ -3756,6 +3830,7 @@ SUBROUTINE write_DIPFF
 
   ! local
   integer :: ia , it
+  integer :: kunit_DIPFF
 
   if ( ionode ) then
 

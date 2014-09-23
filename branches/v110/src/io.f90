@@ -157,6 +157,8 @@ MODULE io
   integer, PARAMETER :: kunit_conf_proc = 400
   integer, dimension(:) , allocatable :: kunit_bak_proc
 
+  integer, PARAMETER :: kunit_RESTART   = 600
+
 CONTAINS
 
 ! *********************** SUBROUTINE io_init ***********************************

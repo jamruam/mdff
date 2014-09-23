@@ -179,6 +179,7 @@ SUBROUTINE md_default_tag
   ! =================
   !  default values
   ! =================
+  itime         = 1 
   lleapequi     = .false.
   integrator    = 'nve-vv'
   setvel        = 'MaxwBoltz'

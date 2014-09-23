@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug
+!#define debug
 ! ======= Hardware =======
 
 ! *********************** MODULE radial_distrib ********************************

@@ -37,7 +37,7 @@ MODULE config
   implicit none
 
   integer, PARAMETER                           :: ntypemax = 16      !< maximum number of types
-  integer, PARAMETER                           :: vnlmax   = 1000    !< maximum number of types
+  integer, PARAMETER                           :: vnlmax   = 2000    !< maximum number of types
 
   character(len=60), SAVE                      :: system             !< system name                                              
 
@@ -45,7 +45,7 @@ MODULE config
   integer                                      :: ntype              !< number of types
   integer                                      :: npairs             !< number of types pairs
   integer, dimension(:),           allocatable :: itype              !< type of atome i array 
-  integer, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
+  logical, dimension(:),           allocatable :: ipolar             !< .eq. 1 if polar 
   integer, dimension(0:ntypemax)               :: natmi              !< number of atoms (per type)
 
   TYPE ( celltype )                            :: simu_cell          !< simulation cell
@@ -104,7 +104,7 @@ CONTAINS
 ! ******************************************************************************
 SUBROUTINE config_init 
 
-  USE control,  ONLY :  calc , cutshortrange , cutlongrange
+  USE control,  ONLY :  calc , cutshortrange , cutlongrange, full_restart
   USE io,       ONLY :  ionode , stdin, stdout 
 
   implicit none
@@ -114,7 +114,7 @@ SUBROUTINE config_init
   ! read initial configuration only for calc = md
   ! for opt, vib and efg configuations are read in other routines 
   ! ===========================================================
-  CALL read_pos
+    CALL read_pos
 
 #ifdef debug
   CALL print_config_sample(0,0)

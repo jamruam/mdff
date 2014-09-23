@@ -139,7 +139,7 @@ OBJ= constants.o dumb.o io.o tt_damp.o tensors.o oxyde.o mpi_mdff.o control.o st
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o m1cg1.o \
      block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
-     radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o
+     radial_distrib.o efg.o rmc.o vacf.o voisin.o runmd.o restart.o
 
 # ================================================================
 #   prepocessor :

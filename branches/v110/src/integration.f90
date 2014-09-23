@@ -131,7 +131,7 @@ END SUBROUTINE prop_leap_frog
 SUBROUTINE prop_velocity_verlet 
 
   USE constants,                ONLY :  dp 
-  USE config,                   ONLY :  natm, massia, rx, ry, rz, vx, vy, vz, fx, fy, fz
+  USE config,                   ONLY :  natm, massia, rx, ry, rz, vx, vy, vz, fx, fy, fz, fxs,fys,fzs
   USE md,                       ONLY :  dt, integrator
   USE thermodynamic,            ONLY :  temp_r , e_kin
   USE io,                       ONLY :  ionode
@@ -142,18 +142,9 @@ SUBROUTINE prop_velocity_verlet
   ! local
   integer :: ia
   real(kind=dp) :: dtsq2 , dt2
-  real(kind=dp), dimension (:), allocatable :: fsx , fsy , fsz
+  !real(kind=dp), dimension (:), allocatable :: fsx , fsy , fsz
   real(kind=dp) :: tempi , kin
 
-
-  ! save previous forces
-  allocate (fsx(natm),fsy(natm),fsz(natm))
-  fsx = 0.0_dp
-  fsy = 0.0_dp
-  fsz = 0.0_dp
-  fsx = fx
-  fsy = fy
-  fsz = fz
 
   dtsq2 = dt * dt * 0.5_dp
   dt2 = dt * 0.5_dp
@@ -163,9 +154,9 @@ SUBROUTINE prop_velocity_verlet
   !  store forces of the previous step  
   ! =================================================
   do ia = 1 , natm
-    rx  ( ia ) = rx ( ia ) + vx ( ia ) * dt + (fx ( ia ) * dtsq2 ) / massia(ia)
-    ry  ( ia ) = ry ( ia ) + vy ( ia ) * dt + (fy ( ia ) * dtsq2 ) / massia(ia)
-    rz  ( ia ) = rz ( ia ) + vz ( ia ) * dt + (fz ( ia ) * dtsq2 ) / massia(ia)
+    rx  ( ia ) = rx ( ia ) + vx ( ia ) * dt + (fxs ( ia ) * dtsq2 ) / massia(ia)
+    ry  ( ia ) = ry ( ia ) + vy ( ia ) * dt + (fys ( ia ) * dtsq2 ) / massia(ia)
+    rz  ( ia ) = rz ( ia ) + vz ( ia ) * dt + (fzs ( ia ) * dtsq2 ) / massia(ia)
   enddo
 
   ! ==========================
@@ -177,17 +168,15 @@ SUBROUTINE prop_velocity_verlet
   !  v(t+dt) = v(t) + ( f(t-dt) + f(t) ) * dt / 2
   ! ==============================================
   do ia = 1 , natm
-    vx ( ia ) = vx ( ia ) + ( fsx ( ia ) + fx ( ia ) ) * dt2 / massia(ia)
-    vy ( ia ) = vy ( ia ) + ( fsy ( ia ) + fy ( ia ) ) * dt2 / massia(ia)
-    vz ( ia ) = vz ( ia ) + ( fsz ( ia ) + fz ( ia ) ) * dt2 / massia(ia)
+    vx ( ia ) = vx ( ia ) + ( fxs ( ia ) + fx ( ia ) ) * dt2 / massia(ia)
+    vy ( ia ) = vy ( ia ) + ( fys ( ia ) + fy ( ia ) ) * dt2 / massia(ia)
+    vz ( ia ) = vz ( ia ) + ( fzs ( ia ) + fz ( ia ) ) * dt2 / massia(ia)
   enddo
 
   ! full t+dt kinetic energy
   CALL calc_temp(tempi, kin)
   temp_r = tempi      
   e_kin  = kin
-
-  deallocate ( fsx , fsy , fsz )
 
   return
 
