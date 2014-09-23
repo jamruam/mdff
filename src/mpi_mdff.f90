@@ -195,6 +195,32 @@ SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
 
 END SUBROUTINE
 
+
+! *********************** SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR **************
+!
+!
+!
+! ******************************************************************************
+SUBROUTINE MPI_ALL_REDUCE_INTEGER_SCALAR ( sresult )
+
+  USE constants, ONLY : dp
+
+  implicit none
+
+  integer, intent (inout) :: sresult
+  ! local 
+  integer          :: ierr
+  integer          :: ssum
+
+  ssum=0
+  CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
+  sresult = ssum
+
+  return
+
+END SUBROUTINE
+
+
 SUBROUTINE CLEAN_STOP
 
   implicit none

@@ -18,6 +18,7 @@ MODULE tensors_rk
     real( kind=dp ) :: ab(3,3)      
     real( kind=dp ) :: ab_damp(3,3)      
     real( kind=dp ) :: ab_damp2(3,3)      
+    real( kind=dp ) :: ab_thole(3,3)      
   END TYPE
   TYPE :: tensor_rank3
     real( kind=dp ) :: abc(3,3,3)      

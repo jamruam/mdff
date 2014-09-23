@@ -68,6 +68,7 @@ SUBROUTINE md_run ( offset )
   USE mpimdff
   USE msd
   USE vacf
+  USE restart 
 
   implicit none
 
@@ -472,6 +473,7 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  to standard output 
         ! =============================================
         io_print CALL write_thermo( itime , stdout , 'std' )
+        io_print CALL write_RESTART
 
         ! ===========
         !  time info

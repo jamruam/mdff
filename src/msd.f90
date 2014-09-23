@@ -18,7 +18,7 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-#define debug
+!#define debug
 !#define debug_otf_frenkel
 !#define debug_otf_multiwin
 ! ======= Hardware =======

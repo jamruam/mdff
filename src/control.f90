@@ -47,6 +47,7 @@ MODULE control
   logical,           SAVE :: lstatic          !< no MD                                                
   logical,           SAVE :: lvnlist          !< verlet list if .true.                            
   logical,           SAVE :: lrestart         !< restart or not if true strart from the velocities read in POSFF
+  logical,           SAVE :: full_restart     !< restart or not if true strart from the velocities read in POSFF
   logical,           SAVE :: lreduced         !< print reduced thermo quantites by the number of atoms (natm)
   logical,           SAVE :: lnmlj            !< n-m lennard-jones potential
   logical,           SAVE :: lbmhft           !< born huggins Mayer potential
@@ -183,7 +184,7 @@ SUBROUTINE control_init ( MDFF )
   ! ======================
   !  print info to output
   ! ======================
-  CALL control_print_info( stdout , MDFF )
+  if ( .not. full_restart ) CALL control_print_info( stdout , MDFF )
 
   return
 
@@ -219,6 +220,7 @@ SUBROUTINE control_default_tag
   lmsd          = .false.
   lvacf         = .false.
   lrestart      = .false.
+  full_restart  = .false.
   calc          = 'md'
   dgauss        = 'boxmuller_basic'
   longrange     = 'ewald'
@@ -254,6 +256,7 @@ SUBROUTINE control_check_tag
   implicit none
 
   ! local
+  logical :: restart_file_exists
   logical :: allowed
   integer :: i
 
@@ -338,6 +341,11 @@ SUBROUTINE control_check_tag
    STOP
   endif
 
+  ! full restart
+  INQUIRE(FILE="RESTART", EXIST=restart_file_exists)
+  if ( lrestart .and. restart_file_exists ) then
+    full_restart = .true.
+  endif
 
 
   return
@@ -433,12 +441,34 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a,l2)')    'lstatic     = ', lstatic
      WRITE ( kunit ,'(a,l2)')    'lreduced    = ', lreduced 
      WRITE ( kunit ,'(a,l2)')    'lrestart    = ', lrestart 
-     blankline(kunit)
+     if ( full_restart ) then
+       WRITE ( kunit ,'(a)')     'restarting from RESTART file (full restart) '
+     else if ( lrestart ) then
+       WRITE ( kunit ,'(a)')     'restart from positions and velocities only ( partial restart )' 
+     endif
+     
   endif
 
   return 
  
 END SUBROUTINE control_print_info
+
+
+
+
+SUBROUTINE warning_print_info
+
+! __          __     _____  _   _ _____ _   _  _____ 
+! \ \        / /\   |  __ \| \ | |_   _| \ | |/ ____|
+!  \ \  /\  / /  \  | |__) |  \| | | | |  \| | |  __ 
+!   \ \/  \/ / /\ \ |  _  /| . ` | | | | . ` | | |_ |
+!    \  /\  / ____ \| | \ \| |\  |_| |_| |\  | |__| |
+!     \/  \/_/    \_\_|  \_\_| \_|_____|_| \_|\_____|
+
+
+END SUBROUTINE warning_print_info 
+
+
 
 END MODULE control 
 ! ===== fmV =====
