@@ -401,14 +401,18 @@ SUBROUTINE control_print_info( kunit , MDFF )
   !  standard output
   ! =================
 
-  if ( ionode ) call dumb_guy(kunit)
+  if ( .not. full_restart ) then
+    if ( ionode ) call dumb_guy(kunit)
+  endif
   if ( ionode ) then
+  if ( .not. full_restart ) then
      WRITE ( kunit ,'(a)')       "          ____    ____  ______   ________  ________  "
      WRITE ( kunit ,'(a)')       "         |_   \  /   _||_   _ `.|_   __  ||_   __  | "
      WRITE ( kunit ,'(a)')       "           |   \/   |    | | `. \ | |_ \_|  | |_ \_| "
      WRITE ( kunit ,'(a)')       "           | |\  /| |    | |  | | |  _|     |  _|    "
      WRITE ( kunit ,'(a)')       "          _| |_\/_| |_  _| |_.' /_| |_     _| |_     "
      WRITE ( kunit ,'(a)')       "         |_____||_____||______.'|_____|   |_____|    "
+  endif
      blankline(kunit)
      separator(kunit)
      blankline(kunit)
