@@ -185,7 +185,6 @@ SUBROUTINE typeinfo_init
   natmi ( 0 ) = 0
   cc = 0
   do it = 1 , ntype
-    print*,'debug it:',it
     ccs = cc
     cc = cc + natmi ( it )
     do ia = ccs + 1 , cc
@@ -198,7 +197,6 @@ SUBROUTINE typeinfo_init
       quadia ( ia , : , : )   = quad( it , : , : )   
       poldipia ( ia , : , : ) = poldip   ( it , : , : )
       polquadia( ia , : , : , : ) = polquad ( it , : , : , : )
-      print*,'debug : ',polquadia( ia , 1 , 1 , 1 ), polquad ( it , 1 , 1 , 1 )
       invpoldipia ( ia , : , : )  = poldipia ( ia , : , : )
       CALL DGETRF( 3, 3, invpoldipia(ia,:,:), 3, ipiv, ierr )  
       if ( ierr.lt.0 ) then
