@@ -170,8 +170,8 @@ SUBROUTINE md_run ( offset )
     ! write thermodynamic information of config at t=0
     ! ==================================================
     CALL calc_thermo
-    CALL write_thermo( offset-1 , stdout , 'std' )
-    CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
+    CALL write_thermo( offset , stdout , 'std' )
+    CALL write_thermo( offset , kunit_OSZIFF , 'osz' )
 
   else
   ! ===========================================================================
@@ -196,8 +196,8 @@ SUBROUTINE md_run ( offset )
     ! write thermodynamic information of the starting point
     ! =======================================================
     CALL calc_thermo
-    CALL write_thermo( offset-1 , stdout , 'std')
-    CALL write_thermo( offset-1 , kunit_OSZIFF , 'osz' )
+    CALL write_thermo( offset , stdout , 'std')
+    CALL write_thermo( offset , kunit_OSZIFF , 'osz' )
      rx = xtmp
      ry = ytmp
      rz = ztmp
@@ -229,7 +229,7 @@ SUBROUTINE md_run ( offset )
    statime
 
 ! WARNING offset !!!!
-MAIN:  do itime = offset , npas + (offset-1)        
+MAIN:  do itime = offset+1 , npas + offset
 
   ! ioprint condition
   if ( MOD ( itime , nprint ) .eq. 0.0_dp ) then
@@ -294,7 +294,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! ================================
          if ( ( ANY ( integrator .eq. rescale_allowed ) ) .and.  &
                   ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
-                    ( itime .ne. npas + ( offset - 1 ) .and. itime .ne. offset ) ) ) then
+                    ( itime .ne. npas + ( offset ) .and. itime .ne. offset ) ) ) then
            CALL rescale_velocities(0)
          endif
          ! ================================
@@ -302,7 +302,7 @@ MAIN:  do itime = offset , npas + (offset-1)
          ! ================================
          if ( integrator .eq. 'npe-vv' .and.  &
                   ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
-                    ( itime .ne. npas + ( offset - 1 ) .and. itime .ne. offset ) ) ) then
+                    ( itime .ne. npas + ( offset ) .and. itime .ne. offset ) ) ) then
            CALL rescale_volume(0)
          endif
 
@@ -473,7 +473,7 @@ MAIN:  do itime = offset , npas + (offset-1)
         !  to standard output 
         ! =============================================
         io_print CALL write_thermo( itime , stdout , 'std' )
-        io_print CALL write_RESTART
+  !      io_print CALL write_RESTART
 
         ! ===========
         !  time info
