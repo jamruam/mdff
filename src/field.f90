@@ -25,7 +25,7 @@
 !#define debug_ES_stress
 !#define debug_ES_efg
 !#define debug_ES_dir
-#define debug_scf_pola
+!#define debug_scf_pola
 !#define debug_wfc
 !#define debug_morse
 !#define debug_nmlj
@@ -2634,6 +2634,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     CALL MPI_ALL_REDUCE_DOUBLE ( tau_dir ( 3 , : ) , 3 )
     tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   endif
+
+  print*,ef_dir(:,1)
 
   return
 

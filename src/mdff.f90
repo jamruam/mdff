@@ -71,6 +71,7 @@ PROGRAM main_MDFF
   USE stochio
   USE block
   USE mpimdff
+  USE polarizability 
 
   implicit none
 
@@ -326,12 +327,22 @@ PROGRAM main_MDFF
     ! ==============================================
     ! IF VOIS1 : 
     ! - first neighbour sphere analysis  
-    ! - ( in construction )
     ! ==============================================
     if ( calc.eq. 'vois1' ) then
       CALL vois1_init
       CALL vois1_driver
     endif
+    ! ==============================================
+    ! IF POLARIZABILITY : 
+    ! - get polarizability tensor from dmu or wfc when efield applied  
+    ! ==============================================
+    if ( calc.eq. 'polarizability' ) then
+      CALL pola_init
+      CALL pola_main
+    endif
+
+
+
     ! ========================================================
     ! write final config pos and vel (always) only for md run
     ! ========================================================
