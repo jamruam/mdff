@@ -48,7 +48,7 @@ SUBROUTINE read_pos
   ! local
   integer           :: it , ia , i
   logical           :: allowed
-  character(len=60) :: cpos
+  character(len=60) :: cpos 
 
   separator(stdout) 
   IF ( ionode ) then

@@ -158,6 +158,9 @@ MODULE io
 
   integer, PARAMETER :: kunit_conf_proc = 400
   integer, dimension(:) , allocatable :: kunit_bak_proc
+  
+  ! input file for polarizability DMUX, DMUY, DMUZ
+  integer, PARAMETER :: kunit_DMU = 500
 
 CONTAINS
 
