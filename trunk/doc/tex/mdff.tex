@@ -1,8 +1,8 @@
 %MDFF documentation
-\documentclass[a4paper]{article}
+\documentclass[a4paper,8pt]{article}
 \usepackage{lscape}
 \usepackage{geometry}
-\usepackage{chngpage}
+\usepackage[strict]{changepage}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{multirow}
@@ -21,21 +21,6 @@
 \newcommand{\wiki}{\textcolor{red}{[wiki]}} 
 \newcommand{\addref}{\textcolor{blue}{[ref]}}
 
-\newenvironment{changemargin}[2]{\begin{list}{}{%
-\renewcommand{\arraystretch}{4.0}
-\setlength{\topsep}{0pt}%
-\setlength{\leftmargin}{0pt}%
-\setlength{\rightmargin}{0pt}%
-\setlength{\listparindent}{\parindent}%
-\setlength{\itemindent}{\parindent}%
-\setlength{\parsep}{0pt plus 1pt}%
-\setlength{\tabcolsep}{1cm}
-\setlength{\extrarowheight}{40pt}
-\addtolength{\leftmargin}{#1}%
-\addtolength{\rightmargin}{#2}%
-}\item }{\end{list}}
-
-
 % math symbol
 \def\nn{{\bf n}}
 \def\kk{{\bf k}}
@@ -43,10 +28,14 @@
 \def\00{{\bf 0}}
 
 
+
+
 \title{Molecular Dynamics FF, Manual }
 
 \begin{document}
 
+%\changepage{ text height }{ text width }{ even-side margin } { odd-side margin }{ column sep. }{ topmargin }{ headheight }{ headsep }{ footskip }
+\changepage{0pt}{30pt}{0pt}{0pt}{0pt}{0pt}{0pt}{0pt}{0pt}
 \maketitle
 \clearpage
 \tableofcontents
@@ -76,6 +65,10 @@ forc\'ement pr\'esents.
 \subsubsection{Force-Field}
 \paragraph{Binary Mixture Lennard-Jones\label{sec:BMLJ}}
 \paragraph{Kob-Andersen model\label{sec:KA}}
+\paragraph{Morse potential\label{sec:morse}}
+\paragraph{Born-Mayer-Huggings-Fumi-Tosi\label{sec:BMHFT}}
+\paragraph{Long-range electrostatic\label{sec:COUL}}
+\paragraph{Multipole expansion: polarizabilities \label{sec:pola}}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -259,7 +252,7 @@ It correspond to a molecular dynamics trajectory of 10 unit of times of a fcc le
 crystal (256 atoms) at $\rho=$1.0 at $T=$1.0. In the next sextion we show the standard output of this minimum setting. 
 
 \clearpage
-\subsection{Minimum setting: standart output}
+\subsection{Minimum setting: standard output}
 \begin{verbatim}
                             \\|//                            
                            -(o o)-                           
@@ -486,6 +479,8 @@ For this minimum setting, the code generates 4 files:
 \end{itemize}
 theses files and other output files are described in a following section.
 
+\newpage
+
 \subsection{Input file : Description}
 
 %###################################################################################################"
@@ -501,6 +496,24 @@ Where : \verb?SUBROUTINE control_init? in \verb?control.f90?
 \hline
 Parameter        &  Type              &          Short Description                                                          & Default value \\
 \hline
+\hline
+\rule[-2.5cm]{0cm}{5cm}
+\verb?calc?      & (CHARACTER)        & \newline \verb?'md'?  : molecular dynamics simulation (see section~\ref{sec:MD}) \newline
+
+                                        \verb?'opt'? : unconstrained optimization of configuation saved in TRAJFF file 
+					(see section~\ref{sec:OPT}) \newline
+
+					\verb?'vib'? : 'vib+fvib', 'vib+gmod', 'vib+band', 'vib+dos' : phonons related 
+					(see section~\ref{sec:VIB})\newline
+
+					\verb?'efg'? : Electric Field Gradient calculation from configuration in TRAJFF 
+					(see section~\ref{sec:EFG})\newline
+
+					\verb?'efg+acf?' : EFG auto-correlation function from EFGALL file 
+					(see section~\ref{sec:EFG})\newline
+
+					\verb?'gr'? : radial distribution function of configurations in TRAJFF
+					(see section~\ref{sec:GR}) \newline                                                 & \verb?'md'?   \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lnmlj?     & (LOGICAL)          &  switch on the binary mixture lennard-jones potential (see section~\ref{sec:BMLJ})  & \verb?.FALSE.?  \\
@@ -521,7 +534,14 @@ Parameter        &  Type              &          Short Description              
 \verb?lvnlist?   & (LOGICAL)          &  use verlet neighbour list (see section~\ref{sec:vnlist})                           & \verb?.TRUE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
+\verb?skindiff?  
+                 & (REAL)             &  verlet-list cutoff ( cutoff + skindiff )                                           & \verb?0.1?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
 \verb?lstatic?   & (LOGICAL)          &  static calculation                                                                 & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?lcsvr?   & (LOGICAL)            &  switch on the stochastic velocity rescaling method by Bussi-Donadio-Parrinello     & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lmsd?      & (LOGICAL)          & calculate mean square displacment on the fly during the md (see \verb?&msdtag? )    & \verb?.FALSE? \\
@@ -531,7 +551,7 @@ Parameter        &  Type              &          Short Description              
                                         (see \verb?&vacftag? not the final version )                                        & \verb?.FALSE? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lsurf?     & (LOGICAL)          &  add "surface" contribution to electrostatic quantities                             & \verb?.FALSE.?  \\
+\verb?lsurf?     & (LOGICAL)          &  add "surface" contribution to electrostatic quantities (see \ref{sec:COUL})        & \verb?.FALSE.?  \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lreduced?  & (LOGICAL)          &  \newline reduced units and reduced the output quantities by the 
@@ -543,7 +563,7 @@ Parameter        &  Type              &          Short Description              
 \verb?ltest?     & (LOGICAL)          &  get around the main code (for test purpose only)                                   & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?restart?   & (LOGICAL)          &  restart calculation and consider previous positions and velocities                 & \verb?.FALSE.? \\
+\verb?lrestart?   & (LOGICAL)         &  restart calculation and consider previous positions and velocities                 & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?restart_data?  
@@ -555,24 +575,6 @@ Parameter        &  Type              &          Short Description              
                                          \verb?'rvf'? : positions, velocities and forces (ion\_type + 9 columns) 
 
                                                                                                                             & \verb?'rnn'? \tabularnewline
-\hline
-\rule[-2.5cm]{0cm}{5cm}
-\verb?calc?      & (CHARACTER)        & \newline \verb?'md'?  : molecular dynamics simulation (see section~\ref{sec:MD}) \newline
-
-                                        \verb?'opt'? : unconstrained optimization of configuation saved in TRAJFF file 
-					(see section~\ref{sec:OPT}) \newline
-
-					\verb?'vib'? : 'vib+fvib', 'vib+gmod', 'vib+band', 'vib+dos' : phonons related 
-					(see section~\ref{sec:VIB})\newline
-
-					\verb?'efg'? : Electric Field Gradient calculation from configuration in TRAJFF 
-					(see section~\ref{sec:EFG})\newline
-
-					\verb?'efg+acf?' : EFG auto-correlation function from EFGALL file 
-					(see section~\ref{sec:EFG})\newline
-
-					\verb?'gr'? : radial distribution function of configurations in TRAJFF
-					(see section~\ref{sec:GR}) \newline                                                 & \verb?'md'?   \tabularnewline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?dgauss?    & (CHARACTER)        & \newline algorithm for gaussian distribution (no fondamental differences test purpose only) 
@@ -603,10 +605,6 @@ Parameter        &  Type              &          Short Description              
                  & (REAL)             &  real-space cut-off for long-range interactions ( lcoulomb )                        & \verb?-?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?skindiff?  
-                 & (REAL)             &  verlet-list cutoff ( cutoff + skindiff )                                           & \verb?0.1?\\
-\hline
-\rule[-0.75cm]{0cm}{1.5cm}
 \verb?ltraj?     & (LOGICAL)          &  save trajectory (pos, vel, forces) during MD                                       & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
@@ -622,7 +620,27 @@ Parameter        &  Type              &          Short Description              
                  & (INTEGER)          &  format of TRAJFF file ( = 0 BINARY, = 1 FORMATED )                                 & \verb?1? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?traj_data? & (INTEGER)          &  type of data in TRAJFF (see \verb?restart_data?)                                   & \verb?'rnn'? \\
+\verb?traj_data? & (CHARACTER)        &  type of data in TRAJFF (see \verb?restart_data?)                                   & \verb?'rnn'? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?iscff_data?& (CHARACTER)        &  type of data in ISCFF (see \verb?restart_data?)                                    & \verb?'rnn'? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?iscff_format? 
+                 & (INTEGER)          &  format of TRAJFF file ( = 0 BINARY, = 1 FORMATED )                                 & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?iefall_format? 
+                 & (INTEGER)          &  format of EFALL file ( = 0 BINARY, = 1 FORMATED )                                  & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?iefgall_format? 
+                 & (INTEGER)          &  format of EFGALL file ( = 0 BINARY, = 1 FORMATED )                                 & \verb?1? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?idipall_format? 
+                 & (INTEGER)          &  format of DIPFF file ( = 0 BINARY, = 1 FORMATED )                                  & \verb?1? \\
+\hline
 \hline
 \end{longtable}
 
@@ -718,7 +736,7 @@ Parameter        &  Type              &          Short Description              
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?taucsvr?   & (REAL)             &  characteristic time in Stochastic velocity rescale method by 
-                                         Bussi-Donadio-Parrinello (see \verb?&controltag lcvsr?)                            & \verb?-? \\
+                                         Bussi-Donadio-Parrinello (see \verb?&controltag lcsvr?)                            & \verb?-? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?nuandersen?     
@@ -740,7 +758,7 @@ Parameter        &  Type              &          Short Description              
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?nhc_yosh_order? 
                  & (INTEGER)          &  Nose-Hoover Chain : order of the yoshida integrator 
-                                         $(2n+1) \, \mathrm{from}\, n=0\, \mathrm{to}\, 4$                                  & \verb?3? \\
+                                         $(2n+1)$ \, from $n=~$0 to 4                                  & \verb?3? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?nhc_mults?      
@@ -784,12 +802,34 @@ Parameter        &  Type              &          Short Description              
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?mass(X)?   &  (REAL)            & mass of the particule type with X = 1 , 2 \ldots \verb?ntype? [a.m.u]               & \verb?1.0? \\
 \hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?quad_efg(X)? 
+                 &  (REAL)            & quadrupolar moment of nucleus for NMR interaction for type $X$ with $X=~$1,2 \ldots \verb?ntype? [mb]     
+                                                                                                                            & \verb?1.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
                  &                    & if \verb?lcoulomb=.TRUE.? & \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
+\verb?doefield?         
+                 & (LOGICAL)          &  calculate electric field (internaly switch on for self-consistent calculation  $\ge$ dipole) 
+                                                                                                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?doefg?         
+                 & (LOGICAL)          &  calculate electric field gradient (internaly switch on for self-consistent calculation $\ge$ quadrupole)     
+                                                                                                                            & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
 \verb?qch(X)?    &  (REAL)            & charge of the particule type with X = 1 , 2 \ldots \verb?ntype? [e]                 & \verb?0.0?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?dip(X,3)?  &  (REAL)            & static dipole on particule of type $X$ with $X=$~1 , 2 \ldots \verb?ntype? [e\AA]   & \verb?0.0?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?quad(X,3,3)?
+                 &  (REAL)            & static quadrupole on particule of type $X$ with $X=$~1 , 2 \ldots \verb?ntype? [e\AA$^2$]  
+	                                                                                                                    & \verb?0.0?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?ncelldirect?           
@@ -798,7 +838,7 @@ Parameter        &  Type              &          Short Description              
 
                                           for \verb?lcoulomb=.TRUE.? and \verb?longrange='direct'?  \newline                  
 					  
-					  not efficient for coulombic quantities < electric field gradient                 & \verb?2? \\
+					  not efficient for coulombic quantities $<$ electric field gradient order          & \verb?2? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?kES(3)?    &  (INTEGER)         & \newline number of kpoints in the reciprocal contribution of the Ewald summation
@@ -812,6 +852,10 @@ Parameter        &  Type              &          Short Description              
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?lautoES?   & (LOGICAL)          & auto-determination of Ewald parameter (\verb?kES?, \verb?alphaES?) 
                                         from \verb?epsw? (accuracy) and \verb?cutlongrange? ( accuracy )                    & \verb?.FALSE.? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?epsw?      &  (REAL)            & targeted error in the ewald summation (see \ref{sec:COUL} $\epsilon_\omega$) 
+                                                                                                                            & \verb?1.0? \\
 \hline
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
@@ -870,26 +914,49 @@ Parameter        &  Type              &          Short Description              
                                         \verb?'cg'? :  dev. stage                                                           & \verb?.FALSE.?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?lpolar(X)? & (LOGICAL)          & switch polarizabilities for ion X= 1 , 2 \ldots \verb?ntype?                        & \verb?.FALSE.?\\
+\verb?ldip_polar(X)? 
+                 & (LOGICAL)          & switch (dipole) polarizabilities for ion X= 1 , 2 \ldots \verb?ntype?               & \verb?.FALSE.?\\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol(X,3,3)?& (REAL)             & polarizability tensor for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
+\verb?lquad_polar(X)? 
+                 & (LOGICAL)          & switch (quadrupole) polarizabilities for ion X= 1 , 2 \ldots \verb?ntype?           & \verb?.FALSE.?\\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?poldip(X,3,3)?
+                 & (REAL)             & dipole-dipole polarizability tensor for type X=1 , 2 \ldots \verb?ntype?            & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?polquad(X,3,3,3)?
+                 & (REAL)             & quadrupole-quadrupole polarizability tensor for type X=1 , 2 \ldots \verb?ntype?    & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?poldip_iso(X)?
+                 & (REAL)             & dipole-dipole polarizability isotropic part only for type X=1 , 2 \ldots \verb?ntype?            
+                                                                                                                            & \verb?0.0? \\
+\hline
+\rule[-0.75cm]{0cm}{1.5cm}
+\verb?polquad_iso(X)?
+                 & (REAL)             & quadrupole-quadrupole polarizability tensor for type X=1 , 2 \ldots \verb?ntype?    & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
 \verb?ldip_damp(X,3,3)?      
-                 & (LOGICAL)          & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?.FALSE.? \\
+                 & (LOGICAL)          & switch on damping function on dipole for type X=1 , 2 \ldots \verb?ntype? (see \ref{sec:pola})         
+                                                                                                                            & \verb?.FALSE.? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_b(X,3,3)?     
-                 & (REAL)             & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
+\verb?dip_pol_damp_b(X,3,3)?     
+                 & (REAL)             & $b$ parameter of damping function on dipole for type X=1 , 2 \ldots \verb?ntype? (see \ref{sec:pola})
+                                                                                                                            & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_c(X,3,3)?     
-                 & (REAL)             & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?0.0? \\
+\verb?dip_pol_damp_c(X,3,3)?     
+                 & (REAL)             & $c$ parameter of damping function on dipole for type X=1 , 2 \ldots \verb?ntype? (see \ref{sec:pola})
+                                                                                                                            & \verb?0.0? \\
 \hline
 \rule[-0.75cm]{0cm}{1.5cm}
-\verb?pol_damp_k(X,3,3)?     
-                 & (INTEGER)          & for type X=1 , 2 \ldots \verb?ntype?                        & \verb?4? \\
+\verb?dip_pol_damp_k(X,3,3)?     
+                 & (INTEGER)          & $k$ parameter of damping function on dipole for type X=1 , 2 \ldots \verb?ntype? (see \ref{sec:pola})
+                                                                                                                            & \verb?4? \\
 \hline
 \hline
 \end{longtable}

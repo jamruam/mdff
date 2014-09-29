@@ -26,7 +26,7 @@
 !#define debug_ES_efg
 !#define debug_ES_dir
 #define debug_scf_pola
-#define debug_wfc
+!#define debug_wfc
 !#define debug_morse
 !#define debug_nmlj
 !#define debug_nmlj_pbc
@@ -425,7 +425,7 @@ SUBROUTINE field_check_tag
       polquad(it,2,2,2) = polquad_iso(it)
       polquad(it,3,3,3) = polquad_iso(it)
     endif
-    write(stdout,'(a,i,4e16.8)')'debug',it,polquad(it,1,1,1), polquad(it,2,2,2),polquad(it,3,3,3) ,polquad_iso(it)
+    !write(stdout,'(a,i,4e16.8)')'debug',it,polquad(it,1,1,1), polquad(it,2,2,2),polquad(it,3,3,3) ,polquad_iso(it)
   enddo
 
   return 
@@ -1732,7 +1732,7 @@ SUBROUTINE induced_moment ( Efield , EfieldG, mu_ind , theta_ind, u_pol )
   ! local 
   integer :: alpha , beta , gamm
   integer :: ia , it 
-  real(kind=dp) :: invpol ( 3 , 3 )   
+  real(kind=dp) :: u_pol_dip , u_pol_quad
   integer, parameter :: LWORK=1000  
   real(kind=dp) :: WORK ( LWORK ) 
   integer :: ipiv ( 3 ) 
@@ -1751,13 +1751,15 @@ SUBROUTINE induced_moment ( Efield , EfieldG, mu_ind , theta_ind, u_pol )
   theta_ind = 0.0_dp
   do ia = 1 , natm 
     it = itype(ia) 
-    if ( .not. ldip_polar ( it ) ) cycle
+    if ( .not. ldip_polar ( it ) .and. .not. lquad_polar(it) ) cycle
     do alpha = 1 , 3 
       do beta = 1 , 3  
         mu_ind ( ia , alpha ) = mu_ind ( ia , alpha ) + poldipia ( ia , alpha , beta ) * Efield ( ia , beta )    
         do gamm = 1 , 3  
   !        mu_ind ( ia , alpha ) = mu_ind ( ia , alpha ) + polquadia ( ia , alpha , beta , gamm ) * EfieldG (ia,beta,gamm)   
           theta_ind ( ia , alpha , beta) = theta_ind ( ia , alpha , beta ) + polquadia ( ia , gamm , alpha , beta ) * Efield (ia,gamm)   
+  !        print*,'induced moment',theta_ind ( ia , alpha , beta),polquadia ( ia , gamm , alpha , beta ) * Efield (ia,gamm),  Efield (ia,gamm)
+
         enddo
       enddo
     enddo
@@ -1771,15 +1773,30 @@ SUBROUTINE induced_moment ( Efield , EfieldG, mu_ind , theta_ind, u_pol )
   !    [ mu_ind ] = e A 
   !    [ u_pol  ] = e^2 / A ! electrostatic internal energy  
   ! ===============================================================
-  u_pol = 0.0_dp 
+  u_pol_dip  = 0.0_dp 
   do ia = 1 , natm
+    it = itype(ia) 
+    if ( .not. ldip_polar ( it ) ) cycle
     do alpha = 1 , 3
       do beta = 1 , 3
-        u_pol = u_pol + mu_ind ( ia , alpha ) * invpoldipia ( ia , alpha , beta ) * mu_ind ( ia , beta ) 
+        u_pol_dip  = u_pol_dip + mu_ind ( ia , alpha ) * invpoldipia ( ia , alpha , beta ) * mu_ind ( ia , beta ) 
       enddo
     enddo
   enddo
-  u_pol = u_pol * 0.5_dp  
+  u_pol_dip = u_pol_dip * 0.5_dp  
+  u_pol_quad = 0.0_dp
+  do ia = 1 , natm
+    it = itype(ia) 
+    if ( .not. lquad_polar ( it ) ) cycle
+    do alpha = 1 , 3
+      do beta = 1 , 3
+        u_pol_quad = u_pol_quad + theta_ind ( ia , alpha , beta ) * theta_ind ( ia , alpha , beta ) / polquadia ( ia , 1 ,1 ,1 ) 
+      enddo
+    enddo
+  enddo
+  u_pol_quad = u_pol_quad / 6.0_dp 
+
+  u_pol = u_pol_dip + u_pol_quad
 
   return
 
@@ -1997,14 +2014,14 @@ do ia = 1 , natm
  enddo
 #endif
 
-#ifdef debug_ES_energy
+!#ifdef debug_ES_energy
  WRITE ( stdout , '(6(a,f16.8))' ) ,' u_dir      = ', u_dir  * coul_unit , &
                                     ' u_rec      = ', u_rec  * coul_unit , &
                                     ' u_surf     = ', u_surf * coul_unit , & 
                                     ' u_self     = ', u_self * coul_unit , &
                                     ' u_pol      = ', u_pol  * coul_unit , &
                                     ' u_coul     = ', u_coul
-#endif
+!#endif
 
 #ifdef debug_ES_stress
   tau_dir  = tau_dir  / press_unit * coul_unit
@@ -3215,7 +3232,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , theta_ind)
   ! =========================================================
   linduced = .false.
   do it = 1 , ntype
-    if ( ldip_polar ( it ) ) linduced = .true.
+    if ( ldip_polar  ( it ) .or. lquad_polar ( it ) ) linduced = .true.
   enddo
   if ( .not. linduced ) then
 #ifdef debug
@@ -3314,8 +3331,18 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , theta_ind)
         blankline(stdout)
       endif
 #endif
+#ifdef debug_quad
+      if ( ionode ) then
+        WRITE ( stdout , '(a)' )     'Induced quadrupoles at atoms from extrapolation: '
+        do ia = 1 , natm
+          WRITE ( stdout , '(i5,a3,a,6f18.10)' ) &
+          ia,atype(ia),' theta_ind = ', theta_ind ( ia , 1 , 1 ) , theta_ind ( ia , 2 , 2 ) , theta_ind ( ia , 3 , 3 ), &
+                                        theta_ind ( ia , 1 , 2 ) , theta_ind ( ia , 1 , 3 ) , theta_ind ( ia , 2 , 3 )
+        enddo
+        blankline(stdout)
+      endif
+#endif
     endif
-
     tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
 
     ! ==========================================================
@@ -3361,20 +3388,21 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , theta_ind)
       enddo
       endif
       if ( lquad_polar( it ) ) then 
+      npol = npol + 1
       do alpha = 1 , 3
         if ( polquadia ( ia,  alpha , alpha , alpha ) .eq. 0.0_dp ) cycle
         rmsd  = rmsd  + ( theta_ind ( ia , alpha , alpha ) / polquadia ( ia,  alpha , alpha , alpha ) - Efield ( ia , alpha ) ) ** 2 
-#ifdef debug_scf_pola
-        write(stdout,'(a,2i5,3e16.8)') 'quad : ',ia,alpha, theta_ind ( ia , alpha , alpha ) , polquadia ( ia,  alpha , alpha , alpha ) , Efield ( ia , alpha )
-#endif 
       enddo
       endif
     enddo
     rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
+#ifdef debug_scf_pola
+        write(stdout,'(a,3e16.8)') 'quad : ',theta_ind ( 1 , 1 , 1 ) , polquadia ( 1,  1, 1, 1) , Efield ( 1 , 1 )
+#endif 
 
     if ( calc .ne. 'opt' ) then
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
-    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
+    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (static)  = ', u_coul_stat, ' u_coul (induced)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd = ', rmsd
     endif
 !    if ( algo_ext_dipole .eq. 'aspc' ) exit
 
