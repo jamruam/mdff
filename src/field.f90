@@ -2476,8 +2476,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   endif
 
   ! thole function statistics
-  if ( thole_functions .and. cthole .ne. 0 ) then
     CALL MPI_ALL_REDUCE_INTEGER_SCALAR ( cthole )
+  if ( thole_functions .and. cthole .ne. 0 ) then
     io_printnode write(stdout , '(a,i,a)') 'cthole for ',cthole,' pairs'
   endif
 
