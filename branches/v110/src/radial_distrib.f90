@@ -305,6 +305,8 @@ SUBROUTINE grcalc
     CALL periodicbc ( natm , rx , ry , rz  )
     CALL dirkar     ( natm , rx , ry , rz , simu_cell%A ) 
 
+    CALL distance_tab
+
     ngr=ngr+1 
     ! ==========================
     !  calc radial_distribution 
