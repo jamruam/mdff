@@ -343,13 +343,11 @@ SUBROUTINE extended_coordinates_alloc
     allocate ( vxi(nhc_n) , xi(nhc_n) )
     vxi = 0.0_dp
     xi  = 0.0_dp
-    if ( integrator .eq. 'npt-nhcnp' ) then
-      allocate ( vxib(nhc_n) , xib(nhc_n) )
-      vxib = 0.0_dp
-      xib  = 0.0_dp
-      ve   = 0.0_dp
-      xe   = 0.0_dp
-    endif
+    ve   = 0.0_dp
+    xe   = 0.0_dp
+    allocate ( vxib(nhc_n) , xib(nhc_n) )
+    vxib = 0.0_dp
+    xib  = 0.0_dp
   endif
 
 

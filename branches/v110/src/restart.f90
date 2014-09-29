@@ -170,6 +170,10 @@ SUBROUTINE restart_init ( MDFF )
   READ( kunit_RESTART   ) ve
   READ( kunit_RESTART   ) xe
   READ( kunit_RESTART   ) xe0
+  if ( ionode ) then
+    write(*,'(a,<nhc_n>f)') 'restart read ',vxi
+    write(*,'(a,<nhc_n>f)') 'restart read ',xi
+  endif
   
   ! ===================
   !  print mdtag info
@@ -232,11 +236,11 @@ SUBROUTINE restart_init ( MDFF )
   ! ================================
   CALL field_print_info(stdout,quiet=.false.)
 
-  allocate ( dipia_ind_t ( extrapolate_order+1, natm , 3 ) )
+  !allocate ( dipia_ind_t ( extrapolate_order+1, natm , 3 ) )
  
   CLOSE(kunit_RESTART)
 
-  CALL print_RESTART_info ( stdout ) 
+  print*,'end of restart_init'
 
   return
 
@@ -395,6 +399,10 @@ SUBROUTINE write_RESTART
   WRITE( kunit_RESTART   ) BDbmhftd 
   CLOSE(kunit_RESTART)
 
+  if ( ionode ) then
+  write(*,'(a,<nhc_n>f)') 'restart write ',vxi
+  write(*,'(a,<nhc_n>f)') 'restart write ',xi
+  endif
   return
 
 END SUBROUTINE write_RESTART

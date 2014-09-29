@@ -142,7 +142,6 @@ SUBROUTINE prop_velocity_verlet
   ! local
   integer :: ia
   real(kind=dp) :: dtsq2 , dt2
-  !real(kind=dp), dimension (:), allocatable :: fsx , fsy , fsz
   real(kind=dp) :: tempi , kin
 
 
@@ -483,7 +482,6 @@ SUBROUTINE nhcn
   real(kind=dp) :: nvt1, nvt2, nvt3, nvt4
 
   ! degrees of freedom
-  !L = 3.0_dp * ( REAL ( natm, kind=dp) - 1.0_dp )
   L = 3.0_dp * ( REAL ( natm, kind=dp) )
 
   ! thermostat mass
@@ -497,10 +495,6 @@ SUBROUTINE nhcn
   integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
   CALL prop_pos_vel_verlet ( kin )
-
-  !CALL calc_temp ( tempi , kin )
-  !e_kin = kin
-  !temp_r = tempi
 
   ttt1 = MPI_WTIME(ierr) 
   CALL chain_nhcn( kin, vxi, xi , Q , L , -1)
@@ -520,20 +514,14 @@ SUBROUTINE nhcn
   e_nvt = 0.0_dp
   nvt1 = L * temp * xi(1)
   nvt2 = vxi(1) * vxi(1) * 0.5_dp / Q(1)
-!  e_nvt = e_nvt + L * temp * xi(1)
-!  e_nvt = e_nvt + vxi(1) * vxi(1) * 0.5_dp / Q(1)
   nvt3 = 0.0_dp
   nvt4 = 0.0_dp
   do inhc = 2 , nhc_n
     nvt3 = nvt3 + vxi(inhc) * vxi(inhc) * 0.5_dp / Q(inhc)
     nvt4 = nvt4 + temp * xi(inhc)    
-!    e_nvt = e_nvt + vxi(inhc) * vxi(inhc) * 0.5_dp / Q(inhc)
-!    e_nvt = e_nvt + temp * xi(inhc)
   enddo
   e_nvt = nvt1 + nvt2 + nvt3 + nvt4
   io_printnode write(stdout,'(a,5f16.8)') 'e_nvt',e_nvt,nvt1,nvt2,nvt3,nvt4
-  !io_print call write_all_conf_proc 
-  !xi(2:nhc_n)=0.0d0
 
   deallocate( Q ) 
 

@@ -164,7 +164,7 @@ PROGRAM main_MDFF
     ! =============================
     ! md initialization
     ! =============================
-    CALL md_init
+    if ( .not. full_restart ) CALL md_init
  
     ! =============================
     ! properties initialization	 
