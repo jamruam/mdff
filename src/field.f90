@@ -69,6 +69,7 @@ MODULE field
   logical, SAVE     :: ldip_wfc          !< calculate electrostatic contribution from dipolar momemt coming from wfc
   logical, SAVE     :: lquiet            !< internal stuff 
   logical, SAVE     :: symmetric_pot     !< symmetric potential ( default .true. but who knows ?)
+  integer, dimension ( :) , allocatable :: pair_thole
 
 
   ! ============================================================  
@@ -1095,6 +1096,8 @@ SUBROUTINE engforce_driver
   ! =================================
   if ( lcoulomb ) then
    allocate( ef(natm,3) , efg(natm,3,3) , mu(natm,3) )     
+   allocate ( pair_thole ( natm ) ) 
+   pair_thole = 0
                                    mu=0.0d0
                                    CALL get_dipole_moments ( mu )
     if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( ef , efg , mu , task_coul , damp_ind=.true. , &
@@ -1102,7 +1105,8 @@ SUBROUTINE engforce_driver
     mu_t  = mu
     ef_t  = ef
     efg_t = efg
-   deallocate( ef , efg , mu )     
+   deallocate( ef , efg , mu )      
+   deallocate ( pair_thole )  
    
   endif
   ! ===========================
@@ -1662,7 +1666,7 @@ END SUBROUTINE finalize_coulomb
 SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   USE constants,        ONLY : coul_unit
-  USE config,           ONLY : natm , itype , atypei, ntype , polia, invpolia
+  USE config,           ONLY : natm , itype , atypei, ntype , polia, invpolia, atype 
   USE io,               ONLY : stdout
 
   implicit none
@@ -1675,7 +1679,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   ! local 
   integer :: alpha , beta
-  integer :: ia , it 
+  integer :: ia , it , ja  
   real(kind=dp) :: invpol ( 3 , 3 )   
   integer, parameter :: LWORK=1000  
   real(kind=dp) :: WORK ( LWORK ) 
@@ -1702,15 +1706,29 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
     enddo
   enddo
 
-!  if ( any(mu_ind.gt.10d0) ) then
-!    io_node WRITE ( stdout , '(a)' ) '----------------------------------------------------------------------'
-!    io_node WRITE ( stdout , '(a)' ) ' ERROR : POLARIZATION CATASTROPH'
-!    io_node WRITE ( stdout , '(a)' ) ' ERROR : one (or more) dipole moment is extremely large ( > 10 [eA] )'
-!    io_node WRITE ( stdout , '(a)' ) ' Use Thole functions or ajust it to avoid this issue'
-!    io_node WRITE ( stdout , '(a)' ) ' We are planning to implement Gaussian dipoles instead of point dipoles'
-!    io_node WRITE ( stdout , '(a)' ) '----------------------------------------------------------------------'
-!    STOP
-!  endif
+  if ( ionode ) then
+    do ia = 1 , natm
+      if ( any( mu_ind(ia,:).gt. 10_dp ) ) then
+        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
+        WRITE ( stdout , '(a)' )           ' ERROR : POLARIZATION CATASTROPH'
+        WRITE ( stdout , '(a)' )           ' ERROR : one (or more) dipole moment is extremely large ( > 10 [eA] )'
+        WRITE ( stdout , '(a)' )           ' Use Thole functions or ajust it to avoid this issue'
+        WRITE ( stdout , '(a,i5,3f12.8)' ) ' ion = ', ia , mu_ind(ia,:) 
+        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
+        WRITE ( stdout , '(a)')            'from thole pairs'
+        do ja = 1 ,natm
+          if ( pair_thole(ja) .ne. 0 ) then
+            write(stdout, '(a,2i5,a5,a,a5)') "thole pair : ",ja,pair_thole(ja), atype(ja) ,'-', atype(pair_thole(ja))   
+            write(stdout, '(a,i5,3f12.8)') '  dipoles for ',ja,mu_ind(ja,:)
+            write(stdout, '(a,i5,3f12.8)') '  dipoles for ',pair_thole(ja),mu_ind(pair_thole(ja),:)
+          endif
+        enddo
+        CALL write_DIPFF
+	call MPI_FINALIZE(ierr)
+        STOP
+      endif
+    enddo
+  endif
 
   u_pol = 0.0_dp 
   do ia = 1 , natm
@@ -2196,6 +2214,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                 ! check distance acoording to s = 1.662 (alpha_ialpha_j)^(1/6)
                 ! rij < s
                 if ( d .lt. sthole ) then
+		pair_thole(ia) = ja
 #ifdef debug_thole
                 io_print write(stdout,'(3a,2i)') 'thole function for',atype(ia),atype(ja),ia,ja
                 io_print write(stdout,'(a,f,a,f)') 's =', sthole,'  r =',d
@@ -2557,11 +2576,25 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   ! thole function statistics 
   ! write it only when do_forces = .true. only 
   if ( do_forces) then 
+    CALL MPI_ALL_REDUCE_INTEGER_SCALAR ( cthole )
+    CALL  MPI_ALL_REDUCE_INTEGER ( pair_thole , natm )
     if ( thole_functions .and. cthole .ne. 0 ) then
       io_printnode write(stdout , '(a,i,a)') 'Thole damping used for ',cthole,' pairs'
+      io_printnode write(stdout , '(a,f8.5)') 'thole_param = ',thole_param
+      if ( ioprintnode ) then
+      write(stdout , '(a)') '"catastophe" distance ( 4 alpha_i alpha_j ) ^ (1/6)'
+      do ia = 1 ,natm
+        if ( pair_thole(ia) .ne. 0 ) then 
+	  ialpha = polia(ia,1,1)
+	  jalpha = polia(pair_thole(ia),1,1)
+          Athole = ( 4.0_dp * ialpha * jalpha ) ** onesixth 
+          write(stdout, '(a,2i5,a5,a,a2,a,f8.5)') "thole pair : ",ia,pair_thole(ia), atype(ia) ,'-', atype(pair_thole(ia)), ' infinite at distance ',Athole
+        endif
+      enddo
+      endif
     endif
   endif
-
+ 
   return
 
 
