@@ -77,7 +77,6 @@ PROGRAM main_MDFF
 
   ! local
   integer       :: argc               ! input argument of the executable
-  integer       :: offset             ! offset ( not used yet )
   dectime                             ! timing declaration ( ierr also declared ) 
   !character(len=80) :: SVNREV         ! svn revision 
 
@@ -237,10 +236,9 @@ PROGRAM main_MDFF
          !        static 
          ! =======================
            if ( lstatic ) then  
-             offset = 1
              npas = 0
              integrator = 'nve-vv' 
-             CALL md_run ( offset )
+             CALL md_run 
          ! =======================
          ! .... or dynamic   
          ! =======================
@@ -249,14 +247,7 @@ PROGRAM main_MDFF
              ! velocities intialization
              ! =========================
              CALL init_velocities 
-             ! ===============================================================
-             ! time offset = zero is the static step (first step of dynamic) 
-             ! this offset will be used if the OUTSIDE LOOP is used
-             ! ===============================================================
-             offset = itime  
-             CALL md_run ( offset ) 
-!                                            ^ 
-!                                           offset   
+             CALL md_run 
            endif
    
 #ifdef MULTRUN

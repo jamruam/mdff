@@ -165,7 +165,7 @@ SUBROUTINE rescale_velocities (quite)
   enddo
 
 
-  !if ( lcsvr ) then 
+  if ( lcsvr ) then 
     SUMX = 0.0_dp
     SUMY = 0.0_dp
     SUMZ = 0.0_dp
@@ -182,7 +182,7 @@ SUBROUTINE rescale_velocities (quite)
        vy ( ia ) = vy ( ia ) - SUMY
        vz ( ia ) = vz ( ia ) - SUMZ
     enddo
-  !endif
+  endif
 
   if ( ionode .and. quite .eq. 1) then
     WRITE ( stdout ,'(a,f10.4)') 'effective temperature      T        = ',T

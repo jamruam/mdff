@@ -188,8 +188,6 @@ SUBROUTINE config_print_info(kunit)
     blankline(kunit)
     lseparator(kunit)
     blankline(kunit)
-    WRITE ( kunit ,'(a,f12.4)')      'density               = ',rho
-    blankline(kunit)
     
   endif 
 

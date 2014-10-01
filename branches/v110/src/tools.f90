@@ -426,10 +426,10 @@ SUBROUTINE vnlist_nopbc ( vlist )
   vlist%point( atom_dec%iend + 1 ) = icount
 
 
-  print*,'verlet list info'
-  print*,vlist%list
-  print*,vlist%point
-  print*,vlist%listname
+  !print*,'verlet list info'
+  !print*,vlist%list
+  !print*,vlist%point
+  !print*,vlist%listname
   !if ( vlist%listname .eq. 'coul' ) stop
  
  
@@ -544,7 +544,7 @@ END SUBROUTINE vnlistcheck
 !> \param[in] key tensr label
 !
 ! ******************************************************************************
-SUBROUTINE print_tensor( tens , key )
+SUBROUTINE print_tensor( tens , key)
 
   USE constants, ONLY : dp
   USE config,   ONLY :  natm
@@ -554,18 +554,18 @@ SUBROUTINE print_tensor( tens , key )
 
   ! global
   real(kind=dp) :: tens(3,3)
-  character(len=8) :: key
+  character(len=8) , OPTIONAL :: key
 
   ! local
   integer :: i
 
   if ( ionode ) then
-    blankline(stdout)
-    WRITE ( stdout ,'(a)') key
+    if (.not.PRESENT(key) ) blankline(stdout)
+    if (.not.PRESENT(key) ) WRITE ( stdout ,'(a)') key
     do i = 1 , 3
       WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo
-    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0_dp , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0_dp / dble(natm),')'
+    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') '  iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0_dp , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0_dp / dble(natm),')'
     blankline(stdout)
   endif
 
