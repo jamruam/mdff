@@ -47,10 +47,9 @@
 !
 ! input : 
 !          list , point    : verlet list variables 
-!          offset          : time offset
 !
 ! ******************************************************************************
-SUBROUTINE md_run ( offset )
+SUBROUTINE md_run 
 
 
   USE constants,                ONLY :  dp
@@ -73,7 +72,6 @@ SUBROUTINE md_run ( offset )
   implicit none
 
   ! global
-  integer, intent(in)                      :: offset
 
   ! local
   integer                                  :: ia , it
@@ -170,8 +168,8 @@ SUBROUTINE md_run ( offset )
     ! write thermodynamic information of config at t=0
     ! ==================================================
     CALL calc_thermo
-    CALL write_thermo( offset , stdout , 'std' )
-    CALL write_thermo( offset , kunit_OSZIFF , 'osz' )
+    CALL write_thermo( 0 , stdout , 'std' )
+    CALL write_thermo( 0 , kunit_OSZIFF , 'osz' )
 
   else
   ! ===========================================================================
@@ -196,8 +194,8 @@ SUBROUTINE md_run ( offset )
     ! write thermodynamic information of the starting point
     ! =======================================================
     CALL calc_thermo
-    CALL write_thermo( offset , stdout , 'std')
-    CALL write_thermo( offset , kunit_OSZIFF , 'osz' )
+    CALL write_thermo( 0 , stdout , 'std')
+    CALL write_thermo( 0 , kunit_OSZIFF , 'osz' )
      rx = xtmp
      ry = ytmp
      rz = ztmp
@@ -211,10 +209,18 @@ SUBROUTINE md_run ( offset )
   ! =======================
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of initial configuration' 
+  io_node blankline(stdout)
 
-  if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
-  if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
-                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' )
+  if ( non_bonded ) then 
+    io_node WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
+    CALL print_tensor ( tau_nonb ) 
+  endif
+  if ( lcoulomb )   then
+    io_node WRITE ( stdout , '(a)' )    "coulombic stess tensor"
+    CALL print_tensor ( tau_coul  ) 
+  endif
+  io_node WRITE ( stdout , '(a)' )    "total stess tensor"
+  CALL print_tensor ( tau_coul+tau_nonb  )
 
   ! =========================
   !   MAIN LOOP ( TIME )
@@ -228,8 +234,7 @@ SUBROUTINE md_run ( offset )
   ! ===========
    statime
 
-! WARNING offset !!!!
-MAIN:  do itime = offset+1 , npas + offset
+MAIN:  do itime = 1 , npas 
 
   ! ioprint condition
   if ( MOD ( itime , nprint ) .eq. 0.0_dp ) then
@@ -293,8 +298,11 @@ MAIN:  do itime = offset+1 , npas + offset
          !  rescale velocities (NVE equil)
          ! ================================
          if ( ( ANY ( integrator .eq. rescale_allowed ) ) .and.  &
-                  ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
-                    ( itime .ne. npas + ( offset ) .and. itime .ne. offset ) ) ) then
+                  ( ( itime .le. nequil .and. MOD ( itime , nequil_period ) .eq. 0 ) .and. &
+                    ( itime .ne. npas .and. itime .ne. 1 ) ) ) then
+           io_printnode WRITE(stdout ,'(a)') ''
+           io_printnode WRITE(stdout ,'(a)') ' velocities are rescaled'
+           io_printnode WRITE(stdout ,'(a)') ''
            CALL rescale_velocities(0)
          endif
          ! ================================
@@ -302,7 +310,7 @@ MAIN:  do itime = offset+1 , npas + offset
          ! ================================
          if ( integrator .eq. 'npe-vv' .and.  &
                   ( ( itime .le. nequil.and.MOD ( itime , nequil_period ) .eq. 0 ) .and. &
-                    ( itime .ne. npas + ( offset ) .and. itime .ne. offset ) ) ) then
+                    ( itime .ne. npas .and. itime .ne. 1 ) ) ) then
            CALL rescale_volume(0)
          endif
 
@@ -399,12 +407,19 @@ MAIN:  do itime = offset+1 , npas + offset
 #ifdef stress_t
   io_printnode blankline(stdout)
   if ( ioprintnode ) then
-  if ( non_bonded ) CALL print_tensor ( tau_nonb  , 'TAU_NONB' ) 
-  if ( lcoulomb )   CALL print_tensor ( tau_coul  , 'TAU_COUL' ) 
+    if ( non_bonded ) then 
+      WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
+      CALL print_tensor ( tau_nonb ) 
+    endif
+    if ( lcoulomb )   then
+      WRITE ( stdout , '(a)' )    "coulombic stess tensor"
+      CALL print_tensor ( tau_coul  ) 
+    endif
   endif
 #endif
   if ( ioprintnode ) then
-                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' ) 
+    WRITE ( stdout , '(a)' )    'total stess tensor'
+    CALL print_tensor (tau_coul+tau_nonb) 
   endif
        
 #ifdef com_t
@@ -509,9 +524,18 @@ MAIN:  do itime = offset+1 , npas + offset
   io_node blankline(stdout)
   io_node blankline(stdout)
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
-  if ( non_bonded ) CALL print_tensor ( tau_nonb , 'TAU_NONB' ) 
-  if ( lcoulomb )   CALL print_tensor ( tau_coul , 'TAU_COUL' ) 
-                    CALL print_tensor ( tau_coul+tau_nonb  , 'TAU_TOTA' )
+  if ( ionode ) then
+    if ( non_bonded ) then 
+      WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
+      CALL print_tensor ( tau_nonb ) 
+    endif
+    if ( lcoulomb )   then
+      WRITE ( stdout , '(a)' )    "coulombic stess tensor"
+      CALL print_tensor ( tau_coul  ) 
+    endif
+  endif
+  WRITE ( stdout , '(a)' )    "total stess tensor"
+  CALL print_tensor ( tau_coul+tau_nonb  ) 
   if ( ionode .and. lvnlist .and. updatevnl .ne. 0 ) WRITE ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,REAL(npas,kind=dp)/REAL(updatevnl,kind=dp)
 
   CALL  write_average_thermo ( stdout ) 

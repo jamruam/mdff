@@ -69,7 +69,8 @@ MODULE field
   logical, SAVE     :: ldip_wfc          !< calculate electrostatic contribution from dipolar momemt coming from wfc
   logical, SAVE     :: lquiet            !< internal stuff 
   logical, SAVE     :: symmetric_pot     !< symmetric potential ( default .true. but who knows ?)
-  integer, dimension ( :) , allocatable :: pair_thole
+  integer, dimension (:) , allocatable :: pair_thole
+  real(kind=dp), dimension (:) , allocatable :: pair_thole_distance
 
 
   ! ============================================================  
@@ -148,10 +149,10 @@ MODULE field
   real(kind=dp)    :: pol_damp_c ( ntypemax, ntypemax,ntypemax )     !< dipole damping : parameter c no units
   integer          :: pol_damp_k ( ntypemax, ntypemax,ntypemax )     !< dipole damping : Tang-Toennies function order
   logical          :: thole_functions                                !< use thole functions correction on dipole-dipole interaction
-  real(kind=dp)    :: thole_param                                    !< use thole functions correction on dipole-dipole interaction
+  real(kind=dp)    :: thole_param (ntypemax,ntypemax)                !< use thole functions correction on dipole-dipole interaction
   character(len=6) :: thole_function_type
-  character(len=6) :: thole_function_type_allowed(3)
-  data                thole_function_type_allowed / 'linear','expon1','expon2'/
+  character(len=6) :: thole_function_type_allowed(4)
+  data                thole_function_type_allowed / 'linear','expon1','expon2', 'gauss'/
 
 
   character(len=4) :: algo_ext_dipole                  !< set the algorithm used to get induced moments from polarization 
@@ -335,6 +336,8 @@ SUBROUTINE field_check_tag
       Cbmhftd(:,it)  = Cbmhftd(it,:)
       Dbmhftd(:,it)  = Dbmhftd(it,:)
       BDbmhftd(:,it) = BDbmhftd(it,:)
+      !thole param
+      thole_param(:,it) = thole_param(it,:)  
       do it2 = 1 ,ntype
         ! dip_damping
         ldip_damping(it2,:,it) = ldip_damping(it2,it,:)
@@ -396,6 +399,7 @@ SUBROUTINE field_check_tag
    
   if ( thole_function_type .eq. 'expon1' ) thole_param = 0.572_dp
   if ( thole_function_type .eq. 'expon2' ) thole_param = 1.9088_dp
+  if ( thole_function_type .eq. 'gauss' ) thole_param = 0.957_dp
 
 
 
@@ -531,18 +535,19 @@ END SUBROUTINE field_init
 ! ******************************************************************************
 SUBROUTINE field_print_info ( kunit , quiet )
 
-  USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell 
+  USE config,           ONLY :  natm , ntype , atypei , natmi , simu_cell , rho
   USE control,          ONLY :  calc , cutshortrange , lnmlj , lmorse , lbmhft , lbmhftd , lcoulomb , longrange , lreduced , cutlongrange
   USE io,               ONLY :  ionode 
-  USE constants,        ONLY :  pi , pisq
+  USE constants,        ONLY :  pi , pisq, g_to_am
 
   implicit none
 
   !local
   logical , optional :: quiet
   integer :: kunit, it , it1 , it2 , i , j 
-  real(kind=dp) :: rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2
+  real(kind=dp) :: rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2, total_mass
   logical :: linduced, ldamp
+  real(kind=dp) :: Athole, dist_cata , dist_corr      
 
   if ( ( present ( quiet ) .and. quiet ) .and. .not. lquiet ) then 
     lquiet = .true.
@@ -565,11 +570,18 @@ SUBROUTINE field_print_info ( kunit , quiet )
 
 
   if ( ionode ) then
+    total_mass = 0.0_dp
+    do it = 1 , ntype
+      total_mass = total_mass + mass(it) * natmi(it)
+    enddo
     separator(kunit)    
     blankline(kunit)
     WRITE ( kunit ,'(a)')               'FIELD MODULE ... WELCOME'
     blankline(kunit)
     lseparator(kunit) 
+    WRITE ( kunit ,'(a,f12.4,a)')       'total mass            = ', total_mass ,' a.m '
+    WRITE ( kunit ,'(a,2f12.4,a)')      'density               = ', rho , total_mass / simu_cell%omega * g_to_am ,' g/cm^3 '
+    blankline(kunit)
     WRITE ( kunit ,'(a)')               'point charges: '
     lseparator(kunit) 
     do it = 1 , ntype 
@@ -622,10 +634,10 @@ SUBROUTINE field_print_info ( kunit , quiet )
     ! =================================
     if ( lcoulomb )    then 
       lseparator(kunit) 
-      WRITE ( kunit ,'(a)')             'coulombic interaction : '
-      WRITE ( kunit ,'(a,l)')         'task : charge-charge', task_coul(1)
-      WRITE ( kunit ,'(a,l)')         'task : charge-dipole', task_coul(2)
-      WRITE ( kunit ,'(a,l)')         'task : dipole-dipole', task_coul(3)
+      WRITE ( kunit ,'(a)')               'coulombic interaction : '
+      WRITE ( kunit ,'(a,l)')             'task : charge-charge', task_coul(1)
+      WRITE ( kunit ,'(a,l)')             'task : charge-dipole', task_coul(2)
+      WRITE ( kunit ,'(a,l)')             'task : dipole-dipole', task_coul(3)
       lseparator(kunit) 
       blankline(kunit)
       if ( task_coul(1) .and. .not. task_coul(3)) then
@@ -638,6 +650,29 @@ SUBROUTINE field_print_info ( kunit , quiet )
         WRITE ( kunit ,'(a)')             '        qi qj      qi muj . rij          1    | -->   -->      ( mui .rij ) ( rij . muj )  |' 
         WRITE ( kunit ,'(a)')             ' Vij = ------- +  ---------------- +  ------- | mui . muj - 3 ---------------------------  |'
         WRITE ( kunit ,'(a)')             '         rij          rij^3            rij^3  \                            rij^2          /'
+        WRITE ( kunit ,'(a)')
+        WRITE ( kunit ,'(a)')
+        if ( thole_functions ) then
+        lseparator(kunit)
+        WRITE ( kunit ,'(a)')             ' Thole function for dipole-dipole interaction ' 
+        WRITE ( kunit ,'(a,a)')           ' type  : ',thole_function_type
+        WRITE ( kunit ,'(a)')             ' thole parameter        : a '
+        WRITE ( kunit ,'(a)')             ' catastrophe distance   : dc =   ( 4 alpha_i alpha_j )^(1/*6)'
+        WRITE ( kunit ,'(a)')             ' thole distance cut-off : dt = a (   alpha_i alpha_j )^(1/*6)' 
+        lseparator(kunit)
+        WRITE ( kunit ,'(a)')             'pair               a              dc              dt'
+        do it1 = 1 , ntype
+          do it2 = it1 , ntype
+            Athole    = ( pol (it1,1,1) * pol (it2,1,1) ) ** (1.0_dp / 6.0_dp )
+            dist_cata = ( 4.0_dp ) ** (1.0_dp / 6.0_dp ) * Athole
+            dist_corr = Athole * thole_param ( it1 , it2 )
+            WRITE ( kunit ,120)   atypei(it1),'-',atypei(it2),'    ',thole_param ( it1 , it2 ), dist_cata , dist_corr 
+          enddo
+        enddo
+        lseparator(kunit)
+
+        
+        endif
       endif
       if ( .not. task_coul(1) .and. task_coul(3)) then 
         WRITE ( kunit ,'(a)')             '                /                  -->  -->     -->   -->   \'      
@@ -802,6 +837,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
   return
 100 FORMAT(a,e16.8) 
 110 FORMAT(a,e16.8,a,e16.8,a) 
+120 FORMAT(a,a,a,a,3e16.8) 
 
 END SUBROUTINE field_print_info
 
@@ -1097,7 +1133,9 @@ SUBROUTINE engforce_driver
   if ( lcoulomb ) then
    allocate( ef(natm,3) , efg(natm,3,3) , mu(natm,3) )     
    allocate ( pair_thole ( natm ) ) 
+   allocate ( pair_thole_distance ( natm ) ) 
    pair_thole = 0
+   pair_thole_distance = 0.0_dp
                                    mu=0.0d0
                                    CALL get_dipole_moments ( mu )
     if ( longrange .eq. 'ewald'  ) CALL multipole_ES ( ef , efg , mu , task_coul , damp_ind=.true. , &
@@ -1107,6 +1145,7 @@ SUBROUTINE engforce_driver
     efg_t = efg
    deallocate( ef , efg , mu )      
    deallocate ( pair_thole )  
+   deallocate ( pair_thole_distance )  
    
   endif
   ! ===========================
@@ -1680,11 +1719,10 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   ! local 
   integer :: alpha , beta
   integer :: ia , it , ja  
-  real(kind=dp) :: invpol ( 3 , 3 )   
-  integer, parameter :: LWORK=1000  
-  real(kind=dp) :: WORK ( LWORK ) 
-  integer :: ipiv ( 3 ) 
-  integer :: ierr 
+  !real(kind=dp) :: invpol ( 3 , 3 )   
+  !integer, parameter :: LWORK=1000  
+  !real(kind=dp) :: WORK ( LWORK ) 
+  !integer :: ipiv ( 3 ) 
 
   ! ---------------------------------------------------------------
   ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
@@ -1705,30 +1743,6 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
       enddo
     enddo
   enddo
-
-  if ( ionode ) then
-    do ia = 1 , natm
-      if ( any( mu_ind(ia,:).gt. 10_dp ) ) then
-        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
-        WRITE ( stdout , '(a)' )           ' ERROR : POLARIZATION CATASTROPH'
-        WRITE ( stdout , '(a)' )           ' ERROR : one (or more) dipole moment is extremely large ( > 10 [eA] )'
-        WRITE ( stdout , '(a)' )           ' Use Thole functions or ajust it to avoid this issue'
-        WRITE ( stdout , '(a,i5,3f12.8)' ) ' ion = ', ia , mu_ind(ia,:) 
-        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
-        WRITE ( stdout , '(a)')            'from thole pairs'
-        do ja = 1 ,natm
-          if ( pair_thole(ja) .ne. 0 ) then
-            write(stdout, '(a,2i5,a5,a,a5)') "thole pair : ",ja,pair_thole(ja), atype(ja) ,'-', atype(pair_thole(ja))   
-            write(stdout, '(a,i5,3f12.8)') '  dipoles for ',ja,mu_ind(ja,:)
-            write(stdout, '(a,i5,3f12.8)') '  dipoles for ',pair_thole(ja),mu_ind(pair_thole(ja),:)
-          endif
-        enddo
-        CALL write_DIPFF
-	call MPI_FINALIZE(ierr)
-        STOP
-      endif
-    enddo
-  endif
 
   u_pol = 0.0_dp 
   do ia = 1 , natm
@@ -1885,17 +1899,17 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   u_surf    = u_surf * tpi_3V
 
   ! potential, field , forces ( no contrib to efg ) 
-  do ia = 1 , natm
-    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
-    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
-    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
-    fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
-    fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
-    fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
-  enddo
-  fx_surf  = - fx_surf  * fpi_3V
-  fy_surf  = - fy_surf  * fpi_3V
-  fz_surf  = - fz_surf  * fpi_3V
+!  do ia = 1 , natm
+!    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
+!    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
+!    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
+!    fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
+!    fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
+!    fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
+!  enddo
+!  fx_surf  = - fx_surf  * fpi_3V
+!  fy_surf  = - fy_surf  * fpi_3V
+!  fz_surf  = - fz_surf  * fpi_3V
 
   ! ====================================================== 
   !              Self contribution 
@@ -2006,7 +2020,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                               task , damp_ind , do_efield , do_efg , do_forces , do_stress )
 
   USE control,                  ONLY :  lvnlist
-  USE config,                   ONLY :  natm, simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype, polia, ipolar
+  USE config,                   ONLY :  natm, ntype,simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype, polia, ipolar
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  stdout, ionode, ioprintnode, ioprint
@@ -2025,7 +2039,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   logical       :: task ( : ) , damp_ind, do_efield , do_efg , do_forces , do_stress 
 
   ! local 
-  integer       :: ia , ja , ita, jta, j1 , jb ,je , i , j , k
+  integer       :: ia , ja , ita, jta, j1 , jb ,je , i , j , k, it1,it2 
   real(kind=dp) :: qi, qj , qij , u_damp 
   real(kind=dp) :: mui(3)
   real(kind=dp) :: muj(3)
@@ -2042,10 +2056,11 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: F1d2 , F2d2 
   real(kind=dp) :: alpha2 , alpha3 , alpha5 , expon 
   real(kind=dp), external :: errfc
+  real(kind=dp), external :: errf
   real(kind=dp) :: fdamp , fdampdiff
   real(kind=dp) :: fdamp2 , fdampdiff2
-  real(kind=dp) :: onesixth, sthole, uthole , vthole, vthole3, vthole4, ialpha, jalpha , F1thole, F2thole
-  real(kind=dp) :: expthole, Athole , arthole, arthole2 , arthole3
+  real(kind=dp) :: onesixth, twothird , sthole, uthole , vthole, vthole3, vthole4, ialpha, jalpha , F1thole, F2thole
+  real(kind=dp) :: expthole, Athole , arthole, arthole2 , arthole3 , twopiroot, erfra , ra
   integer       :: cthole
   logical       :: ipol, jpol
   logical       :: ldamp 
@@ -2064,11 +2079,16 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   alpha3 = alpha2  * alphaES
   alpha5 = alpha3  * alpha2
   onesixth = 1.0_dp / 6.0_dp
-
+  twopiroot = 2.0_dp / piroot
+  twothird  = onesixth * 4.0_dp  
+ 
   cthole = 0
 
 #ifdef debug_ES_dir
+    if ( ionode ) then
         write(stdout,'(a,e16.8)') 'debug multipole_ES_dir : cutsq',cutsq
+        write(stdout,'(a,3l)')    'debug multipole_ES_dir : task',task
+   endif
 #endif
 
   ! ======================================
@@ -2201,7 +2221,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           T2%ab (3,1) = T2%ab (1,3)
           T2%ab (3,2) = T2%ab (2,3)
           ! =========================================
-          !  thole functions (linear)
+          !  "Thole" functions (linear)
           !  B.T. Thole, Chem. Phys. 59 p341 (1981)
           ! ========================================
           if ( thole_functions ) then
@@ -2209,22 +2229,30 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             ! if both ions have polarizability
             if ( ipol .and. jpol ) then
 
+               ! =========================================
+               !  "Thole" functions (linear)
+               !  B.T. Thole, Chem. Phys. 59 p341 (1981)
+               ! ========================================
               if ( thole_function_type .eq. 'linear' ) then
-                sthole = thole_param * ( ialpha * jalpha ) ** onesixth
+                ! linear = no ewald
+                sthole = thole_param (ita,jta) * ( ialpha * jalpha ) ** onesixth
                 ! check distance acoording to s = 1.662 (alpha_ialpha_j)^(1/6)
                 ! rij < s
                 if ( d .lt. sthole ) then
-		pair_thole(ia) = ja
+                  pair_thole(ia) = ja
+                  pair_thole_distance (ia) = d
 #ifdef debug_thole
-                io_print write(stdout,'(3a,2i)') 'thole function for',atype(ia),atype(ja),ia,ja
-                io_print write(stdout,'(a,f,a,f)') 's =', sthole,'  r =',d
+                  io_print write(stdout,'(3a,2i)') 'thole function for',atype(ia),atype(ja),ia,ja
+                  io_print write(stdout,'(a,f,a,f)') 's =', sthole,'  r =',d
 #endif
                   cthole = cthole + 1 
                   vthole = d / sthole
                   vthole3 = vthole * vthole * vthole
                   vthole4 = vthole3 * vthole
-                  F2thole = F2 * vthole4
-                  F1thole = F1 * ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
+!                  F2thole = F2 * vthole4
+!                  F1thole = F1 * ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
+                 F2thole = vthole4
+                 F1thole = ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
                   T2%ab_thole = 0.0_dp
                   do j = 1 , 3
                     do k = 1 , 3
@@ -2241,11 +2269,14 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                   T2%ab_thole = T2%ab
                 endif
               else if ( thole_function_type .eq. 'expon1' ) then
+                ! linear = ewald ?
                 Athole =  ( ialpha * jalpha ) ** onesixth
-                uthole = thole_param * ( d / Athole ) ** 3.0_dp 
+                uthole = thole_param(ita,jta) * ( d / Athole ) ** 3.0_dp 
                 expthole = EXP ( - uthole )  
                 F2thole = F2 * ( 1.0_dp - ( 1.0_dp + uthole ) * expthole ) 
                 F1thole = F1 * ( 1.0_dp - expthole ) 
+!                F2thole = ( 1.0_dp - ( 1.0_dp + uthole ) * expthole ) 
+!                F1thole = ( 1.0_dp - expthole ) 
                 T2%ab_thole = 0.0_dp
                 do j = 1 , 3
                   do k = 1 , 3
@@ -2258,12 +2289,37 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                 T2%ab_thole (3,1) = T2%ab_thole (1,3)
                 T2%ab_thole (3,2) = T2%ab_thole (2,3)
               else if ( thole_function_type .eq. 'expon2' ) then
-                arthole = thole_param * d
+                ! expon2 = ewald 
+                Athole =  ( ialpha * jalpha ) ** onesixth
+                arthole = thole_param(ita,jta) * d * Athole
                 arthole2 = arthole * arthole / 2.0_dp
                 arthole3 = arthole2 * arthole / 3.0_dp
                 expthole = exp ( -arthole ) 
                 F2thole = F2 * ( 1.0_dp - ( 1.0_dp + arthole + arthole2 + arthole3 ) * expthole ) 
                 F1thole = F1 * (  1.0_dp - ( 1.0_dp + arthole + arthole2 ) * expthole ) 
+                !F2thole = ( 1.0_dp - ( 1.0_dp + arthole + arthole2 + arthole3 ) * expthole ) 
+                !F1thole = (  1.0_dp - ( 1.0_dp + arthole + arthole2 ) * expthole ) 
+                T2%ab_thole = 0.0_dp
+                do j = 1 , 3
+                  do k = 1 , 3
+                    if ( j .gt. k ) cycle
+                    T2%ab_thole (j,k) = ( 3.0_dp * rij(j) * rij(k) * F2thole ) * dm5     ! ( 1 - ( 1 + a * ( r / A )^3 )  * exp ( -a ( r / A) ^3 )    
+                    if ( j .eq. k ) T2%ab_thole (j,j) = T2%ab_thole (j,j) - F1thole * dm3  !  1 - exp ( -a ( r / A) ^3 )
+                  enddo
+                enddo
+                T2%ab_thole (2,1) = T2%ab_thole (1,2)
+                T2%ab_thole (3,1) = T2%ab_thole (1,3)
+                T2%ab_thole (3,2) = T2%ab_thole (2,3)
+              else if ( thole_function_type .eq. 'gauss' ) then
+                ! gauss = no ewald
+                ra = d / thole_param(ita,jta)
+                Athole = twopiroot * ra 
+                expthole = Athole * EXP ( -ra*ra ) 
+                erfra = errf ( ra ) 
+                F2thole = F2 * ( erfra - expthole * ( 1.0_dp + twothird * ra ) ) 
+                F1thole = F1 * ( erfra - expthole )
+                !F2thole = ( erfra - expthole * ( 1.0_dp + twothird * ra ) ) 
+                !F1thole = ( erfra - expthole )
                 T2%ab_thole = 0.0_dp
                 do j = 1 , 3
                   do k = 1 , 3
@@ -2284,11 +2340,6 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           else
             T2%ab_thole = T2%ab 
           endif
-        !if ( ipol .and. jpol ) then 
-  	!  print*,T2%ab_thole
-  	!  print*,''
-        !  stop
-        !endif
 
           ! damping
           if ( ldamp ) then
@@ -2401,9 +2452,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         ! ===========================================================
         !                  dipole-dipole interaction
         ! ===========================================================
-        dd : if ( dipole_dipole .and. ( dip_i .or. dip_j ) ) then
+        dd : if ( dipole_dipole .and. ( dip_i .and. dip_j ) ) then
 
-          ! remind thole interaction function : T2_thole = T2 (regular) for r>s 
+          ! remind "thole" interaction function : T2_thole = T2 (regular) for r>s (linear) 
           ! energy
           do j = 1, 3
             do k = 1, 3 
@@ -2411,7 +2462,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
             enddo
           enddo
 
-          ! remind thole interaction function : T2_thole = T2 (regular) for r>s 
+          ! remind thole interaction function : T2_thole = T2 (regular) for r>s  (linear)
           ! electric field
           if ( do_efield ) then
             do k = 1 , 3
@@ -2514,8 +2565,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
               fij=0.0_dp
               do j = 1 , 3
                 do k = 1 , 3
-                  fij(k) = fij(k) + qj * T2%ab_damp (k,j) * mui(j)
-                  fij(k) = fij(k) - qi * T2%ab_damp2(k,j) * muj(j)
+                  fij(k) = fij(k) + qj * T2%ab_damp  (j,k) * mui(j)
+                  fij(k) = fij(k) - qi * T2%ab_damp2 (j,k) * muj(j)
                 enddo
               enddo
               fx_dir ( ia ) = fx_dir ( ia ) + fij(1)
@@ -2573,30 +2624,33 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   endif
 
-  ! thole function statistics 
+
+  ! thole function overview 
   ! write it only when do_forces = .true. only 
-  if ( do_forces) then 
+  if ( do_forces) then
     CALL MPI_ALL_REDUCE_INTEGER_SCALAR ( cthole )
-    CALL  MPI_ALL_REDUCE_INTEGER ( pair_thole , natm )
+    CALL MPI_ALL_REDUCE_INTEGER ( pair_thole , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE  ( pair_thole_distance , natm )
     if ( thole_functions .and. cthole .ne. 0 ) then
-      io_printnode write(stdout , '(a,i,a)') 'Thole damping used for ',cthole,' pairs'
-      io_printnode write(stdout , '(a,f8.5)') 'thole_param = ',thole_param
+      io_printnode write( stdout , '(a,i,a)') 'Thole damping used for ',cthole,' pairs'
       if ( ioprintnode ) then
-      write(stdout , '(a)') '"catastophe" distance ( 4 alpha_i alpha_j ) ^ (1/6)'
-      do ia = 1 ,natm
-        if ( pair_thole(ia) .ne. 0 ) then 
-	  ialpha = polia(ia,1,1)
-	  jalpha = polia(pair_thole(ia),1,1)
-          Athole = ( 4.0_dp * ialpha * jalpha ) ** onesixth 
-          write(stdout, '(a,2i5,a5,a,a2,a,f8.5)') "thole pair : ",ia,pair_thole(ia), atype(ia) ,'-', atype(pair_thole(ia)), ' infinite at distance ',Athole
-        endif
-      enddo
+        do ia = 1 ,natm
+          ita= itype(ia)
+          if ( pair_thole(ia) .ne. 0 ) then 
+            jta= itype(pair_thole(ia))
+            ialpha = polia(ia,1,1)
+            jalpha = polia(pair_thole(ia),1,1)
+            Athole = ( ialpha * jalpha ) ** onesixth 
+            write(stdout, '(a,2i5,a5,a,a2,a,f8.5,a,f8.5,a,f8.5,a,f8.5,a)')  'pair : ',ia,pair_thole(ia), atype(ia) ,' -- ', atype(pair_thole(ia)),&
+                  'distance = ',pair_thole_distance(ia),' catastrophe at distance = ',4.0_dp**onesixth*Athole,' thole param = ',thole_param(ita,jta) ,'(',thole_param(ita,jta)*Athole,')'
+          endif
+        enddo
       endif
+    io_printnode WRITE( stdout , '(a)' ) '' 
     endif
   endif
- 
-  return
 
+  return
 
 END SUBROUTINE multipole_ES_dir 
 
@@ -3180,6 +3234,8 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   ! =============================================
   !  calculate static Efield ( charge + dipoles )
   ! =============================================
+  u_pol = 0.0_dp
+  u_coul = 0.0_dp
   Efield_stat = 0.0_dp
   fx      = 0.0_dp
   fy      = 0.0_dp
@@ -3267,7 +3323,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
 
     u_coul_ind = u_coul 
-    u_coul_pol = u_coul_stat+u_coul_ind
+    u_coul_pol = u_coul_stat-u_coul_ind
 
     Efield = Efield_stat + Efield_ind
     fx      = 0.0_dp
@@ -3576,7 +3632,7 @@ END SUBROUTINE moment_from_WFc
 ! ******************************************************************************
 SUBROUTINE get_dipole_moments ( mu )
 
-  USE config,           ONLY : natm , ntype , dipia , dipia_wfc, fx,fy,fz
+  USE config,           ONLY : natm , ntype , dipia , dipia_wfc, fx,fy,fz, atype 
   USE io,               ONLY : ionode , stdout
 
   implicit none
@@ -3585,10 +3641,11 @@ SUBROUTINE get_dipole_moments ( mu )
   real(kind=dp) , intent ( out ) :: mu (:,:)
 
   ! local
-  integer :: it
-  logical :: lwannier
+  integer :: it, ia ,ja 
+  logical :: lwannier, lcata
   real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
   real(kind=dp), dimension ( : , :  ) , allocatable :: dipia_ind
+  integer :: ierr 
 
 
   ! save total force fx , fy, fz as they are overwritted by moment_from_pola
@@ -3639,7 +3696,45 @@ SUBROUTINE get_dipole_moments ( mu )
 
   deallocate ( fx_save, fy_save, fz_save ) 
   deallocate ( dipia_ind  )
- 
+
+  ! =====================================
+  ! check for POLARIZATION CATASTROPH
+  ! =====================================
+  lcata = .false.
+  cataloop : do ia = 1 , natm
+    if ( any( mu(ia,:).gt. 10_dp ) ) then
+      lcata = .true. 
+      if ( ionode ) then
+        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
+        WRITE ( stdout , '(a)' )           ' ERROR : POLARIZATION CATASTROPH'
+        WRITE ( stdout , '(a)' )           ' ERROR : one (or more) dipole moment is extremely large ( > 10 [eA] )'
+        WRITE ( stdout , '(a,i5,3e16.8)' ) ' ion   = ', ia , mu(ia,:)
+        WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
+      endif
+      exit cataloop
+    endif      
+  enddo cataloop
+  if ( lcata ) CALL write_DIPFF
+  if ( lcata .and. thole_functions ) then
+    io_node print*,pair_thole
+    do ja = 1 , natm
+      if ( pair_thole(ja) .ne. 0 ) then
+        if ( ionode ) then
+          WRITE ( stdout, '(a)' )          'Ajust thole_param to avoid this issue'
+          WRITE ( stdout, '(a,2i5,a5,a,a5,a,f12.8)') 'thole pair : ',ja,pair_thole(ja), atype(ja) ,'-', atype(pair_thole(ja)), 'distance = ',pair_thole_distance(ja)
+          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', ja , mu(ja,:) 
+          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', pair_thole(ja) , mu (pair_thole(ja),:)
+        endif
+      endif
+    enddo
+  else if ( lcata ) then
+    WRITE ( stdout , '(a)' )           'Use thole damping function : linear (recommended)'
+  endif
+  if ( lcata ) then
+    CALL MPI_FINALIZE(ierr)
+    STOP
+  endif
+
 #ifdef debug_mu
         write( stdout,'(a)')  
 #endif

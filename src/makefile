@@ -30,10 +30,10 @@ CP = cpp
 CPPFLAGS=-P -C -CC -traditional
 
 # installation directory
-INSTALL_DIR=../bin
+INSTALL_DIR=/home/filipe/mdff/bin
 $(info instalation dir: : $(shell readlink -f $(INSTALL_DIR)) )
 # List of executable to be built within the package
-EXE= mdff.x 
+EXE= mdff-b.x 
 
 # =====================================================
 #                FORTRAN COMPILER FLAGS
