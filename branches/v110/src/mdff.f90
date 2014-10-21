@@ -72,6 +72,7 @@ PROGRAM main_MDFF
   USE restart 
   USE block
   USE mpimdff
+  USE dumb
 
   implicit none
 
@@ -99,6 +100,7 @@ PROGRAM main_MDFF
   ! time information init 
   ! ====================================================
   CALL time_init
+  CALL init_dumb
   statime 
 
   ! ====================================================      
@@ -334,12 +336,12 @@ PROGRAM main_MDFF
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
       if ( lwrite_dip ) CALL write_DIPFF
-      CALL write_RESTART
+      !CALL write_RESTART
     endif
 
     if ( calc .eq. 'stochio' ) then
       CALL stochio_init    
-      CALL stochio_calc
+      CALL stochio_main
     endif
  
     ! ==============================================
@@ -381,6 +383,7 @@ PROGRAM main_MDFF
   stotime
   addtime(timetot) 
   CALL print_time_info ( stdout ) 
+  CALL print_dumb
   CALL io_end
   CALL MPI_FINALIZE(ierr)
 

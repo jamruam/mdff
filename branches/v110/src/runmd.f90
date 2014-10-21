@@ -212,15 +212,15 @@ SUBROUTINE md_run
   io_node blankline(stdout)
 
   if ( non_bonded ) then 
-    io_node WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
-    CALL print_tensor ( tau_nonb ) 
+    io_node WRITE ( stdout , '(a)' )   "non_bonded stress tensor"
+    CALL print_tensor_n ( tau_nonb ) 
   endif
   if ( lcoulomb )   then
-    io_node WRITE ( stdout , '(a)' )    "coulombic stess tensor"
-    CALL print_tensor ( tau_coul  ) 
+    io_node WRITE ( stdout , '(a)' )    "coulombic stress tensor"
+    CALL print_tensor_n ( tau_coul  ) 
   endif
-  io_node WRITE ( stdout , '(a)' )    "total stess tensor"
-  CALL print_tensor ( tau_coul+tau_nonb  )
+  io_node WRITE ( stdout , '(a)' )    "total stress tensor"
+  CALL print_tensor_n ( tau_coul+tau_nonb  )
 
   ! =========================
   !   MAIN LOOP ( TIME )
@@ -303,7 +303,7 @@ MAIN:  do itime = 1 , npas
            io_printnode WRITE(stdout ,'(a)') ''
            io_printnode WRITE(stdout ,'(a)') ' velocities are rescaled'
            io_printnode WRITE(stdout ,'(a)') ''
-           CALL rescale_velocities(0)
+           CALL rescale_velocities(1)
          endif
          ! ================================
          !  rescale volume (NPE equil)
@@ -408,18 +408,18 @@ MAIN:  do itime = 1 , npas
   io_printnode blankline(stdout)
   if ( ioprintnode ) then
     if ( non_bonded ) then 
-      WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
-      CALL print_tensor ( tau_nonb ) 
+      WRITE ( stdout , '(a)' )   "non_bonded stress tensor"
+      CALL print_tensor_n ( tau_nonb ) 
     endif
     if ( lcoulomb )   then
-      WRITE ( stdout , '(a)' )    "coulombic stess tensor"
-      CALL print_tensor ( tau_coul  ) 
+      WRITE ( stdout , '(a)' )    "coulombic stress tensor"
+      CALL print_tensor_n ( tau_coul  ) 
     endif
   endif
 #endif
   if ( ioprintnode ) then
-    WRITE ( stdout , '(a)' )    'total stess tensor'
-    CALL print_tensor (tau_coul+tau_nonb) 
+    WRITE ( stdout , '(a)' )    'total stress tensor'
+    CALL print_tensor_n (tau_coul+tau_nonb) 
   endif
        
 #ifdef com_t
@@ -526,16 +526,16 @@ MAIN:  do itime = 1 , npas
   io_node WRITE ( stdout , '(a)' ) 'stress tensor of final configuration' 
   if ( ionode ) then
     if ( non_bonded ) then 
-      WRITE ( stdout , '(a)' )   "non_bonded stess tensor"
-      CALL print_tensor ( tau_nonb ) 
+      WRITE ( stdout , '(a)' )   "non_bonded stress tensor"
+      CALL print_tensor_n ( tau_nonb ) 
     endif
     if ( lcoulomb )   then
-      WRITE ( stdout , '(a)' )    "coulombic stess tensor"
-      CALL print_tensor ( tau_coul  ) 
+      WRITE ( stdout , '(a)' )    "coulombic stress tensor"
+      CALL print_tensor_n ( tau_coul  ) 
     endif
   endif
-  WRITE ( stdout , '(a)' )    "total stess tensor"
-  CALL print_tensor ( tau_coul+tau_nonb  ) 
+  io_node WRITE ( stdout , '(a)' )    "total stress tensor"
+  CALL print_tensor_n ( tau_coul+tau_nonb  ) 
   if ( ionode .and. lvnlist .and. updatevnl .ne. 0 ) WRITE ( stdout , '(a,i10,e17.8)' ) 'verlet list update frequency',updatevnl,REAL(npas,kind=dp)/REAL(updatevnl,kind=dp)
 
   CALL  write_average_thermo ( stdout ) 
@@ -583,4 +583,5 @@ MAIN:  do itime = 1 , npas
   return 
 
 END SUBROUTINE md_run
+
 ! ===== fmV =====

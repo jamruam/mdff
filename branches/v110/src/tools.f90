@@ -534,6 +534,42 @@ SUBROUTINE vnlistcheck
 
 END SUBROUTINE vnlistcheck
 
+! *********************** SUBROUTINE print_tensor_n ******************************
+!
+!> \brief
+!! subroutine which print an (3,3) array in a tensor format 
+!! the trace is also given in output 
+!
+!> \param[in] tens tensor being printed
+!> \param[in] key tensr label
+!
+! ******************************************************************************
+SUBROUTINE print_tensor_n ( tens ) 
+
+  USE constants, ONLY : dp
+  USE config,   ONLY :  natm
+  USE io,  ONLY :  ionode , stdout
+
+  implicit none
+
+  ! global
+  real(kind=dp) :: tens(3,3)
+
+  ! local
+  integer :: i
+
+  if ( ionode ) then
+    do i = 1 , 3
+      WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
+    enddo
+    WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') '  iso = ',(tens(1,1) + tens(2,2) + tens(3,3))/3.0_dp , '(',(tens(1,1) + tens(2,2) + tens(3,3)) / 3.0_dp / dble(natm),')'
+    blankline(stdout)
+  endif
+
+  return
+
+END SUBROUTINE print_tensor_n 
+
 ! *********************** SUBROUTINE print_tensor ******************************
 !
 !> \brief
@@ -544,7 +580,7 @@ END SUBROUTINE vnlistcheck
 !> \param[in] key tensr label
 !
 ! ******************************************************************************
-SUBROUTINE print_tensor( tens , key)
+SUBROUTINE print_tensor( tens , key )
 
   USE constants, ONLY : dp
   USE config,   ONLY :  natm
@@ -554,14 +590,14 @@ SUBROUTINE print_tensor( tens , key)
 
   ! global
   real(kind=dp) :: tens(3,3)
-  character(len=8) , OPTIONAL :: key
+  character(len=8) :: key
 
   ! local
   integer :: i
 
   if ( ionode ) then
-    if (.not.PRESENT(key) ) blankline(stdout)
-    if (.not.PRESENT(key) ) WRITE ( stdout ,'(a)') key
+    blankline(stdout)
+    WRITE ( stdout ,'(a)') key
     do i = 1 , 3
       WRITE ( stdout ,'(3e16.8)') tens(i,1) , tens(i,2) , tens(i,3)
     enddo

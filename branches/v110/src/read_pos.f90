@@ -192,9 +192,9 @@ SUBROUTINE typeinfo_init
       qia   ( ia )     = qch ( it )
       massia( ia )     = mass( it )
       quadia( ia )     = quad_efg ( it )   
-      dipia ( ia , 1 ) = dip ( it , 1 )
-      dipia ( ia , 2 ) = dip ( it , 2 )
-      dipia ( ia , 3 ) = dip ( it , 3 )
+      dipia ( 1 , ia ) = dip ( 1 , it )
+      dipia ( 2 , ia ) = dip ( 2 , it )
+      dipia ( 3 , ia ) = dip ( 3 , it )
       ipolar ( ia )    = lpolar ( it )
       do i = 1 , 3
         do j = 1 , 3

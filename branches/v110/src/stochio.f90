@@ -33,9 +33,14 @@ MODULE stochio
   USE io
 
   implicit none
+  
+  ! type of compound
+  character(len=6) , SAVE :: typedef
+  character(len=60), SAVE :: typedef_allowed(2)
+  data typedef_allowed / 'oxydes' , 'atomic' /
 
   ! =====================================================
-  !   type of data : pct (i.e %) or num (i.e 0 < pox < 1 )              
+  !   type of data : pct (i.e %) or num (i.e 0 < num < 1 )              
   ! =====================================================
   character(len=3) , SAVE :: def          
   character(len=60), SAVE :: def_allowed(2)
@@ -47,7 +52,6 @@ MODULE stochio
   
   integer             :: target_nions , ntot , save_target
   integer             :: nel    ( nelem )              ! number of ions per element has to be calculated
-!  real(kind=dp)       :: pox ( noxyde )                ! proportion en oxyde (input)
   real(kind=dp)       :: rat ( noxyde )                ! proportion en oxyde (output)
   real(kind=dp)       :: sumox , charg , density , a_o_b , a_o_c 
   real(kind=dp)       :: volume , totmass , acell , bcell , ccell , volume2
@@ -55,22 +59,107 @@ MODULE stochio
   logical             :: allowed
   logical             :: lexact , lcubic
   integer             :: sum_sto, numbands
+  character(len=2)    :: atoms_in  (nelem)
+  integer             :: natoms_in (nelem)
 
 
 CONTAINS
-  
-! *********************** MODULE stochio_calc **********************************
-!> \brief 
-! ******************************************************************************
-SUBROUTINE stochio_calc
+
+SUBROUTINE stochio_main
 
   implicit none
 
-  integer :: iox
 
-  ! ========================
-  !  define 0 < pox < 1
-  ! ========================
+  if ( typedef .eq. 'oxydes' ) then
+    WRITE(stdout , '(a)' ) 'stochio from oxydes input'
+    CALL gen_oxydes
+    CALL stochio_oxydes_calc
+  endif
+
+  if ( typedef .eq. 'atomic' ) then
+    WRITE(stdout , '(a)' ) 'stochio from atomic input'
+    CALL stochio_atomic_calc
+  endif
+
+  return
+
+END SUBROUTINE stochio_main
+
+
+SUBROUTINE stochio_atomic_calc
+
+  implicit none
+
+  ! local 
+  integer :: ie
+
+  ! ==========================================================
+  !  calculate the cell parameters cubic or not orthorhombic
+  !  default : cubic 
+  ! if orthorhombic the ratio a/b and a/c should be given
+  ! ==========================================================
+  if ( density .eq. 0._dp ) then
+    WRITE(stdout , '(a)' ) 'No density in input file'
+  else
+    totmass= 0.0_dp
+    numbands = 0
+    WRITE( stdout , '(a)' ) '           Z     valence    mass    element  nb ele'
+    do ie = 1 , nelem
+      if ( nel(ie) .ne. 0 ) then
+        totmass = totmass + tabper(ie)%massele * nel(ie)
+        numbands = numbands + tabper(ie)%valence * nel(ie)
+        WRITE( stdout , '(i,i,f8.3,10x,a,i)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
+      endif
+    enddo
+    blankline(stdout)
+    volume = totmass /  density * g_to_am
+    acell =( volume /  REAL(a_o_b,kind=dp) / REAL(a_o_c,kind=dp) )**(1._dp/3._dp)
+    WRITE(stdout , '(a,i12)' )       'NBANDS        = ',numbands/2
+    WRITE(stdout , '(a,f12.4,a)' )   'density       = ',density,' g/cm^3 '
+    WRITE(stdout , '(a,f12.4,a)' )   'total mass    = ',totmass,' [a.m]  '
+    WRITE(stdout , '(a,f12.4,a)' )   'volume        = ',volume ,' A '
+    if ( lcubic ) then
+      WRITE(stdout , '(a,f12.4,a)' ) 'cell param. a = ', acell, ' A '
+    else
+      bcell = acell*a_o_b
+      ccell = acell*a_o_c
+      WRITE(stdout , '(a,f16.8,a)' ) 'cell param. a = ', acell, ' A '
+      WRITE(stdout , '(a,f16.8,a)' ) 'cell param. b = ', bcell, ' A '
+      WRITE(stdout , '(a,f16.8,a)' ) 'cell param. c = ', ccell, ' A '
+      volume2 = acell*bcell*ccell
+      if ( abs(volume2 - volume ) >= 1e-8_dp ) then
+        WRITE(stdout , '(a,2f42.24)' ) 'ERROR in volume bug found',volume2,volume
+        STOP
+      endif
+    endif
+  endif
+ 
+
+  return
+
+END SUBROUTINE stochio_atomic_calc
+
+  
+! *********************** MODULE stochio_oxydes_calc **********************************
+!> \brief 
+! ******************************************************************************
+SUBROUTINE stochio_oxydes_calc
+
+  implicit none
+
+  integer :: ntype, iox
+
+  ntype=0
+  do iox = 1 , noxyde
+    if ( oxydes(iox)%relcon .ne. 0.0d0) then
+      ntype=ntype+1
+    endif
+  enddo
+  WRITE ( stdout , '(a,i)' ) 'number of oxydes : ', ntype
+
+  ! ==============================
+  !  define 0 < [proportion] < 1
+  ! ==============================
   if ( def .eq. 'num' ) then 
     oxydes%relcon = oxydes%relcon * 100._dp
   endif
@@ -163,7 +252,7 @@ SUBROUTINE stochio_calc
   charg = 0._dp
   do ie=1,nelem
     if ( nel(ie) .ne. 0 ) then
-      charg = charg + nel(ie) * tabper(ie)%numoxyd
+      charg = charg + REAL ( nel(ie) * tabper(ie)%numoxyd , kind = dp ) 
     endif
   enddo
   if ( charg .ne. 0._dp ) then
@@ -198,7 +287,7 @@ SUBROUTINE stochio_calc
     enddo
   enddo
   ! then calculates the ration ratio "rat( iox )"
-  ! and check if it is the exact wanted ratio comparing to all pox( iox )
+  ! and check if it is the exact wanted ratio comparing to all relcon 
   lexact = .true.
   do iox = 1 , noxyde
     if ( oxydes(iox)%relcon .ne. 0._dp ) then
@@ -276,7 +365,7 @@ SUBROUTINE stochio_calc
 
   return
 
-END SUBROUTINE stochio_calc
+END SUBROUTINE stochio_oxydes_calc
 
 ! *********************** MODULE stochio_init **********************************
 !> \brief 
@@ -291,11 +380,14 @@ SUBROUTINE stochio_init
   integer :: iox
 
   namelist /stochiotag/    def           , &
+                           typedef       , &
                            density       , &
                            lcubic        , &
                            a_o_b         , &
                            a_o_c         , &
                            target_nions  , &
+                           atoms_in      , &
+                           natoms_in     , &
                            sio2          , &
                            geo2          , &
                            na2o          , &
@@ -308,8 +400,6 @@ SUBROUTINE stochio_init
                            p2o5
 
   if ( calc .ne. 'stochio' ) return
-
-
 
   CALL stochio_default_tag
 
@@ -329,7 +419,6 @@ SUBROUTINE stochio_init
   CLOSE ( stdin )
 
   CALL gen_tab_period
-  CALL gen_oxydes
 
   ! =======================
   !  check stochiotag info
@@ -356,6 +445,7 @@ SUBROUTINE stochio_default_tag
   ! ======================
   !  set default values
   ! ======================
+  typedef = 'oxydes'
   lcubic  = .true.
   a_o_b   = 1.0_dp
   a_o_c   = 1.0_dp
@@ -370,6 +460,8 @@ SUBROUTINE stochio_default_tag
   geo2    = 0._dp
   def     = 'pct'
   density = 0.0d0
+  atoms_in = '  '
+  natoms_in = 0
 
   return
 
@@ -383,7 +475,6 @@ SUBROUTINE stochio_check_tag
 
   implicit none
 
- integer :: ntype, iox
 
 
   if ( lcubic ) then
@@ -402,17 +493,21 @@ SUBROUTINE stochio_check_tag
    if ( trim(def) .eq. def_allowed(i))  allowed = .true.
   enddo
   if ( .not. allowed ) then
-      WRITE ( stdout , '(a)' ) 'ERROR controltag: calc should be ', def_allowed
+      WRITE ( stdout , '(a)' ) 'ERROR in stochiotag: def should be ', def_allowed
       STOP
   endif
-
-  ntype=0
-  do iox = 1 , noxyde
-    if ( oxydes(iox)%relcon .ne. 0.0d0) then
-      ntype=ntype+1
-    endif
+  
+  ! =================
+  !  check typedef 
+  ! =================
+  allowed = .false.
+  do i = 1 , size( typedef_allowed )
+   if ( trim(typedef) .eq. typedef_allowed(i))  allowed = .true.
   enddo
-  WRITE ( stdout , '(a,i)' ) 'number of oxydes : ', ntype
+  if ( .not. allowed ) then
+      WRITE ( stdout , '(a)' ) 'ERROR in stochiotag: typedef should be ', typedef_allowed
+      STOP
+  endif
 
   return
 
@@ -423,15 +518,27 @@ SUBROUTINE stochio_print_info ( kunit )
   implicit none
 
   !local
-  integer :: kunit, iox
+  integer :: kunit, iox , ie2 
 
   if ( ionode ) then
     separator(kunit)
     blankline(kunit)
     WRITE( kunit , '(a)' ) 'STOCHIO MODULE ... WELCOME'
     WRITE ( stdout , '(a)'            ) 'Composition :'
-    WRITE ( stdout , '(<noxyde>a8)'   ) (oxydes(iox)%nameox,iox=1,noxyde)
-    WRITE ( stdout , '(<noxyde>f8.2)' ) (oxydes(iox)%relcon,iox=1,noxyde)
+    if ( typedef .eq. 'oxydes' ) then
+      WRITE ( stdout , '(<noxyde>a8)'   ) (oxydes(iox)%nameox,iox=1,noxyde)
+      WRITE ( stdout , '(<noxyde>f8.2)' ) (oxydes(iox)%relcon,iox=1,noxyde)
+    endif
+    if ( typedef .eq. 'atomic' ) then
+      do ie = 1 , nelem
+        do ie2 = 1 , nelem 
+          if ( atoms_in(ie2) .eq. tabper(ie)%elename ) then
+            nel(ie) = natoms_in(ie2)
+            WRITE ( stdout , '(a,a,i5)' ) 'found atom type : ',tabper(ie)%elename, natoms_in(ie2)
+          endif
+        enddo
+      enddo
+    endif
   endif
   
 

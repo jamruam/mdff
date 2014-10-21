@@ -56,8 +56,9 @@ EXE= mdff-b.x
 # =================
 #   on mario / babar / charrue
 # =================
-#FCFLAGS = -O3 -xSSE4.2 -align all 
-FCFLAGS = -O3 -xHost -align all 
+#FCFLAGS = -O3 -xSSE4.2 -align all -ip -static 
+FCFLAGS = -O3 -xHost -align all #-ip -static 
+#FCFLAGS = -O3 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all
 #FCFLAGS = -O3 -ip -xW
@@ -152,7 +153,7 @@ $(info ===================================================)
 # ==================
 #  target files
 # ==================
-OBJ= constants.o dumb.o io.o tt_damp.o tensors.o oxyde.o mpi_mdff.o control.o stochio.o time.o functions.o \
+OBJ= constants.o io.o dumb.o tt_damp.o tensors.o oxyde.o mpi_mdff.o control.o stochio.o time.o functions.o \
      fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o m1cg1.o \
      block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
