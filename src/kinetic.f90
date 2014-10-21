@@ -143,7 +143,7 @@ SUBROUTINE rescale_velocities (quite)
 
   CALL calc_temp(T,ekin)
 
-  lambda = ( 1.0_dp + (dt / tauTberendsen) * (  (temp / T / boltz_unit ) - 1.0_dp) ) ** 0.5_dp
+  lambda = ( 1.0_dp + (dt / tauTberendsen) * (  ( temp / T / boltz_unit ) - 1.0_dp) ) ** 0.5_dp
   
   if ( lcsvr ) then 
     ndeg        = 3 * natm - 3 
@@ -187,7 +187,7 @@ SUBROUTINE rescale_velocities (quite)
   if ( ionode .and. quite .eq. 1) then
     WRITE ( stdout ,'(a,f10.4)') 'effective temperature      T        = ',T
     WRITE ( stdout ,'(a,f10.4)') 'wanted temperature         T0       = ',temp / boltz_unit
-    WRITE ( stdout ,'(a,f10.4)') 'velocities rescaled by              = ',lambda
+    WRITE ( stdout ,'(a,2e16.8)') 'velocities rescaled by              = ',lambda,(dt / tauTberendsen) * (  ( temp / T / boltz_unit ) - 1.0_dp)
 #ifdef debug    
     CALL calc_temp(T,ekin)
     WRITE ( stdout ,'(a,f10.4)') 'debug : rescaled temperature       = ',T
@@ -527,6 +527,8 @@ END SUBROUTINE maxwellboltzmann_velocities
 !! calculate temperature and kinetic enegy from velocities
 !> \param[out] T temperature
 !> \param[out] ekin kinetic energy
+!> \note
+!! units : 
 ! ******************************************************************************
 SUBROUTINE calc_temp (T, ekin)
 

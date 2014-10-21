@@ -399,10 +399,11 @@ SUBROUTINE write_RESTART
   WRITE( kunit_RESTART   ) BDbmhftd 
   CLOSE(kunit_RESTART)
 
-  if ( ionode ) then
-  write(*,'(a,<nhc_n>f)') 'restart write ',vxi
-  write(*,'(a,<nhc_n>f)') 'restart write ',xi
-  endif
+!  if ( ionode ) then
+!    write(*,'(a,<nhc_n>f)') 'restart write ',vxi
+!    write(*,'(a,<nhc_n>f)') 'restart write ',xi
+!  endif
+
   return
 
 END SUBROUTINE write_RESTART

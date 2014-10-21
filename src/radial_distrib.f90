@@ -305,7 +305,9 @@ SUBROUTINE grcalc
     CALL periodicbc ( natm , rx , ry , rz  )
     CALL dirkar     ( natm , rx , ry , rz , simu_cell%A ) 
 
+#ifdef debug
     CALL distance_tab
+#endif
 
     ngr=ngr+1 
     ! ==========================

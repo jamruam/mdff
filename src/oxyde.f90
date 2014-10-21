@@ -47,6 +47,8 @@ CONTAINS
 
 SUBROUTINE gen_tab_period
 
+  USE io,               ONLY :  stdout 
+
   implicit none
 
   allocate ( tabper(nelem) )
@@ -93,6 +95,10 @@ SUBROUTINE gen_tab_period
   ! # 16
   ! # 17
   ! # 18
+  tabper(18)%elename='Ar'
+  tabper(18)%numoxyd=0
+  tabper(18)%valence=8
+  tabper(18)%massele=39.948_dp
   ! # 19
   ! # 20
   tabper(20)%elename='Ca'
@@ -112,7 +118,7 @@ SUBROUTINE gen_tab_period
   ! # 31
   ! # 32
   tabper(32)%elename='Ge'
-  tabper(32)%numoxyd=4.0_dp
+  tabper(32)%numoxyd=4
   tabper(32)%valence=4
   tabper(32)%massele=72.92_dp
   ! # 33
@@ -122,7 +128,7 @@ SUBROUTINE gen_tab_period
   ! # 37
   ! # 38
   tabper(38)%elename='Sr'
-  tabper(38)%numoxyd=2.0_dp
+  tabper(38)%numoxyd=2
   tabper(38)%valence=2
   tabper(38)%massele=87.62_dp
   ! # 39
@@ -130,7 +136,7 @@ SUBROUTINE gen_tab_period
   ! # 41
   ! # 42
   tabper(42)%elename='Mo'
-  tabper(42)%numoxyd=6.0_dp
+  tabper(42)%numoxyd=6
   tabper(42)%valence=14
   tabper(42)%massele=95.95_dp
   ! # 43
@@ -149,9 +155,11 @@ SUBROUTINE gen_tab_period
   ! # 56
   ! # 57
   tabper(57)%elename='La'
-  tabper(57)%numoxyd=3.0_dp
+  tabper(57)%numoxyd=3
   tabper(57)%valence=9
   tabper(57)%massele=138.90547_dp
+
+  WRITE ( stdout , '(a)' ) 'periodic table generated'
 
   return
 

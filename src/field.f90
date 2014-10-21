@@ -133,7 +133,7 @@ MODULE field
   real(kind=dp)    :: mass     ( ntypemax )            !< masses ( not yet tested everywhere )
   real(kind=dp)    :: qch      ( ntypemax )            !< charges 
   real(kind=dp)    :: quad_efg ( ntypemax )            !< quadrupolar moment
-  real(kind=dp)    :: dip      ( ntypemax , 3 )        !< dipoles 
+  real(kind=dp)    :: dip      ( 3 , ntypemax )        !< dipoles 
   real(kind=dp)    :: pol      ( ntypemax , 3 , 3 )    !< polarizability if lpolar( it ) = .true. 
 
   ! =====================================================
@@ -595,7 +595,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
     WRITE ( kunit ,'(a)')               'static dipoles: '
     lseparator(kunit) 
     do it = 1 , ntype
-      WRITE ( kunit ,'(a,a,a,3f10.5)')  'mu',atypei(it),'      = ',dip(it,1),dip(it,2),dip(it,3)
+      WRITE ( kunit ,'(a,a,a,3f10.5)')  'mu',atypei(it),'      = ',dip(1,it),dip(2,it),dip(3,it)
     enddo
     blankline(kunit)
     if ( linduced ) then 
@@ -1131,7 +1131,7 @@ SUBROUTINE engforce_driver
   !   coulombic potential 
   ! =================================
   if ( lcoulomb ) then
-   allocate( ef(natm,3) , efg(natm,3,3) , mu(natm,3) )     
+   allocate( ef(natm,3) , efg(natm,3,3) , mu(3,natm) )     
    allocate ( pair_thole ( natm ) ) 
    allocate ( pair_thole_distance ( natm ) ) 
    pair_thole = 0
@@ -1600,8 +1600,8 @@ SUBROUTINE initialize_coulomb
 
   allocate ( ef_t ( natm , 3 ) )
   allocate ( efg_t ( natm , 3 , 3 ) )
-  allocate ( dipia_ind_t ( extrapolate_order+1, natm , 3 ) )
-  allocate ( mu_t ( natm , 3 ) )
+  allocate ( dipia_ind_t ( extrapolate_order+1, 3 , natm ) )
+  allocate ( mu_t ( 3 , natm ) )
   ef_t        = 0.0_dp
   efg_t       = 0.0_dp
   dipia_ind_t = 0.0_dp
@@ -1712,7 +1712,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
 
   ! global
   real(kind=dp) , intent ( in  ) :: Efield ( natm , 3 ) 
-  real(kind=dp) , intent ( out ) :: mu_ind ( natm , 3 ) 
+  real(kind=dp) , intent ( out ) :: mu_ind ( 3 , natm ) 
   real(kind=dp) , intent ( out ) :: u_pol  
   
 
@@ -1739,7 +1739,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
     if ( .not. lpolar ( it ) ) cycle
     do alpha = 1 , 3 
       do beta = 1 , 3  
-        mu_ind ( ia , alpha ) = mu_ind ( ia , alpha ) + polia ( ia , alpha , beta ) * Efield ( ia , beta )  
+        mu_ind ( alpha , ia ) = mu_ind ( alpha , ia )  + polia ( ia , alpha , beta ) * Efield ( ia , beta )  
       enddo
     enddo
   enddo
@@ -1748,7 +1748,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind , u_pol )
   do ia = 1 , natm
     do alpha = 1 , 3
       do beta = 1 , 3
-        u_pol = u_pol + mu_ind ( ia , alpha ) * invpolia ( ia , alpha , beta ) * mu_ind ( ia , beta ) 
+        u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( ia , alpha , beta ) * mu_ind ( beta , ia ) 
       enddo
     enddo
   enddo
@@ -1812,6 +1812,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   real(kind=dp) :: qtot ( 3 ) , qsq , mutot ( 3 ) , musq , qmu_sum ( 3 )
   real(kind=dp) :: tpi_V, tpi_3V , fpi_3V , alpha2 , selfa , selfa2
   real(kind=dp) :: ttt1, ttt2
+  real(kind=dp) :: u_self_1 , u_self_2
 
 #ifdef debug_ES
         call print_config_sample(0,0)
@@ -1840,10 +1841,10 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   qtot  = 0.0_dp
   qsq   = 0.0_dp
   do ia = 1 , natm
-    mutot ( 1 ) = mutot ( 1 ) + mu ( ia , 1 )
-    mutot ( 2 ) = mutot ( 2 ) + mu ( ia , 2 )
-    mutot ( 3 ) = mutot ( 3 ) + mu ( ia , 3 )
-    musq = musq + ( mu ( ia , 1 ) * mu ( ia , 1 ) +  mu ( ia , 2 ) * mu ( ia , 2 ) +  mu ( ia , 3 ) * mu ( ia , 3 ) )
+    mutot ( 1 ) = mutot ( 1 ) + mu ( 1 , ia )
+    mutot ( 2 ) = mutot ( 2 ) + mu ( 2 , ia )
+    mutot ( 3 ) = mutot ( 3 ) + mu ( 3 , ia )
+    musq = musq + ( mu ( 1 , ia ) * mu ( 1 , ia ) +  mu ( 2 , ia ) * mu ( 2 , ia ) +  mu ( 3 , ia ) * mu ( 3 , ia ) )
     qtot ( 1 ) = qtot ( 1 ) + qia ( ia ) * rx ( ia )
     qtot ( 2 ) = qtot ( 2 ) + qia ( ia ) * ry ( ia )
     qtot ( 3 ) = qtot ( 3 ) + qia ( ia ) * rz ( ia )
@@ -1899,27 +1900,30 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   u_surf    = u_surf * tpi_3V
 
   ! potential, field , forces ( no contrib to efg ) 
-!  do ia = 1 , natm
-!    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
-!    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
-!    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
-!    fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
-!    fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
-!    fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
-!  enddo
-!  fx_surf  = - fx_surf  * fpi_3V
-!  fy_surf  = - fy_surf  * fpi_3V
-!  fz_surf  = - fz_surf  * fpi_3V
+  do ia = 1 , natm
+    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
+    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
+    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
+  !  fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
+  !  fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
+  !  fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
+  enddo
+  !fx_surf  = - fx_surf  * fpi_3V
+  !fy_surf  = - fy_surf  * fpi_3V
+  !fz_surf  = - fz_surf  * fpi_3V
+  ef_surf  = - ef_surf  * fpi_3V
 
   ! ====================================================== 
   !              Self contribution 
   ! ====================================================== 
   ! electrostic energy 
-  u_self   = - selfa * qsq - selfa2 * musq
+  u_self_1   =  - selfa * qsq                ! q-q
+  u_self_2   =  - selfa2 * musq              ! mu-mu
+  u_self = u_self_1 + u_self_2
   do ia = 1 , natm
-    ef_self( ia , 1 ) = 2.0_dp * selfa2 * mu ( ia , 1 )
-    ef_self( ia , 2 ) = 2.0_dp * selfa2 * mu ( ia , 2 )
-    ef_self( ia , 3 ) = 2.0_dp * selfa2 * mu ( ia , 3 )
+    ef_self( ia , 1 ) = 2.0_dp * selfa2 * mu ( 1 , ia )
+    ef_self( ia , 2 ) = 2.0_dp * selfa2 * mu ( 2 , ia )
+    ef_self( ia , 3 ) = 2.0_dp * selfa2 * mu ( 3 , ia )
     efg_self ( ia , 1 , 1 ) =  - 2.0_dp * selfa2 * qia ( ia )
     efg_self ( ia , 2 , 2 ) =  - 2.0_dp * selfa2 * qia ( ia )
     efg_self ( ia , 3 , 3 ) =  - 2.0_dp * selfa2 * qia ( ia )
@@ -1983,6 +1987,9 @@ do ia = 1 , natm
                                     ' u_self     = ', u_self * coul_unit , &
                                     ' u_pol      = ', u_pol  * coul_unit , &
                                     ' u_coul     = ', u_coul
+  write(stdout , '(a)') 'self energies :'
+  write(stdout , '(a,f12.6)') 'q-q         = ',u_self_1 
+  write(stdout , '(a,f12.6)') 'µ-µ         = ',u_self_2 
 #endif
 
 #ifdef debug_ES_stress
@@ -2117,7 +2124,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     ryi = ry(ia)
     rzi = rz(ia)
     qi  = qia(ia)
-    mui = mu ( ia , : )
+    mui = mu ( : , ia )
     ipol = ipolar(ia)
     ialpha = polia(ia,1,1)
 
@@ -2135,7 +2142,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
         jta  = itype(ja)
         qj   = qia(ja)
-        muj = mu ( ja , : )
+        muj = mu ( : , ja )
         dip_j = any ( muj .ne. 0.0d0 ) 
         qij  = qi * qj
         rxj  = rx(ja)
@@ -2431,22 +2438,22 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! forces
           if ( do_forces ) then
             fij(:)  = qij * T1%a(:)
-            fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
-            fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
-            fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
-            fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
-            fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
-            fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
+          !  fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
+          !  fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
+          !  fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
+          !  fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
+          !  fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
+          !  fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
           endif
 
-          ! stress tensor
-          if ( do_stress ) then
-            do j = 1, 3 
-              do k = 1, 3 
-                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
-              enddo
-            enddo
-          endif
+!          ! stress tensor
+!          if ( do_stress ) then
+!            do j = 1, 3 
+!              do k = 1, 3 
+!                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+!              enddo
+!            enddo
+!          endif
 
         endif qq
         ! ===========================================================
@@ -2481,33 +2488,30 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
           ! forces
           if ( do_forces ) then
-        
-            fij=0.0_dp
+            !fij=0.0_dp
             do j = 1 , 3 
               do k = 1, 3
-                fij(1) = fij(1) + mui(j) * T3%abc (j,1,k) * muj(k) 
-                fij(2) = fij(2) + mui(j) * T3%abc (j,2,k) * muj(k) 
-                fij(3) = fij(3) + mui(j) * T3%abc (j,3,k) * muj(k) 
+                fij(:) = fij(:) - mui(j) * T3%abc (j,:,k) * muj(k) 
               enddo
             enddo
 
-            fx_dir ( ia ) = fx_dir ( ia ) + fij(1)
-            fy_dir ( ia ) = fy_dir ( ia ) + fij(2)
-            fz_dir ( ia ) = fz_dir ( ia ) + fij(3)
-            fx_dir ( ja ) = fx_dir ( ja ) - fij(1)
-            fy_dir ( ja ) = fy_dir ( ja ) - fij(2)
-            fz_dir ( ja ) = fz_dir ( ja ) - fij(3)
+            !fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
+            !fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
+            !fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
+            !fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
+            !fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
+            !fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
 
           endif 
 
-          ! stress tensor
-          if ( do_stress ) then 
-            do j = 1, 3 
-              do k = 1, 3 
-                tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
-              enddo
-            enddo
-          endif 
+!          ! stress tensor
+!          if ( do_stress ) then 
+!            do j = 1, 3 
+!              do k = 1, 3 
+!                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+!              enddo
+!            enddo
+!          endif 
 
 
 
@@ -2532,62 +2536,81 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
           ! forces
           if ( do_forces ) then
-            fij=0.0_dp
+            !fij=0.0_dp
             do j = 1 , 3
               do k = 1 , 3
-                fij(k) = fij(k) + qi * T2%ab (k,j) * muj(j)
-                fij(k) = fij(k) - qj * T2%ab (k,j) * mui(j)
+                fij(k) = fij(k) - qi * T2%ab (k,j) * muj(j)
+                fij(k) = fij(k) + qj * T2%ab (k,j) * mui(j)
               enddo
             enddo
 
-            fx_dir ( ia ) = fx_dir ( ia ) + fij(1)
-            fy_dir ( ia ) = fy_dir ( ia ) + fij(2)
-            fz_dir ( ia ) = fz_dir ( ia ) + fij(3)
-            fx_dir ( ja ) = fx_dir ( ja ) - fij(1)
-            fy_dir ( ja ) = fy_dir ( ja ) - fij(2)
-            fz_dir ( ja ) = fz_dir ( ja ) - fij(3)
+            !fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
+            !fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
+            !fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
+            !fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
+            !fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
+            !fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
 
           endif
 
-          ! stress 
-          if ( do_stress ) then
-            do j = 1, 3
-              do k = 1, 3
-                tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
-              enddo
-            enddo
-          endif
+!          ! stress 
+!          if ( do_stress ) then
+!            do j = 1, 3
+!              do k = 1, 3
+!                tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+!              enddo
+!            enddo
+!          endif
 
           ! damping 
           if ( ldamp ) then
             ! forces
             if ( do_forces ) then
-              fij=0.0_dp
+              !fij=0.0_dp
               do j = 1 , 3
                 do k = 1 , 3
-                  fij(k) = fij(k) + qj * T2%ab_damp  (j,k) * mui(j)
-                  fij(k) = fij(k) - qi * T2%ab_damp2 (j,k) * muj(j)
+                  fij(k) = fij(k) - qj * T2%ab_damp  (j,k) * mui(j)
+                  fij(k) = fij(k) + qi * T2%ab_damp2 (j,k) * muj(j)
                 enddo
               enddo
-              fx_dir ( ia ) = fx_dir ( ia ) + fij(1)
-              fy_dir ( ia ) = fy_dir ( ia ) + fij(2)
-              fz_dir ( ia ) = fz_dir ( ia ) + fij(3)
-              fx_dir ( ja ) = fx_dir ( ja ) - fij(1)
-              fy_dir ( ja ) = fy_dir ( ja ) - fij(2)
-              fz_dir ( ja ) = fz_dir ( ja ) - fij(3)
+              !fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
+              !fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
+              !fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
+              !fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
+              !fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
+              !fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
             endif
             ! stress
-            if ( do_stress ) then
-              do j = 1, 3
-                do k = 1, 3
-                  tau_dir(j,k) = tau_dir(j,k) + ( rij(j) * fij(k) + rij(k) * fij(j) )
-                enddo
-              enddo
-            endif
+!            if ( do_stress ) then
+!              do j = 1, 3
+!                do k = 1, 3
+!                  tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+!                enddo
+!              enddo
+!            endif
           endif
 
 
         endif qd
+
+        ! forces
+        if ( do_forces ) then
+          fx_dir ( ia ) = fx_dir ( ia ) - fij(1)
+          fy_dir ( ia ) = fy_dir ( ia ) - fij(2)
+          fz_dir ( ia ) = fz_dir ( ia ) - fij(3)
+          fx_dir ( ja ) = fx_dir ( ja ) + fij(1)
+          fy_dir ( ja ) = fy_dir ( ja ) + fij(2)
+          fz_dir ( ja ) = fz_dir ( ja ) + fij(3)
+        endif
+
+        ! stress
+        if ( do_stress ) then
+          do j = 1, 3
+            do k = 1, 3
+              tau_dir(j,k) = tau_dir(j,k) - ( rij(j) * fij(k) + rij(k) * fij(j) )
+            enddo
+          enddo
+        endif
 
     enddo ion2
 
@@ -2661,6 +2684,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   USE config,                   ONLY :  natm, rx ,ry, rz, qia, simu_cell
   USE kspace,                   ONLY :  charge_density_k
   USE time,                     ONLY :  fcoultimetot2_2
+  USE dumb
 
   implicit none
 
@@ -2674,7 +2698,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   logical       :: task(:), do_efield , do_efg , do_forces , do_stress 
 
   ! local
-  integer           :: ia , ik 
+  integer           :: ia , ik , ierr
   real(kind=dp)     :: qi
   real(kind=dp)     :: muix, muiy, muiz
   real(kind=dp)     :: kx   , ky   , kz , kk, Ak
@@ -2684,6 +2708,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp)     :: alpha2, tpi_V , fpi_V
   real(kind=dp)     ,dimension (:), allocatable :: ckr , skr 
   logical           :: ldip 
+  real(kind=dp)     :: ttt1,ttt2
   !dectime
 
   ! =================
@@ -2712,32 +2737,42 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     Ak     = km_coul%Ak( ik )
     kcoe   = km_coul%kcoe(ik) 
 
+    ttt1 = MPI_WTIME(ierr)
     rhonk_R = 0.0_dp
     rhonk_I = 0.0_dp
     do ia = 1, natm
       qi  = qia ( ia )
-      rxi = rx(ia)
-      ryi = ry(ia)
-      rzi = rz(ia)
+      rxi = rx  ( ia )
+      ryi = ry  ( ia )
+      rzi = rz  ( ia )
       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
       ckr(ia)  = COS(k_dot_r) 
       skr(ia)  = SIN(k_dot_r)
       rhonk_R    = rhonk_R + qi * ckr(ia) 
       rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
       if ( .not. ldip ) cycle
-      muix = mu ( ia , 1 )
-      muiy = mu ( ia , 2 )
-      muiz = mu ( ia , 3 )
+      muix = mu ( 1 , ia )
+      muiy = mu ( 2 , ia )
+      muiz = mu ( 3 , ia )
       k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
       rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
       rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
     enddo
+    ttt2 = MPI_WTIME(ierr)
+    t12 = t12 + (ttt2-ttt1)
 
+    ttt1 = MPI_WTIME(ierr)
      str    = (rhonk_R*rhonk_R + rhonk_I*rhonk_I) * Ak  
+
      ! potential energy 
      u_rec   = u_rec   + str
 
     do ia = 1 , natm
+
+      if ( do_efg .or. ( do_forces .and. ldip ) )  then
+        recarg2 = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) )
+      endif
+
 
       if ( do_efield .or. do_forces ) then
         recarg  = Ak * ( rhonk_I * ckr(ia) - rhonk_R * skr(ia) )
@@ -2771,11 +2806,10 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
         fz_rec ( ia ) = fz_rec ( ia ) - qi * fzij
         ! dipoles ( k_alpha * Ak * mu.k * recarg ) 
         if ( .not. ldip ) cycle
-        muix = mu ( ia , 1 )
-        muiy = mu ( ia , 2 )
-        muiz = mu ( ia , 3 )
-        recarg  = Ak * ( rhonk_R * ckr(ia) + rhonk_I * skr(ia) ) ! ak rhon_R ckr + ak rhon_I skr
-        k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg
+        muix = mu ( 1 , ia )
+        muiy = mu ( 2 , ia )
+        muiz = mu ( 3 , ia )
+        k_dot_mu  =( muix * kx + muiy * ky + muiz * kz  ) * recarg2
         fx_rec ( ia ) = fx_rec ( ia ) + kx * k_dot_mu
         fy_rec ( ia ) = fy_rec ( ia ) + ky * k_dot_mu
         fz_rec ( ia ) = fz_rec ( ia ) + kz * k_dot_mu
@@ -2796,6 +2830,8 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
      tau_rec(3,2) = tau_rec(3,2) -            kcoe * kz * ky   * str
      tau_rec(3,3) = tau_rec(3,3) + ( 1.0_dp - kcoe * kz * kz ) * str
    endif
+    ttt2 = MPI_WTIME(ierr)
+    t23 = t23 + (ttt2-ttt1)
 
   enddo kpoint
 
@@ -3303,7 +3339,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
         WRITE ( stdout , '(a)' )     'Induced dipoles at atoms from extrapolation: '
         do ia = 1 , 5 
           WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-          ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
+          ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
         enddo
         blankline(stdout)
       endif
@@ -3345,9 +3381,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
       npol = npol + 1
       do alpha = 1 , 3
         if ( polia ( ia,  alpha , alpha ) .eq. 0.0_dp ) cycle
-        rmsd  = rmsd  + ( mu_ind ( ia , alpha ) / polia ( ia,  alpha , alpha ) - Efield ( ia , alpha ) ) ** 2 
+        rmsd  = rmsd  + ( mu_ind ( alpha , ia ) / polia ( ia,  alpha , alpha ) - Efield ( ia , alpha ) ) ** 2 
 #ifdef debug_scf_pola
-        write(stdout,'(2i5,4e16.8)') ia,alpha,mu_ind ( ia , alpha ),polia ( ia,  alpha , alpha ),Efield ( ia , alpha ),rmsd
+        write(stdout,'(2i5,4e16.8)') ia,alpha,mu_ind ( alpha , ia ),polia ( ia,  alpha , alpha ),Efield ( ia , alpha ),rmsd
 #endif 
       enddo
     enddo
@@ -3360,8 +3396,8 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
  
 #ifdef debug_print_dipff_scf
   do ia = 1 , natm
-  if ( mu_ind ( ia , 1 ) .eq. 0._dp ) cycle
-  write(kkkk,'(3e16.8)') (mu_ind ( ia , alpha ),alpha=1,3)
+  if ( mu_ind ( 1 , ia ) .eq. 0._dp ) cycle
+  write(kkkk,'(3e16.8)') (mu_ind ( alpha , ia ),alpha=1,3)
   enddo
   kkkk = kkkk + 1 
 #endif
@@ -3386,7 +3422,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
     do ia = 1 , 5
       WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-      ia,atype(ia),' mu_ind = ', mu_ind ( ia , 1 ) , mu_ind ( ia , 2 ) , mu_ind ( ia , 3 )
+      ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
     enddo
     blankline(stdout)
   endif
@@ -3398,7 +3434,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     if ( ioprintnode ) then
       print*,'previous step',itime
       do ia=1,natm
-        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( ia, 1 ), (dipia_ind_t ( t , ia, 1 ) , t=1, extrapolate_order+1 )
+        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( 1 , ia ), (dipia_ind_t ( t , 1 , ia ) , t=1, extrapolate_order+1 )
       enddo
     endif
 #endif
@@ -3453,7 +3489,7 @@ SUBROUTINE moment_from_WFc ( mu )
   implicit none
 
   ! global
-  real(kind=dp), intent ( out )  :: mu ( natm ,  3 ) 
+  real(kind=dp), intent ( out )  :: mu ( 3 , natm ) 
 
   ! local
   integer :: it, jt , ia , ja , icount , k , jb , je , jwfc , ia_last
@@ -3573,9 +3609,9 @@ SUBROUTINE moment_from_WFc ( mu )
         rxij  = sxij * simu_cell%A(1,1) + syij * simu_cell%A(1,2) + szij * simu_cell%A(1,3)
         ryij  = sxij * simu_cell%A(2,1) + syij * simu_cell%A(2,2) + szij * simu_cell%A(2,3)
         rzij  = sxij * simu_cell%A(3,1) + syij * simu_cell%A(3,2) + szij * simu_cell%A(3,3)
-        mu ( ia , 1 ) = mu ( ia , 1 ) + rxij 
-        mu ( ia , 2 ) = mu ( ia , 2 ) + ryij
-        mu ( ia , 3 ) = mu ( ia , 3 ) + rzij
+        mu ( 1 , ia ) = mu ( 1 , ia ) + rxij 
+        mu ( 2 , ia ) = mu ( 2 , ia ) + ryij
+        mu ( 3 , ia ) = mu ( 3 , ia ) + rzij
       enddo
   enddo
 
@@ -3585,8 +3621,9 @@ SUBROUTINE moment_from_WFc ( mu )
   if ( ionode .and. lwrite_dip_wfc ) then 
     OPEN ( UNIT = kunit_DIPWFC , FILE='DIPWFC' )     
     do ia= 1 , natm
+      it = itype ( ia ) 
       if ( lwfc ( it ) .lt. 0 ) cycle
-      WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype( ia ) , mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )  
+      WRITE ( kunit_DIPWFC , '(a,3e16.8)' ) atype( ia ) , mu ( 1 , ia ) , mu ( 2 , ia ) , mu ( 3 , ia )  
     enddo
     CLOSE ( kunit_DIPWFC ) 
   endif
@@ -3600,7 +3637,7 @@ SUBROUTINE moment_from_WFc ( mu )
     do ia = 1 , natm 
       it = itype ( ia )  
       if ( lwfc ( it ) .lt. 0 ) cycle
-      dmu = mu ( ia , 1 ) * mu ( ia , 1 ) + mu ( ia , 2 ) * mu ( ia , 2 ) + mu ( ia , 3 ) *  mu ( ia , 3 )
+      dmu = mu ( 1 , ia ) * mu ( 1 , ia ) + mu ( 2 , ia ) * mu ( 2 , ia ) + mu ( 3 , ia ) *  mu ( 3 , ia )
       dmu = SQRT ( dmu ) 
       WRITE ( stdout , '(a,4x,2e16.8)' ) atype(ia), dmu * Debye_unit, dmu 
     enddo 
@@ -3650,7 +3687,7 @@ SUBROUTINE get_dipole_moments ( mu )
 
   ! save total force fx , fy, fz as they are overwritted by moment_from_pola
   allocate ( fx_save(natm)  , fy_save (natm) , fz_save(natm)  )
-  allocate ( dipia_ind ( natm,3)  )
+  allocate ( dipia_ind ( 3, natm)  )
   fx_save = fx ; fy_save = fy ; fz_save = fz
   dipia_ind = 0.0d0
 
@@ -3702,13 +3739,13 @@ SUBROUTINE get_dipole_moments ( mu )
   ! =====================================
   lcata = .false.
   cataloop : do ia = 1 , natm
-    if ( any( mu(ia,:).gt. 10_dp ) ) then
+    if ( any( mu(:, ia ).gt. 10_dp ) ) then
       lcata = .true. 
       if ( ionode ) then
         WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
         WRITE ( stdout , '(a)' )           ' ERROR : POLARIZATION CATASTROPH'
         WRITE ( stdout , '(a)' )           ' ERROR : one (or more) dipole moment is extremely large ( > 10 [eA] )'
-        WRITE ( stdout , '(a,i5,3e16.8)' ) ' ion   = ', ia , mu(ia,:)
+        WRITE ( stdout , '(a,i5,3e16.8)' ) ' ion   = ', ia , mu( : , ia )
         WRITE ( stdout , '(a)' )           '----------------------------------------------------------------------'
       endif
       exit cataloop
@@ -3722,8 +3759,8 @@ SUBROUTINE get_dipole_moments ( mu )
         if ( ionode ) then
           WRITE ( stdout, '(a)' )          'Ajust thole_param to avoid this issue'
           WRITE ( stdout, '(a,2i5,a5,a,a5,a,f12.8)') 'thole pair : ',ja,pair_thole(ja), atype(ja) ,'-', atype(pair_thole(ja)), 'distance = ',pair_thole_distance(ja)
-          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', ja , mu(ja,:) 
-          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', pair_thole(ja) , mu (pair_thole(ja),:)
+          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', ja , mu (:, ja ) 
+          WRITE ( stdout, '(a,i5,3f12.8)') '  dipoles for ', pair_thole(ja) , mu (:,pair_thole(ja))
         endif
       endif
     enddo
@@ -3792,7 +3829,7 @@ SUBROUTINE extrapolate_dipole_poly ( mu_ind )
   implicit none
 
   ! global  
-  real(kind=dp) , intent (out):: mu_ind (natm,3) 
+  real(kind=dp) , intent (out):: mu_ind ( 3 , natm ) 
 
   ! integer 
   real(kind=dp) :: err(3)
@@ -3834,9 +3871,9 @@ SUBROUTINE extrapolate_dipole_poly ( mu_ind )
 !      write(stdout,'(a)') ' error in extrapolated dipole'
 #endif
     do ia = 1, natm 
-      CALL polint(xa , dipia_ind_t( : , ia , 1 ) , extrapolate_order+1 , mu_ind ( ia, 1 ) , err(1) )  
-      CALL polint(xa , dipia_ind_t( : , ia , 2 ) , extrapolate_order+1 , mu_ind ( ia, 2 ) , err(2) )  
-      CALL polint(xa , dipia_ind_t( : , ia , 3 ) , extrapolate_order+1 , mu_ind ( ia, 3 ) , err(3) )  
+      CALL polint(xa , dipia_ind_t( : , 1 , ia ) , extrapolate_order+1 , mu_ind ( 1 , ia ) , err(1) )  
+      CALL polint(xa , dipia_ind_t( : , 2 , ia ) , extrapolate_order+1 , mu_ind ( 2 , ia ) , err(2) )  
+      CALL polint(xa , dipia_ind_t( : , 3 , ia ) , extrapolate_order+1 , mu_ind ( 3 , ia ) , err(3) )  
 #ifdef debug_extrapolate
 !      write(stdout,'(a,3e16.8)') ia, err(1), err(2) , err(3)
 #endif
@@ -3856,9 +3893,9 @@ SUBROUTINE extrapolate_dipole_poly ( mu_ind )
           xa(t) = 1 - t  
         enddo
         do ia = 1, natm 
-          CALL polint(xa , dipia_ind_t( : , ia , 1 ) , itime+1 , mu_ind ( ia, 1 ) , err(1) )  
-          CALL polint(xa , dipia_ind_t( : , ia , 2 ) , itime+1 , mu_ind ( ia, 2 ) , err(2) )  
-          CALL polint(xa , dipia_ind_t( : , ia , 3 ) , itime+1 , mu_ind ( ia, 3 ) , err(3) )  
+          CALL polint(xa , dipia_ind_t( : , 1 , ia ) , itime+1 , mu_ind ( 1 , ia ) , err(1) )  
+          CALL polint(xa , dipia_ind_t( : , 2 , ia ) , itime+1 , mu_ind ( 2 , ia ) , err(2) )  
+          CALL polint(xa , dipia_ind_t( : , 3 , ia ) , itime+1 , mu_ind ( 3 , ia ) , err(3) )  
         enddo
       endif
 
@@ -3887,8 +3924,8 @@ SUBROUTINE extrapolate_dipole_aspc ( mu_ind , Efield , key )
   integer :: key 
   ! local
   integer :: ia, k,t ,ext_ord, alpha, beta
-  real(kind=dp)               :: mu_p (natm,3) 
-  real(kind=dp)               :: mu_p_save (natm,3) 
+  real(kind=dp)               :: mu_p ( 3 , natm ) 
+  real(kind=dp)               :: mu_p_save (3 , natm ) 
   ! ASPC coefficient
   real(kind=dp) :: B_ASPC(6), w_ASPC
 
@@ -3967,12 +4004,12 @@ SUBROUTINE extrapolate_dipole_aspc ( mu_ind , Efield , key )
     do ia = 1 , natm
       do alpha = 1 , 3
         do beta = 1 , 3
-          u_pol = u_pol + mu_ind ( ia , alpha ) * invpolia ( ia , alpha , beta ) * mu_ind ( ia , beta )
+          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( ia , alpha , beta ) * mu_ind ( beta , ia )
         enddo
       enddo
     enddo
     u_pol = u_pol * 0.5_dp
-!    write(*,'(a,2i,4f16.8)') '(2) key : ',key,ext_ord,mu_ind(1,:),u_pol
+!    write(*,'(a,2i,4f16.8)') '(2) key : ',key,ext_ord,mu_ind(:,1),u_pol
   endif
 
   return
@@ -4063,7 +4100,7 @@ SUBROUTINE write_DIPFF
     WRITE ( kunit_DIPFF ,'(a)') &
               '      ia type                   mux                  muy                 muz'
     do ia= 1 , natm
-      WRITE ( kunit_DIPFF , '(i8,2x,a3,6e24.16)' ) ia , atype( ia ) , mu_t ( ia , 1 ) , mu_t ( ia , 2 ) , mu_t ( ia , 3 )
+      WRITE ( kunit_DIPFF , '(i8,2x,a3,6e24.16)' ) ia , atype( ia ) , mu_t ( 1 , ia ) , mu_t ( 2 , ia ) , mu_t ( 3 , ia )
     enddo
   endif
 

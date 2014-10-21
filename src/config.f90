@@ -272,8 +272,8 @@ SUBROUTINE config_alloc
   allocate( qia ( natm ) )
   allocate( massia ( natm ) )
   allocate( quadia ( natm ) )
-  allocate( dipia ( natm , 3 ) )
-  allocate( dipia_wfc ( natm , 3 ) )
+  allocate( dipia ( 3 , natm ) )
+  allocate( dipia_wfc ( 3 , natm ) )
   allocate( polia ( natm , 3 , 3 ) )
   allocate( invpolia ( natm , 3 , 3 ) )
   allocate( ipolar ( natm ) )
@@ -325,7 +325,7 @@ SUBROUTINE config_dealloc
   USE control, ONLY : lvnlist , calc
 
   implicit none 
-        
+       
   ! tmp 
   if ( calc .eq.'rmc' .or. calc .eq.'stochio') return
 

@@ -140,7 +140,7 @@ SUBROUTINE efg_init
   OPEN ( stdin , file = filename)
   READ ( stdin , efgtag,iostat=ioerr)
   if ( ioerr .lt. 0 )  then
-    io_node WRITE ( stderr, '(a)') 'ERROR reading input_file : efgtag section is absent',ioerr
+    io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : efgtag section is absent',ioerr
     STOP
   elseif ( ioerr .gt. 0 )  then
     io_node WRITE ( stderr, '(a,i8)') 'ERROR reading input_file : efgtag wrong tag',ioerr
@@ -443,7 +443,7 @@ SUBROUTINE efgcalc
 !      WRITE ( 10003, * ) '#efg'
 !      do ia = 1 , natm
 !        WRITE (10000, '(3e16.8)' ) ef_tmp(ia,1), ef_tmp(ia,2) , ef_tmp(ia,3)
-!        WRITE (10001, '(3e16.8)' ) mu    (ia,1), mu    (ia,2) , mu    (ia,3)
+!        WRITE (10001, '(3e16.8)' ) mu    (1,ia), mu    (2,ia) , mu    (3,ia)
 !        WRITE (10002, '(3e16.8)' ) fx    (ia), fy    (ia) , fz    (ia)
 !        WRITE (10003, '(6e16.8)' ) efg_tmp(ia,1,1),efg_tmp(ia,1,2),efg_tmp(ia,2,2),efg_tmp(ia,1,3),efg_tmp(ia,2,3),efg_tmp(ia,3,3)
 !      enddo
@@ -1090,7 +1090,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
 
   ! global 
   TYPE ( rmesh ) :: rm
-  real(kind=dp) :: mu    ( natm , 3 )
+  real(kind=dp) :: mu    ( 3 , natm )
 
   ! local 
   integer :: ia, ja , ierr , ncell 
@@ -1124,7 +1124,7 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
     WRITE( stdout , '(a,f12.5)')  'debug : charge (atom)  ',qia(ia)
   enddo
   do ia = 1 , natm
-    WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+    WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( 1 , ia ) , mu ( 2 , ia ) , mu ( 3 , ia )
   enddo
   WRITE( stdout , '(a,2i8)')     'debug : atom decomposition istart,iend', atom_dec%istart , atom_dec%iend
   WRITE( stdout , '(a,f20.5)')   'debug : cutsq ',cutsq
@@ -1175,9 +1175,9 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
             if ( d2 .lt. cutsq .and. d2 .ne. 0.0_dp ) then 
 
               qj    = qia ( ja )
-              mujx  = mu ( ja , 1 )  
-              mujy  = mu ( ja , 2 )  
-              mujz  = mu ( ja , 3 )  
+              mujx  = mu ( 1 , ja )  
+              mujy  = mu ( 2 , ja )  
+              mujz  = mu ( 3 , ja )  
               d     = SQRT ( d2 )
               dm5   = 1.0_dp / ( d2 * d2 * d )
               dm7   = dm5 / d2 * 3.0_dp
@@ -1291,7 +1291,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   ! global 
   TYPE ( kmesh ) :: km
   real(kind=dp) :: alphaES
-  real(kind=dp) :: mu    ( natm , 3 )
+  real(kind=dp) :: mu    ( 3 , natm )
 
   ! local 
   integer             :: ia , ja , ik , it , ip , ierr
@@ -1331,9 +1331,9 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   ip = 0
   do it = 1, ntype
     ip = ip + natmi ( it )
-    mip ( it , 1 ) = mu ( ip , 1 )
-    mip ( it , 2 ) = mu ( ip , 2 )
-    mip ( it , 3 ) = mu ( ip , 3 )
+    mip ( 1 , it ) = mu ( 1 , ip  )
+    mip ( 2 , it ) = mu ( 2 , ip  )
+    mip ( 3 , it ) = mu ( 3 , ip  )
   enddo
 
 #ifdef debug_es
@@ -1347,7 +1347,7 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
       WRITE( stdout , '(a,f12.5)')  'debug : charge (type)  ', qch(it)
     enddo
     do ia = 1 , natm
-      WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( ia , 1 ) , mu ( ia , 2 ) , mu ( ia , 3 )
+      WRITE( stdout , '(a,3f12.5)') 'debug : dipole (atom)  ', mu ( 1 , ia ) , mu ( 2 , ia ) , mu ( 3 , ia )
     enddo
     do it = 1 , ntype
       WRITE( stdout , '(a,3f12.5)') 'debug : dipole (type)  ', mip ( it , 1 ) , mip ( it , 2 ) , mip ( it , 3 )
@@ -1405,9 +1405,9 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
       if (ja .ne. ia ) then
 
         qj   = qia(ja)
-        mujx = mu ( ja , 1 )
-        mujy = mu ( ja , 2 )
-        mujz = mu ( ja , 3 )
+        mujx = mu ( 1 , ja )
+        mujy = mu ( 2 , ja )
+        mujz = mu ( 3 , ja )
         rxj  = rx(ja)
         ryj  = ry(ja)
         rzj  = rz(ja)
@@ -2674,7 +2674,7 @@ SUBROUTINE efg_alloc
 #endif
   allocate( efg_t    ( natm , 3 , 3 ) )
   allocate( efg_ia    ( natm , 3 , 3 ) )
-  allocate( mu ( natm , 3 ) ) 
+  allocate( mu ( 3 , natm ) ) 
   mu = 0.0_dp
   efg_t = 0.0_dp
   efg_ia = 0.0_dp
@@ -2889,7 +2889,7 @@ SUBROUTINE charge_density_k ( km , mu )
 
   ! global
   TYPE ( kmesh ), intent(inout) :: km
-  real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
+  real(kind=dp) , intent(in)    :: mu    ( 3 , natm )
 
   ! local
   integer :: ia ,ik
@@ -2908,9 +2908,9 @@ SUBROUTINE charge_density_k ( km , mu )
       rxi = rx ( ia )
       ryi = ry ( ia )
       rzi = rz ( ia )
-      mux = mu ( ia , 1 )
-      muy = mu ( ia , 2 )
-      muz = mu ( ia , 3 )
+      mux = mu ( 1 , ia )
+      muy = mu ( 2 , ia )
+      muz = mu ( 3 , ia )
       k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
       k_dot_mu = ( mux * kx + muy * ky + muz * kz )
       expikr = EXP ( imag * k_dot_r ) 
