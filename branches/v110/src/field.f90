@@ -3670,7 +3670,7 @@ END SUBROUTINE moment_from_WFc
 SUBROUTINE get_dipole_moments ( mu )
 
   USE config,           ONLY : natm , ntype , dipia , dipia_wfc, fx,fy,fz, atype 
-  USE io,               ONLY : ionode , stdout
+  USE io,               ONLY : ionode , stdout, kunit_DIPFF
 
   implicit none
 
@@ -3751,7 +3751,11 @@ SUBROUTINE get_dipole_moments ( mu )
       exit cataloop
     endif      
   enddo cataloop
-  if ( lcata ) CALL write_DIPFF
+  if ( lcata ) then 
+    OPEN  ( kunit_DIPFF , file = 'DIPFF',STATUS = 'UNKNOWN')
+    CALL    write_DIPFF
+    CLOSE ( kunit_DIPFF )
+  endif
   if ( lcata .and. thole_functions ) then
     io_node print*,pair_thole
     do ja = 1 , natm
@@ -4075,7 +4079,7 @@ END SUBROUTINE
 ! ******************************************************************************
 SUBROUTINE write_DIPFF  
 
-  USE io,                       ONLY :  ionode ,kunit_DIPFF
+  USE io,                       ONLY :  ionode ,kunit_DIPFF, stdout
   USE cell,                     ONLY :  kardir , periodicbc , dirkar
   USE control,                  ONLY :  lstatic
   USE config,                   ONLY :  system , natm , ntype , atype , simu_cell, atypei, natmi
@@ -4087,6 +4091,7 @@ SUBROUTINE write_DIPFF
 
   if ( ionode ) then
 
+  write(stdout,'(a)') 'writing DIPFF'
   if ( lstatic ) OPEN ( kunit_DIPFF ,file = 'DIPFF',STATUS = 'UNKNOWN')
 
     WRITE ( kunit_DIPFF , * )  natm

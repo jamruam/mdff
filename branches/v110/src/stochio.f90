@@ -67,17 +67,20 @@ CONTAINS
 
 SUBROUTINE stochio_main
 
-  implicit none
+  USE io,       ONLY :  stdout
 
+  implicit none
 
   if ( typedef .eq. 'oxydes' ) then
     WRITE(stdout , '(a)' ) 'stochio from oxydes input'
     CALL gen_oxydes
+    CALL stochio_print_info(stdout)
     CALL stochio_oxydes_calc
   endif
 
   if ( typedef .eq. 'atomic' ) then
     WRITE(stdout , '(a)' ) 'stochio from atomic input'
+    CALL stochio_print_info(stdout)
     CALL stochio_atomic_calc
   endif
 
@@ -425,11 +428,6 @@ SUBROUTINE stochio_init
   ! =======================
   CALL stochio_check_tag 
 
-  ! =======================
-  !  print stochiotag info
-  ! =======================
-  CALL stochio_print_info(stdout)
-
   return
 
 END SUBROUTINE stochio_init
@@ -474,8 +472,6 @@ SUBROUTINE stochio_check_tag
   
 
   implicit none
-
-
 
   if ( lcubic ) then
     if ( ( a_o_b .eq. 0._dp) .or. ( a_o_c .eq. 0._dp) ) then
