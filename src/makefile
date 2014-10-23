@@ -207,6 +207,7 @@ veryclean: clean
 
 install: all
 	cp $(EXE) $(INSTALL_DIR)
+	cp $(EXE) $(INSTALL_DIR)/mdff.x
 
 tar :
 	@if test -f mdff.tar.gz ; then /bin/rm mdff.tar.gz ; fi

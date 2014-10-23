@@ -353,8 +353,8 @@ SUBROUTINE grcalc
     enddo
   enddo
 
-  WRITE ( kunit_GRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
-  WRITE ( kunit_NRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+  io_node WRITE ( kunit_GRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+  io_node WRITE ( kunit_NRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
 
   nr ( 0 ) = 0 
 

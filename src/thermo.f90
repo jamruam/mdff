@@ -118,7 +118,7 @@ SUBROUTINE calc_thermo
   USE constants,                ONLY :  boltz_unit , press_unit
   USE control,                  ONLY :  lreduced , lcsvr
   USE config,                   ONLY :  natm , rho , simu_cell 
-  USE md,                       ONLY :  integrator, press
+  USE md,                       ONLY :  integrator, press, itime
   USE io,                       ONLY :  ioprint
 
   implicit none
@@ -195,7 +195,7 @@ SUBROUTINE calc_thermo
     h_tot = e_tot + e_nvt_r
   endif
   if ( any ( integrator .eq. npt_ensemble )) then
-    !print*,'NPT ensemble'
+  !  print*,itime,'NPT ensemble',e_npt_r
     h_tot = e_tot + e_npt_r
   endif
 
