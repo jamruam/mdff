@@ -3237,7 +3237,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   real(kind=dp) :: tttt , tttt2 
   real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
   real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), efg_dummy(natm,3,3) 
-  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) 
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_
   logical       :: task_static (3), task_ind(3), ldip
 #ifdef debug_print_dipff_scf
   integer :: kkkk
@@ -3314,6 +3314,11 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   task_ind(3) = .true. 
   io_printnode WRITE ( stdout ,'(a)') '' 
   u_pol = 0.0_dp
+
+  ! test
+  !conv_tol_ind_ = conv_tol_ind
+  !if ( itime .eq. 0 ) conv_tol_ind_ = 1e-12
+
   ! =============================
   !           SCF LOOP
   ! =============================

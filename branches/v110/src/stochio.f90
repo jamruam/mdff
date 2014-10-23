@@ -163,22 +163,23 @@ SUBROUTINE stochio_oxydes_calc
   ! ==============================
   !  define 0 < [proportion] < 1
   ! ==============================
-  if ( def .eq. 'num' ) then 
-    oxydes%relcon = oxydes%relcon * 100._dp
+  if ( def .eq. 'pct' ) then 
+    oxydes%relcon = oxydes%relcon / 100._dp
   endif
   ! ============================
   ! check that the sum is == 1
   ! if not STOP 
   ! ============================
-  sumox=0._dp
+  sumox=0.0_dp
   do iox=1,noxyde
     sumox=sumox+oxydes(iox)%relcon
+    print*,sumox,oxydes(iox)%relcon    
   enddo
-  if ( REAL(sumox,kind=dp) .ne. 100._dp ) then
-    WRITE ( stdout , '(a,f24.16)' ) 'ERROR sum of oxydes not 100 % : ', REAL(sumox,kind=dp)
+  print*,sumox
+  if ( sumox .ne. 1.0_dp ) then
+    WRITE ( stdout , '(a,e16.8)' ) 'ERROR sum of oxydes not 100 % : ', sumox
     STOP
   endif
-  oxydes%relcon = oxydes%relcon / 100._dp
 
   ! ================================ 
   !  check if the number of ions 
