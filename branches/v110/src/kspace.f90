@@ -43,11 +43,13 @@ MODULE kspace
     real(kind=dp)   , dimension(:)   , allocatable :: kptk      !< k module
     real(kind=dp)   , dimension(:)   , allocatable :: Ak        !< Ak in ewald
     real(kind=dp)   , dimension(:)   , allocatable :: kcoe      !< kcoe in ewald
-    complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
-    complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk   !< facteur de structure
-    complex(kind=dp), dimension(:,:) , allocatable :: expikr    !< facteur de structure
+    real(kind=dp)   , dimension(:)   , allocatable :: rhon_R    
+    real(kind=dp)   , dimension(:)   , allocatable :: rhon_I    
     real(kind=dp)   , dimension(:,:) , allocatable :: ckr, skr  !< facteur de structure
-    complex(kind=dp), dimension(:,:) , allocatable :: expikm    !< facteur de structure
+    complex(kind=dp), dimension(:)   , allocatable :: rhon      !< facteur de structure
+    !complex(kind=dp), dimension(:,:) , allocatable :: rhon_dk   !< facteur de structure
+    !complex(kind=dp), dimension(:,:) , allocatable :: expikr    !< facteur de structure
+    !complex(kind=dp), dimension(:,:) , allocatable :: expikm    !< facteur de structure
     character(len=15)                              :: meshlabel !< giving a name to kmesh
     TYPE ( decomposition )                         :: kpt_dec   
   END TYPE
@@ -353,45 +355,46 @@ END SUBROUTINE reorder_kpt
 !! FMV
 ! ******************************************************************************
 ! deprecated not working anymore
-!SUBROUTINE struc_fact ( km ) 
-!  
-!  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
-!  USE io,               ONLY :  ionode , kunit_STRFACFF
-!  USE constants,        ONLY :  imag , mimag
+SUBROUTINE struc_fact ( km ) 
+  
+  USE config,           ONLY :  natm , itype , ntype , rx , ry , rz 
+  USE io,               ONLY :  ionode , kunit_STRFACFF
+  USE constants,        ONLY :  imag , mimag
 
-!  implicit none
+  implicit none
 
-!  ! global
-!  TYPE ( kmesh ), intent(inout) :: km
+  ! global
+  TYPE ( kmesh ), intent(inout) :: km
 
-!  ! local
-!  !integer :: it
-!  integer :: ia, ik
-!  real(kind=dp) :: arg , rxi , ryi , rzi 
+  ! local
+  !integer :: it
+  integer :: ia, ik
+  real(kind=dp) :: arg , rxi , ryi , rzi 
+  real(kind=dp) :: kx , ky , kz , k_dot_r
 
-!  !  exp ( i k . r ) 
-!  km%strf(:,:) = (0.0_dp,0.0_dp)
-!  do it = 1, ntype
-!     do ia = 1, natm
-!        rxi = rx ( ia ) 
-!        ryi = ry ( ia ) 
-!        rzi = rz ( ia ) 
- 
-!        if ( itype (ia) .eq. it ) then
-!           do ik = 1, km%nk 
-!              arg = ( km%kpt ( ik , 1) * rxi + km%kpt ( ik , 2 ) * ryi + km%kpt ( ik , 3) * rzi ) 
-!              km%strf  ( ik , ia ) = km%strf  ( ik , ia ) + EXP( imag * arg ) !!! check the order of index
-!           enddo
-!        endif
-!     enddo
-!  enddo
+  !  exp ( i k . r ) = ckr + i skr
+  km%ckr = 0.0_dp
+  km%skr = 0.0_dp
+  do ik = 1, km%nk 
+    kx = km%kptx ( ik )
+    ky = km%kpty ( ik )
+    kz = km%kptz ( ik )
+    do ia = 1, natm
+      rxi = rx ( ia ) 
+      ryi = ry ( ia ) 
+      rzi = rz ( ia ) 
+      k_dot_r   = ( kx * rxi + ky * ryi + kz * rzi )
+      km%ckr( ia , ik ) = COS ( k_dot_r ) 
+      km%skr( ia , ik ) = SIN ( k_dot_r ) 
+    enddo
+  enddo
 
-!  return
+  return
 
-!END SUBROUTINE struc_fact
+END SUBROUTINE struc_fact
 
 ! similar as in kspace.f90 but with type conditions for efg calculation
-SUBROUTINE charge_density_k ( km , mu , ldip )
+SUBROUTINE charge_density_k_q ( km , ik )
 
   USE constants,        ONLY :  imag
   USE config,           ONLY :  natm , rx , ry , rz , qia , itype
@@ -400,48 +403,71 @@ SUBROUTINE charge_density_k ( km , mu , ldip )
 
   ! global
   TYPE ( kmesh ), intent(inout) :: km
-  real(kind=dp) , intent(in)    :: mu    ( natm , 3 )
-  logical                       :: ldip
+  integer       , intent(in)    :: ik
 
   ! local
-  integer :: ia ,ik
-  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz, qi
-  real(kind=dp) :: kx , ky , kz
-  complex(kind=dp) :: expikr , expikm , sumia
+  integer        :: ia
+  real(kind=dp)  :: qi
+  real(kind=dp ) :: sumia_R, sumia_I, ckr, skr
         
-  km%rhon  = (0.0_dp,0.0_dp)
-  do ik = km%kpt_dec%istart, km%kpt_dec%iend
-    kx = km%kptx ( ik )
-    ky = km%kpty ( ik )
-    kz = km%kptz ( ik )
-
-    sumia = (0.0_dp,0.0_dp)
-    do ia = 1 , natm
-      qi  = qia (ia )
-      rxi = rx ( ia )
-      ryi = ry ( ia )
-      rzi = rz ( ia )
-      k_dot_r   = ( kx * rxi + ky * ryi + kz * rzi )
-      expikr    = EXP ( imag * k_dot_r )
-      km%ckr(ia,ik) = COS( k_dot_r )
-      km%skr(ia,ik) = SIN( k_dot_r )
-      sumia = sumia + qi * expikr 
-      if ( .not. ldip ) cycle
-      mux = mu ( ia , 1 )
-      muy = mu ( ia , 2 )
-      muz = mu ( ia , 3 )
-      k_dot_mu  = ( mux * kx + muy * ky + muz * kz )
-      expikm    = k_dot_mu * expikr
-      !km%expikm(ia,ik) = expikm
-      sumia = sumia + imag * expikm 
-    enddo
-    km%rhon(ik) = sumia
+  sumia_R = 0.0_dp
+  sumia_I = 0.0_dp
+  do ia = 1 , natm
+    qi  = qia (ia )
+    ckr = km%ckr( ia , ik )
+    skr = km%skr( ia , ik )
+    sumia_R    = sumia_R + qi * ckr
+    sumia_I    = sumia_I + qi * skr
   enddo
+  km%rhon_R(ik) = km%rhon_R(ik) + sumia_R
+  km%rhon_I(ik) = km%rhon_R(ik) + sumia_I
 
   return
 
-END SUBROUTINE charge_density_k
+END SUBROUTINE charge_density_k_q
 
+! similar as in kspace.f90 but with type conditions for efg calculation
+SUBROUTINE charge_density_k_mu ( km , mu , ik )
+
+  USE constants,        ONLY :  imag
+  USE config,           ONLY :  natm , rx , ry , rz , qia , itype
+
+  implicit none
+
+  ! global
+  TYPE ( kmesh ), intent(inout) :: km
+  real(kind=dp) , intent(in)    :: mu    ( 3 , natm )
+  integer       , intent(in)    :: ik
+
+  ! local
+  integer :: ia 
+  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz, qi
+  real(kind=dp) :: kx , ky , kz
+  real(kind=dp)    :: sumia_R,sumia_I , ckr , skr
+        
+  !do ik = km%kpt_dec%istart, km%kpt_dec%iend
+  kx = km%kptx ( ik )
+  ky = km%kpty ( ik )
+  kz = km%kptz ( ik )
+
+  sumia_R = 0.0_dp
+  sumia_I = 0.0_dp
+  do ia = 1 , natm
+    mux = mu ( 1 , ia )
+    muy = mu ( 2 , ia )
+    muz = mu ( 3 , ia )
+    k_dot_mu  = ( mux * kx + muy * ky + muz * kz )
+    ckr = km%ckr( ia , ik )
+    skr = km%skr( ia , ik )
+    sumia_R = sumia_R - k_dot_mu * skr
+    sumia_I = sumia_I + k_dot_mu * ckr 
+  enddo
+  km%rhon_R(ik) = km%rhon_R(ik) + sumia_R
+  km%rhon_I(ik) = km%rhon_R(ik) + sumia_I
+
+  return
+
+END SUBROUTINE charge_density_k_mu
 
 END MODULE kspace 
 ! ===== fmV =====

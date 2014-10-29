@@ -33,8 +33,10 @@ SUBROUTINE print_dumb
  
   somme = t12+t23+t34+t45+t56+t67+t78+t89+t90
 
-  write ( stdout , '(a)' ) '' 
-  write ( stdout , '(a)' ) 'SUPPLEMENTARTY TIMING INFO (seed dumb.f90) ' 
+  if ( somme .ne. 0.0_dp ) then
+    write ( stdout , '(a)' ) '' 
+    write ( stdout , '(a)' ) 'SUPPLEMENTARTY TIMING INFO (seed dumb.f90) ' 
+  endif
 
   if ( t12 .ne. 0.0_dp ) write ( stdout,'(a,f8.2)') "t12 = ",t12
   if ( t23 .ne. 0.0_dp ) write ( stdout,'(a,f8.2)') "t23 = ",t23
