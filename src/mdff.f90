@@ -335,7 +335,7 @@ PROGRAM main_MDFF
     ! ========================================================
     if ( calc .eq. 'md' ) then 
       CALL write_CONTFF
-      if ( lwrite_dip ) CALL write_DIPFF
+      if ( lwrite_dip ) CALL write_DIPFF ( mu_t ) 
       !CALL write_RESTART
     endif
 

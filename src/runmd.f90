@@ -374,7 +374,7 @@ MAIN:  do itime = 1 , npas
            !  write DIPFF file (trajectory)
            ! ================================
              if ( lwrite_dip ) then
-               CALL write_DIPFF
+               CALL write_DIPFF ( mu_t )
              endif
 
            ! ================================

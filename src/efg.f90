@@ -1,3 +1,6 @@
+!!!!  WARNING deprecated  !!!!
+
+
 ! MDFF parallel Molecular Dynamics ... For Fun
 ! Copyright (C) 2011  F. Vasconcelos
 !
@@ -2770,7 +2773,7 @@ SUBROUTINE efg_mesh_alloc
     km_coul%nk = nk
     allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk),  km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak   ( nk ) )
-    allocate ( km_coul%rhon ( nk ) )
+!    allocate ( km_coul%rhon ( nk ) )
     allocate ( km_coul%kcoe ( nk ) )
     CALL kpoint_sum_init ( km_coul , alphaES )
   endif
