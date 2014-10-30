@@ -36,7 +36,7 @@ MODULE config
 
   implicit none
 
-  integer, PARAMETER                           :: ntypemax = 16      !< maximum number of types
+  integer, PARAMETER                           :: ntypemax = 300      !< maximum number of types
   integer, PARAMETER                           :: vnlmax   = 2000    !< maximum number of types
 
   character(len=60), SAVE                      :: system             !< system name                                              
