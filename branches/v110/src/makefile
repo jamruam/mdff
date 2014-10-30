@@ -33,7 +33,7 @@ CPPFLAGS=-P -C -CC -traditional
 INSTALL_DIR=/home/filipe/mdff/bin
 $(info instalation dir: : $(shell readlink -f $(INSTALL_DIR)) )
 # List of executable to be built within the package
-EXE= mdff.x 
+EXE= mdff-b.x 
 
 # =====================================================
 #                FORTRAN COMPILER FLAGS
@@ -57,7 +57,7 @@ EXE= mdff.x
 #   on mario / babar / charrue
 # =================
 #FCFLAGS = -O3 -xSSE4.2 -align all -ip -static 
-FCFLAGS = -O1 -xHost -align all #-ip -static 
+FCFLAGS = -O3 -xHost -align all #-ip -static 
 #FCFLAGS = -O3 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all

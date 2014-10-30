@@ -409,7 +409,7 @@ SUBROUTINE charge_density_k_q ( km , ik )
   integer        :: ia
   real(kind=dp)  :: qi
   real(kind=dp ) :: sumia_R, sumia_I, ckr, skr
-        
+     
   sumia_R = 0.0_dp
   sumia_I = 0.0_dp
   do ia = 1 , natm
@@ -420,7 +420,7 @@ SUBROUTINE charge_density_k_q ( km , ik )
     sumia_I    = sumia_I + qi * skr
   enddo
   km%rhon_R(ik) = km%rhon_R(ik) + sumia_R
-  km%rhon_I(ik) = km%rhon_R(ik) + sumia_I
+  km%rhon_I(ik) = km%rhon_I(ik) + sumia_I
 
   return
 
@@ -463,7 +463,7 @@ SUBROUTINE charge_density_k_mu ( km , mu , ik )
     sumia_I = sumia_I + k_dot_mu * ckr 
   enddo
   km%rhon_R(ik) = km%rhon_R(ik) + sumia_R
-  km%rhon_I(ik) = km%rhon_R(ik) + sumia_I
+  km%rhon_I(ik) = km%rhon_I(ik) + sumia_I
 
   return
 
