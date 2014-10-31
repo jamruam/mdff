@@ -1810,10 +1810,10 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
    
     ! alpha is reduced for the short-range dipole-dipole interaction
     alphaES = 0.001_dp
-    ! note that do_strufact , use_ckrskr has no effect as do_rec=.false.
+    ! note that do_strucfact , use_ckrskr has no effect as do_rec=.false.
     CALL  multipole_ES ( f_ind , efg_dummy, mu_ind , task_ind , &
                          damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , do_strufact=.false. , use_ckrskr=.false. ) 
+                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , do_strucfact=.false. , use_ckrskr=.false. ) 
 
     f_ind_total = f_ind_ext + f_ind 
 
@@ -1879,10 +1879,6 @@ SUBROUTINE induced_moment ( Efield , mu_ind )
   ! local 
   integer :: alpha , beta
   integer :: ia , it , ja  
-  !real(kind=dp) :: invpol ( 3 , 3 )   
-  !integer, parameter :: LWORK=1000  
-  !real(kind=dp) :: WORK ( LWORK ) 
-  !integer :: ipiv ( 3 ) 
 
   ! ---------------------------------------------------------------
   ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
@@ -1921,7 +1917,7 @@ END SUBROUTINE induced_moment
 !! make it more condensed 
 ! ******************************************************************************
 SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
-                          do_efield , do_efg , do_forces , do_stress , do_rec , do_dir , do_strufact , use_ckrskr )
+                          do_efield , do_efg , do_forces , do_stress , do_rec , do_dir , do_strucfact , use_ckrskr )
 
   USE control,          ONLY :  lsurf
   USE constants,        ONLY :  tpi , piroot, coul_unit, press_unit
@@ -1939,7 +1935,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   real(kind=dp)     :: efg    ( : , : , : )
   real(kind=dp)     :: mu     ( : , : )
   logical           :: task   ( : )
-  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_rec , do_dir , do_strufact , use_ckrskr 
+  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_rec , do_dir , do_strucfact , use_ckrskr 
 
   ! local 
   integer         :: ia , ierr
@@ -2026,7 +2022,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   if ( do_rec ) then
     ttt1 = MPI_WTIME(ierr)
     CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , & 
-                            do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr )
+                            do_efield , do_efg , do_forces , do_stress , do_strucfact , use_ckrskr )
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot2 = fcoultimetot2 + ( ttt2 - ttt1 )  
   endif
@@ -2402,10 +2398,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
                   vthole = d / sthole
                   vthole3 = vthole * vthole * vthole
                   vthole4 = vthole3 * vthole
-!                  F2thole = F2 * vthole4
-!                  F1thole = F1 * ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
-                 F2thole = vthole4
-                 F1thole = ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
+                  F2thole = vthole4
+                  F1thole = ( 4.0_dp * vthole3 - 3.0_dp * vthole4 ) 
                   T2%ab_thole = 0.0_dp
                   do j = 1 , 3
                     do k = 1 , 3
@@ -2769,7 +2763,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 END SUBROUTINE multipole_ES_dir 
 
 SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , &
-                              do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr )
+                              do_efield , do_efg , do_forces , do_stress , do_strucfact , use_ckrskr )
 
   USE constants,                ONLY :  imag, tpi
   USE config,                   ONLY :  natm, rx ,ry, rz, qia, simu_cell
@@ -2786,7 +2780,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp) :: fx_rec  (:) , fy_rec (:) , fz_rec (:)
   real(kind=dp) :: tau_rec (:,:)
   real(kind=dp) :: mu      (:,:)
-  logical       :: task(:), do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr 
+  logical       :: task(:), do_efield , do_efg , do_forces , do_stress , do_strucfact , use_ckrskr 
 
   ! local
   integer           :: ia , ik , ierr
@@ -2814,11 +2808,13 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   ldip = .false.
   if ( task(2) .or. task(3) ) ldip = .true.
 
-  if ( do_strufact ) then
+!  if ( do_strucfact ) then
+  if ( .FALSE. ) then
     CALL struc_fact ( km_coul )
   endif
   
-  if ( .not. use_ckrskr ) allocate( ckr ( natm ) , skr (natm) ) 
+  !if ( .not. use_ckrskr ) allocate( ckr ( natm ) , skr (natm) ) 
+  if ( .TRUE. ) allocate( ckr ( natm ) , skr (natm) ) 
 
   ! ==============================================
   !            reciprocal space part
@@ -2834,7 +2830,8 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     Ak     = km_coul%Ak( ik )
     kcoe   = km_coul%kcoe(ik) 
 
-    if ( .not. use_ckrskr ) then
+!    if ( .not. use_ckrskr ) then
+    if ( .TRUE. ) then
       ttt1 = MPI_WTIME(ierr)
       rhonk_R = 0.0_dp
       rhonk_I = 0.0_dp
@@ -2877,7 +2874,8 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     u_rec   = u_rec   + str
 
     do ia = 1 , natm
-      if ( use_ckrskr ) then
+!      if ( use_ckrskr ) then
+      if ( .FALSE. ) then
         ckria = km_coul%ckr(ia,ik)  
         skria = km_coul%skr(ia,ik)  
       else
@@ -3444,7 +3442,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   ! ==============================================
   !          main ewald subroutine 
   ! ==============================================
-  ! do_strufact = .true. : recalculate exp(ikr) for new r
+  ! do_strucfact = .true. : recalculate exp(ikr) for new r
   ! use_ckrskr  = .true. : use the store exp(ikr) 
   CALL  multipole_ES ( Efield_stat , EfieldG_stat , dipia , task_static , & 
                        damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
@@ -3496,14 +3494,10 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
     if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
 
       if      ( algo_moment_from_pola .eq. 'scf' ) then 
- 
         CALL induced_moment       ( Efield , mu_ind )  ! Efield in ; mu_ind and u_pol out
-  
       else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
-
         CALL induced_moment_inner ( f_ind , dmu_ind )          ! f_ind  in ; mu_ind 
         mu_ind = dmu_ind + mu_ind
-
       endif
 
     else
