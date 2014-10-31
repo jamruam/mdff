@@ -184,10 +184,6 @@ MODULE field
   real(kind=dp), dimension ( : , : , : ) , allocatable :: efg_t        !< electric field gradient tensor
   real(kind=dp), dimension ( : , : , : ) , allocatable :: dipia_ind_t  !< induced dipole on ion at (t)
 
-!SRP  TYPE( interaction_dd ) , dimension(:,:) , allocatable :: dd_tensors_outer
-!SRP  TYPE( interaction_dd ) , dimension(:,:) , allocatable :: dd_tensors_inner
-
-
 CONTAINS
 
 ! *********************** SUBROUTINE field_default_tag *************************
@@ -808,8 +804,19 @@ SUBROUTINE field_print_info ( kunit , quiet )
     if ( lbmhftd .or. lbmhft ) then
       blankline(kunit)
       lseparator(kunit)
-      WRITE ( kunit ,'(a)')             'bmhftd potential'
+      WRITE ( kunit ,'(a)')             'BMHFTD potential'
+      WRITE ( kunit ,'(a)')             'Born-Huggins-Meyer-Fumi-Tossi + Damping'
       lseparator(kunit)
+      blankline(kunit)
+      WRITE ( kunit ,'(a)')             '                                  C              D  '
+      WRITE ( kunit ,'(a)')             ' V = A  exp ( - B  r ) - f_6(r) ----- - f_8(r) -----'
+      WRITE ( kunit ,'(a)')             '                                 r^6            r^8 '
+      blankline(kunit)
+      WRITE ( kunit ,'(a)')             '                             n                      '
+      WRITE ( kunit ,'(a)')             '                            ----   (BD * r)^k       '
+      WRITE ( kunit ,'(a)')             ' f_n(r) = 1 - exp(-BD r ) * \     ------------      '
+      WRITE ( kunit ,'(a)')             '                            /___       k!           '
+      WRITE ( kunit ,'(a)')             '                             k=0                    '
       blankline(kunit)
       do it1 = 1 , ntype
         do it2 = it1 , ntype
@@ -1118,6 +1125,7 @@ SUBROUTINE engforce_driver
   ! local 
   real(kind=dp) , allocatable :: ef ( : , : ) , efg ( : , : , : ) 
   real(kind=dp) , allocatable :: mu ( : , : )
+  logical :: didpim
 
   ! test purpose only
   ! harmonic oscillator ( test purpose )
@@ -1151,18 +1159,14 @@ SUBROUTINE engforce_driver
      ! static          (if given in control file dip TODO: read from DIPFF )
      ! wannier centers (if given in POSFF )
      ! induced         (if polar are set in control file)
-     CALL get_dipole_moments ( mu )
+     CALL get_dipole_moments ( mu , didpim )
  
-!SRP   CALL multipole_ES ( ef , efg , mu , task_coul , dd_tensors_outer, damp_ind=.true. , &
-!SRP                       do_efield=doefield , do_efg=doefg , do_forces=.true. , &
-!SRP                       do_stress=.true. , do_rec=.true. , do_dir=.true. , &
-!SRP                       do_scf=.false., store_interaction = .false. )
      ! ====================================
      ! get all the electrostatic quantities
      ! ====================================
      CALL multipole_ES ( ef , efg , mu , task_coul , damp_ind=.true. , &
                          do_efield=doefield , do_efg=doefg , do_forces=.true. , &
-                         do_stress=.true. , do_rec=.true. , do_dir=.true. )
+                         do_stress=.true. , do_rec=.true. , do_dir=.true. , do_strucfact =.false. , use_ckrskr = didpim )
      mu_t  = mu
      ef_t  = ef
      efg_t = efg
@@ -1629,8 +1633,6 @@ SUBROUTINE initialize_coulomb
   efg_t       = 0.0_dp
   dipia_ind_t = 0.0_dp
   mu_t        = 0.0_dp
-!SRP  allocate ( dd_tensors_outer ( natm , natm ) ) 
-!SRP  allocate ( dd_tensors_inner ( natm , natm ) ) 
 
   ! ============
   !  direct sum
@@ -1698,8 +1700,6 @@ SUBROUTINE finalize_coulomb
   deallocate ( efg_t )
   deallocate ( dipia_ind_t )
   deallocate ( mu_t )
-!SRP  deallocate ( dd_tensors_outer )
-!SRP  deallocate ( dd_tensors_inner )
 
   ! ============
   !  direct sum
@@ -1717,9 +1717,6 @@ SUBROUTINE finalize_coulomb
     deallocate ( km_coul%kcoe  )
     deallocate ( km_coul%rhon_R    )
     deallocate ( km_coul%rhon_I    )
-!    deallocate ( km_coul%rhon  )
-!    deallocate ( km_coul%expikr)
-!    deallocate ( km_coul%expikm)
   endif
 
 
@@ -1748,11 +1745,9 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   ! global
   real(kind=dp) , intent ( in  ) :: f_ind_ext ( natm , 3 ) 
   real(kind=dp) , intent ( out ) :: mu_ind    ( 3 , natm ) 
-  
 
   ! local
-  real(kind=dp) :: mu_prev    ( 3 , natm )
-  real(kind=dp) :: f_ind     ( natm , 3 ) , f_ind_total ( natm , 3 ) 
+  real(kind=dp), dimension(:,:), allocatable :: mu_prev , f_ind , f_ind_total
   real(kind=dp) :: efg_dummy(natm,3,3)
   real(kind=dp) :: alphaES_save
   real(kind=dp) :: rmsd_inner, rmsd_ref 
@@ -1760,18 +1755,19 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   integer :: ia , it , ja  
   integer :: iscf_inner 
   logical :: task_ind(3)
-!SRP  logical :: store_inner, doscf
+  
+  allocate ( mu_prev(3,natm) , f_ind ( natm , 3 ) , f_ind_total ( natm , 3 ) )
 
-  iscf_inner = 1
-  f_ind = 0.0_dp
+  mu_prev      = 0.0_dp
+  f_ind        = 0.0_dp
+  f_ind_total  = 0.0_dp
   alphaES_save = alphaES 
-  rmsd_inner = HUGE(0.0_dp)
+  rmsd_inner   = HUGE(0.0_dp)
+  iscf_inner   = 1
 
-  task_ind(1) = .false.
-  task_ind(2) = .false.
-  task_ind(3) = .true.
-!SRP  store_inner = .false.
-!SRP  doscf       = .true.
+  task_ind(1)  = .false.
+  task_ind(2)  = .false.
+  task_ind(3)  = .true.
 
   rmsd_ref = 0.0_dp
   npol=0
@@ -1787,19 +1783,18 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   rmsd_ref = SQRT ( rmsd_ref /  REAL(npol,kind=dp) )
 
   f_ind_total = f_ind_ext + f_ind 
-  mu_prev = 0.0_dp
 
-  ! ---------------------------------------------------------------
-  ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
-  ! ---------------------------------------------------------------
-  ! note on units :
-  ! everything are in internal units :
-  !    [ f_ind_ext ] = e / A^2
-  !    [ polia  ] = A ^ 3
-  !    [ mu_ind ] = e A 
-  ! ---------------------------------------------------------------
   inner_loop : do while ( iscf_inner .le. 10 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
     
+   ! ---------------------------------------------------------------
+   ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
+   ! ---------------------------------------------------------------
+   ! note on units :
+   ! everything are in internal units :
+   !    [ f_ind_ext ] = e / A^2
+   !    [ polia  ] = A ^ 3
+   !    [ mu_ind ] = e A 
+   ! ---------------------------------------------------------------
     mu_ind = 0.0_dp
     do ia = 1 , natm 
       it = itype(ia) 
@@ -1811,24 +1806,14 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
       enddo
     enddo
    
-   mu_ind = ( 1.0_dp - omegakO ) * mu_prev + omegakO * mu_ind  
-    
-!SRP    if ( iscf_inner .eq. 1 ) then 
-!SRP      store_inner = .true.
-!SRP      doscf       = .false.
-!SRP    else
-!SRP      store_inner = .false.
-!SRP      doscf       = .true.
-!SRP    endif 
-    
+    mu_ind = ( 1.0_dp - omegakO ) * mu_prev + omegakO * mu_ind  
+   
+    ! alpha is reduced for the short-range dipole-dipole interaction
     alphaES = 0.001_dp
-!SRP    CALL  multipole_ES ( f_ind , efg_dummy, mu_ind , task_ind , dd_tensors_inner , &
-!SRP                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-!SRP                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , &
-!SRP                         do_scf=doscf , store_interaction = store_inner )
+    ! note that do_strufact , use_ckrskr has no effect as do_rec=.false.
     CALL  multipole_ES ( f_ind , efg_dummy, mu_ind , task_ind , &
                          damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. ) 
+                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , do_strufact=.false. , use_ckrskr=.false. ) 
 
     f_ind_total = f_ind_ext + f_ind 
 
@@ -1844,6 +1829,7 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
       enddo
     enddo
     rmsd_inner = SQRT ( rmsd_inner /  REAL(npol,kind=dp) )
+
 #ifdef debug_scf_kO_inner
   io_printnode WRITE(stdout,'(a,i,a,e16.8)')  'inner loop      step : ',iscf_inner,' rmsd_inner = ',rmsd_inner
 #endif
@@ -1854,11 +1840,13 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
     mu_prev = mu_ind 
 
   enddo inner_loop 
+
   io_printnode WRITE(stdout,'(a,i,a,a101,e16.8)')  'inner loop converged in',iscf_inner-1,' steps ',' rmsd_inner = ',rmsd_inner
 
   ! restore alphaES
   alphaES = alphaES_save
 
+  deallocate ( mu_prev , f_ind , f_ind_total )
 
   return
 
@@ -1932,8 +1920,8 @@ END SUBROUTINE induced_moment
 !> \todo
 !! make it more condensed 
 ! ******************************************************************************
-!SRP SUBROUTINE multipole_ES ( ef , efg , mu , task , dd_tensors , damp_ind , do_efield , do_efg , do_forces , do_stress , do_rec , do_dir , do_scf, store_interaction )
-SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg , do_forces , do_stress , do_rec , do_dir )
+SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
+                          do_efield , do_efg , do_forces , do_stress , do_rec , do_dir , do_strufact , use_ckrskr )
 
   USE control,          ONLY :  lsurf
   USE constants,        ONLY :  tpi , piroot, coul_unit, press_unit
@@ -1951,9 +1939,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   real(kind=dp)     :: efg    ( : , : , : )
   real(kind=dp)     :: mu     ( : , : )
   logical           :: task   ( : )
-  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_rec , do_dir
-!SRP  logical           :: do_scf , store_interaction
-!SRP  TYPE ( interaction_dd ) :: dd_tensors ( : , : )
+  logical           :: damp_ind , do_efield , do_efg, do_forces, do_stress, do_rec , do_dir , do_strufact , use_ckrskr 
 
   ! local 
   integer         :: ia , ierr
@@ -2027,18 +2013,8 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   ! ==============================================
   if ( do_dir ) then
     ttt1 = MPI_WTIME(ierr)
-!SRP
-!SRP    if ( .FALSE. ) then
-!SRP      CALL multipole_ES_dir_scf ( u_dir , ef_dir , efg_dir ,  mu , dd_tensors , do_efield , do_efg ) 
-!SRP    else
-!SRP      ttt3 = MPI_WTIME(ierr) 
-!SRP      CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , dd_tensors , damp_ind , & 
-!SRP                              do_efield , do_efg , do_forces , do_stress , store_interaction )
-!SRP      ttt4 = MPI_WTIME(ierr) 
-!SRP      t45 = t45 + ( ttt4 - ttt3 )
       CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , & 
                               do_efield , do_efg , do_forces , do_stress )
-!SRP    endif  
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
   endif
@@ -2050,7 +2026,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , do_efield , do_efg ,
   if ( do_rec ) then
     ttt1 = MPI_WTIME(ierr)
     CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , & 
-                            do_efield , do_efg , do_forces , do_stress )
+                            do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr )
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot2 = fcoultimetot2 + ( ttt2 - ttt1 )  
   endif
@@ -2191,8 +2167,6 @@ do ia = 1 , natm
 END SUBROUTINE multipole_ES
 
 
-!SRP SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , & 
-!SRP                              task , dd_tensors , damp_ind , do_efield , do_efg , do_forces , do_stress , store_interaction )
 SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_dir , tau_dir , mu , & 
                               task , damp_ind , do_efield , do_efg , do_forces , do_stress )
 
@@ -2201,7 +2175,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   USE constants,                ONLY :  piroot
   USE cell,                     ONLY :  kardir , dirkar
   USE io,                       ONLY :  stdout, ionode, ioprintnode, ioprint
-  USE tensors_rk,               ONLY :  tensor_rank0, tensor_rank1, tensor_rank2, tensor_rank3 !SRP, interaction_dd
+  USE tensors_rk,               ONLY :  tensor_rank0, tensor_rank1, tensor_rank2, tensor_rank3 
   USE dumb
  
  
@@ -2215,7 +2189,6 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: tau_dir ( : , : )
   real(kind=dp) :: mu     ( : , :  )
   logical       :: task ( : ) , damp_ind, do_efield , do_efg , do_forces , do_stress, store_interaction
-!SRP  TYPE ( interaction_dd ) :: dd_tensors ( : , : )  
 
   ! local 
   integer       :: ia , ja , ita, jta, j1 , jb ,je , i , j , k, it1,it2 , ierr
@@ -2263,21 +2236,6 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   twothird  = onesixth * 4.0_dp  
  
   cthole = 0
-
-!SRP   ttt1 = MPI_WTIME(ierr)
-!SRP  if ( store_interaction ) then
-!SRP    do i = 1 , 3
-!SRP      do j = 1 , 3
-!SRP        dd_tensors(:,:)%T2%ab_thole(i,j)  = 0.0_dp
-!SRP        do k = 1 , 3 
-!SRP          dd_tensors(:,:)%T3%abc(i,j,k)     = 0.0_dp
-!SRP        enddo
-!SRP      enddo
-!SRP    enddo
-!SRP    print*,'store interaction with alphaES = ',alphaES
-!SRP  endif
-!SRP  ttt2 = MPI_WTIME(ierr)
-!SRP  t34 = t34 + ( ttt2 - ttt1 ) 
 
 #ifdef debug_ES_dir
     if ( ionode ) then
@@ -2606,18 +2564,6 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         ! alors que T1,T3,T5 ... ne le sont pas.
         ! en pratique les sommes sur i ou j change de signe pour T1,T3,T5
 
-
-
-!SRP          ttt1 = MPI_WTIME(ierr)
-!SRP          ! storing information of d-d interaction tensors
-!SRP          if ( store_interaction ) then 
-!SRP            !print*,ia,ja,'storing tensors'
-!SRP            dd_tensors(ia,ja)%T2%ab_thole = T2%ab_thole
-!SRP            dd_tensors(ia,ja)%T3%abc      = T3%abc
-!SRP          endif
-!SRP          ttt2 = MPI_WTIME(ierr)
-!SRP          t12 = t12 + ( ttt2 - ttt1 ) 
-
         ! ===========================================================
         !                  charge-charge interaction
         ! ===========================================================
@@ -2793,50 +2739,9 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     tau_dir =   tau_dir / simu_cell%omega * 0.5_dp
   endif
 
-!SRP  if ( store_interaction ) then
- !SRP   do ja = 1 , natm
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(1,1) , natm )
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(2,2) , natm )
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(3,3) , natm )
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(1,2) , natm )
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(1,3) , natm )
- !SRP     CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T2%ab_thole(2,3) , natm )
- !SRP     dd_tensors ( : , ja )%T2%ab_thole (2,1) = dd_tensors ( : , ja )%T2%ab_thole (1,2)
- !SRP     dd_tensors ( : , ja )%T2%ab_thole (3,1) = dd_tensors ( : , ja )%T2%ab_thole (1,3)
- !SRP     dd_tensors ( : , ja )%T2%ab_thole (3,2) = dd_tensors ( : , ja )%T2%ab_thole (2,3)
- !SRP     do i = 1 , 3
- !SRP       do j = 1 , 3
- !SRP         do k = 1 , 3
- !SRP           if ( j .gt. k ) cycle
- !SRP           if ( i .gt. j ) cycle
- !SRP           CALL MPI_ALL_REDUCE_DOUBLE ( dd_tensors ( : , ja )%T3%abc(i,j,k) , natm )
- !SRP         enddo
- !SRP       enddo
- !SRP     enddo
- !SRP     dd_tensors ( : , ja )%T3%abc(1,3,2) = dd_tensors ( : , ja )%T3%abc(1,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,1,2) = dd_tensors ( : , ja )%T3%abc(1,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,2,1) = dd_tensors ( : , ja )%T3%abc(1,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,3,1) = dd_tensors ( : , ja )%T3%abc(1,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,1,3) = dd_tensors ( : , ja )%T3%abc(1,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(1,2,1) = dd_tensors ( : , ja )%T3%abc(1,1,2)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,1,1) = dd_tensors ( : , ja )%T3%abc(1,1,2)
- !SRP     dd_tensors ( : , ja )%T3%abc(1,3,1) = dd_tensors ( : , ja )%T3%abc(1,1,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,1,1) = dd_tensors ( : , ja )%T3%abc(1,1,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,2,1) = dd_tensors ( : , ja )%T3%abc(1,2,2)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,1,2) = dd_tensors ( : , ja )%T3%abc(1,2,2)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,3,1) = dd_tensors ( : , ja )%T3%abc(1,3,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,1,3) = dd_tensors ( : , ja )%T3%abc(1,3,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(2,3,2) = dd_tensors ( : , ja )%T3%abc(2,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,2,2) = dd_tensors ( : , ja )%T3%abc(2,2,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,3,2) = dd_tensors ( : , ja )%T3%abc(2,3,3)
- !SRP     dd_tensors ( : , ja )%T3%abc(3,2,3) = dd_tensors ( : , ja )%T3%abc(2,3,3)
- !SRP     
- !SRP   enddo
- !SRP endif
- 
   ! thole function overview 
   ! write it only when do_forces = .true. only 
-  if ( do_forces) then
+  if ( do_forces ) then
     CALL MPI_ALL_REDUCE_INTEGER_SCALAR ( cthole )
     CALL MPI_ALL_REDUCE_INTEGER ( pair_thole , natm )
     CALL MPI_ALL_REDUCE_DOUBLE  ( pair_thole_distance , natm )
@@ -2863,161 +2768,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
 END SUBROUTINE multipole_ES_dir 
 
-!SRP
-SUBROUTINE multipole_ES_dir_scf ( u_dir , ef_dir , efg_dir ,  mu , dd_tensors , do_efield , do_efg )
-
-  USE control,                  ONLY :  lvnlist
-  USE config,                   ONLY :  natm, ntype,simu_cell, qia, rx ,ry ,rz ,itype , atom_dec, verlet_coul , atype, polia, ipolar
-  USE constants,                ONLY :  piroot
-  USE cell,                     ONLY :  kardir , dirkar
-  USE io,                       ONLY :  stdout, ionode, ioprintnode, ioprint
-  USE tensors_rk,               ONLY :  interaction_dd
-  USE dumb
- 
- 
-  implicit none
-
-  ! global
-  real(kind=dp) :: u_dir 
-  real(kind=dp) :: ef_dir   ( : , : )
-  real(kind=dp) :: efg_dir  ( : , : , : )
-  real(kind=dp) :: mu     ( : , :  )
-  logical       :: do_efield , do_efg  
-  TYPE( interaction_dd ) :: dd_tensors ( : , : ) 
-
-  ! local 
-  integer       :: ia , ja , ita, jta, j1 , jb ,je , i , j , k, it1,it2 , ierr
-!  real(kind=dp) :: qi, qj , qij , u_damp 
-  real(kind=dp) :: mui(3)
-  real(kind=dp) :: muj(3)
-!  real(kind=dp) :: cutsq
-!  real(kind=dp) :: rxi  , ryi  , rzi
-!  real(kind=dp) :: rxj  , ryj  , rzj
-!  real(kind=dp) :: rij(3)
-!  real(kind=dp) :: sij(3)
-!  real(kind=dp) :: fij(3)
-!  real(kind=dp) :: d , d2 , d3  , d5
-!  real(kind=dp) :: dm1 , dm3 , dm5 , dm7
-!  real(kind=dp) :: F0 , F1 , F2 , F3
-!  real(kind=dp) :: F1d , F2d 
-!  real(kind=dp) :: F1d2 , F2d2 
-!  real(kind=dp) :: alpha2 , alpha3 , alpha5 , expon 
-!  real(kind=dp), external :: errfc
-!  real(kind=dp), external :: errf
-!  real(kind=dp) :: fdamp , fdampdiff
-!  real(kind=dp) :: fdamp2 , fdampdiff2
-!  real(kind=dp) :: onesixth, twothird , sthole, uthole , vthole, vthole3, vthole4, ialpha, jalpha , F1thole, F2thole
-!  real(kind=dp) :: expthole, Athole , arthole, arthole2 , arthole3 , twopiroot, erfra , ra
-  real(kind=dp) :: ttt1,ttt2 
-!  integer       :: cthole
-!  logical       :: ipol, jpol
-!  logical       :: ldamp 
-!  logical       :: charge_charge, charge_dipole, dipole_dipole, dip_i , dip_j
-  logical       :: dip_i , dip_j
-  
-!  cutsq  = verlet_coul%cut * verlet_coul%cut !cutlongrange
- 
-#ifdef debug_ES_dir
-    if ( ionode ) then
-        write(stdout,'(a,e16.8)') 'debug multipole_ES_dir : cutsq',cutsq
-        write(stdout,'(a,3l)')    'debug multipole_ES_dir : task',task
-   endif
-#endif
-          ttt1 = MPI_WTIME(ierr)
-
-  ion1 : do ia = atom_dec%istart , atom_dec%iend
-    ! =====================================
-    !  verlet list : ja index in point arrays
-    ! =====================================
-    if ( lvnlist ) then
-      jb = verlet_coul%point( ia )
-      je = verlet_coul%point( ia + 1 ) - 1
-    else
-      ! ====================================
-      !         else all ja   
-      ! ====================================
-      jb = 1
-      je = natm
-    endif
-    ita  = itype(ia)
-    mui = mu ( : , ia )
-    dip_i = any ( mui .ne. 0.0d0 ) 
-
-    ion2 : do j1 = jb, je
-
-      if ( lvnlist ) then
-        ja = verlet_coul%list ( j1 )
-      else
-        ja = j1
-      endif
-
-      if ( ( lvnlist .and. ja .eq. ia ) .or. ( .not. lvnlist .and. ja .le. ia ) ) cycle
-
-        jta  = itype(ja)
-        muj = mu ( : , ja )
-        dip_j = any ( muj .ne. 0.0d0 ) 
-        
-        ! ===========================================================
-        !                  dipole-dipole interaction
-        ! ===========================================================
-        dd : if ( dip_i .and. dip_j ) then 
-
-          ! remind "thole" interaction function : T2_thole = T2 (regular) for r>s (linear) 
-          ! energy
-          do j = 1, 3
-            do k = 1, 3 
-               u_dir = u_dir - mui(j) * dd_tensors(ia,ja)%T2%ab_thole(j,k) * muj(k) 
-            enddo
-          enddo
-
-          ! remind thole interaction function : T2_thole = T2 (regular) for r>s  (linear)
-          ! electric field
-          if ( do_efield ) then
-            do k = 1 , 3
-              ef_dir ( ia , :  ) = ef_dir ( ia , : ) + dd_tensors(ia,ja)%T2%ab_thole(:,k) * muj(k)
-              ef_dir ( ja , :  ) = ef_dir ( ja , : ) + dd_tensors(ia,ja)%T2%ab_thole(:,k) * mui(k) 
-            enddo
-          endif
-
-          ! electric field gradient 
-          if ( do_efg ) then
-            do k = 1 , 3
-              efg_dir ( ia , : , : ) = efg_dir ( ia , : , :  ) + dd_tensors(ia,ja)%T3%abc (:,:,k) * muj(k)
-              efg_dir ( ja , : , : ) = efg_dir ( ja , : , :  ) - dd_tensors(ia,ja)%T3%abc (:,:,k) * mui(k)
-            enddo
-          endif
-
-        endif dd
-
-    enddo ion2
-
-  enddo ion1
-
-  CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
-  if ( do_efield ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 1 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 3 ) , natm )
-  endif
-  if ( do_efg ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 1 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 3 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
-  endif
-          ttt2 = MPI_WTIME(ierr)
-          t23 = t23 + ( ttt2 - ttt1 ) 
-
-  return
-
-END SUBROUTINE multipole_ES_dir_scf
-!SRP
-
-
-
-SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , do_efield , do_efg , do_forces , do_stress )
+SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , &
+                              do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr )
 
   USE constants,                ONLY :  imag, tpi
   USE config,                   ONLY :  natm, rx ,ry, rz, qia, simu_cell
@@ -3034,7 +2786,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp) :: fx_rec  (:) , fy_rec (:) , fz_rec (:)
   real(kind=dp) :: tau_rec (:,:)
   real(kind=dp) :: mu      (:,:)
-  logical       :: task(:), do_efield , do_efg , do_forces , do_stress 
+  logical       :: task(:), do_efield , do_efg , do_forces , do_stress , do_strufact , use_ckrskr 
 
   ! local
   integer           :: ia , ik , ierr
@@ -3052,7 +2804,6 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp)     :: tau_rec_tmp(3,3) 
   logical           :: ldip 
   real(kind=dp)     :: ttt1,ttt2
-  !dectime
 
   ! =================
   !  some constants 
@@ -3063,12 +2814,11 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   ldip = .false.
   if ( task(2) .or. task(3) ) ldip = .true.
 
-!  print*,'before struc_fact'
-!  CALL struc_fact ( km_coul )
-!  print*,'after struc_fact'
-
+  if ( do_strufact ) then
+    CALL struc_fact ( km_coul )
+  endif
   
-  allocate( ckr ( natm ) , skr (natm) ) 
+  if ( .not. use_ckrskr ) allocate( ckr ( natm ) , skr (natm) ) 
 
   ! ==============================================
   !            reciprocal space part
@@ -3084,70 +2834,39 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     Ak     = km_coul%Ak( ik )
     kcoe   = km_coul%kcoe(ik) 
 
-     if ( .TRUE. ) then
-!     if ( .FALSE. ) then
-    ttt1 = MPI_WTIME(ierr)
-    rhonk_R = 0.0_dp
-    rhonk_I = 0.0_dp
-    do ia = 1, natm
-      qi  = qia ( ia )
-      rxi = rx  ( ia )
-      ryi = ry  ( ia )
-      rzi = rz  ( ia )
-      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-      ckr(ia)  = COS(k_dot_r) 
-      skr(ia)  = SIN(k_dot_r)
-      rhonk_R    = rhonk_R + qi * ckr(ia) 
-      rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
-      if ( .not. ldip ) cycle
-      muix = mu ( 1 , ia )
-      muiy = mu ( 2 , ia )
-      muiz = mu ( 3 , ia )
-      k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
-      rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
-      rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
-    enddo
-    ttt2 = MPI_WTIME(ierr)
-    t12 = t12 + (ttt2-ttt1)
-    
-!=======
-!    ttt1 = MPI_WTIME(ierr)
-!    rhonk_R = 0.0_dp
-!    rhonk_I = 0.0_dp
-!    do ia = 1, natm
-!      qi  = qia ( ia )
-!      rxi = rx  ( ia )
-!      ryi = ry  ( ia )
-!      rzi = rz  ( ia )
-!      k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
-!      ckr(ia)  = COS(k_dot_r) 
-!      skr(ia)  = SIN(k_dot_r)
-!      rhonk_R    = rhonk_R + qi * ckr(ia) 
-!      rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
-!      if ( .not. ldip ) cycle
-!      muix = mu ( 1 , ia )
-!      muiy = mu ( 2 , ia )
-!      muiz = mu ( 3 , ia )
-!      k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
-!      rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
-!      rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
-!    enddo
-!    ttt2 = MPI_WTIME(ierr)
-!    t12 = t12 + (ttt2-ttt1)
-!>>>>>>> .r134
+    if ( .not. use_ckrskr ) then
+      ttt1 = MPI_WTIME(ierr)
+      rhonk_R = 0.0_dp
+      rhonk_I = 0.0_dp
+      do ia = 1, natm
+        qi  = qia ( ia )
+        rxi = rx  ( ia )
+        ryi = ry  ( ia )
+        rzi = rz  ( ia )
+        k_dot_r  = ( kx * rxi + ky * ryi + kz * rzi )
+        ckr(ia)  = COS(k_dot_r) 
+        skr(ia)  = SIN(k_dot_r)
+        rhonk_R    = rhonk_R + qi * ckr(ia) 
+        rhonk_I    = rhonk_I + qi * skr(ia)  ! rhon_R + i rhon_I
+        if ( .not. ldip ) cycle
+        muix = mu ( 1 , ia )
+        muiy = mu ( 2 , ia )
+        muiz = mu ( 3 , ia )
+        k_dot_mu = ( muix * kx + muiy * ky + muiz * kz )
+        rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
+        rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
+      enddo
+      ttt2 = MPI_WTIME(ierr)
+      t12 = t12 + (ttt2-ttt1)
     else 
-    rhonk_R = 0.0_dp
-    rhonk_I = 0.0_dp
-!    print*,'before init'  
-    km_coul%rhon_R = 0.0_dp
-    km_coul%rhon_I = 0.0_dp
-!    print*,'before charge_density_k_q' ,ik
-    if ( task(1) ) CALL charge_density_k_q  ( km_coul , ik )  
-!    print*,'q',ik,km_coul%rhon_R(ik),km_coul%rhon_I(ik)
-    if ( ldip    ) CALL charge_density_k_mu ( km_coul , mu , ik )  
-!    print*,'mu',ik,km_coul%rhon_R(ik),km_coul%rhon_I(ik)
-    rhonk_R =  km_coul%rhon_R(ik)
-    rhonk_I =  km_coul%rhon_I(ik)
+      rhonk_R = 0.0_dp
+      rhonk_I = 0.0_dp
+      km_coul%rhon_R = 0.0_dp
+      km_coul%rhon_I = 0.0_dp
+      if ( task(1) ) CALL charge_density_k_q  ( km_coul , ik )  
+      if ( ldip    ) CALL charge_density_k_mu ( km_coul , mu , ik )  
+      rhonk_R =  km_coul%rhon_R(ik)
+      rhonk_I =  km_coul%rhon_I(ik)
     endif
 
     ttt1 = MPI_WTIME(ierr)
@@ -3158,12 +2877,13 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     u_rec   = u_rec   + str
 
     do ia = 1 , natm
-!      ckria = km_coul%ckr(ia,ik)  
-!      skria = km_coul%skr(ia,ik)  
-      ckria = ckr(ia)
-      skria = skr(ia)
-
-     !   print*,'cksk',ckria,skria
+      if ( use_ckrskr ) then
+        ckria = km_coul%ckr(ia,ik)  
+        skria = km_coul%skr(ia,ik)  
+      else
+        ckria = ckr(ia)
+        skria = skr(ia)
+      endif
 
       if ( do_efg .or. ( do_forces .and. ldip ) )  then
         recarg2 = Ak * ( rhonk_R * ckria + rhonk_I * skria )
@@ -3251,7 +2971,6 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 !     tau_rec(3,3) = tau_rec(3,3) + f0 * kz * ( rhonk_R_st_z * rhonk_R + rhonk_I_st_z * rhonk_I )
    endif
     ttt2 = MPI_WTIME(ierr)
-    !t23 = t23 + (ttt2-ttt1)
 
   enddo kpoint
 
@@ -3316,7 +3035,7 @@ CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
     fz_rec  =   fz_rec  * fpi_V
   endif
 
-  deallocate( ckr , skr ) 
+  if ( .not. use_ckrskr ) deallocate( ckr , skr ) 
 
   return
 
@@ -3647,7 +3366,7 @@ END SUBROUTINE engforce_morse_pbc
 !! The stopping criteria is governed by conv_tol_ind
 !
 ! ******************************************************************************
-SUBROUTINE moment_from_pola_scf ( mu_ind ) 
+SUBROUTINE moment_from_pola_scf ( mu_ind , didpim ) 
 
   USE io,               ONLY :  ionode , stdout , ioprintnode
   USE constants,        ONLY :  coul_unit
@@ -3664,7 +3383,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 
   ! local
   integer :: ia , iscf , it , npol, alpha, beta, t 
-  logical :: linduced
+  logical :: linduced , didpim
   real(kind=dp) :: tttt , tttt2 , alphaES_save
   real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
   real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), EfieldG_stat ( natm , 3 , 3 ) , EfieldG_ind ( natm , 3 , 3 )
@@ -3691,6 +3410,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   !  Is there any polarizability ? if yes linduced = .TRUE.
   ! =========================================================
   linduced = .false.
+  didpim   = .false.
   do it = 1 , ntype
     if ( lpolar ( it ) ) linduced = .true.
   enddo
@@ -3700,6 +3420,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
 #endif
     return
   endif
+  didpim = linduced
 
   ! =============================================
   !  calculate static Efield ( charge + dipoles )
@@ -3723,13 +3444,11 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
   ! ==============================================
   !          main ewald subroutine 
   ! ==============================================
-!SRP  CALL  multipole_ES ( Efield_stat , efg_dummy , dipia , task_static , dd_tensors_outer , & 
-!SRP                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
-!SRP                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. , &
-!SRP                       do_scf = .false., store_interaction = .true. ) 
+  ! do_strufact = .true. : recalculate exp(ikr) for new r
+  ! use_ckrskr  = .true. : use the store exp(ikr) 
   CALL  multipole_ES ( Efield_stat , EfieldG_stat , dipia , task_static , & 
                        damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
-                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. ) 
+                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. , do_strucfact= .true. , use_ckrskr=.true. ) 
   u_coul_stat = u_coul 
   fx      = 0.0_dp
   fy      = 0.0_dp
@@ -3829,13 +3548,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind )
     !  calculate Efield_ind from mu_ind
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
     ! ==========================================================
-!SRP    CALL  multipole_ES ( Efield_ind , efg_dummy, mu_ind , task_ind , dd_tensors_outer , & 
-!SRP                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-!SRP                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. , &
-!SRP                         do_scf=.true., store_interaction = .false. ) 
     CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
                          damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. )
+                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
 
     u_coul_ind = u_coul 
     u_coul_pol = u_coul_stat-u_coul_ind
@@ -4152,7 +3867,7 @@ END SUBROUTINE moment_from_WFc
 !! February 2014
 !
 ! ******************************************************************************
-SUBROUTINE get_dipole_moments ( mu )
+SUBROUTINE get_dipole_moments ( mu , didpim )
 
   USE config,           ONLY : natm , ntype , dipia , dipia_wfc, fx,fy,fz, atype 
   USE io,               ONLY : ionode , stdout, kunit_DIPFF
@@ -4164,7 +3879,7 @@ SUBROUTINE get_dipole_moments ( mu )
 
   ! local
   integer :: it, ia ,ja 
-  logical :: lwannier, lcata
+  logical :: lwannier, lcata , didpim 
   real(kind=dp), dimension ( : )  , allocatable :: fx_save , fy_save, fz_save
   real(kind=dp), dimension ( : , :  ) , allocatable :: dipia_ind
   integer :: ierr 
@@ -4179,7 +3894,7 @@ SUBROUTINE get_dipole_moments ( mu )
   !     induced moment from polarisation 
   ! ======================================
   if ( algo_moment_from_pola .eq. 'scf' .or. algo_moment_from_pola .eq. 'scf_kO' ) then
-    CALL moment_from_pola_scf    ( dipia_ind )
+    CALL moment_from_pola_scf    ( dipia_ind , didpim )
   endif
 
   ! =========================================================
