@@ -551,7 +551,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
   integer :: kunit, it , it1 , it2 , i , j 
   real(kind=dp) :: rcut2 , kmax2 , alpha2 , ereal , ereci(3) , ereci2(3) , qtot , qtot2, total_mass
   logical :: linduced, ldamp
-  real(kind=dp) :: Athole, dist_cata , dist_corr      
+  real(kind=dp) :: Athole, dist_cata , dist_corr, mu_sum(3)      
 
   if ( ( present ( quiet ) .and. quiet ) .and. .not. lquiet ) then 
     lquiet = .true.
@@ -561,9 +561,11 @@ SUBROUTINE field_print_info ( kunit , quiet )
 
   qtot   = 0.0_dp
   qtot2  = 0.0_dp
+  mu_sum = 0.0_dp
   do it = 1 , ntype
       qtot  = qtot  +   qch(it) * natmi ( it )
       qtot2 = qtot2 + ( qch(it) * natmi ( it ) ) * ( qch(it) * natmi ( it ) )
+      mu_sum = mu_sum + dip(:,it)
   enddo
   linduced = .false.
   do it = 1 , ntype
@@ -601,6 +603,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
     do it = 1 , ntype
       WRITE ( kunit ,'(a,a,a,3f10.5)')  'mu',atypei(it),'      = ',dip(1,it),dip(2,it),dip(3,it)
     enddo
+    WRITE ( kunit ,'(a,3e12.3)')        'sum of dipoles          = ',mu_sum(1),mu_sum(2),mu_sum(3)
     blankline(kunit)
     if ( linduced ) then 
       lseparator(kunit) 
@@ -1148,7 +1151,7 @@ SUBROUTINE engforce_driver
   ! =================================
   if ( lcoulomb ) then
 
-     allocate( ef(natm,3) , efg(natm,3,3) , mu(3,natm) )     
+     allocate( ef(3,natm) , efg(3,3,natm) , mu(3,natm) )     
      allocate ( pair_thole ( natm ) ) 
      allocate ( pair_thole_distance ( natm ) ) 
      pair_thole = 0
@@ -1625,8 +1628,8 @@ SUBROUTINE initialize_coulomb
   ! local
   integer :: nk , ncmax , j , k
 
-  allocate ( ef_t ( natm , 3 ) )
-  allocate ( efg_t ( natm , 3 , 3 ) )
+  allocate ( ef_t ( 3 , natm ) )
+  allocate ( efg_t ( 3 , 3 , natm ) )
   allocate ( dipia_ind_t ( extrapolate_order+1, 3 , natm ) )
   allocate ( mu_t ( 3 , natm ) )
   ef_t        = 0.0_dp
@@ -1668,10 +1671,10 @@ SUBROUTINE initialize_coulomb
     allocate ( km_coul%kptk( nk ) , km_coul%kptx(nk), km_coul%kpty(nk), km_coul%kptz(nk) )
     allocate ( km_coul%Ak      ( nk ) )
     allocate ( km_coul%kcoe    ( nk ) )
-    allocate ( km_coul%ckr    ( natm , nk ) )
-    allocate ( km_coul%skr    ( natm , nk ) )
-    allocate ( km_coul%rhon_R    ( nk ) )
-    allocate ( km_coul%rhon_I    ( nk ) )
+!    allocate ( km_coul%ckr    ( natm , nk ) )
+!    allocate ( km_coul%skr    ( natm , nk ) )
+!    allocate ( km_coul%rhon_R    ( nk ) )
+!    allocate ( km_coul%rhon_I    ( nk ) )
 
 !    allocate ( km_coul%rhon    ( nk ) )
 !    allocate ( km_coul%expikr  ( natm , nk ) )
@@ -1715,8 +1718,10 @@ SUBROUTINE finalize_coulomb
     deallocate( km_coul%kptk , km_coul%kptx, km_coul%kpty,km_coul%kptz )
     deallocate ( km_coul%Ak    )
     deallocate ( km_coul%kcoe  )
-    deallocate ( km_coul%rhon_R    )
-    deallocate ( km_coul%rhon_I    )
+ !   deallocate ( km_coul%rhon_R    )
+ !   deallocate ( km_coul%rhon_I    )
+ !   deallocate ( km_coul%ckr    )
+ !   deallocate ( km_coul%skr    )
   endif
 
 
@@ -1743,12 +1748,12 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   implicit none
 
   ! global
-  real(kind=dp) , intent ( in  ) :: f_ind_ext ( natm , 3 ) 
+  real(kind=dp) , intent ( in  ) :: f_ind_ext ( 3 , natm ) 
   real(kind=dp) , intent ( out ) :: mu_ind    ( 3 , natm ) 
 
   ! local
-  real(kind=dp), dimension(:,:), allocatable :: mu_prev , f_ind , f_ind_total
-  real(kind=dp) :: efg_dummy(natm,3,3)
+  real(kind=dp), dimension(:,:), allocatable :: mu_prev , f_ind , f_ind_total , zerovec
+  real(kind=dp) :: efg_dummy(3,3,natm)
   real(kind=dp) :: alphaES_save
   real(kind=dp) :: rmsd_inner, rmsd_ref 
   integer :: alpha , beta, npol
@@ -1756,9 +1761,8 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   integer :: iscf_inner 
   logical :: task_ind(3)
   
-  allocate ( mu_prev(3,natm) , f_ind ( natm , 3 ) , f_ind_total ( natm , 3 ) )
-
-  mu_prev      = 0.0_dp
+  allocate ( mu_prev(3,natm) , f_ind ( 3 , natm ) , f_ind_total ( 3 , natm ) , zerovec(3,natm) )
+  zerovec      = 0.0_dp
   f_ind        = 0.0_dp
   f_ind_total  = 0.0_dp
   alphaES_save = alphaES 
@@ -1769,44 +1773,37 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   task_ind(2)  = .false.
   task_ind(3)  = .true.
 
-  rmsd_ref = 0.0_dp
-  npol=0
-  do ia=1, natm
-    it = itype( ia)
-    if ( .not. lpolar( it ) ) cycle
-    npol = npol + 1
-    do alpha = 1 , 3
-      if ( polia ( ia,  alpha , alpha ) .eq. 0.0_dp ) cycle
-      rmsd_ref  = rmsd_ref  +  ( f_ind_ext ( ia , alpha ) ) ** 2
-    enddo
-  enddo
-  rmsd_ref = SQRT ( rmsd_ref /  REAL(npol,kind=dp) )
+  CALL get_rmsd_mu ( rmsd_ref , f_ind_ext , zerovec )
 
-  f_ind_total = f_ind_ext + f_ind 
-
-  inner_loop : do while ( iscf_inner .le. 10 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
-    
-   ! ---------------------------------------------------------------
-   ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
-   ! ---------------------------------------------------------------
-   ! note on units :
-   ! everything are in internal units :
-   !    [ f_ind_ext ] = e / A^2
-   !    [ polia  ] = A ^ 3
-   !    [ mu_ind ] = e A 
-   ! ---------------------------------------------------------------
-    mu_ind = 0.0_dp
-    do ia = 1 , natm 
-      it = itype(ia) 
-      if ( .not. lpolar ( it ) ) cycle
-      do alpha = 1 , 3 
-        do beta = 1 , 3  
-          mu_ind ( alpha , ia ) = mu_ind ( alpha , ia ) + polia ( ia , alpha , beta ) * ( f_ind_total ( ia , beta ) )
-        enddo
+  f_ind_total = f_ind_ext
+  ! ---------------------------------------------------------------
+  ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
+  ! ---------------------------------------------------------------
+  ! note on units :
+  ! everything are in internal units :
+  !    [ f_ind_ext ] = e / A^2
+  !    [ polia  ] = A ^ 3
+  !    [ mu_ind ] = e A 
+  ! ---------------------------------------------------------------
+  mu_ind = 0.0_dp
+  do ia = 1 , natm 
+    it = itype(ia) 
+    if ( .not. lpolar ( it ) ) cycle
+    do alpha = 1 , 3 
+      do beta = 1 , 3  
+        mu_ind ( alpha , ia ) = mu_ind ( alpha , ia ) + polia ( alpha , beta  , ia ) * ( f_ind_total ( beta , ia ) )
       enddo
     enddo
+  enddo
+  mu_ind = omegakO * mu_ind  
+
+
+  !inner_loop : do while ( iscf_inner .le. 1 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
+  inner_loop : do while ( iscf_inner .le. 10 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
+!  inner_loop : do while ( iscf_inner .le. 4 )!.and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
+    mu_prev      = mu_ind 
+
    
-    mu_ind = ( 1.0_dp - omegakO ) * mu_prev + omegakO * mu_ind  
    
     ! alpha is reduced for the short-range dipole-dipole interaction
     alphaES = 0.001_dp
@@ -1816,19 +1813,28 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
                          do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , do_strucfact=.false. , use_ckrskr=.false. ) 
 
     f_ind_total = f_ind_ext + f_ind 
-
-    rmsd_inner = 0.0_dp
-    npol=0
-    do ia=1, natm
-      it = itype( ia)
-      if ( .not. lpolar( it ) ) cycle
-      npol = npol + 1
-      do alpha = 1 , 3
-        if ( polia ( ia,  alpha , alpha ) .eq. 0.0_dp ) cycle
-        rmsd_inner  = rmsd_inner + ( mu_ind ( alpha , ia ) / polia ( ia,  alpha , alpha ) - f_ind_total ( ia , alpha ) ) ** 2
+    ! ---------------------------------------------------------------
+    ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
+    ! ---------------------------------------------------------------
+    ! note on units :
+    ! everything are in internal units :
+    !    [ f_ind_ext ] = e / A^2
+    !    [ polia  ] = A ^ 3
+    !    [ mu_ind ] = e A 
+    ! ---------------------------------------------------------------
+    mu_ind = 0.0_dp
+    do ia = 1 , natm 
+      it = itype(ia) 
+      if ( .not. lpolar ( it ) ) cycle
+      do alpha = 1 , 3 
+        do beta = 1 , 3  
+          mu_ind ( alpha , ia ) = mu_ind ( alpha , ia ) + polia ( alpha , beta  , ia ) * ( f_ind_total ( beta , ia ) )
+        enddo
       enddo
     enddo
-    rmsd_inner = SQRT ( rmsd_inner /  REAL(npol,kind=dp) )
+    mu_ind = ( 1.0_dp - omegakO ) * mu_prev + omegakO * mu_ind  
+
+    CALL get_rmsd_mu ( rmsd_inner , f_ind_total , mu_ind )
 
 #ifdef debug_scf_kO_inner
   io_printnode WRITE(stdout,'(a,i,a,e16.8)')  'inner loop      step : ',iscf_inner,' rmsd_inner = ',rmsd_inner
@@ -1836,17 +1842,14 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   
     iscf_inner = iscf_inner + 1 
 
-    ! save previous step
-    mu_prev = mu_ind 
-
   enddo inner_loop 
 
-  io_printnode WRITE(stdout,'(a,i,a,a101,e16.8)')  'inner loop converged in',iscf_inner-1,' steps ',' rmsd_inner = ',rmsd_inner
+  io_printnode WRITE(stdout,'(a,i,a,a101,2e16.8)')  'inner loop converged in',iscf_inner-1,' steps ',' rmsd_inner = ',rmsd_inner,rmsd_ref
 
   ! restore alphaES
   alphaES = alphaES_save
 
-  deallocate ( mu_prev , f_ind , f_ind_total )
+  deallocate ( mu_prev , f_ind , f_ind_total , zerovec )
 
   return
 
@@ -1872,7 +1875,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind )
   implicit none
 
   ! global
-  real(kind=dp) , intent ( in  ) :: Efield ( natm , 3 ) 
+  real(kind=dp) , intent ( in  ) :: Efield ( 3 , natm ) 
   real(kind=dp) , intent ( out ) :: mu_ind ( 3 , natm ) 
   
 
@@ -1895,7 +1898,7 @@ SUBROUTINE induced_moment ( Efield , mu_ind )
     if ( .not. lpolar ( it ) ) cycle
     do alpha = 1 , 3 
       do beta = 1 , 3  
-        mu_ind ( alpha , ia ) = mu_ind ( alpha , ia ) + polia ( ia , alpha , beta ) * Efield ( ia , beta )  
+        mu_ind ( alpha , ia ) = mu_ind ( alpha , ia ) + polia ( alpha , beta , ia ) * Efield ( beta , ia )  
       enddo
     enddo
   enddo
@@ -1958,8 +1961,8 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
         call print_config_sample(0,0)
 #endif
 
-  allocate( ef_dir  (natm,3)  , ef_rec(natm,3)   , ef_surf(natm,3) ,ef_self(natm,3) )
-  allocate( efg_dir (natm,3,3), efg_rec(natm,3,3), efg_self(natm,3,3) )
+  allocate( ef_dir  (3, natm)  , ef_rec(3 , natm)   , ef_surf(3,natm) ,ef_self(3,natm) )
+  allocate( efg_dir (3,3,natm), efg_rec(3,3, natm), efg_self(3,3, natm) )
   allocate( fx_coul (natm)    , fy_coul (natm)   , fz_coul (natm) )
   allocate( fx_dir  (natm)    , fy_dir  (natm)   , fz_dir  (natm) )
   allocate( fx_rec  (natm)    , fy_rec  (natm)   , fz_rec  (natm) )
@@ -1976,6 +1979,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   ! ==================================================
   !  total charge / moment / square 
   ! ==================================================
+  ! note here that qtot is a dipole moment  !!!! 
   mutot = 0.0_dp
   musq  = 0.0_dp
   qtot  = 0.0_dp
@@ -2030,7 +2034,7 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   ! ====================================================== 
   !              Surface contribution ????? 
   ! ====================================================== 
-
+  ! spherical symmetry
   ! electrostatic energy and virial
   ! qq
   u_surf_qq = qtot ( 1 ) * qtot ( 1 ) + qtot ( 2 ) * qtot ( 2 ) + qtot ( 3 ) * qtot ( 3 )
@@ -2041,9 +2045,9 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
 
   ! potential, field , forces ( no contrib to efg ) 
   do ia = 1 , natm
-    ef_surf ( ia , 1 ) = qmu_sum ( 1 )
-    ef_surf ( ia , 2 ) = qmu_sum ( 2 )
-    ef_surf ( ia , 3 ) = qmu_sum ( 3 )
+    ef_surf ( 1 , ia ) = qmu_sum ( 1 )
+    ef_surf ( 2 , ia ) = qmu_sum ( 2 )
+    ef_surf ( 3 , ia ) = qmu_sum ( 3 )
   !  fx_surf ( ia ) = qia ( ia ) * qmu_sum ( 1 )
   !  fy_surf ( ia ) = qia ( ia ) * qmu_sum ( 2 )
   !  fz_surf ( ia ) = qia ( ia ) * qmu_sum ( 3 )
@@ -2061,12 +2065,12 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   u_self_2   =  - selfa2 * musq              ! mu-mu
   u_self = u_self_1 + u_self_2
   do ia = 1 , natm
-    ef_self( ia , 1 ) = 2.0_dp * selfa2 * mu ( 1 , ia )
-    ef_self( ia , 2 ) = 2.0_dp * selfa2 * mu ( 2 , ia )
-    ef_self( ia , 3 ) = 2.0_dp * selfa2 * mu ( 3 , ia )
-    efg_self ( ia , 1 , 1 ) =  - 2.0_dp * selfa2 * qia ( ia )
-    efg_self ( ia , 2 , 2 ) =  - 2.0_dp * selfa2 * qia ( ia )
-    efg_self ( ia , 3 , 3 ) =  - 2.0_dp * selfa2 * qia ( ia )
+    ef_self( 1 , ia ) = 2.0_dp * selfa2 * mu ( 1 , ia )
+    ef_self( 2 , ia ) = 2.0_dp * selfa2 * mu ( 2 , ia )
+    ef_self( 3 , ia ) = 2.0_dp * selfa2 * mu ( 3 , ia )
+    efg_self ( 1 , 1 , ia ) =  - 2.0_dp * selfa2 * qia ( ia )
+    efg_self ( 2 , 2 , ia ) =  - 2.0_dp * selfa2 * qia ( ia )
+    efg_self ( 3 , 3 , ia ) =  - 2.0_dp * selfa2 * qia ( ia )
   enddo
 
 
@@ -2100,23 +2104,23 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   WRITE ( stdout , '(a)' )     'Electric field at atoms :                           Forces at atoms :'
   do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
-   ia,atype(ia),' Efield   = ', ef ( ia , 1)  , ef ( ia , 2 ) , ef ( ia , 3 ),'    f   = ', fx ( ia )  , fy ( ia ) , fz ( ia )
+   ia,atype(ia),' Efield   = ', ef ( 1 , ia )  , ef ( 2 , ia ) , ef ( 3 , ia ),'    f   = ', fx ( ia )  , fy ( ia ) , fz ( ia )
  enddo
  do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
-   ia,atype(ia),' ef_dir   = ', ef_dir ( ia , 1)  , ef_dir ( ia , 2 ) , ef_dir    ( ia , 3 ), '  f_dir   = ',fx_dir ( ia)  , fy_dir ( ia ) , fz_dir    ( ia  )
+   ia,atype(ia),' ef_dir   = ', ef_dir ( 1, ia )  , ef_dir ( 2 , ia ) , ef_dir    ( 3  , ia ), '  f_dir   = ',fx_dir ( ia)  , fy_dir ( ia ) , fz_dir    ( ia  )
 enddo
 do ia = 1 , natm
   WRITE ( stdout , '(i5,a3,a,3f18.10,10x,a,3f18.10)' ) &
-   ia,atype(ia),' ef_rec   = ', ef_rec ( ia , 1)  , ef_rec ( ia , 2 ) , ef_rec   ( ia , 3 ), '  f_rec   = ',fx_rec ( ia)  , fy_rec ( ia ) , fz_rec    ( ia  )
+   ia,atype(ia),' ef_rec   = ', ef_rec ( 1, ia )  , ef_rec ( 2 , ia ) , ef_rec   ( 3 , ia ), '  f_rec   = ',fx_rec ( ia)  , fy_rec ( ia ) , fz_rec    ( ia  )
  enddo
  do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-   ia,atype(ia),' ef_surf  = ', ef_surf ( ia , 1)  , ef_surf ( ia , 2 ) ,   ef_surf ( ia , 3 )
+   ia,atype(ia),' ef_surf  = ', ef_surf ( 1 , ia )  , ef_surf ( 2 , ia ) ,   ef_surf ( 3 , ia )
  enddo
  do ia = 1 , natm
    WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
-   ia,atype(ia),' ef_self  = ', ef_self ( ia , 1)  , ef_self ( ia , 2 ) ,   ef_self ( ia , 3 )
+   ia,atype(ia),' ef_self  = ', ef_self ( 1 , ia )  , ef_self ( 2 ,ia ) ,   ef_self ( 3 , ia )
  enddo
 #endif
 
@@ -2141,10 +2145,10 @@ do ia = 1 , natm
 #endif
 
 #ifdef debug_ES_efg
-  CALL print_tensor( efg_dir  ( 1 , : , : ) , 'EFG_DIRN' )
-  CALL print_tensor( efg_rec  ( 1 , : , : ) , 'EFG_RECN' )
-  CALL print_tensor( efg_self ( 1 , : , : ) , 'EFG_SELN' )
-  CALL print_tensor( efg      ( 1 , : , : ) , 'EFG_TOTN' )
+  CALL print_tensor( efg_dir  ( : , : , 1 ) , 'EFG_DIRN' )
+  CALL print_tensor( efg_rec  ( : , : , 1 ) , 'EFG_RECN' )
+  CALL print_tensor( efg_self ( : , : , 1 ) , 'EFG_SELN' )
+  CALL print_tensor( efg      ( : , : , 1 ) , 'EFG_TOTN' )
 #endif
 
 
@@ -2210,6 +2214,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   real(kind=dp) :: onesixth, twothird , sthole, uthole , vthole, vthole3, vthole4, ialpha, jalpha , F1thole, F2thole
   real(kind=dp) :: expthole, Athole , arthole, arthole2 , arthole3 , twopiroot, erfra , ra
   real(kind=dp) :: ttt1, ttt2 
+  real(kind=dp) , dimension (:) , allocatable :: tmp 
   integer       :: cthole
   logical       :: ipol, jpol
   logical       :: ldamp 
@@ -2268,7 +2273,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     qi  = qia(ia)
     mui = mu ( : , ia )
     ipol = ipolar(ia)
-    ialpha = polia(ia,1,1)
+    ialpha = polia(1,1,ia)
 
     dip_i = any ( mui .ne. 0.0d0 ) 
 
@@ -2282,6 +2287,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
       if ( ( lvnlist .and. ja .eq. ia ) .or. ( .not. lvnlist .and. ja .le. ia ) ) cycle
 
+        fij = 0.0_dp
         jta  = itype(ja)
         qj   = qia(ja)
         muj = mu ( : , ja )
@@ -2296,7 +2302,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
         sij = rij - nint ( rij )
         rij=0.0_dp
         jpol = ipolar(ja)
-        jalpha = polia(ja,1,1)
+        jalpha = polia(1,1,ja)
         
         do j=1, 3
           do k=1, 3
@@ -2567,23 +2573,23 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
 
           ! electric field
           if ( do_efield ) then
-            ef_dir ( ia , : )   = ef_dir ( ia , : ) - qj * T1%a(:) 
-            ef_dir ( ja , : )   = ef_dir ( ja , : ) + qi * T1%a(:)
+            ef_dir ( : , ia )   = ef_dir ( : , ia ) - qj * T1%a(:) 
+            ef_dir ( : , ja )   = ef_dir ( : , ja ) + qi * T1%a(:)
             if ( ldamp ) then
-              ef_dir ( ia , : ) = ef_dir ( ia , : ) + qj * T1%a_damp(:) 
-              ef_dir ( ja , : ) = ef_dir ( ja , : ) - qi * T1%a_damp2(:)
+              ef_dir ( : , ia ) = ef_dir ( : , ia ) + qj * T1%a_damp(:) 
+              ef_dir ( : , ja ) = ef_dir ( : , ja ) - qi * T1%a_damp2(:)
             endif
           endif
           
           ! electric field gradient
           if ( do_efg ) then
-            efg_dir ( ia , : , : ) = efg_dir ( ia , : , : ) - qj * T2%ab ( : , : ) 
-            efg_dir ( ja , : , : ) = efg_dir ( ja , : , : ) - qi * T2%ab ( : , : ) 
+            efg_dir ( : , : , ia ) = efg_dir ( : , : , ia ) - qj * T2%ab ( : , : ) 
+            efg_dir ( : , : , ja ) = efg_dir ( : , : , ja ) - qi * T2%ab ( : , : ) 
           endif
 
           ! forces
           if ( do_forces ) then
-            fij(:)  = qij * T1%a(:)
+            fij(:)  = fij(:) + qij * T1%a(:)
           endif
 
         endif qq
@@ -2604,16 +2610,16 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ! electric field
           if ( do_efield ) then
             do k = 1 , 3
-              ef_dir ( ia , :  ) = ef_dir ( ia , : ) + T2%ab_thole(:,k) * muj(k)
-              ef_dir ( ja , :  ) = ef_dir ( ja , : ) + T2%ab_thole(:,k) * mui(k) 
+              ef_dir ( : , ia ) = ef_dir ( : , ia ) + T2%ab_thole(:,k) * muj(k)
+              ef_dir ( : , ja ) = ef_dir ( : , ja ) + T2%ab_thole(:,k) * mui(k) 
             enddo
           endif
 
           ! electric field gradient 
           if ( do_efg ) then
             do k = 1 , 3
-              efg_dir ( ia , : , : ) = efg_dir ( ia , : , :  ) + T3%abc (:,:,k) * muj(k)
-              efg_dir ( ja , : , : ) = efg_dir ( ja , : , :  ) - T3%abc (:,:,k) * mui(k)
+              efg_dir ( : , : , ia ) = efg_dir ( : , : , ia ) + T3%abc (:,:,k) * muj(k)
+              efg_dir ( : , : , ja ) = efg_dir ( : , : , ja ) - T3%abc (:,:,k) * mui(k)
             enddo
           endif
 
@@ -2707,19 +2713,21 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+  allocate ( tmp ( natm ) ) 
+
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_dir )
   if ( do_efield ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 1 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( : , 3 ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( 1, : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( 2, : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_dir ( 3, : ) , natm )
   endif
   if ( do_efg ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 1 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 3 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 1 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 2 , 2 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 3 , 3 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 2 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 3 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 2 , 3 , : ) , natm )
   endif
   if ( do_forces ) then
     CALL MPI_ALL_REDUCE_DOUBLE ( fx_dir , natm )
@@ -2746,8 +2754,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
           ita= itype(ia)
           if ( pair_thole(ia) .ne. 0 ) then 
             jta= itype(pair_thole(ia))
-            ialpha = polia(ia,1,1)
-            jalpha = polia(pair_thole(ia),1,1)
+            ialpha = polia(1,1,ia)
+            jalpha = polia(1,1,pair_thole(ia))
             Athole = ( ialpha * jalpha ) ** onesixth 
             write(stdout, '(a,2i5,a5,a,a2,a,f8.5,a,f8.5,a,f8.5,a,f8.5,a)')  'pair : ',ia,pair_thole(ia), atype(ia) ,' -- ', atype(pair_thole(ia)),&
                   'distance = ',pair_thole_distance(ia),' catastrophe at distance = ',4.0_dp**onesixth*Athole,' thole param = ',thole_param(ita,jta) ,'(',thole_param(ita,jta)*Athole,')'
@@ -2757,6 +2765,8 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     io_printnode WRITE( stdout , '(a)' ) '' 
     endif
   endif
+
+  deallocate ( tmp ) 
 
   return
 
@@ -2793,7 +2803,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   real(kind=dp)     :: alpha2, tpi_V , fpi_V , f0
   real(kind=dp)     :: rhonk_R_st_x , rhonk_R_st_y , rhonk_R_st_z 
   real(kind=dp)     :: rhonk_I_st_x , rhonk_I_st_y , rhonk_I_st_z 
-  real(kind=dp)     ,dimension (:), allocatable :: ckr , skr 
+  real(kind=dp)     ,dimension (:), allocatable :: ckr , skr, tmp 
   real(kind=dp)     :: ckria , skria
   real(kind=dp)     :: tau_rec_tmp(3,3) 
   logical           :: ldip 
@@ -2809,12 +2819,13 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   if ( task(2) .or. task(3) ) ldip = .true.
 
 !  if ( do_strucfact ) then
-  if ( .FALSE. ) then
-    CALL struc_fact ( km_coul )
-  endif
+!  if ( .FALSE. ) then
+!    CALL struc_fact ( km_coul )
+!  endif
   
   !if ( .not. use_ckrskr ) allocate( ckr ( natm ) , skr (natm) ) 
-  if ( .TRUE. ) allocate( ckr ( natm ) , skr (natm) ) 
+!  if ( .TRUE. ) allocate( ckr ( natm ) , skr (natm) , tmp(natm)) 
+  allocate( ckr ( natm ) , skr (natm) , tmp(natm)) 
 
   ! ==============================================
   !            reciprocal space part
@@ -2831,7 +2842,7 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
     kcoe   = km_coul%kcoe(ik) 
 
 !    if ( .not. use_ckrskr ) then
-    if ( .TRUE. ) then
+!    if ( .TRUE. ) then
       ttt1 = MPI_WTIME(ierr)
       rhonk_R = 0.0_dp
       rhonk_I = 0.0_dp
@@ -2855,16 +2866,16 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
       enddo
       ttt2 = MPI_WTIME(ierr)
       t12 = t12 + (ttt2-ttt1)
-    else 
-      rhonk_R = 0.0_dp
-      rhonk_I = 0.0_dp
-      km_coul%rhon_R = 0.0_dp
-      km_coul%rhon_I = 0.0_dp
-      if ( task(1) ) CALL charge_density_k_q  ( km_coul , ik )  
-      if ( ldip    ) CALL charge_density_k_mu ( km_coul , mu , ik )  
-      rhonk_R =  km_coul%rhon_R(ik)
-      rhonk_I =  km_coul%rhon_I(ik)
-    endif
+!    else 
+!      rhonk_R = 0.0_dp
+!      rhonk_I = 0.0_dp
+!      km_coul%rhon_R = 0.0_dp
+!      km_coul%rhon_I = 0.0_dp
+!      if ( task(1) ) CALL charge_density_k_q  ( km_coul , ik )  
+!      if ( ldip    ) CALL charge_density_k_mu ( km_coul , mu , ik )  
+!      rhonk_R =  km_coul%rhon_R(ik)
+!      rhonk_I =  km_coul%rhon_I(ik)
+!    endif
 
     ttt1 = MPI_WTIME(ierr)
     str    = (rhonk_R*rhonk_R + rhonk_I*rhonk_I) * Ak  
@@ -2875,13 +2886,13 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 
     do ia = 1 , natm
 !      if ( use_ckrskr ) then
-      if ( .FALSE. ) then
-        ckria = km_coul%ckr(ia,ik)  
-        skria = km_coul%skr(ia,ik)  
-      else
+!      if ( .FALSE. ) then
+!        ckria = km_coul%ckr(ia,ik)  
+!        skria = km_coul%skr(ia,ik)  
+!      else
         ckria = ckr(ia)
         skria = skr(ia)
-      endif
+!      endif
 
       if ( do_efg .or. ( do_forces .and. ldip ) )  then
         recarg2 = Ak * ( rhonk_R * ckria + rhonk_I * skria )
@@ -2895,20 +2906,20 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
       endif
 
       if ( do_efield ) then
-        ef_rec ( ia , 1 ) = ef_rec ( ia , 1 ) - fxij
-        ef_rec ( ia , 2 ) = ef_rec ( ia , 2 ) - fyij
-        ef_rec ( ia , 3 ) = ef_rec ( ia , 3 ) - fzij
+        ef_rec ( 1 , ia ) = ef_rec ( 1 , ia ) - fxij
+        ef_rec ( 2 , ia ) = ef_rec ( 2 , ia ) - fyij
+        ef_rec ( 3 , ia ) = ef_rec ( 3 , ia ) - fzij
       endif
 
       ! electric field gradient
       if ( do_efg ) then
         recarg2 = Ak * ( rhonk_R * ckria + rhonk_I * skria )
-        efg_rec ( ia , 1 , 1 ) = efg_rec ( ia , 1 , 1 ) + kx * kx * recarg2
-        efg_rec ( ia , 2 , 2 ) = efg_rec ( ia , 2 , 2 ) + ky * ky * recarg2
-        efg_rec ( ia , 3 , 3 ) = efg_rec ( ia , 3 , 3 ) + kz * kz * recarg2
-        efg_rec ( ia , 1 , 2 ) = efg_rec ( ia , 1 , 2 ) + kx * ky * recarg2
-        efg_rec ( ia , 1 , 3 ) = efg_rec ( ia , 1 , 3 ) + kx * kz * recarg2
-        efg_rec ( ia , 2 , 3 ) = efg_rec ( ia , 2 , 3 ) + ky * kz * recarg2
+        efg_rec ( 1 , 1 , ia ) = efg_rec ( 1 , 1 , ia ) + kx * kx * recarg2
+        efg_rec ( 2 , 2 , ia ) = efg_rec ( 2 , 2 , ia ) + ky * ky * recarg2
+        efg_rec ( 3 , 3 , ia ) = efg_rec ( 3 , 3 , ia ) + kz * kz * recarg2
+        efg_rec ( 1 , 2 , ia ) = efg_rec ( 1 , 2 , ia ) + kx * ky * recarg2
+        efg_rec ( 1 , 3 , ia ) = efg_rec ( 1 , 3 , ia ) + kx * kz * recarg2
+        efg_rec ( 2 , 3 , ia ) = efg_rec ( 2 , 3 , ia ) + ky * kz * recarg2
       endif
 
       if ( do_forces ) then
@@ -2984,23 +2995,34 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   if ( do_stress) tau_rec = tau_rec * 2.0_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
+  print*,myrank,u_rec
   if ( do_efield ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,1) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,2) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(:,3) , natm )
+    tmp=ef_rec ( 1, : )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
+    ef_rec ( 1, : )=tmp
+    tmp=ef_rec ( 2, : )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
+    ef_rec ( 2, : )=tmp
+    tmp=ef_rec ( 3, : )
+    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
+    ef_rec ( 3, : )=tmp
+
+!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(1,:) , natm )
+!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(2,:) , natm )
+!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(3,:) , natm )
   endif
   if ( do_efg ) then
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 1 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 3 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 2 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 3 ) , natm )
-    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 3 ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 1 , : ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 2 , : ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 3 , 3 , : ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 2 , : ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 3 , : ) , natm )
+    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 3 , : ) , natm )
   endif
   if ( do_forces ) then
     CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
-        CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
-CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fy_rec , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
   endif
   if ( do_stress ) then
     CALL MPI_ALL_REDUCE_DOUBLE ( tau_rec ( 1 , : ) , 3 )
@@ -3033,7 +3055,8 @@ CALL MPI_ALL_REDUCE_DOUBLE ( fz_rec , natm )
     fz_rec  =   fz_rec  * fpi_V
   endif
 
-  if ( .not. use_ckrskr ) deallocate( ckr , skr ) 
+!  if ( .TRUE. ) deallocate( ckr , skr ) 
+  deallocate( ckr , skr , tmp) 
 
   return
 
@@ -3384,10 +3407,10 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   logical :: linduced , didpim
   real(kind=dp) :: tttt , tttt2 , alphaES_save
   real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
-  real(kind=dp) :: Efield( natm , 3 ) , Efield_stat ( natm , 3 ) , Efield_ind ( natm , 3 ), EfieldG_stat ( natm , 3 , 3 ) , EfieldG_ind ( natm , 3 , 3 )
-  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_
-  logical       :: task_static (3), task_ind(3), ldip, rec_forever
-  real(kind=dp) , dimension (:,:) , allocatable :: f_ind , dmu_ind
+  real(kind=dp) :: Efield( 3 , natm ) , Efield_stat ( 3 , natm ) , Efield_ind ( 3 , natm ), EfieldG_stat ( 3 , 3 , natm ) , EfieldG_ind ( 3 , 3 , natm )
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_ , rmsd_gmin
+  logical       :: task_static (3), task_ind(3), ldip
+  real(kind=dp) , dimension (:,:) , allocatable :: f_ind , dmu_ind, f_ind_prev , gmin , mu_prev, dmin, zerovec, g_ind
 #ifdef debug_print_dipff_scf
   integer :: kkkk
 #endif 
@@ -3399,8 +3422,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   print*,kkkk,itime
 #endif
 
-  allocate ( f_ind ( natm , 3 ) , dmu_ind( 3 , natm )  ) 
 
+  allocate ( f_ind ( 3 , natm ) , dmu_ind( 3 , natm )  , f_ind_prev( 3 ,natm ) , gmin( 3 , natm ) , mu_prev( 3 , natm ) , dmin(3,natm) , zerovec(3,natm) , g_ind(3,natm ) ) 
+  zerovec = 0.0_dp
 
   tttt2=0.0_dp
   statime
@@ -3475,6 +3499,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 !kO
   f_ind = Efield   
 !kO
+  mu_prev = 0.0_dp
 
   ! =============================
   !           SCF LOOP
@@ -3496,8 +3521,13 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
       if      ( algo_moment_from_pola .eq. 'scf' ) then 
         CALL induced_moment       ( Efield , mu_ind )  ! Efield in ; mu_ind and u_pol out
       else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
-        CALL induced_moment_inner ( f_ind , dmu_ind )          ! f_ind  in ; mu_ind 
-        mu_ind = dmu_ind + mu_ind
+        if ( iscf .le. 2 ) then
+          CALL induced_moment_inner ( f_ind , dmu_ind )         
+          mu_ind = mu_ind + dmu_ind
+        else
+          CALL induced_moment_inner ( gmin , dmu_ind )          
+          mu_ind = mu_ind + dmu_ind
+        endif
       endif
 
     else
@@ -3529,7 +3559,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
     do ia = 1 , natm
       do alpha = 1 , 3
         do beta = 1 , 3
-          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( ia , alpha , beta ) * mu_ind ( beta , ia )
+          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( alpha , beta , ia ) * mu_ind ( beta , ia )
         enddo
       enddo
     enddo
@@ -3556,30 +3586,44 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 
     ! ASPC corrector 
     if ( iscf.eq.1 .and. calc .eq. 'md' ) then
-      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , 2 ) ! corrector
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield  , 2 ) ! corrector
     endif
+    
     ! ===================
     !  stopping criteria
     ! ===================
-    rmsd = 0.0_dp
-    npol=0
-    do ia=1, natm
-      it = itype( ia) 
-      if ( .not. lpolar( it ) ) cycle
-      npol = npol + 1
+!    CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+!    print*,'rmsd 1',rmsd
+!kO
+    do ia = 1 , natm
       do alpha = 1 , 3
-        if ( polia ( ia,  alpha , alpha ) .eq. 0.0_dp ) cycle
-        rmsd  = rmsd  + ( mu_ind ( alpha , ia ) / polia ( ia,  alpha , alpha ) - Efield ( ia , alpha ) ) ** 2 
-!kO
-        f_ind ( ia , alpha ) =  Efield ( ia , alpha ) - mu_ind ( alpha , ia ) / polia ( ia,  alpha , alpha )
-!kO
-#ifdef debug_scf_pola
-        write(stdout,'(2i5,4e16.8)') ia,alpha,mu_ind ( alpha , ia ),polia ( ia,  alpha , alpha ),Efield ( ia , alpha ),rmsd
-#endif 
+        it = itype( ia)
+        if ( .not. lpolar( it ) ) cycle
+        f_ind(alpha,ia) = Efield(alpha,ia) - mu_ind(alpha,ia)/polia(alpha,alpha,ia)
       enddo
     enddo
-    rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) ) 
 
+!    if ( algo_moment_from_pola .eq. 'scf' ) then
+!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+!    else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
+      if ( iscf .ne. 1 ) then
+        CALL find_min ( f_ind_prev , f_ind , (mu_ind - mu_prev) , gmin , dmin )
+        do ia = 1 , natm
+          do alpha = 1 , 3
+            it = itype( ia)
+            if ( .not. lpolar( it ) ) cycle
+            g_ind(alpha,ia) = gmin(alpha,ia) + mu_ind(alpha,ia)/polia(alpha,alpha,ia)
+          enddo
+        enddo
+        mu_ind = mu_prev + dmin
+      CALL get_rmsd_mu ( rmsd , gmin , zerovec )
+      endif
+!    endif
+!kO
+
+!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+
+    ! output
     if ( calc .ne. 'opt' ) then
     io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
     'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd       = ', rmsd
@@ -3593,8 +3637,11 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   kkkk = kkkk + 1 
 #endif
 
-  enddo ! end of SCF loop
+  ! save previous
+  mu_prev = mu_ind
+  f_ind_prev = gmin 
 
+  enddo ! end of SCF loop
 
   ! ===========================
   !  charge/force info is recovered
@@ -3632,7 +3679,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 #endif
 
 
-  deallocate ( f_ind , dmu_ind ) 
+  deallocate ( f_ind , dmu_ind  , f_ind_prev , gmin , mu_prev , dmin , zerovec , g_ind) 
 
   stotime
   addtime(time_moment_from_pola)
@@ -4299,6 +4346,82 @@ SUBROUTINE write_DIPFF ( mu )
 
 END SUBROUTINE write_DIPFF
 
+SUBROUTINE find_min ( g0 , g1 , d1 , gmin , dmin )
+
+  USE config,           ONLY :  natm , itype
+  USE io,               ONLY :  stdout
+
+  implicit none
+  ! global 
+  real(kind=dp) :: g0(3,natm)
+  real(kind=dp) :: g1(3,natm)
+  real(kind=dp) :: d1(3,natm)
+  real(kind=dp) :: gmin(3,natm)
+  real(kind=dp) :: dmin(3,natm)
+  ! local 
+  real(kind=dp) :: alpha
+  real(kind=dp) :: g0sq, g0g1mg0
+  real(kind=dp) :: g1mg0(3,natm)
+  integer       :: ia, it, k 
+
+  ! ===========================================
+  !      alpha = - g0^2 / ( g0 ( g0 - g1 ) ) 
+  ! ===========================================
+  g1mg0   = g1 - g0
+  g0sq    = 0.0_dp 
+  g0g1mg0 = 0.0_dp
+  do ia=1 , natm  
+    it = itype( ia)
+    if ( .not. lpolar( it ) ) cycle
+    do k = 1 ,3  
+      g0sq    = g0sq    + g0(k,ia)*g0   (k,ia)
+      g0g1mg0 = g0g1mg0 + g0(k,ia)*g1mg0(k,ia)
+!      write(stdout,'(a,2i,2e16.8)') 'loop g0 g1',ia,k,g0   (k,ia),g1   (k,ia)
+!      write(stdout,'(a,2i,4e16.8)') 'loop find_min',ia,k,g0(k,ia)*g0(k,ia),g0(k,ia)*g1mg0(k,ia),g0(k,ia),g1mg0(k,ia)
+    enddo
+  enddo
+  alpha = - g0sq / g0g1mg0 
+  if ( abs(g0g1mg0) .lt. 1e-10) alpha = 1.0d0 
+!  write(stdout,'(a,3e16.8)') 'find_min',alpha, g0sq , g0g1mg0
+  !alpha=1.0_dp
+  !alpha=0.85_dp
+
+  gmin = g0 + alpha * g1mg0
+  dmin =      alpha * d1
+
+  return
+
+END SUBROUTINE
+
+SUBROUTINE get_rmsd_mu ( rmsd , g0 , mu ) 
+
+  USE config,           ONLY :  natm , itype , polia
+
+  implicit none 
+  ! global
+  real(kind=dp) :: rmsd
+  real(kind=dp) :: g0(3,natm) 
+  real(kind=dp) :: mu(3,natm) 
+  ! local
+  integer :: alpha , ia ,  it
+  integer :: npol
+
+  rmsd = 0.0_dp
+  npol=0
+  do ia=1, natm
+    it = itype( ia)
+    if ( .not. lpolar( it ) ) cycle
+    npol = npol + 1
+    do alpha = 1 , 3
+      if ( polia ( alpha , alpha  , ia ) .eq. 0.0_dp ) cycle
+      rmsd  = rmsd  +  ( mu ( alpha , ia ) / polia ( alpha , alpha , ia ) - g0 ( alpha , ia ) ) ** 2.0_dp
+    enddo
+  enddo
+  rmsd = SQRT ( rmsd /  REAL(npol,kind=dp) )
+
+  return
+
+END SUBROUTINE
 
 END MODULE field 
 ! ===== fmV =====

@@ -21,8 +21,9 @@ $(info compiling on : $(HOST) )
 SUFFIX=.F90
 
 # The compiler
-FC = mpif90 
-#FC = gfortran 
+#FC = mpif90 
+FC = gfortran 
+#FC = ifort 
 $(info FC : $(shell which $(FC) ) )
 FCL=$(FC)
 # the pre-compiler
@@ -51,18 +52,20 @@ EXE= mdff-b.x
 # =================
 #   on superbock
 # =================
-#FCFLAGS = -cpp -O3 -ffree-line-length-0 -I/usr/include 
+FCFLAGS = -cpp -O0 -ffree-line-length-0 -I/home/filipe/devel/openmpi-1.4.5-intel/include/ 
 
 # =================
 #   on mario / babar / charrue
 # =================
 #FCFLAGS = -O3 -xSSE4.2 -align all -ip -static 
-FCFLAGS = -O3 -xHost -align all #-ip -static 
+#FCFLAGS = -O1 -xHost -align all #-ip -static 
 #FCFLAGS = -O3 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all
 #FCFLAGS = -O3 -ip -xW
-#FCFLAGS = -O0 -check all -warn all 
+#FCFLAGS = -O0 -check all -warn all -debug 
+#FCFLAGS = -O0 -check all
+FCFLAGS = -O0 
 ifeq ($(HOST),debian-charrue)
 FCFLAGS = -O3 -ip -align all
 endif
