@@ -36,7 +36,7 @@ MODULE config
 
   implicit none
 
-  integer, PARAMETER                           :: ntypemax = 300      !< maximum number of types
+  integer, PARAMETER                           :: ntypemax = 16      !< maximum number of types
   integer, PARAMETER                           :: vnlmax   = 2000    !< maximum number of types
 
   character(len=60), SAVE                      :: system             !< system name                                              
@@ -235,7 +235,7 @@ SUBROUTINE write_CONTFF
       WRITE ( kunit_CONTFF,*) ( atypei(it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,*) ( natmi (it) , it=1,ntype ) 
       WRITE ( kunit_CONTFF,'(A)') 'Cartesian' 
-      WRITE ( kunit_CONTFF,'(a,9e20.12)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
+      WRITE ( kunit_CONTFF,'(a,9e24.16)') ( atype ( ia ) , xxx ( ia ) , yyy ( ia ) , zzz ( ia ) , & 
                                                            vx  ( ia ) , vy  ( ia ) , vz  ( ia ) , &
                                                            fx  ( ia ) , fy  ( ia ) , fz ( ia )  , ia = 1 , natm )
   CLOSE (kunit_CONTFF)
@@ -274,8 +274,8 @@ SUBROUTINE config_alloc
   allocate( quadia ( natm ) )
   allocate( dipia ( 3 , natm ) )
   allocate( dipia_wfc ( 3 , natm ) )
-  allocate( polia ( natm , 3 , 3 ) )
-  allocate( invpolia ( natm , 3 , 3 ) )
+  allocate( polia ( 3 , 3  , natm ) )
+  allocate( invpolia ( 3 , 3 , natm ) )
   allocate( ipolar ( natm ) )
   allocate( phi_coul_tot ( natm ) ) !< only if we calculated coulombic interactions
 

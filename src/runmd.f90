@@ -350,9 +350,9 @@ MAIN:  do itime = 1 , npas
                do ia = 1 , natm
                  it = itype ( ia )
                  if ( lwfc( it ) .ge. 0 ) then
-                   WRITE ( kunit_EFGALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , efg_t ( ia , 1 , 1) , efg_t ( ia , 2 , 2) , &
-                                                                                   efg_t ( ia , 3 , 3) , efg_t ( ia , 1 , 2) , &
-                                                                                   efg_t ( ia , 1 , 3) , efg_t ( ia , 2 , 3)
+                   WRITE ( kunit_EFGALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , efg_t ( 1 , 1 , ia ) , efg_t ( 2 , 2 , ia ) , &
+                                                                                   efg_t ( 3 , 3 , ia ) , efg_t ( 1 , 2 , ia ) , &
+                                                                                   efg_t ( 1 , 3 , ia ) , efg_t ( 2 , 3 , ia )
                  endif
                enddo
              endif
@@ -394,7 +394,7 @@ MAIN:  do itime = 1 , npas
              do ia = 1 , natm
                it = itype ( ia )
                if ( lwfc( it ) .ge. 0 ) then
-                 WRITE ( kunit_EFALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , ef_t ( ia , 1 ) , ef_t ( ia , 2) ,  ef_t ( ia , 3) 
+                 WRITE ( kunit_EFALL ,'(i8,2x,a3,6e24.16)') ia , atype ( ia ) , ef_t ( 1 , ia ) , ef_t ( 2 , ia ) ,  ef_t ( 3 , ia ) 
                endif
              enddo
         

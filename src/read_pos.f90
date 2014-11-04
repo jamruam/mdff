@@ -198,17 +198,17 @@ SUBROUTINE typeinfo_init
       ipolar ( ia )    = lpolar ( it )
       do i = 1 , 3
         do j = 1 , 3
-          polia ( ia , i , j ) = pol ( it , i , j )
+          polia ( i , j  , ia ) = pol ( it , i , j )
         enddo
       enddo 
       if ( .not. lpolar ( it ) ) cycle
-      invpolia ( ia , : , : )  = polia ( ia , : , : )
-      CALL DGETRF( 3, 3, invpolia(ia,:,:), 3, ipiv, ierr )  
+      invpolia ( : , : , ia )  = polia ( : , : , ia )
+      CALL DGETRF( 3, 3, invpolia(:,:,ia), 3, ipiv, ierr )  
       if ( ierr.lt.0 ) then
         WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRF failed in induced_moment',ierr
         STOP
       endif
-      CALL DGETRI( 3 , invpolia(ia,:,:) , 3 ,  ipiv , WORK, LWORK, ierr )
+      CALL DGETRI( 3 , invpolia(:,:,ia) , 3 ,  ipiv , WORK, LWORK, ierr )
       if ( ierr.lt.0 ) then
         WRITE( stdout , '(a,i6)' ) 'ERROR call to DGETRI failed in induced_moment',ierr
         STOP

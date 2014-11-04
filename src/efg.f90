@@ -352,7 +352,7 @@ SUBROUTINE efgcalc
   real(kind=dp) , dimension ( : , : )     , allocatable :: rave !average positions
 #endif
   integer :: nwfc , itwfc
-  logical :: any_wfc
+  logical :: any_wfc, didpim
   
 
   ! ==================================
@@ -433,7 +433,7 @@ SUBROUTINE efgcalc
       ! =======================
       efg_t    = 0.0_dp
       mu = 0.0_dp
-      CALL get_dipole_moments ( mu )
+      CALL get_dipole_moments ( mu , didpim )
 
 !#if defined(debug_multipole) || defined(debug)
 !    allocate ( ef_tmp  ( natm , 3     ) )
@@ -780,19 +780,19 @@ atom : do ia = atom_dec%istart , atom_dec%iend
   !======================================
   !  MERGE tensor from different proc
   !======================================
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 1 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 2 , 2 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 3 , 3 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 2 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 3 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 2 , 3 ) , natm ) 
-  efg_ia( : , 2, 1) = efg_ia( : , 1, 2)
-  efg_ia( : , 3, 1) = efg_ia( : , 1, 3)
-  efg_ia( : , 3, 2) = efg_ia( : , 2, 3)
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 1 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 2 , 2 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 3 , 3 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 2 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 3 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 2 , 3 , : ) , natm ) 
+  efg_ia( 2, 1 , : ) = efg_ia( 1, 2, : )
+  efg_ia( 3, 1 , : ) = efg_ia( 1, 3, : )
+  efg_ia( 3, 2 , : ) = efg_ia( 2, 3, : )
 
 #ifdef debug
-  CALL print_tensor( efg_ia( 1    , : , : ) , 'EFG_1A  ' )
-  CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NA  ' )
+  CALL print_tensor( efg_ia( : , : , 1 ) , 'EFG_1A  ' )
+  CALL print_tensor( efg_ia( : , : , 1 ) , 'EFG_NA  ' )
 #endif
 
   ttt3 = MPI_WTIME(ierr)
@@ -1025,21 +1025,21 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
 !=============================
 !  MERGE REAL PART
 !=============================
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 1 , 1 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 2 , 2 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 3 , 3 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 1 , 2 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 1 , 3 ) , natm ) 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( : , 2 , 3 ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 1 , 1 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 2 , 2 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 3 , 3 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 1 , 2 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 1 , 3 , : ) , natm ) 
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia_real ( 2 , 3 , : ) , natm ) 
 
  ! in fact we don't need this as the EFG tensor is completely define from the upper diagonal value
-  efg_ia_real( : , 2 , 1) = efg_ia_real( : , 1 , 2) 
-  efg_ia_real( : , 3 , 1) = efg_ia_real( : , 1 , 3) 
-  efg_ia_real( : , 3 , 2) = efg_ia_real( : , 2 , 3)
+  efg_ia_real( 2 , 1, : ) = efg_ia_real( 1 , 2, : ) 
+  efg_ia_real( 3 , 1, : ) = efg_ia_real( 1 , 3, : ) 
+  efg_ia_real( 3 , 2, : ) = efg_ia_real( 2 , 3, : )
 
-  efg_ia_dual( : , 2 , 1) = efg_ia_dual( : , 1 , 2) 
-  efg_ia_dual( : , 3 , 1) = efg_ia_dual( : , 1 , 3) 
-  efg_ia_dual( : , 3 , 2) = efg_ia_dual( : , 2 , 3)
+  efg_ia_dual( 2 , 1 , : ) = efg_ia_dual( 1 , 2 , :) 
+  efg_ia_dual( 3 , 1 , : ) = efg_ia_dual( 1 , 3 , :) 
+  efg_ia_dual( 3 , 2 , : ) = efg_ia_dual( 2 , 3 , :)
 
   ! =======
   ! 4pi/3V
@@ -1243,18 +1243,18 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
   ttt2 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + ( ttt2 - ttt1 )
 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 1 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 2 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 3 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 1 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( : , 2 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 1 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 2 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 3 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 2 , 3 , : ) , natm )
 
   ! EFG is symmetric
   ! not needed ... just for consistency
-  efg_ia ( : , 2 , 1 ) = efg_ia ( : , 1 , 2 )
-  efg_ia ( : , 3 , 1 ) = efg_ia ( : , 1 , 3 )
-  efg_ia ( : , 3 , 2 ) = efg_ia ( : , 2 , 3 )
+  efg_ia ( 2 , 1 , : ) = efg_ia ( 1 , 2 , : )
+  efg_ia ( 3 , 1 , : ) = efg_ia ( 1 , 3 , : )
+  efg_ia ( 3 , 2 , : ) = efg_ia ( 2 , 3 , : )
 
   ttt3 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + ( ttt3 - ttt2 )
@@ -1547,19 +1547,19 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   ! ====================================================== 
   !             merge real part 
   ! ====================================================== 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 1 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 3 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 1 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( : , 2 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 1 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 2 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 3 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 1 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_dir ( 2 , 3 , : ) , natm )
 
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 1 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 3 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 2 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 1 , 3 ) , natm )
-  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( : , 2 , 3 ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 1 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 3 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 2 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 3 , : ) , natm )
+  CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 3 , : ) , natm )
 
   ! ======================================================
   ! remark on the unit :
@@ -1574,9 +1574,9 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   ! field gradient 
   do ia = 1 , natm
    if ( lefg_it_contrib .and. (itype(ia) .ne. it_efg) ) cycle
-   efg_self ( ia , 1 , 1 ) = selfa * qia ( ia ) 
-   efg_self ( ia , 2 , 2 ) = selfa * qia ( ia ) 
-   efg_self ( ia , 3 , 3 ) = selfa * qia ( ia ) 
+   efg_self ( 1 , 1 , : ) = selfa * qia ( ia ) 
+   efg_self ( 2 , 2 , : ) = selfa * qia ( ia ) 
+   efg_self ( 3 , 3 , : ) = selfa * qia ( ia ) 
   enddo
 
   ! =====================================================
