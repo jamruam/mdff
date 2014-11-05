@@ -18,7 +18,6 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define debug_nhcn
 ! ======= Hardware =======
 
 ! *********************** MODULE calc_thermo ***********************************
@@ -365,10 +364,6 @@ SUBROUTINE write_thermo ( step , kunit , key )
     endif
   endif
   if ( key .eq. 'std' ) then
-#ifdef debug_nhcn
-        if ( any ( integrator .eq. nvt_ensemble ) ) write(kunit, 1000) xi,vxi
-        if ( any ( integrator .eq. npt_ensemble ) ) write(kunit, 1001) xi,vxi,xib,vxib,xe,ve
-#endif
         io_node WRITE ( kunit, 300)  step , REAL ( step * dt / time_unit , kind = dp ) , &
                                      e_kin_r , temp_r , u_tot  , u_vdw_r , u_coul_r  , &
                                      pressure_tot_r , pvirial_vdw_r , pvirial_coul_r , pvirial_tot_r, omega ,    &
@@ -401,9 +396,6 @@ SUBROUTINE write_thermo ( step , kunit , key )
      &        '  ---------------------------------------------'/ &
      &        '  Etot                  = ',E19.12/ &
      &        '  Htot                  = ',E19.12)
-
- 1000 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8) 
- 1001 FORMAT('xi = ',<nhc_n>e16.8,'  vxi = ',<nhc_n>e16.8,'  xib = ',<nhc_n>e16.8,'  vxib = ', <nhc_n>e16.8 ,'  xe = ',e16.8  ,'  ve = ',e16.8 ) 
 
   return
 

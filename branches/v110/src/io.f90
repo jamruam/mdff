@@ -173,13 +173,17 @@ CONTAINS
 SUBROUTINE io_init
 
   implicit none
+#ifdef MPI
   include "mpif.h"
+#endif
 
   ! local 
   integer :: myrank , numprocs , ierr
-  
+ 
+#ifdef MPI 
   CALL MPI_COMM_RANK ( MPI_COMM_WORLD , myrank , ierr )    ! numero de processus (output myrank .eq. 0 )
   CALL MPI_COMM_SIZE ( MPI_COMM_WORLD , numprocs , ierr )  ! nombre de processus
+#endif
 
 
    if ( myrank .eq. 0 ) then

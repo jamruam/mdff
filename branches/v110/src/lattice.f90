@@ -193,10 +193,11 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+#ifdef MPI
   dectime
 
   statime  
-
+#endif
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(2,1)+VZ(N)*BASIS(3,1)
     V2=VX(N)*BASIS(1,2)+VY(N)*BASIS(2,2)+VZ(N)*BASIS(3,2)
@@ -206,8 +207,10 @@ SUBROUTINE kardir ( NMAX , VX , VY , VZ , BASIS )
     VZ(N)=V3
   enddo
 
+#ifdef MPI
   stotime
   addtime(kardirtottime)
+#endif
   return
 
 END SUBROUTINE
@@ -238,9 +241,11 @@ SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
   ! local 
   integer :: N
   real(kind=dp) :: V1 , V2 , V3
+#ifdef MPI
   dectime
 
   statime  
+#endif
   do N=1,NMAX
     V1=VX(N)*BASIS(1,1)+VY(N)*BASIS(1,2)+VZ(N)*BASIS(1,3)
     V2=VX(N)*BASIS(2,1)+VY(N)*BASIS(2,2)+VZ(N)*BASIS(2,3)
@@ -250,8 +255,10 @@ SUBROUTINE dirkar ( NMAX , VX , VY , VZ , BASIS )
     VZ(N)=V3
   enddo
 
+#ifdef MPI
   stotime
   addtime(dirkartottime)
+#endif
   return
 
 END SUBROUTINE dirkar 
@@ -313,9 +320,11 @@ SUBROUTINE dirkar_1 ( VX , VY , VZ , BASIS , ncell )
 
   ! local 
   real(kind=dp) :: V1 , V2 , V3
+#ifdef MPI
   dectime
 
   statime
+#endif
   V1=VX*BASIS(1,1)+VY*BASIS(1,2)+VZ*BASIS(1,3)
   V2=VX*BASIS(2,1)+VY*BASIS(2,2)+VZ*BASIS(2,3)
   V3=VX*BASIS(3,1)+VY*BASIS(3,2)+VZ*BASIS(3,3)
@@ -323,8 +332,10 @@ SUBROUTINE dirkar_1 ( VX , VY , VZ , BASIS , ncell )
   VY=V2*REAL(ncell,kind=dp)
   VZ=V3*REAL(ncell,kind=dp)
 
+#ifdef MPI
   stotime
   addtime(dirkartottime)
+#endif
   return
 
 END SUBROUTINE dirkar_1

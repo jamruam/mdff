@@ -36,7 +36,7 @@
 !#define debug_cg
 !#define debug_extrapolate
 !#define debug_print_dipff_scf
-!#define debug_scf_kO_inner
+#define debug_scf_kO_inner
 ! ======= Hardware =======
 
 ! *********************** MODULE field *****************************************
@@ -161,9 +161,9 @@ MODULE field
   character(len=4) :: algo_ext_dipole_allowed(2)
   data                algo_ext_dipole_allowed       / 'poly','aspc'/
 
-  character(len=6) :: algo_moment_from_pola            !< set the algorithm used to get induced moments from polarization 
-  character(len=6) :: algo_moment_from_pola_allowed(2) !< set the algorithm used to get induced moments from polarization 
-  data                algo_moment_from_pola_allowed / 'scf' , 'scf_kO' /  !! scf ( self consistent ) 
+  character(len=9) :: algo_moment_from_pola            !< set the algorithm used to get induced moments from polarization 
+  character(len=9) :: algo_moment_from_pola_allowed(4) !< set the algorithm used to get induced moments from polarization 
+  data                algo_moment_from_pola_allowed / 'scf' , 'scf_kO_v1' , 'scf_kO_v2' , 'scf_kO_v3'  /  !! scf ( self consistent ) 
   
   integer          :: lwfc     ( ntypemax )            !< moment from wannier centers 
   real(kind=dp)    :: rcut_wfc                         !< radius cut-off for WFs searching
@@ -239,7 +239,7 @@ SUBROUTINE field_default_tag
   lwrite_dip    = .false.            
 
   ! polarization
-  lpolar        = 0
+  lpolar        = .false. 
   pol           = 0.0_dp
   pol_damp_b    = 0.0_dp
   pol_damp_c    = 0.0_dp
@@ -352,7 +352,7 @@ SUBROUTINE field_check_tag
   endif
 
   if ( any( pol_damp_k .gt. maximum_of_TT_expansion ) ) then
-    io_node  WRITE ( stdout , '(a,i)' ) 'ERROR Tang-Toennieng expansion order too large (i.e pol_damp_k) max = ',maximum_of_TT_expansion 
+    io_node  WRITE ( stdout , '(a,i5)' ) 'ERROR Tang-Toennieng expansion order too large (i.e pol_damp_k) max = ',maximum_of_TT_expansion 
     STOP
   endif
   ldamp=.false.
@@ -624,7 +624,7 @@ SUBROUTINE field_print_info ( kunit , quiet )
             WRITE ( kunit ,'(a)') '                    b           c              k'
             do it2 = 1 ,ntype 
           !    if ( ldip_damping(it1,it1,it2 ) )  &
-              WRITE ( kunit ,'(a,a,a,a,2f12.4,i,a,2f12.4,i,a)') atypei(it1),' - ',atypei(it2), ' : ' ,& 
+              WRITE ( kunit ,'(a,a,a,a,2f12.4,i2,a,2f12.4,i2,a)') atypei(it1),' - ',atypei(it2), ' : ' ,& 
                                                     pol_damp_b(it1,it1,it2),pol_damp_c(it1,it1,it2),pol_damp_k(it1,it1,it2),&
                                               ' ( ',pol_damp_b(it1,it2,it1),pol_damp_c(it1,it2,it1),pol_damp_k(it1,it2,it1),' ) '
             enddo
@@ -1234,8 +1234,9 @@ SUBROUTINE engforce_nmlj_pbc
     WRITE ( stdout , '(a,i6,a,i4)' ) 'debug : itype ',ia,'',itype(ia)
   enddo
 #endif
-
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr) ! timing info
+#endif
   cccc = cccc + 1
 
   u   = 0.0_dp
@@ -1341,8 +1342,10 @@ SUBROUTINE engforce_nmlj_pbc
   tau_nonb = tau_nonb / simu_cell%omega / press_unit
   vir = vir/3.0_dp
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot + ( ttt2 - ttt1 )
+#endif
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   ) 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir ) 
@@ -1520,8 +1523,10 @@ SUBROUTINE engforce_nmlj_pbc_noshift
   real(kind=dp) :: qtwo ( ntype , ntype )
   real(kind=dp) :: ttt1 , ttt2
   real(kind=dp) :: u , vir
-  
+ 
+#ifdef MPI 
   ttt1 = MPI_WTIME(ierr) ! timing info
+#endif 
   
   u   = 0.0_dp
   vir = 0.0_dp
@@ -1590,8 +1595,10 @@ SUBROUTINE engforce_nmlj_pbc_noshift
   enddo
   vir = vir/3.0_dp
 
+#ifdef MPI 
   ttt2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot + ( ttt2 - ttt1 )
+#endif
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )
@@ -1752,7 +1759,7 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   real(kind=dp) , intent ( out ) :: mu_ind    ( 3 , natm ) 
 
   ! local
-  real(kind=dp), dimension(:,:), allocatable :: mu_prev , f_ind , f_ind_total , zerovec
+  real(kind=dp), dimension(:,:), allocatable :: mu_prev , f_ind_total , zerovec , f_ind
   real(kind=dp) :: efg_dummy(3,3,natm)
   real(kind=dp) :: alphaES_save
   real(kind=dp) :: rmsd_inner, rmsd_ref 
@@ -1761,7 +1768,7 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   integer :: iscf_inner 
   logical :: task_ind(3)
   
-  allocate ( mu_prev(3,natm) , f_ind ( 3 , natm ) , f_ind_total ( 3 , natm ) , zerovec(3,natm) )
+  allocate ( mu_prev(3,natm) , f_ind_total ( 3 , natm ) , zerovec(3,natm) , f_ind (3,natm) )
   zerovec      = 0.0_dp
   f_ind        = 0.0_dp
   f_ind_total  = 0.0_dp
@@ -1798,21 +1805,20 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
   mu_ind = omegakO * mu_ind  
 
 
-  !inner_loop : do while ( iscf_inner .le. 1 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
   inner_loop : do while ( iscf_inner .le. 10 .and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
-!  inner_loop : do while ( iscf_inner .le. 4 )!.and. rmsd_inner .gt. 0.1_dp * rmsd_ref )  
     mu_prev      = mu_ind 
-
-   
    
     ! alpha is reduced for the short-range dipole-dipole interaction
+    ! only real part is calculated in the inner loop
     alphaES = 0.001_dp
     ! note that do_strucfact , use_ckrskr has no effect as do_rec=.false.
     CALL  multipole_ES ( f_ind , efg_dummy, mu_ind , task_ind , &
                          damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
-                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , do_strucfact=.false. , use_ckrskr=.false. ) 
+                         do_forces = .false. , do_stress =.false. , do_rec=.false., do_dir=.true. , &
+                         do_strucfact=.false. , use_ckrskr=.false. ) 
 
     f_ind_total = f_ind_ext + f_ind 
+    CALL get_rmsd_mu ( rmsd_inner , f_ind_total , mu_ind )
     ! ---------------------------------------------------------------
     ! \mu_{i,\alpha} =  alpha_{i,\alpha,\beta} * E_{i,\beta}
     ! ---------------------------------------------------------------
@@ -1834,22 +1840,21 @@ SUBROUTINE induced_moment_inner ( f_ind_ext , mu_ind )
     enddo
     mu_ind = ( 1.0_dp - omegakO ) * mu_prev + omegakO * mu_ind  
 
-    CALL get_rmsd_mu ( rmsd_inner , f_ind_total , mu_ind )
 
 #ifdef debug_scf_kO_inner
-  io_printnode WRITE(stdout,'(a,i,a,e16.8)')  'inner loop      step : ',iscf_inner,' rmsd_inner = ',rmsd_inner
+  io_printnode WRITE(stdout,'(a,i3,a,e16.8)')  'inner loop      step : ',iscf_inner,' rmsd_inner = ',rmsd_inner
 #endif
   
     iscf_inner = iscf_inner + 1 
 
   enddo inner_loop 
 
-  io_printnode WRITE(stdout,'(a,i,a,a101,2e16.8)')  'inner loop converged in',iscf_inner-1,' steps ',' rmsd_inner = ',rmsd_inner,rmsd_ref
+  io_printnode WRITE(stdout,'(a,i3,a,a101,2e16.8)')  'inner loop converged in',iscf_inner-1,' steps ',' rmsd_inner = ',rmsd_inner,rmsd_ref
 
   ! restore alphaES
   alphaES = alphaES_save
 
-  deallocate ( mu_prev , f_ind , f_ind_total , zerovec )
+  deallocate ( mu_prev , f_ind_total , zerovec , f_ind)
 
   return
 
@@ -2012,11 +2017,15 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   !        direct space part
   ! ==============================================
   if ( do_dir ) then
+#ifdef MPI
     ttt1 = MPI_WTIME(ierr)
+#endif
       CALL multipole_ES_dir ( u_dir , ef_dir, efg_dir, fx_dir , fy_dir , fz_dir , tau_dir , mu , task , damp_ind , & 
                               do_efield , do_efg , do_forces , do_stress )
+#ifdef MPI
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot1 = fcoultimetot1 + ( ttt2 - ttt1 )  
+#endif
   endif
 
 
@@ -2024,11 +2033,15 @@ SUBROUTINE multipole_ES ( ef , efg , mu , task , damp_ind , &
   !        reciprocal space part
   ! ==============================================
   if ( do_rec ) then
+#ifdef MPI
     ttt1 = MPI_WTIME(ierr)
+#endif
     CALL multipole_ES_rec ( u_rec , ef_rec , efg_rec , fx_rec , fy_rec , fz_rec , tau_rec , mu , task , & 
                             do_efield , do_efg , do_forces , do_stress , do_strucfact , use_ckrskr )
+#ifdef MPI
     ttt2 = MPI_WTIME(ierr)
     fcoultimetot2 = fcoultimetot2 + ( ttt2 - ttt1 )  
+#endif
   endif
 
   ! ====================================================== 
@@ -2748,7 +2761,7 @@ SUBROUTINE multipole_ES_dir ( u_dir , ef_dir , efg_dir , fx_dir , fy_dir , fz_di
     CALL MPI_ALL_REDUCE_INTEGER ( pair_thole , natm )
     CALL MPI_ALL_REDUCE_DOUBLE  ( pair_thole_distance , natm )
     if ( thole_functions .and. cthole .ne. 0 ) then
-      io_printnode write( stdout , '(a,i,a)') 'Thole damping used for ',cthole,' pairs'
+      io_printnode write( stdout , '(a,i5,a)') 'Thole damping used for ',cthole,' pairs'
       if ( ioprintnode ) then
         do ia = 1 ,natm
           ita= itype(ia)
@@ -2843,7 +2856,9 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 
 !    if ( .not. use_ckrskr ) then
 !    if ( .TRUE. ) then
+#ifdef MPI
       ttt1 = MPI_WTIME(ierr)
+#endif
       rhonk_R = 0.0_dp
       rhonk_I = 0.0_dp
       do ia = 1, natm
@@ -2864,8 +2879,10 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
         rhonk_R    = rhonk_R - k_dot_mu * skr(ia) 
         rhonk_I    = rhonk_I + k_dot_mu * ckr(ia) ! rhon_R + i rhon_I
       enddo
+#ifdef MPI
       ttt2 = MPI_WTIME(ierr)
       t12 = t12 + (ttt2-ttt1)
+#endif
 !    else 
 !      rhonk_R = 0.0_dp
 !      rhonk_I = 0.0_dp
@@ -2877,7 +2894,9 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 !      rhonk_I =  km_coul%rhon_I(ik)
 !    endif
 
+#ifdef MPI
     ttt1 = MPI_WTIME(ierr)
+#endif
     str    = (rhonk_R*rhonk_R + rhonk_I*rhonk_I) * Ak  
     !write(1000000,'(a,i,4e16.8)') 'qqqq',ik,rhonk_R,rhonk_I,str,Ak
 
@@ -2979,7 +2998,9 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
 !     tau_rec(3,2) = tau_rec(3,2) + f0 * kz * ( rhonk_R_st_y * rhonk_R + rhonk_I_st_y * rhonk_I )
 !     tau_rec(3,3) = tau_rec(3,3) + f0 * kz * ( rhonk_R_st_z * rhonk_R + rhonk_I_st_z * rhonk_I )
    endif
+#ifdef MPI
     ttt2 = MPI_WTIME(ierr)
+#endif
 
   enddo kpoint
 
@@ -2995,29 +3016,18 @@ SUBROUTINE multipole_ES_rec ( u_rec , ef_rec, efg_rec , fx_rec , fy_rec , fz_rec
   if ( do_stress) tau_rec = tau_rec * 2.0_dp
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u_rec )
-  print*,myrank,u_rec
   if ( do_efield ) then
-    tmp=ef_rec ( 1, : )
-    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
-    ef_rec ( 1, : )=tmp
-    tmp=ef_rec ( 2, : )
-    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
-    ef_rec ( 2, : )=tmp
-    tmp=ef_rec ( 3, : )
-    CALL MPI_ALL_REDUCE_DOUBLE ( tmp, natm )
-    ef_rec ( 3, : )=tmp
-
-!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(1,:) , natm )
-!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(2,:) , natm )
-!    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(3,:) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(1,:) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(2,:) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( ef_rec(3,:) , natm )
   endif
   if ( do_efg ) then
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 1 , : ) , natm )
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 2 , : ) , natm )
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 3 , 3 , : ) , natm )
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 2 , : ) , natm )
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 3 , : ) , natm )
-    !CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 3 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 1 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 2 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 3 , 3 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 2 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 1 , 3 , : ) , natm )
+    CALL MPI_ALL_REDUCE_DOUBLE ( efg_rec ( 2 , 3 , : ) , natm )
   endif
   if ( do_forces ) then
     CALL MPI_ALL_REDUCE_DOUBLE ( fx_rec , natm )
@@ -3260,7 +3270,9 @@ SUBROUTINE engforce_morse_pbc
   endif
 #endif
 
+#ifdef MPI
   forcetime1 = MPI_WTIME(ierr) ! timing info
+#endif
 
   u   = 0.0_dp
   vir = 0.0_dp
@@ -3348,8 +3360,10 @@ SUBROUTINE engforce_morse_pbc
   vir = vir/3.0_dp
   tau_nonb = tau_nonb / simu_cell%omega / press_unit
 
+#ifdef MPI
   forcetime2 = MPI_WTIME(ierr) ! timing info
   forcetimetot = forcetimetot+(forcetime2-forcetime1)
+#endif
 
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( u   )
   CALL MPI_ALL_REDUCE_DOUBLE_SCALAR ( vir )
@@ -3414,8 +3428,9 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 #ifdef debug_print_dipff_scf
   integer :: kkkk
 #endif 
-
+#ifdef MPI
   dectime
+#endif
 
 #ifdef debug_print_dipff_scf
   kkkk=100000*itime+100000
@@ -3423,11 +3438,10 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 #endif
 
 
-  allocate ( f_ind ( 3 , natm ) , dmu_ind( 3 , natm )  , f_ind_prev( 3 ,natm ) , gmin( 3 , natm ) , mu_prev( 3 , natm ) , dmin(3,natm) , zerovec(3,natm) , g_ind(3,natm ) ) 
-  zerovec = 0.0_dp
-
   tttt2=0.0_dp
+#ifdef MPI
   statime
+#endif
   ! =========================================================
   !  Is there any polarizability ? if yes linduced = .TRUE.
   ! =========================================================
@@ -3458,6 +3472,7 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   !  coulombic energy , forces (field) and virial
   ! =============================================
   ldip=.false.
+  task_static = .false.      
   task_static(1) = .true.      
   if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
   if ( ldip ) then
@@ -3496,11 +3511,10 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
   task_ind(3) = .true. 
   io_printnode WRITE ( stdout ,'(a)') '' 
   u_pol = 0.0_dp
-!kO
-  f_ind = Efield   
-!kO
-  mu_prev = 0.0_dp
 
+  lseparator_ioprintnode(stdout)
+  io_printnode WRITE( stdout , '(a)' ) '                   running scf algo                          ' 
+  lseparator_ioprintnode(stdout)
   ! =============================
   !           SCF LOOP
   ! =============================
@@ -3508,7 +3522,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 
     iscf = iscf + 1
 
-    tttt = MPI_WTIME(ierr)
     ! ==========================================================
     !  calculate mu_ind from Efield = Efield_stat + Efield_ind
     !  extrapolate from previous md steps :
@@ -3518,17 +3531,539 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
     ! ==========================================================
     if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
 
-      if      ( algo_moment_from_pola .eq. 'scf' ) then 
-        CALL induced_moment       ( Efield , mu_ind )  ! Efield in ; mu_ind and u_pol out
-      else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
+      CALL induced_moment       ( Efield , mu_ind )  ! Efield in ; mu_ind and u_pol out
+
+    else
+
+      if ( algo_ext_dipole .eq. 'poly' ) CALL extrapolate_dipole_poly ( mu_ind ) 
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , key=1 )  ! predictor
+
+
+    endif
+    ! ===============================================================
+    !      u_pol = 1/ ( 2 alpha  ) * | mu_ind | ^ 2
+    ! ---------------------------------------------------------------
+    ! note on units :
+    !    [ polia  ] = A ^ 3
+    !    [ mu_ind ] = e A 
+    !    [ u_pol  ] = e^2 / A ! electrostatic internal energy  
+    ! ===============================================================
+    u_pol = 0.0_dp
+    do ia = 1 , natm
+      do alpha = 1 , 3
+        do beta = 1 , 3
+          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( alpha , beta , ia ) * mu_ind ( beta , ia )
+        enddo
+      enddo
+    enddo
+    u_pol = u_pol * 0.5_dp
+
+
+
+    ! ==========================================================
+    !  calculate Efield_ind from mu_ind
+    !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
+    ! ==========================================================
+    CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
+                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
+
+    u_coul_ind = u_coul 
+    u_coul_pol = u_coul_stat-u_coul_ind
+
+    Efield = Efield_stat + Efield_ind
+    fx      = 0.0_dp
+    fy      = 0.0_dp
+    fz      = 0.0_dp
+
+    ! ASPC corrector 
+    if ( iscf.eq.1 .and. calc .eq. 'md' ) then
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield  , 2 ) ! corrector
+    endif
+    
+    CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+
+    ! output
+    if ( calc .ne. 'opt' ) then
+    io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
+    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd       = ', rmsd
+    endif
+ 
+#ifdef debug_print_dipff_scf
+  do ia = 1 , natm
+  if ( mu_ind ( 1 , ia ) .eq. 0._dp ) cycle
+  write(kkkk,'(3e16.8)') (mu_ind ( alpha , ia ),alpha=1,3)
+  enddo
+  kkkk = kkkk + 1 
+#endif
+
+  enddo ! end of SCF loop
+
+  ! ===========================
+  !  charge/force info is recovered
+  ! ===========================
+  alphaES = alphaES_save
+  qch = qch_tmp
+  qia = qia_tmp
+
+  if ( ioprintnode .and.  calc .ne. 'opt' ) then
+    blankline(stdout)
+    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
+    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
+    blankline(stdout)
+  endif
+#ifdef debug_mu
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
+    do ia = 1 , 5
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
+    enddo
+    blankline(stdout)
+  endif
+#endif
+  ! store induced dipole at t 
+  dipia_ind_t(1,:,:) = mu_ind
+  
+#ifdef debug_extrapolate
+    if ( ioprintnode ) then
+      print*,'previous step',itime
+      do ia=1,natm
+        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( 1 , ia ), (dipia_ind_t ( t , 1 , ia ) , t=1, extrapolate_order+1 )
+      enddo
+    endif
+#endif
+
+#ifdef MPI
+  stotime
+  addtime(time_moment_from_pola)
+#endif
+
+  return
+
+END SUBROUTINE moment_from_pola_scf
+
+! *********************** SUBROUTINE moment_from_pola_scf_kO ********************
+!
+!> \brief
+!! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
+!! The evaluation is done self-consistently starting from the the field due the
+!! point charges only.
+!
+!> \param[out] mu_ind induced electric dipole from polarizabilities
+!
+!> \note
+!! The stopping criteria is governed by conv_tol_ind
+!
+! ******************************************************************************
+SUBROUTINE moment_from_pola_scf_kO_v1 ( mu_ind , didpim ) 
+
+  USE io,               ONLY :  ionode , stdout , ioprintnode
+  USE constants,        ONLY :  coul_unit
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax, polia , invpolia , itype 
+  USE control,          ONLY :  longrange , calc
+  USE thermodynamic,    ONLY :  u_pol, u_coul
+  USE time,             ONLY :  time_moment_from_pola
+  USE md,               ONLY :  itime
+
+  implicit none
+
+  ! global
+  real(kind=dp) , intent (out) :: mu_ind ( : , : ) 
+
+  ! local
+  integer :: ia , iscf , it , npol, alpha, beta, t , kkkk
+  logical :: linduced , didpim
+  real(kind=dp) :: alphaES_save
+  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
+  real(kind=dp) :: Efield( 3 , natm ) , Efield_stat ( 3 , natm ) , Efield_ind ( 3 , natm ), EfieldG_stat ( 3 , 3 , natm ) , EfieldG_ind ( 3 , 3 , natm ) , Efield_ind_dir ( 3 , natm )
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_ , rmsd_gmin
+  logical       :: task_static (3), task_ind(3), ldip
+  real(kind=dp) , dimension (:,:) , allocatable :: f_ind , dmu_ind, zerovec
+#ifdef MPI
+  dectime
+#endif
+
+#ifdef debug_print_dipff_scf
+  kkkk=100000*itime+100000
+#endif
+
+#ifdef MPI
+  statime
+#endif
+  ! =========================================================
+  !  Is there any polarizability ? if yes linduced = .TRUE.
+  ! =========================================================
+  linduced = .false.
+  didpim   = .false.
+  do it = 1 , ntype
+    if ( lpolar ( it ) ) linduced = .true.
+  enddo
+  if ( .not. linduced ) then
+#ifdef debug
+    write(stdout,'(a,e16.8)') 'quick return from moment_from_pola_scf',mu_ind(1,1)
+#endif
+    return
+  endif
+  didpim = linduced
+
+  allocate ( f_ind ( 3 , natm ) , dmu_ind( 3 , natm ) , zerovec(3,natm) ) 
+  f_ind = 0.0_dp
+  dmu_ind = 0.0_dp
+  zerovec = 0.0_dp
+
+  ! ========================================================
+  !  calculate static Efield ( charge + static dipoles )
+  ! ========================================================
+  u_pol = 0.0_dp
+  u_coul = 0.0_dp
+  Efield_stat = 0.0_dp
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+
+  ! =============================================
+  !  set coulombic task energy , forces (field) and virial
+  ! =============================================
+  ldip=.false.
+  task_static = .false.      
+  task_static(1) = .true.      
+  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
+  if ( ldip ) then
+    task_static = .true.        
+  endif
+  ! ==============================================
+  !          main ewald subroutine 
+  ! ==============================================
+  CALL  multipole_ES ( Efield_stat , EfieldG_stat , dipia , task_static , & 
+                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
+                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. , do_strucfact= .true. , use_ckrskr=.true. ) 
+  u_coul_stat = u_coul 
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+  ! =============================================
+  !  init total Efield to static only
+  ! =============================================
+  Efield = Efield_stat
+
+  iscf = 0
+  rmsd = HUGE(0.0d0)
+  ! =========================
+  !  charges are set to zero 
+  ! =========================
+  alphaES_save = alphaES
+  qch_tmp = qch
+  qia_tmp = qia
+  qch = 0.0_dp
+  qia = 0.0_dp
+  task_ind(1) = .false. 
+  task_ind(2) = .false. 
+  task_ind(3) = .true. 
+  io_printnode WRITE ( stdout ,'(a)') '' 
+  f_ind = Efield   
+  Efield_ind_dir = 0.0_dp
+
+  lseparator_ioprintnode(stdout)
+  io_printnode WRITE( stdout , '(a)' ) '                running scf_kO_v1 algorithm                  '
+  lseparator_ioprintnode(stdout)
+  ! =============================
+  !           SCF LOOP
+  ! =============================
+  do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
+
+    iscf = iscf + 1
+
+    ! ==========================================================
+    !  calculate mu_ind from Efield = Efield_stat + Efield_ind
+    ! ==========================================================
+    if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
+
+          CALL induced_moment_inner ( f_ind , dmu_ind )         
+          mu_ind = mu_ind + dmu_ind
+    else
+
+      if ( algo_ext_dipole .eq. 'poly' ) CALL extrapolate_dipole_poly ( mu_ind ) 
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , key=1 )  ! predictor
+
+#ifdef debug_mu
+      if ( ionode ) then
+        WRITE ( stdout , '(a)' )     'Induced dipoles at atoms from extrapolation: '
+        do ia = 1 , 5 
+          WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+          ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
+        enddo
+        blankline(stdout)
+      endif
+#endif
+
+    endif
+    ! ===============================================================
+    !      u_pol = 1/ ( 2 alpha  ) * | mu_ind | ^ 2
+    ! ---------------------------------------------------------------
+    ! note on units :
+    !    [ polia  ] = A ^ 3
+    !    [ mu_ind ] = e A 
+    !    [ u_pol  ] = e^2 / A ! electrostatic internal energy  
+    ! ===============================================================
+    u_pol = 0.0_dp
+    do ia = 1 , natm
+      do alpha = 1 , 3
+        do beta = 1 , 3
+          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( alpha , beta , ia ) * mu_ind ( beta , ia )
+        enddo
+      enddo
+    enddo
+    u_pol = u_pol * 0.5_dp
+
+
+    ! ==========================================================
+    !  calculate Efield_ind from mu_ind
+    !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
+    ! ==========================================================
+    CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
+                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
+
+    u_coul_ind = u_coul 
+    u_coul_pol = u_coul_stat-u_coul_ind
+
+    Efield = Efield_stat + Efield_ind + Efield_ind_dir
+    fx      = 0.0_dp
+    fy      = 0.0_dp
+    fz      = 0.0_dp
+
+    ! ASPC corrector 
+    if ( iscf.eq.1 .and. calc .eq. 'md' ) then
+      if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield  , 2 ) ! corrector
+    endif
+    
+    ! ===================
+    !  stopping criteria
+    ! ===================
+    CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+!kO
+    do ia = 1 , natm
+      do alpha = 1 , 3
+        it = itype( ia)
+        if ( .not. lpolar( it ) ) cycle
+        f_ind(alpha,ia) = Efield(alpha,ia) - mu_ind(alpha,ia)/polia(alpha,alpha,ia)
+      enddo
+    enddo
+!kO
+
+    ! output
+    if ( calc .ne. 'opt' ) then
+    io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
+    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd       = ', rmsd
+    endif
+ 
+#ifdef debug_print_dipff_scf
+  do ia = 1 , natm
+  if ( mu_ind ( 1 , ia ) .eq. 0._dp ) cycle
+  write(kkkk,'(3e16.8)') (mu_ind ( alpha , ia ),alpha=1,3)
+  enddo
+  kkkk = kkkk + 1 
+#endif
+
+  enddo ! end of SCF loop
+
+  ! ===========================
+  !  charge/force info is recovered
+  ! ===========================
+  alphaES = alphaES_save
+  qch = qch_tmp
+  qia = qia_tmp
+
+  if ( ioprintnode .and.  calc .ne. 'opt' ) then
+    blankline(stdout)
+    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
+    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
+    blankline(stdout)
+  endif
+#ifdef debug_mu
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
+    do ia = 1 , 5
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
+    enddo
+    blankline(stdout)
+  endif
+#endif
+  ! store induced dipole at t 
+  dipia_ind_t(1,:,:) = mu_ind
+  
+#ifdef debug_extrapolate
+    if ( ioprintnode ) then
+      print*,'previous step',itime
+      do ia=1,natm
+        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( 1 , ia ), (dipia_ind_t ( t , 1 , ia ) , t=1, extrapolate_order+1 )
+      enddo
+    endif
+#endif
+
+
+  deallocate ( f_ind , dmu_ind , zerovec) 
+
+#ifdef MPI
+  stotime
+  addtime(time_moment_from_pola)
+#endif
+
+  return
+
+END SUBROUTINE moment_from_pola_scf_kO_v1
+
+! *********************** SUBROUTINE moment_from_pola_scf_kO ********************
+!
+!> \brief
+!! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
+!! The evaluation is done self-consistently starting from the the field due the
+!! point charges only.
+!
+!> \param[out] mu_ind induced electric dipole from polarizabilities
+!
+!> \note
+!! The stopping criteria is governed by conv_tol_ind
+!
+! ******************************************************************************
+SUBROUTINE moment_from_pola_scf_kO_v2 ( mu_ind , didpim ) 
+
+  USE io,               ONLY :  ionode , stdout , ioprintnode
+  USE constants,        ONLY :  coul_unit
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax, polia , invpolia , itype 
+  USE control,          ONLY :  longrange , calc
+  USE thermodynamic,    ONLY :  u_pol, u_coul
+  USE time,             ONLY :  time_moment_from_pola
+  USE md,               ONLY :  itime
+
+  implicit none
+
+  ! global
+  real(kind=dp) , intent (out) :: mu_ind ( : , : ) 
+
+  ! local
+  integer :: ia , iscf , it , npol, alpha, beta, t , kkkk
+  logical :: linduced , didpim
+  real(kind=dp) :: tttt , tttt2 , alphaES_save
+  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
+  real(kind=dp) :: Efield( 3 , natm ) , Efield_stat ( 3 , natm ) , Efield_ind ( 3 , natm ), EfieldG_stat ( 3 , 3 , natm ) , EfieldG_ind ( 3 , 3 , natm ) , tmp ( 3 ,natm )
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_ , rmsd_gmin
+  logical       :: task_static (3), task_ind(3), ldip 
+  real(kind=dp) , dimension (:,:) , allocatable :: f_ind , dmu_ind, f_ind_prev , gmin , mu_prev, dmin, zerovec, g_ind
+#ifdef MPI
+  dectime
+#endif
+
+#ifdef debug_print_dipff_scf
+  kkkk=100000*itime+100000
+#endif
+
+  tttt2=0.0_dp
+#ifdef MPI
+  statime
+#endif
+  ! =========================================================
+  !  Is there any polarizability ? if yes linduced = .TRUE.
+  ! =========================================================
+  linduced = .false.
+  didpim   = .false.
+  do it = 1 , ntype
+    if ( lpolar ( it ) ) linduced = .true.
+  enddo
+  if ( .not. linduced ) then
+#ifdef debug
+    write(stdout,'(a,e16.8)') 'quick return from moment_from_pola_scf',mu_ind(1,1)
+#endif
+    return
+  endif
+  didpim = linduced
+
+  allocate ( f_ind ( 3 , natm ) , dmu_ind( 3 , natm )  , f_ind_prev( 3 ,natm ) , gmin( 3 , natm ) , mu_prev( 3 , natm ) , dmin(3,natm) , zerovec(3,natm) , g_ind(3,natm ) ) 
+  f_ind = 0.0_dp
+  dmu_ind = 0.0_dp
+  f_ind_prev = 0.0_dp 
+  gmin =0.0_dp
+  mu_prev = 0.0_dp 
+  dmin = 0.0_dp
+  g_ind = 0.0_dp
+  zerovec = 0.0_dp
+
+  ! ========================================================
+  !  calculate static Efield ( charge + static dipoles )
+  ! ========================================================
+  u_pol = 0.0_dp
+  u_coul = 0.0_dp
+  Efield_stat = 0.0_dp
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+
+  ! =============================================
+  !  set coulombic task energy , forces (field) and virial
+  ! =============================================
+  ldip=.false.
+  task_static = .false.      
+  task_static(1) = .true.      
+  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
+  if ( ldip ) then
+    task_static = .true.        
+  endif
+  ! ==============================================
+  !          main ewald subroutine 
+  ! ==============================================
+  CALL  multipole_ES ( Efield_stat , EfieldG_stat , dipia , task_static , & 
+                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
+                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. , do_strucfact= .true. , use_ckrskr=.true. ) 
+  u_coul_stat = u_coul 
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+  ! =============================================
+  !  init total Efield to static only
+  ! =============================================
+  Efield = Efield_stat
+
+  iscf = 0
+  rmsd = HUGE(0.0d0)
+  ! =========================
+  !  charges are set to zero 
+  ! =========================
+  alphaES_save = alphaES
+  qch_tmp = qch
+  qia_tmp = qia
+  qch = 0.0_dp
+  qia = 0.0_dp
+  task_ind(1) = .false. 
+  task_ind(2) = .false. 
+  task_ind(3) = .true. 
+  io_printnode WRITE ( stdout ,'(a)') '' 
+  f_ind = Efield   
+  mu_prev = 0.0_dp
+
+  lseparator_ioprintnode(stdout)
+  io_printnode WRITE( stdout , '(a)' ) '                running scf_kO_v2 algorithm                  '
+  lseparator_ioprintnode(stdout)
+  ! =============================
+  !           SCF LOOP
+  ! =============================
+  do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
+
+    iscf = iscf + 1
+
+    ! ==========================================================
+    !  calculate mu_ind from Efield = Efield_stat + Efield_ind
+    ! ==========================================================
+    if ( iscf.ne.1 .or. ( calc .ne. 'md' .and.  calc .ne. 'opt' ) ) then
+
         if ( iscf .le. 2 ) then
           CALL induced_moment_inner ( f_ind , dmu_ind )         
           mu_ind = mu_ind + dmu_ind
         else
-          CALL induced_moment_inner ( gmin , dmu_ind )          
+          CALL induced_moment_inner ( gmin , dmu_ind  )          
           mu_ind = mu_ind + dmu_ind
         endif
-      endif
 
     else
 
@@ -3566,8 +4101,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
     u_pol = u_pol * 0.5_dp
 
 
-    tttt2 = tttt2 + ( MPI_WTIME(ierr) - tttt )
-
     ! ==========================================================
     !  calculate Efield_ind from mu_ind
     !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
@@ -3592,8 +4125,6 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
     ! ===================
     !  stopping criteria
     ! ===================
-!    CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
-!    print*,'rmsd 1',rmsd
 !kO
     do ia = 1 , natm
       do alpha = 1 , 3
@@ -3603,25 +4134,20 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
       enddo
     enddo
 
-!    if ( algo_moment_from_pola .eq. 'scf' ) then
-!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
-!    else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
-      if ( iscf .ne. 1 ) then
-        CALL find_min ( f_ind_prev , f_ind , (mu_ind - mu_prev) , gmin , dmin )
-        do ia = 1 , natm
-          do alpha = 1 , 3
-            it = itype( ia)
-            if ( .not. lpolar( it ) ) cycle
-            g_ind(alpha,ia) = gmin(alpha,ia) + mu_ind(alpha,ia)/polia(alpha,alpha,ia)
-          enddo
+    if ( iscf .ne. 1 ) then
+      CALL find_min ( f_ind_prev , f_ind , (mu_ind - mu_prev) , gmin , dmin )
+      do ia = 1 , natm
+        do alpha = 1 , 3
+          it = itype( ia)
+          if ( .not. lpolar( it ) ) cycle
+          g_ind(alpha,ia) = gmin(alpha,ia) + mu_ind(alpha,ia)/polia(alpha,alpha,ia)
         enddo
-        mu_ind = mu_prev + dmin
+      enddo
+      mu_ind = mu_prev + dmin
       CALL get_rmsd_mu ( rmsd , gmin , zerovec )
-      endif
-!    endif
+    endif
 !kO
 
-!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
 
     ! output
     if ( calc .ne. 'opt' ) then
@@ -3681,12 +4207,316 @@ SUBROUTINE moment_from_pola_scf ( mu_ind , didpim )
 
   deallocate ( f_ind , dmu_ind  , f_ind_prev , gmin , mu_prev , dmin , zerovec , g_ind) 
 
+#ifdef MPI
   stotime
   addtime(time_moment_from_pola)
+#endif
 
   return
 
-END SUBROUTINE moment_from_pola_scf
+END SUBROUTINE moment_from_pola_scf_kO_v2
+
+! *********************** SUBROUTINE moment_from_pola_scf_kO ********************
+!
+!> \brief
+!! This routines evaluates the dipole moment induced by polarizabilities on atoms. 
+!! The evaluation is done self-consistently starting from the the field due the
+!! point charges only.
+!
+!> \param[out] mu_ind induced electric dipole from polarizabilities
+!
+!> \note
+!! The stopping criteria is governed by conv_tol_ind
+!
+! ******************************************************************************
+SUBROUTINE moment_from_pola_scf_kO_v3 ( mu_ind , didpim ) 
+
+  USE io,               ONLY :  ionode , stdout , ioprintnode
+  USE constants,        ONLY :  coul_unit
+  USE config,           ONLY :  natm , atype , fx , fy , fz , ntype , dipia , qia , ntypemax, polia , invpolia , itype 
+  USE control,          ONLY :  longrange , calc
+  USE thermodynamic,    ONLY :  u_pol, u_coul
+  USE time,             ONLY :  time_moment_from_pola
+  USE md,               ONLY :  itime
+
+  implicit none
+
+  ! global
+  real(kind=dp) , intent (out) :: mu_ind ( : , : ) 
+
+  ! local
+  integer :: ia , iscf , it , npol, alpha, beta, t , kkkk
+  logical :: linduced , didpim
+  real(kind=dp) :: tttt , tttt2 , alphaES_save
+  real(kind=dp) :: u_coul_stat , rmsd , u_coul_pol, u_coul_ind
+  real(kind=dp) :: Efield( 3 , natm ) , Efield_stat ( 3 , natm ) , Efield_ind ( 3 , natm ), EfieldG_stat ( 3 , 3 , natm ) , EfieldG_ind ( 3 , 3 , natm )
+  real(kind=dp) :: qia_tmp ( natm )  , qch_tmp ( ntypemax ) , conv_tol_ind_ , rmsd_gmin
+  logical       :: task_static (3), task_ind(3), ldip , lfirst_inner
+  real(kind=dp) , dimension (:,:) , allocatable :: f_ind , dmu_ind, f_ind_prev , gmin , mu_prev, dmin, zerovec, g_ind
+#ifdef MPI
+  dectime
+#endif
+
+#ifdef debug_print_dipff_scf
+  kkkk=100000*itime+100000
+#endif
+
+  tttt2=0.0_dp
+#ifdef MPI
+  statime
+#endif
+  ! =========================================================
+  !  Is there any polarizability ? if yes linduced = .TRUE.
+  ! =========================================================
+  linduced = .false.
+  didpim   = .false.
+  do it = 1 , ntype
+    if ( lpolar ( it ) ) linduced = .true.
+  enddo
+  if ( .not. linduced ) then
+#ifdef debug
+    write(stdout,'(a,e16.8)') 'quick return from moment_from_pola_scf',mu_ind(1,1)
+#endif
+    return
+  endif
+  didpim = linduced
+
+  allocate ( f_ind ( 3 , natm ) , dmu_ind( 3 , natm )  , f_ind_prev( 3 ,natm ) , gmin( 3 , natm ) , mu_prev( 3 , natm ) , dmin(3,natm) , zerovec(3,natm) , g_ind(3,natm ) ) 
+  f_ind = 0.0_dp
+  dmu_ind = 0.0_dp
+  f_ind_prev = 0.0_dp 
+  gmin =0.0_dp
+  mu_prev = 0.0_dp 
+  dmin = 0.0_dp
+  g_ind = 0.0_dp
+  zerovec = 0.0_dp
+
+  ! ========================================================
+  !  calculate static Efield ( charge + static dipoles )
+  ! ========================================================
+  u_pol = 0.0_dp
+  u_coul = 0.0_dp
+  Efield_stat = 0.0_dp
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+
+  ! =============================================
+  !  set coulombic task energy , forces (field) and virial
+  ! =============================================
+  ldip=.false.
+  task_static = .false.      
+  task_static(1) = .true.      
+  if ( any (dip .ne. 0.0d0 ) ) ldip = .true.
+  if ( ldip ) then
+    task_static = .true.        
+  endif
+  ! ==============================================
+  !          main ewald subroutine 
+  ! ==============================================
+  CALL  multipole_ES ( Efield_stat , EfieldG_stat , dipia , task_static , & 
+                       damp_ind =.true. , do_efield=.true. , do_efg=.false. , & 
+                       do_forces=.false. , do_stress = .false. , do_rec = .true. , do_dir = .true. , do_strucfact= .true. , use_ckrskr=.true. ) 
+  u_coul_stat = u_coul 
+  fx      = 0.0_dp
+  fy      = 0.0_dp
+  fz      = 0.0_dp
+  ! =============================================
+  !  init total Efield to static only
+  ! =============================================
+  Efield = Efield_stat
+
+  iscf = 0
+  rmsd = HUGE(0.0d0)
+  ! =========================
+  !  charges are set to zero 
+  ! =========================
+  alphaES_save = alphaES
+  qch_tmp = qch
+  qia_tmp = qia
+  qch = 0.0_dp
+  qia = 0.0_dp
+  task_ind(1) = .false. 
+  task_ind(2) = .false. 
+  task_ind(3) = .true. 
+  io_printnode WRITE ( stdout ,'(a)') '' 
+  f_ind = Efield   
+  mu_prev = 0.0_dp
+
+  !  extrapolate from previous md steps :
+  !   two methods : 
+  !                  simple linear/polynomial extrapolation   ( algo_ext_dipole .eq. 'poly' ) : instable for extrapolate_order > 1  
+  !                  ASPC (Always Stable Predictor Corrector) ( algo_ext_dipole .eq. 'aspc  ) by Kolafa J. Comp. Chem. v25 n3 (2003)
+  if ( algo_ext_dipole .eq. 'poly' ) CALL extrapolate_dipole_poly ( mu_ind ) 
+  if ( algo_ext_dipole .eq. 'aspc' ) CALL extrapolate_dipole_aspc ( mu_ind , Efield , key=1 )  ! predictor
+
+  lfirst_inner = .false.
+  if ( any ( mu_ind .eq. 0.0d0 ) ) lfirst_inner = .true.
+  
+  if ( lfirst_inner ) then
+  else
+    CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
+                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                         do_forces = .false. , do_stress =.false. , do_rec=.true.,  &
+                         do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
+
+    ! ASPC corrector 
+    if ( calc .eq. 'md' .and. algo_ext_dipole .eq. 'aspc' ) then
+      CALL extrapolate_dipole_aspc ( mu_ind , Efield_ind , 2 ) ! corrector
+    endif
+    
+    CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
+                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                         do_forces = .false. , do_stress =.false. , do_rec=.true.,  &
+                         do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
+    
+    Efield = Efield_stat + Efield_ind
+
+  endif
+
+  lseparator_ioprintnode(stdout)
+  io_printnode WRITE( stdout , '(a)' ) '                running scf_kO_v3 algorithm                  '
+  lseparator_ioprintnode(stdout)
+  ! =============================
+  !           SCF LOOP
+  ! =============================
+  outer_loop : do while ( ( iscf < max_scf_pol_iter ) .and. ( rmsd .gt. conv_tol_ind )  .or. ( iscf < min_scf_pol_iter  ) )
+
+    iscf = iscf + 1
+
+    CALL find_min ( f_ind_prev , f_ind , (mu_ind - mu_prev) , gmin , dmin )
+    mu_ind = mu_ind + dmu_ind
+    CALL get_rmsd_mu ( rmsd , gmin , mu_ind )
+
+    ! ===============================================================
+    !      u_pol = 1/ ( 2 alpha  ) * | mu_ind | ^ 2
+    ! ---------------------------------------------------------------
+    ! note on units :
+    !    [ polia  ] = A ^ 3
+    !    [ mu_ind ] = e A 
+    !    [ u_pol  ] = e^2 / A ! electrostatic internal energy  
+    ! ===============================================================
+    u_pol = 0.0_dp
+    do ia = 1 , natm
+      do alpha = 1 , 3
+        do beta = 1 , 3
+          u_pol = u_pol + mu_ind ( alpha , ia ) * invpolia ( alpha , beta , ia ) * mu_ind ( beta , ia )
+        enddo
+      enddo
+    enddo
+    u_pol = u_pol * 0.5_dp
+
+
+    ! ==========================================================
+    !  calculate Efield_ind from mu_ind
+    !  Efield_ind out , mu_ind in ==> charges and static dipoles = 0
+    ! ==========================================================
+    CALL  multipole_ES ( Efield_ind , EfieldG_ind , mu_ind , task_ind , & 
+                         damp_ind = .false. , do_efield=.true. , do_efg = .false. , &
+                         do_forces = .false. , do_stress =.false. , do_rec=.true., do_dir=.true. , do_strucfact=.false. , use_ckrskr = .true. )
+
+    u_coul_ind = u_coul 
+    u_coul_pol = u_coul_stat-u_coul_ind
+
+    Efield = Efield_stat + Efield_ind
+    fx      = 0.0_dp
+    fy      = 0.0_dp
+    fz      = 0.0_dp
+
+    do ia = 1 , natm
+      do alpha = 1 , 3
+        it = itype( ia)
+        if ( .not. lpolar( it ) ) cycle
+        f_ind(alpha,ia) = Efield(alpha,ia) - mu_ind(alpha,ia)/polia(alpha,alpha,ia)
+      enddo
+    enddo
+
+!    if ( algo_moment_from_pola .eq. 'scf' ) then
+!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+!    else if ( algo_moment_from_pola .eq. 'scf_kO' ) then
+      if ( iscf .ne. 1 ) then
+        CALL find_min ( f_ind_prev , f_ind , (mu_ind - mu_prev) , gmin , dmin )
+        do ia = 1 , natm
+          do alpha = 1 , 3
+            it = itype( ia)
+            if ( .not. lpolar( it ) ) cycle
+            g_ind(alpha,ia) = gmin(alpha,ia) + mu_ind(alpha,ia)/polia(alpha,alpha,ia)
+          enddo
+        enddo
+        mu_ind = mu_prev + dmin
+      CALL get_rmsd_mu ( rmsd , gmin , zerovec )
+      endif
+!    endif
+!kO
+
+!      CALL get_rmsd_mu ( rmsd , Efield , mu_ind )
+
+    ! output
+    if ( calc .ne. 'opt' ) then
+    io_printnode WRITE ( stdout ,'(a,i4,5(a,e16.8))') &
+    'scf = ',iscf,' u_pol = ',u_pol * coul_unit , ' u_coul (qq)  = ', u_coul_stat, ' u_coul (dd)  = ', u_coul_ind,' u_coul_pol = ', u_coul_pol, ' rmsd       = ', rmsd
+    endif
+ 
+#ifdef debug_print_dipff_scf
+  do ia = 1 , natm
+  if ( mu_ind ( 1 , ia ) .eq. 0._dp ) cycle
+  write(kkkk,'(3e16.8)') (mu_ind ( alpha , ia ),alpha=1,3)
+  enddo
+  kkkk = kkkk + 1 
+#endif
+
+  ! save previous
+  mu_prev = mu_ind
+  f_ind_prev = gmin 
+
+  enddo outer_loop ! end of SCF loop
+
+  ! ===========================
+  !  charge/force info is recovered
+  ! ===========================
+  alphaES = alphaES_save
+  qch = qch_tmp
+  qia = qia_tmp
+
+  if ( ioprintnode .and.  calc .ne. 'opt' ) then
+    blankline(stdout)
+    WRITE ( stdout , '(a,i6,a)')            'scf calculation of the induced electric moment converged in ',iscf, ' iterations '
+    WRITE ( stdout , '(a,e10.3,a,e10.3,a)') 'Electric field is converged at ',rmsd,' ( ',conv_tol_ind,' ) '
+    blankline(stdout)
+  endif
+#ifdef debug_mu
+  if ( ionode ) then
+    WRITE ( stdout , '(a)' )     'Induced dipoles at atoms : '
+    do ia = 1 , 5
+      WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+      ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
+    enddo
+    blankline(stdout)
+  endif
+#endif
+  ! store induced dipole at t 
+  dipia_ind_t(1,:,:) = mu_ind
+  
+#ifdef debug_extrapolate
+    if ( ioprintnode ) then
+      print*,'previous step',itime
+      do ia=1,natm
+        write(stdout,'(i5,<extrapolate_order+2>e16.8)') ia, mu_ind ( 1 , ia ), (dipia_ind_t ( t , 1 , ia ) , t=1, extrapolate_order+1 )
+      enddo
+    endif
+#endif
+
+
+  deallocate ( f_ind , dmu_ind  , f_ind_prev , gmin , mu_prev , dmin , zerovec , g_ind) 
+
+#ifdef MPI
+  stotime
+  addtime(time_moment_from_pola)
+#endif
+
+  return
+
+END SUBROUTINE moment_from_pola_scf_kO_v3
 
 ! *********************** SUBROUTINE moment_from_WFc ***************************
 !
@@ -3934,8 +4764,14 @@ SUBROUTINE get_dipole_moments ( mu , didpim )
   ! ======================================
   !     induced moment from polarisation 
   ! ======================================
-  if ( algo_moment_from_pola .eq. 'scf' .or. algo_moment_from_pola .eq. 'scf_kO' ) then
+  if ( algo_moment_from_pola .eq. 'scf' ) then
     CALL moment_from_pola_scf    ( dipia_ind , didpim )
+  else if ( algo_moment_from_pola .eq. 'scf_kO_v1' ) then
+    CALL moment_from_pola_scf_kO_v1 ( dipia_ind , didpim )
+  else if ( algo_moment_from_pola .eq. 'scf_kO_v2' ) then
+    CALL moment_from_pola_scf_kO_v2 ( dipia_ind , didpim )
+  else if ( algo_moment_from_pola .eq. 'scf_kO_v3' ) then
+    CALL moment_from_pola_scf_kO_v3 ( dipia_ind , didpim )
   endif
 
   ! =========================================================
@@ -4012,7 +4848,9 @@ SUBROUTINE get_dipole_moments ( mu , didpim )
     WRITE ( stdout , '(a)' )           'Use thole damping function : linear (recommended)'
   endif
   if ( lcata ) then
+#ifdef MPI
     CALL MPI_FINALIZE(ierr)
+#endif
     STOP
   endif
 
@@ -4244,6 +5082,17 @@ SUBROUTINE extrapolate_dipole_aspc ( mu_ind , Efield , key )
     CALL induced_moment ( Efield , mu_ind ) 
     mu_ind = w_ASPC * mu_ind + ( 1.0_dp - w_ASPC ) * mu_p_save 
   endif
+
+#ifdef debug_mu
+      if ( ionode ) then
+        WRITE ( stdout , '(a)' )     'Induced dipoles at atoms from extrapolation: '
+        do ia = 1 , 5 
+          WRITE ( stdout , '(i5,a3,a,3f18.10)' ) &
+          ia,atype(ia),' mu_ind = ', mu_ind ( 1 , ia ) , mu_ind ( 2 , ia ) , mu_ind ( 3 , ia )
+        enddo
+        blankline(stdout)
+      endif
+#endif
 
   return
 

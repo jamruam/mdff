@@ -315,7 +315,9 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
   ! timeinfo
   real(kind=dp) :: ttt1 , ttt2 
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
  
   ! ===================================================
   !  determine current maximum number of blocks: iblm
@@ -440,8 +442,10 @@ SUBROUTINE msd_onthefly_frenkel ( nmsd )
 #endif
   enddo blocks
  
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   msdtimetot = msdtimetot + ( ttt2 - ttt1 )
+#endif
  
   return
 
@@ -681,8 +685,11 @@ SUBROUTINE msd_write_output
   endif
 
   return 
-
+#ifdef GFORTRAN
+99002 FORMAT ( 2x,e16.8,8(2x,e16.8),2x,i10 )
+#else
 99002 FORMAT ( 2x,e16.8,<ntype+1>(2x,e16.8),2x,i10 )
+#endif
 99003 FORMAT ('# nblcel =', i6, ' nblocks = ', i6 , ' tcormax = ', f10.4 )
 
 END SUBROUTINE msd_write_output

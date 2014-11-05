@@ -226,7 +226,7 @@ SUBROUTINE write_CONTFF
   
   if ( ionode ) then
   OPEN ( kunit_CONTFF ,file = 'CONTFF',STATUS = 'UNKNOWN')
-      WRITE ( kunit_CONTFF,'(i)') natm 
+      WRITE ( kunit_CONTFF,'(i8)') natm 
       WRITE ( kunit_CONTFF,'(a)') system
       WRITE ( kunit_CONTFF,'(3f20.12)') simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
       WRITE ( kunit_CONTFF,'(3f20.12)') simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )
@@ -308,7 +308,7 @@ SUBROUTINE config_alloc
   dipia   = 0.0_dp
   dipia_wfc = 0.0_dp
   polia     = 0.0_dp
-  ipolar    = 0
+  ipolar    = .false. 
   phi_coul_tot = 0.0_dp
 
   return 
@@ -614,8 +614,6 @@ SUBROUTINE write_trajff_xyz
     endif
    endif
   endif
-
- 200 FORMAT(A2,9E20.12)
 
   deallocate ( xxx  , yyy  , zzz )
 

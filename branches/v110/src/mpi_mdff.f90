@@ -1,7 +1,9 @@
 ! mpi related module for mdff
 MODULE mpimdff
 
+#ifdef MPI
   INCLUDE "mpif.h"
+#endif
 
   integer,           SAVE :: myrank           !< rank of the actual proc   
   integer,           SAVE :: numprocs         !< total number of procs    
@@ -109,7 +111,11 @@ SUBROUTINE MPI_ALL_REDUCE_DOUBLE ( vec_result , ndim )
   allocate ( vec_sum ( ndim ) )
   vec_sum=0.0_dp
 
+#ifdef MPI
   CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
+#else
+  vec_sum = vec_result
+#endif
   vec_result = vec_sum
 
   deallocate ( vec_sum )
@@ -135,7 +141,9 @@ SUBROUTINE MPI_ALL_GATHER_DOUBLE ( vec_result , ndim , dec )
   ! local 
   integer :: ierr
 
+#ifdef MPI
   CALL MPI_ALLGATHER ( vec_result ( dec%istart : dec%iend ) , dec%dim_data , MPI_DOUBLE_PRECISION , vec_result , dec%dim_data , MPI_DOUBLE_PRECISION , MPI_COMM_WORLD,ierr)
+#endif
 
   return
 
@@ -162,7 +170,11 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER ( vec_result , ndim )
   allocate ( vec_sum ( ndim ) )
   vec_sum=0
 
+#ifdef MPI
   CALL MPI_ALLREDUCE( vec_result , vec_sum , ndim , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
+#else
+  vec_sum = vec_result
+#endif
   vec_result = vec_sum
 
   deallocate ( vec_sum )
@@ -188,7 +200,11 @@ SUBROUTINE MPI_ALL_REDUCE_DOUBLE_SCALAR ( sresult )
   real(kind=dp) :: ssum
 
   ssum=0.0_dp
+#ifdef MPI
   CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , ierr )
+#else
+  ssum = sresult
+#endif
   sresult = ssum
 
   return
@@ -213,7 +229,11 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER_SCALAR ( sresult )
   integer          :: ssum
 
   ssum=0
+#ifdef MPI
   CALL MPI_ALLREDUCE( sresult , ssum , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , ierr )
+#else
+  ssum = sresult
+#endif
   sresult = ssum
 
   return
@@ -221,6 +241,7 @@ SUBROUTINE MPI_ALL_REDUCE_INTEGER_SCALAR ( sresult )
 END SUBROUTINE
 
 
+#ifdef MPI
 SUBROUTINE CLEAN_STOP
 
   implicit none
@@ -234,6 +255,7 @@ SUBROUTINE CLEAN_STOP
   endif
 
 END SUBROUTINE CLEAN_STOP
+#endif
 
 
 END MODULE mpimdff

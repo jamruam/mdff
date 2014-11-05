@@ -407,8 +407,10 @@ SUBROUTINE efgcalc
       ! io print conditions    
       ioprint = .true.
       if ( ionode ) ioprintnode = .true.
-  
+ 
+#ifdef MPI 
       ttt1 = MPI_WTIME(ierr)
+#endif
 
       CALL read_traj ( kunit_TRAJFF , itraj_format , trajff_data )
       if ( lvnlist ) CALL vnlist_pbc !( verlet_coul )
@@ -568,8 +570,10 @@ SUBROUTINE efgcalc
         
       endif
 
+#ifdef MPI 
     ttt2 = MPI_WTIME(ierr)
     io_node WRITE ( stdout , 110 ) 'config : ',iconf,' EFG  ', ttt2 - ttt1
+#endif
 
     enddo ! iconf loop
 
@@ -577,7 +581,9 @@ SUBROUTINE efgcalc
 
   endif !lefg_restart
 
+#ifdef MPI 
   CALL MPI_BARRIER( MPI_COMM_WORLD , ierr )
+#endif
   
   io_node blankline ( stdout ) 
   io_node WRITE ( stdout , '(a)' ) 'calculate statistical properties from EFGALL'
@@ -661,7 +667,9 @@ SUBROUTINE efg_DS ( rm )
   CALL print_config_sample(0,0)
 #endif
 
+#ifdef MPI 
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   cutefgsq = cutlongrange * cutlongrange 
   efg_ia = 0.0_dp
@@ -774,8 +782,10 @@ atom : do ia = atom_dec%istart , atom_dec%iend
   CALL print_tensor( efg_ia( natm , : , : ) , 'EFG_NB  ' )
 #endif
 
+#ifdef MPI 
   ttt2 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + (ttt2-ttt1)
+#endif
 
   !======================================
   !  MERGE tensor from different proc
@@ -795,8 +805,10 @@ atom : do ia = atom_dec%istart , atom_dec%iend
   CALL print_tensor( efg_ia( : , : , 1 ) , 'EFG_NA  ' )
 #endif
 
+#ifdef MPI 
   ttt3 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + (ttt3-ttt2)
+#endif
 
   ! ======================================
   !         direct to cartesian
@@ -893,15 +905,19 @@ SUBROUTINE efg_ES ( km , alphaES )
   alpha2 = alphaES * alphaES      
   alpha3 = alpha2  * alphaES
 
+#ifdef MPI 
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   ! =====================
   ! facteur de structure 
   ! =====================
 !  CALL charge_density_k ( km )
 !  CALL struc_fact ( km )
+#ifdef MPI 
   ttt2 = MPI_WTIME(ierr)
   rhoktimetot = rhoktimetot + (ttt2 - ttt1)
+#endif
 
   ! ======================================
   !         cartesian to direct 
@@ -959,8 +975,10 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
 
   enddo atom1
 
+#ifdef MPI 
   ttt3 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + (ttt3-ttt2)
+#endif
 
   ! ======================================
   !         cartesian to direct 
@@ -1019,8 +1037,10 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
 
   enddo kpoint
 
+#ifdef MPI 
   ttt4 = MPI_WTIME(ierr)
   efgtimetot2 = efgtimetot2 + (ttt4-ttt3)
+#endif
 
 !=============================
 !  MERGE REAL PART
@@ -1056,8 +1076,10 @@ atom1: do ia = atom_dec%istart , atom_dec%iend
 !      END OF EFG TENSOR CALCULATION
 !=========================================================
 
+#ifdef MPI 
   ttt5 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + (ttt5-ttt4)
+#endif
 
 #ifdef debug 
   CALL print_tensor( efg_ia_real  ( 1 , : , : ) , 'EFG_DIRO' )
@@ -1112,7 +1134,9 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
   real(kind=dp) :: ttt1 , ttt2 , ttt3
   logical          :: lcentralbox
 
+#ifdef MPI 
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   ! =============================== 
   !         some constants
@@ -1240,8 +1264,10 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
 
   enddo atom 
 
+#ifdef MPI 
   ttt2 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + ( ttt2 - ttt1 )
+#endif
 
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 1 , 1 , : ) , natm )
   CALL MPI_ALL_REDUCE_DOUBLE ( efg_ia ( 2 , 2 , : ) , natm )
@@ -1256,8 +1282,10 @@ SUBROUTINE multipole_efg_DS ( rm , mu )
   efg_ia ( 3 , 1 , : ) = efg_ia ( 1 , 3 , : )
   efg_ia ( 3 , 2 , : ) = efg_ia ( 2 , 3 , : )
 
+#ifdef MPI 
   ttt3 = MPI_WTIME(ierr)
   efgtimetot3 = efgtimetot3 + ( ttt3 - ttt2 )
+#endif
 
   ! ======================================
   !         cartesian to direct 
@@ -1368,14 +1396,18 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   efg_rec  = 0.0_dp
   efg_self = 0.0_dp
 
+#ifdef MPI 
   ttt1p = MPI_WTIME(ierr)
+#endif
   ! =====================
   ! facteur de structure 
   ! =====================
   CALL charge_density_k ( km , mu )
 
+#ifdef MPI 
   ttt2p = MPI_WTIME(ierr)
   rhoktimetot = rhoktimetot + ( ttt2p - ttt1p ) 
+#endif
 
   ! =================
   !  some constants 
@@ -1386,7 +1418,9 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
   alpha5 = alpha3  * alpha2
   selfa  = - 4.0_dp * alpha3 / 3.0_dp / piroot
 
+#ifdef MPI 
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   ! ======================================
   !         cartesian to direct 
@@ -1486,8 +1520,10 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
 
   enddo 
 
+#ifdef MPI 
   ttt2 = MPI_WTIME(ierr)
   efgtimetot1 = efgtimetot1 + ( ttt2 - ttt1 )
+#endif
 
   ! ======================================
   !         direct to cartesian
@@ -1541,8 +1577,10 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
 
   enddo kpoint
 
+#ifdef MPI 
   ttt3 = MPI_WTIME(ierr)
   efgtimetot2 = efgtimetot2 + ( ttt3 - ttt2 )
+#endif
 
   ! ====================================================== 
   !             merge real part 
@@ -1618,8 +1656,10 @@ SUBROUTINE multipole_efg_ES ( km , alphaES , mu )
 
   deallocate( efg_dir , efg_rec , efg_self ) 
 
+#ifdef MPI 
   ttt4 = MPI_WTIME (ierr)
   efgtimetot3 = efgtimetot3 + ( ttt4 - ttt3 )
+#endif
 
   return
 
@@ -1644,9 +1684,9 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u  , kunit_s  )
 
   ! local
   integer :: i , it , saveit0 , totions
+  character(len=20) :: FMT 
   ! make some quantities real to print them 
   ! it also to avoid REAL( ..., kind = dp ) everywhere
-  
   real(kind=dp), dimension ( : , :  )     , allocatable :: r_dibetatot 
   real(kind=dp), dimension ( : , :  )     , allocatable :: r_dibvzztot 
   real(kind=dp), dimension ( : , : , :  ) , allocatable :: r_dibUtot 
@@ -1685,24 +1725,52 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u  , kunit_s  )
       totions = totions + natmi (it)   
     enddo    
     natmi(0)=totions
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) ntype+2
+    WRITE (kunit_eta,'(a,'// ADJUSTL(FMT) //'f15.8)') '#', reseta , ( r_natmi ( it ), it = 0 , ntype )   
+    WRITE (kunit_eta,'('// ADJUSTL(FMT) //'f15.8)')  dzero, ( dzero , it = 0 , ntype )
+#else
     WRITE (kunit_eta,'(a,<ntype+2>f15.8)') '#', reseta , ( r_natmi ( it ), it = 0 , ntype )   
     WRITE (kunit_eta,'(<ntype+2>f15.8)')  dzero, ( dzero , it = 0 , ntype )
+#endif
     do i = 0 , PANeta-1
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) ntype+2
+      WRITE (kunit_eta,'('// ADJUSTL(FMT) //'f15.8)') &
+       ( REAL ( i+1 , kind=dp ) - 0.5_dp  ) * reseta , (  r_dibetatot( it , i )  / ( reseta * r_natmi(it) * r_ncefg ) , it = 0 , ntype )   
+#else
       WRITE (kunit_eta,'(<ntype+2>f15.8)') &
        ( REAL ( i+1 , kind=dp ) - 0.5_dp  ) * reseta , (  r_dibetatot( it , i )  / ( reseta * r_natmi(it) * r_ncefg ) , it = 0 , ntype )   
+#endif
     enddo
     ! ========================
     !  write Vzz distribution
     ! ========================
     do i = 0 , PANvzz 
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) ntype+2
+      WRITE (kunit_vzz ,'('// ADJUSTL(FMT) //'f15.8)') &
+      vzzmin  + REAL ( i,kind=dp) * resvzz , ( r_dibvzztot(it,i) / ( resvzz * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
+#else
       WRITE (kunit_vzz ,'(<ntype+2>f15.8)') &
       vzzmin  + REAL ( i,kind=dp) * resvzz , ( r_dibvzztot(it,i) / ( resvzz * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
+#endif
     enddo
  
     ! =================================================
     ! write U1 and average Uk (with k>1) distribution 
     ! =================================================
     do i = 0 , PANU 
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) 6*ntype+7
+      WRITE (kunit_u ,'('// ADJUSTL(FMT) //'f15.8)') umin  + REAL ( i,kind=dp) * resu , &
+                                            ( r_dibUtot(1,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(2,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(3,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(4,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(5,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
+                                             r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
+#else
       WRITE (kunit_u ,'(<6*ntype+7>f15.8)') umin  + REAL ( i,kind=dp) * resu , &
                                             ( r_dibUtot(1,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
                                              r_dibUtot(2,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
@@ -1710,13 +1778,18 @@ SUBROUTINE efg_write_output ( kunit_eta , kunit_vzz , kunit_u  , kunit_s  )
                                              r_dibUtot(4,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
                                              r_dibUtot(5,it,i) / ( resu * r_natmi(it) * r_ncefg ) , &
                                              r_dibUtot(6,it,i) / ( resu * 4.0_dp * r_natmi(it) * r_ncefg) , it = 0 , ntype )
+#endif
     enddo
     ! =================================================
     ! write S distribution 
     ! =================================================
     do i = 0 , PANS
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) ntype+2
+      WRITE (kunit_s ,'('// ADJUSTL(FMT) //'f15.8)') REAL ( i,kind=dp) * resu , ( r_dibStot(it,i)/ ( resu * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
+#else
       WRITE (kunit_s ,'(<ntype+2>f15.8)') REAL ( i,kind=dp) * resu , ( r_dibStot(it,i)/ ( resu * r_natmi(it) * r_ncefg ) , it = 0 , ntype )
-      !WRITE (100000 ,'(f15.8,3i)') REAL ( i,kind=dp) * resu , ( dibStot(it,i) , it = 0 , ntype )
+#endif
     enddo
 
     blankline(kunit_eta) 
@@ -1778,6 +1851,7 @@ SUBROUTINE efg_acf
   real(kind=dp)                                  :: r_norm , nmr ( 4 ) , sq3 , sq32 , efgt(3,3)
   real(kind=dp)                                  :: w(3) 
   real(kind=dp)                                  :: work(3 * lwork)
+  character(len=20)                              :: FMT1,FMT2,FMT3
 
   !trash
   integer            :: iiii
@@ -1995,13 +2069,24 @@ SUBROUTINE efg_acf
   OPEN(UNIT=kunit_EFGACFFF,FILE='EFGACFFF')
   OPEN(UNIT=kunit_UIACFFF ,FILE='UIACFFF')
   OPEN(UNIT=kunit_NMRACFFF,FILE='NMRACFFF')
-
+#ifdef GFORTRAN
+  WRITE(FMT1,*) ntype+1
+  WRITE(FMT2,*) 6*(ntype+1)
+  io_node WRITE ( kunit_EFGACFFF , '(a,'// ADJUSTL(FMT1) //'a20)' ) '#     ',( atypei ( it ) , it = 1 , ntype ) 
+  io_node WRITE ( kunit_EFGACFFF , '(a,'// ADJUSTL(FMT2) //'a20)' ) '#               time',(' vxx ',' vyy ',' vzz ',' vxy ',' vxz ',' vyz ', it = 1 , ntype ) 
+  io_node WRITE ( kunit_UIACFFF  , '(a,'// ADJUSTL(FMT1) //'a20)' ) '#     ',( atypei ( it ) , it = 1 , ntype ) 
+  io_node WRITE ( kunit_UIACFFF  , '(a,'// ADJUSTL(FMT2) //'a20)' ) '#               time ',( 'U1 ',' U2 ', ' U3 ',' U4 ',' U5 ', it = 1 , ntype ) 
+  io_node WRITE ( kunit_NMRACFFF , '(a,'// ADJUSTL(FMT1) //'a20)' ) '#     ',( atypei ( it ) , it = 1 , ntype ) 
+  io_node WRITE ( kunit_NMRACFFF , '(a,'// ADJUSTL(FMT2) //'a20)' ) '#               time',(' VXX ',' VYY ',' VZZ ',' ETA ', it = 1 , ntype ) 
+  
+#else
   io_node WRITE ( kunit_EFGACFFF , '(a,<ntype+1>a20)' )     '#     ',( atypei ( it ) , it = 1 , ntype ) 
   io_node WRITE ( kunit_EFGACFFF , '(a,<6*(ntype+1)>a20)' ) '#               time',(' vxx ',' vyy ',' vzz ',' vxy ',' vxz ',' vyz ', it = 1 , ntype ) 
   io_node WRITE ( kunit_UIACFFF  , '(a,<ntype+1>a20)' )     '#     ',( atypei ( it ) , it = 1 , ntype ) 
   io_node WRITE ( kunit_UIACFFF  , '(a,<6*(ntype+1)>a20)' ) '#               time ',( 'U1 ',' U2 ', ' U3 ',' U4 ',' U5 ', it = 1 , ntype ) 
   io_node WRITE ( kunit_NMRACFFF , '(a,<ntype+1>a20)' )     '#     ',( atypei ( it ) , it = 1 , ntype ) 
   io_node WRITE ( kunit_NMRACFFF , '(a,<6*(ntype+1)>a20)' ) '#               time',(' VXX ',' VYY ',' VZZ ',' ETA ', it = 1 , ntype ) 
+#endif
   do t = 0 , ntcor
     do it = 1 , ntype
       r_norm = 1.0_dp / REAL ( norm ( it , t ) , kind = dp )
@@ -2017,9 +2102,18 @@ SUBROUTINE efg_acf
       acfeta( it , t ) = acfeta( it , t ) * r_norm 
       acfU  ( it , : , t ) = acfU  ( it , : , t ) * r_norm 
     enddo
+#ifdef GFORTRAN
+  WRITE(FMT1,*) 6*(ntype+1)+1
+  WRITE(FMT2,*) 10*(ntype+1)+1
+  WRITE(FMT3,*) 9*(ntype+1)+1
+    io_node WRITE ( kunit_EFGACFFF , '('// ADJUSTL(FMT1) //'f20.10)' )  REAL ( t , kind = dp ) * dt , ( acfxx(it,t) , acfyy(it,t) , acfzz(it,t) , acfxy (it,t) ,  acfxz(it,t)  , acfyz(it,t)  , it = 1 , ntype ) 
+    io_node WRITE ( kunit_UIACFFF  , '('// ADJUSTL(FMT2) //'f20.10)' ) REAL ( t , kind = dp ) * dt , ( ( acfU(it,ui,t), ui = 1 , 5 ) , it = 1 , ntype ) 
+    io_node WRITE ( kunit_NMRACFFF , '('// ADJUSTL(FMT3) //'f20.10)' )  REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) , it = 1 , ntype ) 
+#else
     io_node WRITE ( kunit_EFGACFFF , '(<6*(ntype+1)+1>f20.10)' )  REAL ( t , kind = dp ) * dt , ( acfxx(it,t) , acfyy(it,t) , acfzz(it,t) , acfxy (it,t) ,  acfxz(it,t)  , acfyz(it,t)  , it = 1 , ntype ) 
     io_node WRITE ( kunit_UIACFFF  , '(<10*(ntype+1)+1>f20.10)' ) REAL ( t , kind = dp ) * dt , ( ( acfU(it,ui,t), ui = 1 , 5 ) , it = 1 , ntype ) 
     io_node WRITE ( kunit_NMRACFFF , '(<9*(ntype+1)+1>f20.10)' )  REAL ( t , kind = dp ) * dt , ( acf11(it,t) , acf22(it,t) , acf33(it,t) , acfeta(it,t) , it = 1 , ntype ) 
+#endif
   enddo
 
   CLOSE ( kunit_NMRACFFF )      
@@ -2383,8 +2477,8 @@ SUBROUTINE efg_stat ( kunit_input , kunit_nmroutput )
       ks = int(sk) + 1
       dibStot(0,ks) = dibStot(0,ks) + 1
       if ( ks .lt. 0 .or. ks .gt. PANS ) then
-        WRITE ( stderr , '(a,2i)' ) 'ERROR: out of bound distrib S ',ks,PANS
-        WRITE ( stderr , '(i,2f)') ia , S(ia) , smax 
+        WRITE ( stderr , '(a,2i6)' ) 'ERROR: out of bound distrib S ',ks,PANS
+        WRITE ( stderr , '(i5,2f16.8)') ia , S(ia) , smax 
         STOP
       endif 
       ! type specific

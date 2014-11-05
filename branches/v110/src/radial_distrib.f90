@@ -323,7 +323,9 @@ SUBROUTINE grcalc
   ! ===========================================
   !        merge results  
   ! ===========================================
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), nbins )
   do it1 = 1 , ntype
@@ -331,8 +333,10 @@ SUBROUTINE grcalc
       CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), nbins )
     enddo  
   enddo
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   grtimetot_comm = grtimetot_comm + ( ttt2 - ttt1 )
+#endif
 
 
 #ifdef debug
@@ -353,8 +357,13 @@ SUBROUTINE grcalc
     enddo
   enddo
 
+#ifdef GFORTRAN
+  io_node WRITE ( kunit_GRTFF , '(8a)' )          '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+  io_node WRITE ( kunit_NRTFF , '(8a)' )          '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+#else
   io_node WRITE ( kunit_GRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
   io_node WRITE ( kunit_NRTFF , '(<npairs+2>a)' ) '#       rr           ', ( cint ( mp ) , mp = 0 , npairs ) 
+#endif
 
   nr ( 0 ) = 0 
 
@@ -383,8 +392,13 @@ SUBROUTINE grcalc
       enddo
     enddo
       if ( ionode ) then
+#ifdef GFORTRAN
+        WRITE ( kunit_GRTFF ,'(8e20.10)') rr , ( grr ( mp , igr ) , mp = 0 , npairs ) 
+        WRITE ( kunit_NRTFF ,'(8e20.10)') rr , ( DBLE ( grr ( mp , igr ) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , npairs )
+#else
         WRITE ( kunit_GRTFF ,'(<npairs+2>e20.10)') rr , ( grr ( mp , igr ) , mp = 0 , npairs ) 
         WRITE ( kunit_NRTFF ,'(<npairs+2>e20.10)') rr , ( DBLE ( grr ( mp , igr ) ) * 4.0_dp * pi * rr * rr * DBLE ( natmi(nr(mp)) * vol ) , mp = 0 , npairs )
+#endif
       endif
   enddo
 
@@ -428,7 +442,9 @@ SUBROUTINE gr_main
   real(kind=dp) :: sxij , syij , szij
   real(kind=dp) :: ttt1 , ttt2      
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
   ! =======================
   !  cut-off half box
   ! =======================
@@ -484,8 +500,10 @@ SUBROUTINE gr_main
   !         direct to cartesian
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   grtimetot = grtimetot + ( ttt2 - ttt1 )
+#endif
 
   return
  
