@@ -236,8 +236,12 @@ SUBROUTINE rmc_main
   real(kind=dp)     :: exec_loops,timing_loop1,timing_loop2,timing_all_start
   logical           :: allowed
   character(len=60) :: cpos
+  character(len=20) :: FMT 
+  
 
+#ifdef MPI
   timing_all_start = MPI_WTIME(ierr)
+#endif
   kall = 1 
   kacc = 1
   kprint = 1
@@ -335,7 +339,12 @@ SUBROUTINE rmc_main
     CALL read_GRTFF( grr_exp , 'GRTFF.exp')
 #ifdef debug
   do igr=0,nbins-1
+#ifdef GFORTRAN
+    write(FMT,* ) npairs+2
+    write(*,'('// ADJUSTL(FMT) //'e20.8)') ( grr_exp( mp , igr ), mp=0,npairs ) 
+#else
     write(*,'(<npairs+2>e20.8)') ( grr_exp( mp , igr ), mp=0,npairs ) 
+#endif
   enddo
 #endif
   endif
@@ -457,8 +466,10 @@ SUBROUTINE rmc_main
   kall = 1 
   kacc = 1
   kprint = 1
+#ifdef MPI
   timing_loop1 = MPI_WTIME(ierr)
   exec_loops = timing_loop1 - timing_all_start
+#endif
   if ( ionode ) then
     lseparator(stdout)
     write( stdout , '(a,a10,8(a16))' )       'accepted  chi : ',label_chisq(6),(label_chisq(isq),isq=1,5),' delta_tot ',' rate '
@@ -575,9 +586,11 @@ SUBROUTINE rmc_main
         endif
  
         ! print to standard output and log file
+#ifdef MPI
         timing_loop2 = MPI_WTIME(ierr)
         exec_loops = timing_loop2 - timing_loop1
         timing_loop1 = MPI_WTIME(ierr)
+#endif
         write( stdout       ,200) kacc,' : ', chisq(6), (chisq(isq) , isq=1,5 ) , delta_chisq(6), REAL(kacc,kind=dp)/REAL(kall,kind=dp),' cpu : ',exec_loops
         write( kunit_RMCLOG ,200) kacc,' : ', chisq(6), (chisq(isq) , isq=1,5 ) , delta_chisq(6), REAL(kacc,kind=dp)/REAL(kall,kind=dp),' cpu : ',exec_loops
 
@@ -589,7 +602,12 @@ SUBROUTINE rmc_main
           OPEN(UNIT=kunit_GRTFF,FILE='GRTFF.calc')
           do igr=0, nbins-1
             rr  = ( REAL( igr , kind = dp ) + 0.5_dp ) * resolution_gr
+#ifdef GFORTRAN
+            WRITE ( FMT , * ) npairs+2
+            WRITE ( kunit_GRTFF ,'('// ADJUSTL(FMT) //'e20.10)') rr , ( grr_calc ( mp , igr ) , mp = 0 , npairs )
+#else
             WRITE ( kunit_GRTFF ,'(<npairs+2>e20.10)') rr , ( grr_calc ( mp , igr ) , mp = 0 , npairs )
+#endif
           enddo
           CLOSE(UNIT=kunit_GRTFF)
 !        endif
@@ -600,7 +618,12 @@ SUBROUTINE rmc_main
           if ( lrmc_u ) then
             OPEN(UNIT=kunit_DTIBUFF,FILE='DTIBUFF.calc')
             do bin=0, PANU
+#ifdef GFORTRAN
+              WRITE ( FMT , * ) 6*ntype+7
+              WRITE (kunit_DTIBUFF ,'('// ADJUSTL(FMT) //'f15.8)') u_efg_min  + REAL ( bin * resolution_u_efg , kind = dp ) , ( ( dibU_calc(ui,it,bin) , ui=1,6) , it=0,ntype )
+#else
               WRITE (kunit_DTIBUFF ,'(<6*ntype+7>f15.8)') u_efg_min  + REAL ( bin * resolution_u_efg , kind = dp ) , ( ( dibU_calc(ui,it,bin) , ui=1,6) , it=0,ntype )
+#endif
             enddo
             CLOSE(UNIT=kunit_DTIBUFF)
           endif
@@ -608,16 +631,31 @@ SUBROUTINE rmc_main
           if ( lrmc_vzz ) then
             OPEN(UNIT=kunit_DTVZZFF,FILE='DTVZZFF.calc')
             do bin=0, PANvzz
+#ifdef GFORTRAN
+              WRITE ( FMT , * ) 6*ntype+7
+              WRITE (kunit_DTVZZFF ,'('// ADJUSTL(FMT) //'f15.8)') vzz_efg_min  + REAL ( bin * resolution_vzz_efg , kind = dp ) , ( dibvzz_calc(it,bin) , it=0,ntype )
+#else
               WRITE (kunit_DTVZZFF ,'(<6*ntype+7>f15.8)') vzz_efg_min  + REAL ( bin * resolution_vzz_efg , kind = dp ) , ( dibvzz_calc(it,bin) , it=0,ntype )
+#endif
             enddo
             CLOSE(UNIT=kunit_DTVZZFF)
           endif
           ! DTETAFF
           if ( lrmc_eta ) then
             OPEN(UNIT=kunit_DTETAFF,FILE='DTETAFF.calc')
+#ifdef GFORTRAN
+            WRITE ( FMT , * ) ntype+2
+            WRITE (kunit_DTETAFF,'('// ADJUSTL(FMT) //'f15.8)')  dzero, ( dzero , it = 0 , ntype )
+#else
             WRITE (kunit_DTETAFF,'(<ntype+2>f15.8)')  dzero, ( dzero , it = 0 , ntype )
+#endif
             do bin=0, PANeta-1
-              WRITE (kunit_DTETAFF ,'(<6*ntype+7>f15.8)') REAL ( bin * resolution_eta_efg , kind = dp ) , ( dibeta_calc(it,bin), it=0,ntype )
+#ifdef GFORTRAN
+            WRITE ( FMT , * ) 6*ntype+7 
+            WRITE (kunit_DTETAFF ,'('// ADJUSTL(FMT) //'f15.8)') REAL ( bin * resolution_eta_efg , kind = dp ) , ( dibeta_calc(it,bin), it=0,ntype )
+#else
+            WRITE (kunit_DTETAFF ,'(<6*ntype+7>f15.8)') REAL ( bin * resolution_eta_efg , kind = dp ) , ( dibeta_calc(it,bin), it=0,ntype )
+#endif
             enddo
             CLOSE(UNIT=kunit_DTETAFF) 
           endif
@@ -808,7 +846,9 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
   integer       , dimension (:)       , allocatable :: lab
   integer       , dimension (:)       , allocatable :: ltab
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   ! nm(it,ia) gives the number of neigbours of type 
   ! it for an atom ia 
@@ -892,8 +932,10 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
 !      CALL MPI_ALL_REDUCE_DOUBLE ( dab( n , it , : ) , natm ) 
 !    enddo
 !  enddo
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   chisqvartime2 = chisqvartime2 + ( ttt2 - ttt1 )
+#endif
 #ifdef debug_invert
   print*,'debug : avant sorting dab'      
   do ia=1, natm
@@ -937,8 +979,10 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
 !    enddo
 !  enddo
 !#ifdef debug_invert
+#ifdef MPI
   ttt3 = MPI_WTIME(ierr)
   chisqvartime3 = chisqvartime3 + ( ttt3 - ttt2 )
+#endif
 !#endif
 
   ! we do not need this anymore
@@ -1030,8 +1074,10 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
     enddo
   enddo
 #endif
+#ifdef MPI
   ttt4 = MPI_WTIME(ierr)
   chisqvartime4 = chisqvartime4 + ( ttt4 - ttt3 )
+#endif
 !#endif
 
   chisq_var = 0.0_dp
@@ -1052,11 +1098,13 @@ SUBROUTINE eval_chisq_var_distance ( chisq_var )
   deallocate ( dab_aver  ) 
   deallocate ( dab_sorted  ) 
 
+#ifdef MPI
   ttt5 = MPI_WTIME(ierr)
 !#ifdef debug_invert
   chisqvartime5 = chisqvartime5 + ( ttt5 - ttt4 )
 !#endif
   chisqvartimetot = chisqvartimetot + ( ttt5 - ttt1 ) 
+#endif
 
   return
 
@@ -1105,7 +1153,9 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
   integer       , dimension (:)       , allocatable  :: ltab
   real(kind=dp) , external :: QuickSort
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   ! nm(it,ia) gives the number of neigbours of type 
   ! it for an atom ia 
@@ -1196,8 +1246,10 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
 
 
 #ifdef debug_invert
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   chisqvartime2u = chisqvartime2u + ( ttt2 - ttt1 ) 
+#endif
   write(stdout ,'(a)' ) 'debug : avant sorting dab'      
   do ia=1, natm
     do it=1, ntype
@@ -1236,8 +1288,10 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
 
 
 #ifdef debug_invert
+#ifdef MPI
   ttt3 = MPI_WTIME(ierr)
   chisqvartime3u = chisqvartime3u + ( ttt3 - ttt2 ) 
+#endif
   print*,'apres sorting'
   do ia=1, natm
     do it=1, ntype
@@ -1345,8 +1399,10 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
     enddo
   enddo
 #ifdef debug_invert
+#ifdef MPI
   ttt4 = MPI_WTIME(ierr)
   chisqvartime4u = chisqvartime4u + (ttt4 - ttt3) 
+#endif
 #endif
 
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
@@ -1356,8 +1412,10 @@ SUBROUTINE eval_chisq_var_distance_simple_update ( random_particule , chisq_var 
   deallocate ( dab_aver  ) 
   deallocate ( dab_sorted_shifted  ) 
 
+#ifdef MPI
   ttt5 = MPI_WTIME(ierr)
   chisqvartimetotu = chisqvartimetotu + ( ttt5 - ttt1 ) 
+#endif
 
   return
 
@@ -1453,15 +1511,19 @@ SUBROUTINE rmc_gr ( grr_calc )
   !  g(r) calcualtion and array merging  
   ! ===========================================
   CALL gr_main 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
   CALL MPI_ALL_REDUCE_INTEGER ( gr(:,0,0), nbins )
   do it1 = 1 , ntype
     do it2 = it1 , ntype
       CALL MPI_ALL_REDUCE_INTEGER ( gr(:,it1,it2), nbins )
     enddo
   enddo
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   rmcgrtimetot_comm = rmcgrtimetot_comm + ( ttt2 - ttt1 )
+#endif
   
   ! ============================================
   !        g(r) normalization

@@ -19,7 +19,6 @@
 
 ! ======= Hardware =======
 #include "symbol.h"
-!#define GFORTRAN
 ! ======= Hardware =======
 
 ! *********************** MODULE control ***************************************
@@ -372,7 +371,7 @@ SUBROUTINE control_print_info( kunit , MDFF )
   integer :: kunit
   integer :: status
 #ifdef GFORTRAN
-  character(len=80) :: HOST 
+  character(len=80) :: host 
 #endif
   character(len=80) :: MDFF
   character(len=30) :: user_name
@@ -423,7 +422,7 @@ SUBROUTINE control_print_info( kunit , MDFF )
      WRITE ( kunit ,'(a,a)')     'by user     : ',user_name
      if ( status == 0 ) then
 #ifdef GFORTRAN
-     WRITE ( kunit ,'(a,a)')     'host        : ',trim(HOST)
+     WRITE ( kunit ,'(a,a)')     'host        : ',trim(host)
 #else
      WRITE ( kunit ,'(a,a)')     'host        : ',HOST
 #endif

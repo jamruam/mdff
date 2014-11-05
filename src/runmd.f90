@@ -232,7 +232,9 @@ SUBROUTINE md_run
   ! ===========
   !  time info
   ! ===========
+#ifdef MPI
    statime
+#endif
 
 MAIN:  do itime = 1 , npas 
 
@@ -493,6 +495,7 @@ MAIN:  do itime = 1 , npas
         ! ===========
         !  time info
         ! ===========
+#ifdef MPI
         if ( ioprint ) then
           stotime
           addtime(mdsteptimetot) 
@@ -500,6 +503,7 @@ MAIN:  do itime = 1 , npas
           writime(' step : ',' MD  ',itime)
           statime
         endif
+#endif
 
         ! =============================================
         !  write instanteanous thermodynamic properties

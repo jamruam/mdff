@@ -46,6 +46,7 @@ SUBROUTINE restart_init ( MDFF )
   integer :: i
   logical           :: allowed
   character(len=60) :: cpos
+  character(len=20) :: FMT 
 
   CALL print_RESTART_info ( stdout )
  
@@ -171,8 +172,14 @@ SUBROUTINE restart_init ( MDFF )
   READ( kunit_RESTART   ) xe
   READ( kunit_RESTART   ) xe0
   if ( ionode ) then
+#ifdef GFORTRAN
+    write(FMT,*) nhc_n
+    write(*,'(a,' // ADJUSTL(FMT) //'f)') 'restart read ',vxi
+    write(*,'(a,' // ADJUSTL(FMT) //'f)') 'restart read ',xi
+#else
     write(*,'(a,<nhc_n>f)') 'restart read ',vxi
     write(*,'(a,<nhc_n>f)') 'restart read ',xi
+#endif
   endif
   
   ! ===================

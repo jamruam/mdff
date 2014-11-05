@@ -34,27 +34,38 @@ SUBROUTINE init_random_seed(rank,nump)
   integer :: rank,nump
 
   ! local
-  integer :: i , n , clock , root, tag , ierr, proc
+  integer :: i , n , clock , root, tag, proc
   INTEGER , dimension (:) , allocatable :: SEED
+#ifdef MPI
+  integer :: ierr
   integer status(MPI_STATUS_SIZE)
+#else
+  rank = 0
+#endif
 
   if ( rank .eq. 0 ) then
     CALL RANDOM_SEED(SIZE = n)
     do proc = 1 , nump-1
       tag = 0
+#ifdef MPI
       CALL MPI_SEND( n , 1, MPI_INTEGER, proc, tag, MPI_COMM_WORLD, ierr)
+#endif
     enddo
   else
     root = 0
     tag = 0
+#ifdef MPI
     call MPI_RECV ( n , 100, MPI_INTEGER, root, tag, MPI_COMM_WORLD, status, ierr)
+#endif
   endif
   allocate(SEED(n))
   i=1
   CALL SYSTEM_CLOCK(COUNT = clock)
 
   seed = clock + 48 * (/ (i - 1, i = 1, n) /)
+#ifdef MPI
   CALL MPI_ALL_REDUCE_INTEGER ( seed , n )
+#endif
   CALL RANDOM_SEED(PUT = seed)
   deallocate(SEED)
 
@@ -205,6 +216,7 @@ END SUBROUTINE boxmuller_basic
 SUBROUTINE gammadev(G,n)
 
   USE constants,         ONLY : dp
+  USE io,               ONLY :  stderr
 
   implicit none
   integer, intent(in) :: n
@@ -212,7 +224,10 @@ SUBROUTINE gammadev(G,n)
   real(kind=dp) :: am,e,s,v1,v2,x,y,U,V,W,G
   integer :: iseed
   
-  if(n.lt.1)pause 'bad argument in gamdev'
+  if(n.lt.1) then
+   WRITE (stderr , '(a)') 'bad argument in gammadev'
+   STOP
+  endif
   if(n.lt.6)then
     x=1.
     do 11 j=1,n

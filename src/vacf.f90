@@ -236,7 +236,9 @@ SUBROUTINE vacf_main
   ! timeinfo
   real(kind=dp) :: ttt1 , ttt2 
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   tvacf = tvacf + 1
   ! ===============================================
@@ -267,8 +269,10 @@ SUBROUTINE vacf_main
     endif 
   enddo 
  
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   vacftimetot = vacftimetot + ( ttt2 - ttt1 )
+#endif
 
   return
 
@@ -297,7 +301,9 @@ SUBROUTINE vacf_write_output
   real(kind=dp) ,dimension (:), allocatable :: rout
   real(kind=dp) :: ttt1 , ttt2
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
   
   allocate ( in ( tmax ) , out ( tmax ) , rout ( tmax ) ) 
 
@@ -370,8 +376,10 @@ SUBROUTINE vacf_write_output
 
   deallocate ( in , out , rout )
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   vacftimetot2 = vacftimetot2 + ( ttt2 - ttt1 )
+#endif
 
   RETURN
 

@@ -21,8 +21,8 @@ $(info compiling on : $(HOST) )
 SUFFIX=.F90
 
 # The compiler
-#FC = mpif90 
-FC = gfortran 
+FC = mpif90 
+#FC = gfortran 
 #FC = ifort 
 $(info FC : $(shell which $(FC) ) )
 FCL=$(FC)
@@ -52,20 +52,24 @@ EXE= mdff-b.x
 # =================
 #   on superbock
 # =================
-FCFLAGS = -cpp -O0 -ffree-line-length-0 -I/home/filipe/devel/openmpi-1.4.5-intel/include/ 
-
+#ifeq ($(FC),/usr/bin/gfortran)
+#FCFLAGS = -cpp -O0 -ffree-line-length-0 -I/home/filipe/devel/openmpi-1.4.5-intel/include/ -Wall -Wunused  
+#endif
+ifeq ($(FC),ifort)
+FCFLAGS = -O1 -xHost -align all 
+endif
 # =================
 #   on mario / babar / charrue
 # =================
 #FCFLAGS = -O3 -xSSE4.2 -align all -ip -static 
 #FCFLAGS = -O1 -xHost -align all #-ip -static 
-#FCFLAGS = -O3 -xHost -align all 
+FCFLAGS = -O5 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all
 #FCFLAGS = -O3 -ip -xW
 #FCFLAGS = -O0 -check all -warn all -debug 
 #FCFLAGS = -O0 -check all
-FCFLAGS = -O0 
+#FCFLAGS = -O0 
 ifeq ($(HOST),debian-charrue)
 FCFLAGS = -O3 -ip -align all
 endif
@@ -107,6 +111,7 @@ ifeq ($(HOST),IRAM-CE-004776)
 	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -limf -lm
 	INC=-I/opt/intel/composerxe/mkl/include/fftw/
 endif
+LDFLAGS= /usr/lib64/liblapack.so.3.2.1 -lfftw3 -lm
 
 # =================
 #   on charrue
@@ -157,7 +162,7 @@ $(info ===================================================)
 #  target files
 # ==================
 OBJ= constants.o io.o dumb.o tt_damp.o tensors.o oxyde.o mpi_mdff.o control.o stochio.o time.o functions.o \
-     fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o m1cg1.o \
+     fft_t.o rand.o lattice.o config.o md.o lbfgs.o m1qn3.o \
      block_average.o kspace.o rspace.o thermo.o kinetic.o field.o harm.o \
      tools.o read_pos.o integration.o opt.o vib.o msd.o multi_tau.o \
      radial_distrib.o efg.o rmc.o vacf.o voisin.o restart.o runmd.o
@@ -172,6 +177,8 @@ OBJ= constants.o io.o dumb.o tt_damp.o tensors.o oxyde.o mpi_mdff.o control.o st
 CPPDEFS = -DHOST=\"$(HOST)\"   \
           -Dtiming             \
           -DSVNREV=\"$(SVNREV)\" \
+          -DMPI 
+#	  -DGFORTRAN 
 #          -Ddebug=debug
 
 CPP =  $(CP) $(CPPFLAGS) $(CPPDEFS)  $*.f90 > $*$(SUFFIX)

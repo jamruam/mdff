@@ -260,13 +260,15 @@ SUBROUTINE vib_main
   TYPE(kmesh)                                 :: km 
 !  real(kind=dp)                               :: pressure0, pot0 removed 28/05/13
   character(len=1)                            :: jobz, uplo
+  character(len=20)                           :: FMT
   integer*4                                   :: info, lwork
   real(kind=dp)                               :: ttt1 , ttt2 
   real(kind=dp)                               :: ttt1p , ttt2p 
   real(kind=dp)                               :: ttt1d , ttt2d
 
+#ifdef MPI
   ttt1 = MPI_WTIME( ierr )
-
+#endif
  
   OPEN ( UNIT = kunit_EIGFF , FILE = 'EIGFF'  )
   OPEN ( UNIT = kunit_VECTFF, FILE = 'VECTFF' )
@@ -321,7 +323,9 @@ SUBROUTINE vib_main
   ! ===========================================
 
   conf : do ic = 1, nconf
+#ifdef MPI
     ttt1p = MPI_WTIME( ierr )
+#endif
 
     if ( ionode ) WRITE ( stdout ,'(a,i5)') 'read config',ic
 
@@ -358,14 +362,18 @@ SUBROUTINE vib_main
       lwork = 9 * natm
       jobz = 'V'
       uplo = 'U'
+#ifdef MPI
       ttt1d = MPI_WTIME( ierr )  
+#endif
       CALL DSYEV( jobz , uplo , 3 * natm , hess ,3 * natm , deig , work , lwork , info )
       if ( info .ne. 0 ) then
         io_node WRITE ( stderr ,'(a,i5)') 'ERROR in vib_main : improper termination. of DSYEV info = ',info
         STOP 
       else
+#ifdef MPI
         ttt2d = MPI_WTIME( ierr )  
         diaghessiantimetot = diaghessiantimetot + ( ttt2d - ttt1d )
+#endif
         io_node WRITE ( stderr ,'(a)')    'hessian diagonalisation ok'
       endif
 
@@ -447,7 +455,7 @@ SUBROUTINE vib_main
       km%nk = nk
       km%meshlabel='km-dos'
       allocate ( km%kptx ( nk ) ,  km%kpty ( nk ),  km%kptz ( nk ) , km%kptk(nk) )
-      CALL do_split ( km%nk , myrank , numprocs , km%kpt_dec , 'kpts')
+      CALL do_split ( km%nk , myrank , numprocs , km%kpt_dec , 'kpts ')
       CALL kpoint_sum_init_BZ ( km , 1.0_dp )
 
       ! why the hell did I keet it 
@@ -506,8 +514,10 @@ SUBROUTINE vib_main
         
     endif ! vib+dos
 
+#ifdef MPI
     ttt2p = MPI_WTIME( ierr )
     io_node WRITE ( stdout , 110 ) 'config : ',ic,' VIB  ', ttt2p - ttt1p  
+#endif
 
   enddo conf 
 
@@ -515,7 +525,12 @@ SUBROUTINE vib_main
   !    write density of states to DOSKFF file
   ! ===========================================
   do i = 0,PANdos + 1
+#ifdef GFORTRAN
+    WRITE(FMT,*) 6*ntype+3
+    io_node WRITE ( kunit_DOSKFF ,'('// ADJUSTL(FMT) //'f16.8)') &
+#else
     io_node WRITE ( kunit_DOSKFF ,'(<6*ntype+3>f16.8)') &
+#endif
     REAL ( i, kind = dp ) * resdos , ( REAL ( dostabktot(i,j) , kind = dp ) / ( 3.0 * nk * resdos * nconf ), j = 0 , 3*ntype )
   enddo
   io_node blankline(kunit_DOSKFF )
@@ -569,8 +584,10 @@ SUBROUTINE vib_main
   deallocate(work)
   deallocate(hess) 
 
+#ifdef MPI
   ttt2 = MPI_WTIME( ierr )
   vibtimetot = vibtimetot + ( ttt2 - ttt1 ) 
+#endif
 
   return
 
@@ -616,7 +633,9 @@ SUBROUTINE hessian ( hess )
 #ifdef debug_symmetry
   allocate ( tmpdebug ( 3 * ntype , 3 * ntype ) ) 
 #endif
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr) ! timing info
+#endif
 
   do it = 1 , ntype
     do jt = 1 , ntype
@@ -1037,8 +1056,10 @@ SUBROUTINE hessian ( hess )
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr) ! timing info
   hessiantimetot = hessiantimetot + ( ttt2 - ttt1 )
+#endif
 
   return
 
@@ -1347,7 +1368,9 @@ SUBROUTINE band ( hess )
   TYPE (kpath)     :: kp
   character(len=1) :: jobz , uplo
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr) ! timing info
+#endif
 
   ! =====================================================
   ! WARNING : 
@@ -1477,8 +1500,10 @@ SUBROUTINE band ( hess )
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+#ifdef MPI
   ttt2 = MPI_WTIME ( ierr ) ! timing info
   bandtimetot = bandtimetot + ( ttt2 - ttt1) 
+#endif
 
   return  
 
@@ -1553,7 +1578,9 @@ SUBROUTINE doskpt ( hess , eigenk , km )
   allocate ( hessij  ( 3 * ntype , 3 * ntype ) )
   allocate ( ww      ( 3 * ntype             ) )
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr) ! timing info
+#endif
 
   lwork = 9*ntype
   jobz = 'N'
@@ -1569,7 +1596,9 @@ SUBROUTINE doskpt ( hess , eigenk , km )
 
   wi = 1
         
+#ifdef MPI
   ttt1l = MPI_WTIME(ierr) ! timing info
+#endif
 
   do ik = km%kpt_dec%istart , km%kpt_dec%iend
 
@@ -1625,11 +1654,14 @@ SUBROUTINE doskpt ( hess , eigenk , km )
       enddo  ! j atom loop
     enddo ! i atom loop
    
+#ifdef MPI
     if ( MOD ( ik + 1 , km%kpt_dec%dim_data / 20 ) .eq. 0 ) then
       ttt2l = MPI_WTIME(ierr) ! timing info
       io_node WRITE ( stdout , 110 ) ' kpoints : ',int(ik*numprocs),' DOSKPT  ', ttt2l - ttt1l
       ttt1l = MPI_WTIME(ierr) ! timing info
     endif
+#endif
+
     hessij = - tmphess * 2.0_dp / natm
     
     ! diagonalisation of the 3x3 matrix
@@ -1683,8 +1715,10 @@ SUBROUTINE doskpt ( hess , eigenk , km )
   ! ======================================
   CALL dirkar ( natm , rx , ry , rz , simu_cell%A )
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr) ! timing info
   doskpttimetot = doskpttimetot + ( ttt2 - ttt1 )
+#endif
 
 110   FORMAT(2X,A8,I8,A20,' :  cpu time',F9.2)
 

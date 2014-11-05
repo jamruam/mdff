@@ -111,7 +111,7 @@ SUBROUTINE stochio_atomic_calc
       if ( nel(ie) .ne. 0 ) then
         totmass = totmass + tabper(ie)%massele * nel(ie)
         numbands = numbands + tabper(ie)%valence * nel(ie)
-        WRITE( stdout , '(i,i,f8.3,10x,a,i)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
+        WRITE( stdout , '(i5,i5,f8.3,10x,a,i8)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
       endif
     enddo
     blankline(stdout)
@@ -158,7 +158,7 @@ SUBROUTINE stochio_oxydes_calc
       ntype=ntype+1
     endif
   enddo
-  WRITE ( stdout , '(a,i)' ) 'number of oxydes : ', ntype
+  WRITE ( stdout , '(a,i5)' ) 'number of oxydes : ', ntype
 
   ! ==============================
   !  define 0 < [proportion] < 1
@@ -223,7 +223,7 @@ SUBROUTINE stochio_oxydes_calc
     enddo
   enddo
   if ( target_nions .le. 0 ) then
-    WRITE ( stdout ,'(a,2i)' ) 'could not found configuration for the requested number ions :',target_nions,save_target
+    WRITE ( stdout ,'(a,2i5)' ) 'could not found configuration for the requested number ions :',target_nions,save_target
     STOP
   endif
   do iox = 1 , noxyde
@@ -231,7 +231,7 @@ SUBROUTINE stochio_oxydes_calc
       if ( int(target_nions*oxydes(iox)%relcon) .eq. 0 ) STOP
     endif
   enddo
-  WRITE ( stdout ,'(a,i)' ) 'target found :',target_nions
+  WRITE ( stdout ,'(a,i5)' ) 'target found :',target_nions
 
   ! ===========================
   ! count the number of ions for  
@@ -339,7 +339,7 @@ SUBROUTINE stochio_oxydes_calc
       if ( nel(ie) .ne. 0 ) then
         totmass = totmass + tabper(ie)%massele * nel(ie) 
         numbands = numbands + tabper(ie)%valence * nel(ie)
-        WRITE( stdout , '(i,i,f8.3,10x,a,i)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
+        WRITE( stdout , '(i5,i5,f8.3,10x,a,i8)' ) ie,tabper(ie)%valence,tabper(ie)%massele,tabper(ie)%elename,nel(ie)
       endif
     enddo
     blankline(stdout)
@@ -382,6 +382,7 @@ SUBROUTINE stochio_init
   implicit none
 
   integer :: iox
+  character(len=20) :: FMT
 
   namelist /stochiotag/    def           , &
                            typedef       , &
@@ -416,7 +417,12 @@ SUBROUTINE stochio_init
   elseif ( ioerr .gt. 0 )  then
     WRITE ( stdout, '(a,i6)') 'ERROR reading input_file : input wrong tag',ioerr
     WRITE ( stdout, '(a,i6)' ) 'Number of available oxydes :' ,noxyde
+#ifdef GFORTRAN
+    WRITE ( FMT,*) noxyde
+    WRITE ( stdout, '('//ADJUSTL(FMT)//'a6)' ) ( oxydes(iox)%nameox , iox = 1 , noxyde )
+#else
     WRITE ( stdout, '(<noxyde>a6)' ) ( oxydes(iox)%nameox , iox = 1 , noxyde )
+#endif
     WRITE ( stdout, '(a)' ) 'add some oxyde in oxyde.f90'
     STOP
   endif
@@ -516,6 +522,7 @@ SUBROUTINE stochio_print_info ( kunit )
 
   !local
   integer :: kunit, iox , ie2 
+  character(len=20) :: FMT
 
   if ( ionode ) then
     separator(kunit)
@@ -523,8 +530,14 @@ SUBROUTINE stochio_print_info ( kunit )
     WRITE( kunit , '(a)' ) 'STOCHIO MODULE ... WELCOME'
     WRITE ( stdout , '(a)'            ) 'Composition :'
     if ( typedef .eq. 'oxydes' ) then
+#ifdef GFORTRAN
+      WRITE ( FMT , * ) noxyde
+      WRITE ( stdout , '('// ADJUSTL(FMT) //'a8)'   ) (oxydes(iox)%nameox,iox=1,noxyde)
+      WRITE ( stdout , '('// ADJUSTL(FMT) //'f8.2)' ) (oxydes(iox)%relcon,iox=1,noxyde)
+#else
       WRITE ( stdout , '(<noxyde>a8)'   ) (oxydes(iox)%nameox,iox=1,noxyde)
       WRITE ( stdout , '(<noxyde>f8.2)' ) (oxydes(iox)%relcon,iox=1,noxyde)
+#endif
     endif
     if ( typedef .eq. 'atomic' ) then
       do ie = 1 , nelem

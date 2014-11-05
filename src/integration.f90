@@ -492,6 +492,9 @@ SUBROUTINE nhcn
   real(kind=dp)          :: ttt1
   real(kind=dp) :: nvt1, nvt2, nvt3, nvt4
 
+#ifdef MPI
+  ttt1 = MPI_WTIME(ierr) 
+#endif
   ! degrees of freedom
   L = 3.0_dp * ( REAL ( natm , kind=dp) )
 
@@ -501,15 +504,11 @@ SUBROUTINE nhcn
   Q(1) = Q(1) * L 
 
   CALL calc_temp ( tempi , kin )
-  ttt1 = MPI_WTIME(ierr) 
   CALL chain_nhcn ( kin , vxi , xi , Q , L )
-  integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
   CALL prop_pos_vel_verlet ( kin )
 
-  ttt1 = MPI_WTIME(ierr) 
   CALL chain_nhcn( kin, vxi, xi , Q , L )
-  integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
 
   ! full t + dt kinetic energy 
   CALL calc_temp ( tempi , kin )
@@ -537,6 +536,9 @@ SUBROUTINE nhcn
   io_printnode write(stdout,'(a,5f16.8)') 'e_nvt',e_nvt,nvt1,nvt2,nvt3,nvt4
 
   deallocate( Q ) 
+#ifdef MPI
+  integratimetot = integratimetot + ( MPI_WTIME(ierr) - ttt1 )
+#endif
 
   return
 
@@ -577,7 +579,7 @@ SUBROUTINE chain_nhcn ( kin , vxi , xi , Q , L )
        
   SELECT CASE ( nhc_yosh_order )
   CASE DEFAULT
-    io_node WRITE(stdout,'(a,<size(yosh_allowed)>i)') 'value of yoshida order not available try :',yosh_allowed
+    io_node WRITE(stdout,'(a,5i3)') 'value of yoshida order not available try :',yosh_allowed
     STOP
   CASE (1)
      yosh_w(1) = 1.0_dp
@@ -715,7 +717,7 @@ SUBROUTINE chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
 
   SELECT CASE ( nhc_yosh_order )
   CASE DEFAULT
-    io_node WRITE(stdout,'(a,<size(yosh_allowed)>i)') 'value of yoshida order not available try :',yosh_allowed
+    io_node WRITE(stdout,'(a,5i3)') 'value of yoshida order not available try :',yosh_allowed
     STOP
   CASE (1)
      yosh_w(1) = 1.0_dp
@@ -945,6 +947,7 @@ SUBROUTINE nhcnp
   integer                :: inhc
   real(kind=dp)          :: kin , tempi , W, L 
   real(kind=dp), dimension ( : ) , allocatable :: Q, Qb
+  character(len=20) :: FMT
 
   L = 3.0_dp * REAL(natm, kind=dp) 
   allocate ( Q(nhc_n) , Qb (nhc_n) )
@@ -1014,7 +1017,12 @@ SUBROUTINE nhcnp
                                                               temp * xib(1)                                , &
                                                               vxi(1)   * vxi(1)  * 0.5_dp / Q (1)          , &
                                                               vxib(1)  * vxib(1) * 0.5_dp / Qb(1)          
+#ifdef GFORTRAN
+  write ( FMT , * ) 4 * nhc_n
+  io_printnode write(stdout,'(a,'// ADJUSTL(FMT) //'e16.8)') 'e_npt2 ',( vxi(inhc)  * vxi(inhc)  * 0.5_dp / Q (inhc)  , &
+#else
   io_printnode write(stdout,'(a,<4*nhc_n>e16.8)') 'e_npt2 ',( vxi(inhc)  * vxi(inhc)  * 0.5_dp / Q (inhc)  , &
+#endif
                                                               vxib(inhc) * vxib(inhc) * 0.5_dp / Qb(inhc)  , &
                                                               temp * xi(inhc)                              , & 
                                                               temp * xib(inhc)             , inhc=2,nhc_n)

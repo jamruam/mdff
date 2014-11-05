@@ -269,7 +269,9 @@ SUBROUTINE opt_main
   real(kind=dp)     :: ttt1,ttt2
   real(kind=dp)     :: ttt1p,ttt2p
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
 
   nopt=0
  
@@ -305,7 +307,9 @@ SUBROUTINE opt_main
     ioprint = .true.
     if ( ionode ) ioprintnode = .true.
 
+#ifdef MPI
     ttt1p = MPI_WTIME(ierr)
+#endif
     ! ===================================
     !  read config from trajectory file
     ! ===================================
@@ -417,8 +421,10 @@ SUBROUTINE opt_main
         endif
       endif
 
+#ifdef MPI
     ttt2p = MPI_WTIME(ierr)
     io_node WRITE ( stdout , 110 ) 'config : ',ic,' OPT  ', ttt2p - ttt1p  
+#endif
 
     endif ! nperiod         
 
@@ -429,8 +435,10 @@ SUBROUTINE opt_main
   CLOSE( kunit_ISTHFF )
   CLOSE( kunit_TRAJFF )
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   opttimetot = opttimetot + (ttt2-ttt1) 
+#endif
 
   return
 

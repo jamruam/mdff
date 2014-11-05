@@ -227,7 +227,7 @@ SUBROUTINE distance_tab
 
   if ( calc .eq. 'dist' ) then
     do bin=0,PANdis
-      write(10000,'(f16.8,i)') REAL(bin,kind=dp)*resdis,dist(bin)
+      write(10000,'(f16.8,i8)') REAL(bin,kind=dp)*resdis,dist(bin)
     enddo
   endif
 
@@ -467,7 +467,9 @@ SUBROUTINE vnlistcheck
 !  write(stdout,'(a,a)') 'debug : in vnlistcheck',vlist%listname
 !#endif
 
+#ifdef MPI
   ttt1 = MPI_WTIME(ierr)
+#endif
   ! ======================================
   !         cartesian to direct 
   ! ======================================
@@ -527,8 +529,10 @@ SUBROUTINE vnlistcheck
      
   endif
 
+#ifdef MPI
   ttt2 = MPI_WTIME(ierr)
   vnlisttimetot = vnlisttimetot + ( ttt2 - ttt1 ) 
+#endif
 
   return
 
@@ -627,6 +631,7 @@ SUBROUTINE print_tensor_nxn ( tens , key , n )
   integer          :: n 
   real(kind=dp)    :: tens(n,n) 
   character(len=8) :: key
+  character(len=20) :: FMT
 
   ! local
   integer          :: i , j
@@ -637,7 +642,12 @@ SUBROUTINE print_tensor_nxn ( tens , key , n )
     blankline(stdout)
     WRITE ( stdout ,'(a)') key
     do i = 1 , n
+#ifdef GFORTRAN
+      WRITE ( FMT    ,* ) n
+      WRITE ( stdout ,'('// ADJUSTL(FMT) //'e16.8)') ( tens(i,j) , j=1,n)
+#else
       WRITE ( stdout ,'(<n>e16.8)') ( tens(i,j) , j=1,n)
+#endif
       trace = trace + tens ( i , i ) 
     enddo
     WRITE ( stdout ,'(a,e16.8,a,e16.8,a)') 'iso = ',( trace )/3.0_dp , '(', ( trace ) / 3.0_dp / dble(natm),')'
@@ -899,7 +909,7 @@ SUBROUTINE write_all_conf_proc
   filename_out=trim(adjustl( 'CONTFF.np'//trim(adjustl(str1))//'.rank'//trim(adjustl(str2))//'.step'//trim(adjustl(str3)) ) )
   !write(*,*) 'write conf to unit',kunit_bak_proc(myrank),filename_out
   OPEN ( kunit_bak_proc(myrank) ,file = filename_out , STATUS = 'UNKNOWN')
-      WRITE (  kunit_bak_proc(myrank),'(i)') natm
+      WRITE (  kunit_bak_proc(myrank),'(i8)') natm
       WRITE (  kunit_bak_proc(myrank),'(a)') system
       WRITE (  kunit_bak_proc(myrank),'(3f20.12)') simu_cell%A ( 1 , 1 ) , simu_cell%A ( 2 , 1 ) , simu_cell%A ( 3 , 1 )
       WRITE (  kunit_bak_proc(myrank),'(3f20.12)') simu_cell%A ( 1 , 2 ) , simu_cell%A ( 2 , 2 ) , simu_cell%A ( 3 , 2 )

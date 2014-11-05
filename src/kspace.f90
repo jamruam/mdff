@@ -202,7 +202,7 @@ SUBROUTINE kpoint_sum_init( km , alpha )
   !  organized kpt arrays 
   ! ======================
   call reorder_kpt ( km ) 
-  io_node WRITE ( stdout      ,'(a,i)') '(full) kpt arrays sorted',nk
+  io_node WRITE ( stdout      ,'(a,i8)') '(full) kpt arrays sorted',nk
 
   return
 
@@ -369,7 +369,7 @@ SUBROUTINE struc_fact ( km )
   ! local
   !integer :: it
   integer :: ia, ik
-  real(kind=dp) :: arg , rxi , ryi , rzi 
+  real(kind=dp) :: rxi , ryi , rzi 
   real(kind=dp) :: kx , ky , kz , k_dot_r
 
   !  exp ( i k . r ) = ckr + i skr
@@ -441,7 +441,7 @@ SUBROUTINE charge_density_k_mu ( km , mu , ik )
 
   ! local
   integer :: ia 
-  real(kind=dp) :: rxi , ryi , rzi , k_dot_r , k_dot_mu , mux , muy , muz, qi
+  real(kind=dp) :: k_dot_mu , mux , muy , muz
   real(kind=dp) :: kx , ky , kz
   real(kind=dp)    :: sumia_R,sumia_I , ckr , skr
         

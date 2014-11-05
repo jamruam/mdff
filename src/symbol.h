@@ -5,7 +5,7 @@
 ! dectime : declare
 #define dectime real(kind=dp) :: ttt0 , ttt , ierr 
 ! statime : start
-#define statime ttt0 = MPI_WTIME(ierr) 
+#define statime ttt0 = MPI_WTIME(ierr)
 ! stotime : stop
 #define stotime ttt  = MPI_WTIME(ierr)
 ! addtime(X) : add to variable X
@@ -29,6 +29,7 @@
 ! separator '-'
 #define lseparator(X)     if ( ionode ) WRITE ( X , '(a)' ) repeat('-',61) 
 #define lseparator_noionode(X)          WRITE ( X , '(a)' ) repeat('-',61) 
+#define lseparator_ioprintnode(X)  if ( ioprintnode )        WRITE ( X , '(a)' ) repeat('-',61) 
 
 ! blank line
 #define blankline(X)            WRITE ( X , '(a)' ) ''

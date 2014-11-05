@@ -91,17 +91,21 @@ PROGRAM main_MDFF
         ' (build ' // __DATE__// ' ' //__TIME__// ') ' // &
         'parallel'
 
+#ifdef MPI
   ! ====================================================
   ! MPI initialisation
   ! ====================================================
   CALL MPI_INIT ( ierr )                           
+#endif
 
   ! ====================================================
   ! time information init 
   ! ====================================================
   CALL time_init
   CALL init_dumb
+#ifdef MPI
   statime 
+#endif
 
   ! ====================================================      
   ! random number generator init
@@ -111,6 +115,7 @@ PROGRAM main_MDFF
   ! ====================================================
   !CALL init_random_seed 
 
+#ifdef MPI
   ! ====================================================
   ! gives rank index (myrank) 
   ! ====================================================
@@ -120,6 +125,7 @@ PROGRAM main_MDFF
   ! gives total proc number  
   ! ====================================================
   CALL MPI_COMM_SIZE ( MPI_COMM_WORLD , numprocs , ierr )  
+#endif
 
   ! ====================================================
   ! input/output init 
@@ -379,13 +385,16 @@ PROGRAM main_MDFF
     ! 
   endif
 
-
+#ifdef MPI
   stotime
   addtime(timetot) 
+#endif
   CALL print_time_info ( stdout ) 
   CALL print_dumb
   CALL io_end
+#ifdef MPI
   CALL MPI_FINALIZE(ierr)
+#endif
 
 END PROGRAM main_MDFF
 ! ===== fmV =====

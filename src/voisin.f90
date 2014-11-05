@@ -219,6 +219,7 @@ SUBROUTINE vois1_driver
 
   ! local 
   integer            :: i , inb , iconf ,it
+  character(len=20) :: FMT
   dectime
 
 
@@ -254,7 +255,9 @@ SUBROUTINE vois1_driver
   allocate ( kk ( 0:nbmax ) ) 
   kk = 0
   do iconf = 1, nconf
+#ifdef MPI
     statime
+#endif
 
     ! ====================
     !  read config iconf
@@ -287,8 +290,10 @@ SUBROUTINE vois1_driver
       CALL sann 
     endif
 
+#ifdef MPI
     stotime
     writime('config : ',' VOIS1  ',iconf)
+#endif
 
   enddo
   do i=0,nbmax
@@ -302,7 +307,12 @@ SUBROUTINE vois1_driver
   OPEN (UNIT = kunit_DTNBFF , FILE = 'DTNBFF')
   WRITE( kunit_DTNBFF , '(a)') '#nb    P(Nb)'
   do inb = 0 , nbmax
+#ifdef GFORTRAN
+     WRITE ( FMT , * ) ntype + 1
+     WRITE( kunit_DTNBFF , '(i6,'// ADJUSTL(FMT) //'f12.6)' ) inb , ( REAL ( dib_nb ( it , inb ) ) / ( REAL ( nconf , kind = dp ) ) , it = 0 , ntype )
+#else
      WRITE( kunit_DTNBFF , '(i6,<ntype+1>f12.6)' ) inb , ( REAL ( dib_nb ( it , inb ) ) / ( REAL ( nconf , kind = dp ) ) , it = 0 , ntype )
+#endif
   enddo
   CLOSE ( kunit_DTNBFF )
 
@@ -338,6 +348,7 @@ SUBROUTINE fixed_distance
   integer , dimension (:,:) , allocatable  :: selectedneighbors ! neighbour table
   integer , dimension (:,:) , allocatable  :: spec_vois1 ! neighbour table
   real(kind=dp)                                  :: xxx , yyy , zzz 
+  character(len=20) :: FMT
 
   ! distributions
   integer :: knb
@@ -423,7 +434,12 @@ SUBROUTINE fixed_distance
     WRITE ( kkkk , '(3f20.12)' )     0.0_dp , 1000.0_dp ,    0.0_dp
     WRITE ( kkkk , '(3f20.12)' )     0.0_dp ,    0.0_dp , 1000.0_dp
     WRITE ( kkkk , '(i4)'      )  ntype+1
+#ifdef GFORTRAN
+    WRITE ( FMT , * ) ntype+1 
+    WRITE ( kkkk , '('// ADJUSTL(FMT) //'a3 )') ( atypei_cluster(it) , it=0,ntype )
+#else
     WRITE ( kkkk , '(<ntype+1>a3 )') ( atypei_cluster(it) , it=0,ntype )
+#endif
     WRITE ( kkkk , *           ) ( natmi_cluster (it) , it=0,ntype )
     WRITE ( kkkk ,'(A)')         'Cartesian'
     WRITE ( kkkk ,'(a,3e20.12)') atypei_cluster(0) , 0.0_dp , 0.0_dp , 0.0_dp
@@ -484,7 +500,12 @@ SUBROUTINE fixed_distance
 
   WRITE ( kunit_VOIS1FF , '(a)' ) '#atom    nb_neighbors       ... of different types ... '
   do ia = 1 , natm
+#ifdef GFORTRAN
+   WRITE ( FMT ,  * ) ntype
+   WRITE ( kunit_VOIS1FF , '(2i6,i6,'// ADJUSTL(FMT) //'(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#else
    WRITE ( kunit_VOIS1FF , '(2i6,i6,<ntype>(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#endif
   enddo
   deallocate ( spec_vois1 )
 
@@ -541,6 +562,7 @@ SUBROUTINE sann
   real(kind=dp) , dimension (:)   , allocatable  :: td 
   real(kind=dp)                                  :: xxx , yyy , zzz 
   real(kind=dp) , dimension (:,:) , allocatable  :: distancesorted 
+  character(len=20) :: FMT
 
   ! distributions
   integer :: knb
@@ -747,7 +769,12 @@ SUBROUTINE sann
     WRITE ( kkkk , '(3f20.12)' )     0.0_dp , 1000.0_dp ,    0.0_dp
     WRITE ( kkkk , '(3f20.12)' )     0.0_dp ,    0.0_dp , 1000.0_dp
     WRITE ( kkkk , '(i4)'      )  ntype+1
+#ifdef GFORTRAN
+    WRITE ( FMT , * ) ntype+1
+    WRITE ( kkkk , '('// ADJUSTL(FMT) //'a3 )') ( atypei_cluster(it) , it=0,ntype )
+#else
     WRITE ( kkkk , '(<ntype+1>a3 )') ( atypei_cluster(it) , it=0,ntype )
+#endif
     WRITE ( kkkk , *           ) ( natmi_cluster (it) , it=0,ntype )
     WRITE ( kkkk ,'(A)')         'Cartesian'
     WRITE ( kkkk ,'(a,3e20.12)') atypei_cluster(0) , 0.0_dp , 0.0_dp , 0.0_dp 
@@ -907,7 +934,12 @@ SUBROUTINE sann
 
     WRITE ( kunit_VOIS1FF , '(a)' ) '#atom    nb_neighbors       ... of different types ... '
     do ia = 1 , natm
+#ifdef GFORTRAN
+      WRITE ( FMT , *  ) ntype
+      WRITE ( kunit_VOIS1FF , '(2i6,i6,'// ADJUSTL(FMT) // '(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#else
       WRITE ( kunit_VOIS1FF , '(2i6,i6,<ntype>(i6))' ) ia , Nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#endif
     enddo
     deallocate ( spec_vois1 )
 
@@ -992,6 +1024,7 @@ SUBROUTINE voronoi_construction
   integer       , dimension (:)     , allocatable :: nb 
   integer       , dimension (:,:)   , allocatable :: selectedneighbors 
   integer       , dimension (:,:)   , allocatable :: spec_vois1
+  character(len=20) :: FMT
 
   integer :: knb
 #ifdef further_info_voronoi
@@ -1261,7 +1294,12 @@ SUBROUTINE voronoi_construction
   OPEN ( UNIT = kunit_VOIS1FF , FILE = 'VOIS1FF')
   WRITE ( kunit_VOIS1FF , '(a)' ) '#atom    nb_neighbors       ... of different types ... '
   do ia = 1 , natm
+#ifdef GFORTRAN
+    WRITE ( FMT , * ) ntype
+    WRITE ( kunit_VOIS1FF , '(2i6,i6,'// ADJUSTL(FMT) //'(i6))' ) ia , nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#else
     WRITE ( kunit_VOIS1FF , '(2i6,i6,<ntype>(i6))' ) ia , nb ( ia ), ( spec_vois1 ( ia , jt ) , jt = 1 ,ntype )
+#endif
   enddo
   CLOSE( kunit_VOIS1FF )
   deallocate ( spec_vois1 )
