@@ -173,11 +173,11 @@ SUBROUTINE stochio_oxydes_calc
   sumox=0.0_dp
   do iox=1,noxyde
     sumox=sumox+oxydes(iox)%relcon
-    print*,sumox,oxydes(iox)%relcon    
+    write(stdout ,'(2e60.48)') ,sumox,oxydes(iox)%relcon    
   enddo
   print*,sumox
-  if ( sumox .ne. 1.0_dp ) then
-    WRITE ( stdout , '(a,e16.8)' ) 'ERROR sum of oxydes not 100 % : ', sumox
+  if ( ( sumox - 1.0_dp ) .gt. 1e-6  ) then
+    WRITE ( stdout , '(a,e60.48)' ) 'ERROR sum of oxydes not 100 % : ', sumox
     STOP
   endif
 

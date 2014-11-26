@@ -56,14 +56,14 @@ EXE= mdff-b.x
 #FCFLAGS = -cpp -O0 -ffree-line-length-0 -I/home/filipe/devel/openmpi-1.4.5-intel/include/ -Wall -Wunused  
 #endif
 ifeq ($(FC),ifort)
-FCFLAGS = -O1 -xHost -align all 
+FCFLAGS = -O0 -xHost #-align all 
 endif
 # =================
 #   on mario / babar / charrue
 # =================
 #FCFLAGS = -O3 -xSSE4.2 -align all -ip -static 
 #FCFLAGS = -O1 -xHost -align all #-ip -static 
-FCFLAGS = -O5 -xHost -align all 
+FCFLAGS = -O3 -xHost -align all 
 #FCFLAGS = -O3 -ip -static -align all 
 #FCFLAGS = -O3 -static -x  -align all
 #FCFLAGS = -O3 -ip -xW
@@ -111,7 +111,7 @@ ifeq ($(HOST),IRAM-CE-004776)
 	LDFLAGS= -Wl,-rpath,/opt/intel/composerxe/mkl/lib/intel64/ -Wl,--start-group /opt/intel/composerxe/mkl/lib/intel64/libmkl_intel_lp64.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_sequential.a /opt/intel/composerxe/mkl/lib/intel64/libmkl_core.a -Wl,--end-group -limf -lm
 	INC=-I/opt/intel/composerxe/mkl/include/fftw/
 endif
-LDFLAGS= /usr/lib64/liblapack.so.3.2.1 -lfftw3 -lm
+#LDFLAGS= /usr/lib64/liblapack.so.3.2.1 -lfftw3 -lm
 
 # =================
 #   on charrue
