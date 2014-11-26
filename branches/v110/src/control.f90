@@ -104,7 +104,6 @@ MODULE control
   ! ==============================================================
   logical, SAVE           :: non_bonded 
    
-  
 CONTAINS
 
 ! *********************** SUBROUTINE control_init ******************************

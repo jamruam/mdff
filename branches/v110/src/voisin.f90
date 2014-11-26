@@ -56,7 +56,7 @@ MODULE voisin
   ! ===============
   !  distributions
   ! ===============
-  integer         , dimension(:,:)  , allocatable :: dib_nb 
+  integer       , dimension(:,:)  , allocatable :: dib_nb 
   integer                                         :: nbmax
   integer       , dimension (:)   , allocatable   :: kk 
 

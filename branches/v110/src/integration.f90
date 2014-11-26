@@ -694,7 +694,8 @@ SUBROUTINE chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
   USE config,                   ONLY :  simu_cell, massia , natm , vx , vy , vz
   USE md,                       ONLY :  temp , press, dt , nhc_n , nhc_yosh_order, nhc_mults, yosh_allowed 
   USE thermodynamic,            ONLY :  pvirial_tot
-  USE io,                       ONLY :  ionode , stdout, ioprint, ioprintnode
+  USE io,                       ONLY :  ionode , stdout, stderr, ioprint, ioprintnode
+  USE mpimdff,                  ONLY :  myrank
 
   implicit none
 
@@ -757,15 +758,16 @@ SUBROUTINE chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
   G  = 0.0_dp
   Gb = 0.0_dp
   dt_yosh =  yosh_w * dt
-  dt2 = dt * 0.5d0
+  dt2 = dt * 0.5_dp
 
   s     = 1.0_dp ! scale particule velocities
   sb    = 1.0_dp ! scale "piston" velocity
   Ge    = odnf * kin + 3.0_dp * simu_cell%omega * ( pvirial_tot - press ) 
   ve = ve + Ge * dt2 ! pe 
-  G(1)  = 2.0_dp*kin - L * temp
+  !G(1)  = 2.0_dp*kin - L * temp
   Gb(1) = 0.5_dp * ve * ve / W - temp
   ! barostat
+!  write(stderr,'(a,i,<nhc_n>e60.48,5f60.48)') 'debug : ',myrank,G,kin,L,temp,2.0_dp*kin,L * temp
 
 
   msloop : do k=1,nhc_mults
@@ -773,9 +775,9 @@ SUBROUTINE chain_nhcnp ( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , tro
     yoshloop:  do j=1, nhc_yosh_order
 
     dts = dt_yosh( j ) / REAL(nhc_mults,kind=dp)
-    dts2 = dts  * 0.5d0
-    dts4 = dts2 * 0.5d0
-    dts8 = dts4 * 0.5d0
+    dts2 = dts  * 0.5_dp
+    dts4 = dts2 * 0.5_dp
+    dts8 = dts4 * 0.5_dp
 
 ! test order of trotter expansion
 if ( trotter_order == 1 ) then
@@ -790,7 +792,9 @@ if ( trotter_order == 1 ) then
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
     enddo
     sb = sb * EXP ( - vxib(1) * dts2 / Qb ( 1 ) )
-    xib = xib + vxib * dts2 / Qb  !!! sign ??? 
+    do inh=1,nhc_n
+      xib(inh) = xib(inh) + vxib(inh) * dts2 / Qb(inh) 
+    enddo
     Gb(1) = 0.5_dp * ve * ve * sb * sb / W - temp
     do inh = 1 , nhc_n - 1
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
@@ -819,9 +823,10 @@ if ( trotter_order == 1 ) then
       vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
     enddo
     s = s * EXP ( - vxi(1) * dts2 / Q ( 1 ) )
-    xi = xi + vxi * dts2 / Q 
-    kin = kin * s * s 
-    G(1) = 2.0_dp*kin - L * temp
+    do inh=1,nhc_n
+      xi(inh) = xi(inh) + vxi(inh) * dts2 / Q(inh) 
+    enddo
+    G(1) = 2.0_dp*kin *s*s- L * temp
     do inh = 1 , nhc_n - 1
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
       vxi ( inh )     =   vxi ( inh ) + G(inh) * dts4
@@ -844,7 +849,9 @@ else
       vxi ( inh ) = vxi ( inh ) * EXP ( - vxi ( inh + 1 ) * dts8 / Q ( inh+1 ) )
     enddo
     s = s * EXP ( - vxi(1) * dts2 / Q ( 1 ) )
-    xi = xi + vxi * dts2 / Q 
+    do inh=1,nhc_n
+      xi(inh) = xi(inh) + vxi(inh) * dts2 / Q(inh) 
+    enddo
     G(1) = 2.0_dp*kin*s*s - L * temp
     do inh = 1 , nhc_n - 1
       vxi ( inh )     =   vxi ( inh ) * EXP ( - vxi ( inh + 1) * dts8 / Q ( inh + 1 ) )
@@ -864,9 +871,9 @@ else
       vxib ( inh ) = vxib ( inh ) * EXP ( - vxib ( inh + 1 ) * dts8 / Qb ( inh+1 ) )
     enddo
     sb = sb * EXP ( - vxib(1) * dts2 / Qb ( 1 ) )
-!    ve = ve * sb
-    xib = xib + vxib * dts2 / Qb 
-!    Gb(1) = 0.5_dp * ve * ve / W - temp
+    do inh=1,nhc_n
+      xib(inh) = xib(inh) + vxib(inh) * dts2 / Qb(inh) 
+    enddo
      Gb(1) = 0.5_dp * ve * ve * sb * sb / W - temp
     do inh = 1 , nhc_n - 1
       vxib ( inh )     =   vxib ( inh ) * EXP ( - vxib ( inh + 1) * dts8 / Qb ( inh + 1 ) )
@@ -882,12 +889,13 @@ endif
 
 enddo msloop
 
-#ifdef debug2
+#ifdef debug
   write(stdout,'(2i,a,<nhc_n>e60.48)') trotter_order,myrank,'mp e xi   ',(xi(inh)  , inh=1,nhc_n)
   write(stdout,'(2i,a,<nhc_n>e60.48)') trotter_order,myrank,'mp e vxi  ',(vxi(inh) , inh=1,nhc_n)
   write(stdout,'(2i,a,<nhc_n>e60.48)') trotter_order,myrank,'mp e xib  ',(xib(inh) , inh=1,nhc_n)
   write(stdout,'(2i,a,<nhc_n>e60.48)') trotter_order,myrank,'mp e vxib ',(vxib(inh), inh=1,nhc_n)
   write(stdout,'(2i,a,e60.48)')        trotter_order,myrank,'mp e ve   ',ve
+  write(stdout,'(2i,a,<nhc_n>e60.48)')        trotter_order,myrank,'mp e Q   ',(Q(inh)    ,inh=1,nhc_n)
 #endif
 
 
@@ -906,9 +914,9 @@ enddo msloop
   ve = ve * sb 
   if ( trotter_order == 1 ) then
     !P_kin = 2.0_dp * odnf * kin  / ( 3.0_dp * simu_cell%omega )  
-  !  P_kin = odnf * kin  / ( 3.0_dp * simu_cell%omega )  
-   ! Ge    = 3.0_dp * simu_cell%omega * ( P_kin + pvirial_tot - press ) 
-    Ge    = odnf * kin + 3.0_dp * simu_cell%omega * ( pvirial_tot - press ) 
+    P_kin = odnf * kin  / ( 3.0_dp * simu_cell%omega )  
+    Ge    = 3.0_dp * simu_cell%omega * ( P_kin + pvirial_tot - press ) 
+  !  Ge    = odnf * kin + 3.0_dp * simu_cell%omega * ( pvirial_tot - press ) 
     ve = ve + Ge * dt2 ! pe 
 #ifdef debug_npt_nhcnp
   io_printnode write(stdout,'(i,a,7e16.8)') trotter_order,'ve out ',s,sb,ve/W,Ge,pvirial_tot,press
@@ -939,7 +947,8 @@ SUBROUTINE nhcnp
   USE constants,                ONLY :  dp
   USE config,                   ONLY :  natm , simu_cell, rx , ry , rz , vx , vy , vz , fx , fy , fz
   USE md,                       ONLY :  dt, vxi, xi , vxib, xib , xe , ve , xe0, timesca_thermo , timesca_baro, nhc_n,temp , press
-  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pvirial_tot , h_tot , pressure_tot
+  USE thermodynamic,            ONLY :  temp_r , e_kin , e_npt, pvirial_tot , h_tot , pressure_tot , calc_thermo
+  USE mpimdff,                  ONLY :  myrank
 
   implicit none
 
@@ -961,17 +970,33 @@ SUBROUTINE nhcnp
   W    = (L + 3.0_dp) * timesca_baro**2.0_dp * temp
 
   CALL calc_temp ( tempi , kin )
+#ifdef debug2
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 1 xi   ',(xi(inhc)  , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 1 vxi  ',(vxi(inhc) , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 1 xib  ',(xib(inhc) , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 1 vxib ',(vxib(inhc), inhc=1,nhc_n)
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 1 xe   ',xe
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 1 xe0  ',xe0
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 1 ve   ',ve
+#endif
 
   CALL chain_nhcnp( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , 1 )
+#ifdef debug2
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 2 xi   ',(xi(inhc)  , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 2 vxi  ',(vxi(inhc) , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 2 xib  ',(xib(inhc) , inhc=1,nhc_n)
+  write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp 2 vxib ',(vxib(inhc), inhc=1,nhc_n)
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 2 xe   ',xe
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 2 xe0  ',xe0
+  write(stdout,'(i,a,e60.48)')        myrank,'mp 2 ve   ',ve
+#endif
   CALL prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W ) 
-!  CALL chain_nhcnp( kin, vxi, xi , vxib , xib , ve , Q , Qb , W , L , 1 )
   CALL chain_nhcnp( kin , vxi , xi , vxib , xib , ve , Q , Qb , W , L , 1 )
-
   CALL calc_temp ( tempi , kin )
   e_kin = kin
   temp_r = tempi
 
-#ifdef debug
+#ifdef debug2
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xi   ',(xi(inhc)  , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp vxi  ',(vxi(inhc) , inhc=1,nhc_n)
   write(stdout,'(i,a,<nhc_n>e60.48)') myrank,'mp xib  ',(xib(inhc) , inhc=1,nhc_n)
@@ -980,8 +1005,6 @@ SUBROUTINE nhcnp
   write(stdout,'(i,a,e60.48)')        myrank,'mp xe0  ',xe0
   write(stdout,'(i,a,e60.48)')        myrank,'mp ve   ',ve
 #endif
-
-
 
   ! ==============================================
   !  conserved quantity of NPT ensemble
@@ -999,15 +1022,15 @@ SUBROUTINE nhcnp
   e_npt = 0.0_dp
   e_npt = e_npt + press    * simu_cell%omega                     ! PV              # barostat potential energy of barostat
   e_npt = e_npt + ve * ve  * 0.5_dp / W                          ! pe^2 / 2W       # barostat kinetic energy
-  do inhc = 1 , nhc_n
+  e_npt = e_npt + L * temp * xi(1)                               ! Nf kB T xi(1)  
+  e_npt = e_npt +     temp * xib(1)                        !    kB T xib
+  e_npt = e_npt + vxi(1)  * vxi(1)  * 0.5_dp / Q (1)   ! pxi^2  / 2 Q
+  e_npt = e_npt + vxib(1) * vxib(1) * 0.5_dp / Qb(1)   ! pxib^2 / 2 Qb
+  do inhc = 2 , nhc_n
     e_npt = e_npt + vxi(inhc)  * vxi(inhc)  * 0.5_dp / Q (inhc)   ! pxi^2  / 2 Q
     e_npt = e_npt + vxib(inhc) * vxib(inhc) * 0.5_dp / Qb(inhc)   ! pxib^2 / 2 Qb
-    if ( inhc == 1 ) then 
-      e_npt = e_npt + L * temp * xi(inhc)                         ! Nf kB T xi(1)  
-    else 
-       e_npt = e_npt +    temp * xi(inhc)                         !    kB T xi 
-    endif
-    e_npt = e_npt +       temp * xib(inhc)                        !    kB T xib
+    e_npt = e_npt +    temp * xi(inhc)                            !    kB T xi 
+    e_npt = e_npt +    temp * xib(inhc)                           !    kB T xib 
   enddo
 
   io_printnode blankline(stdout)
@@ -1030,6 +1053,7 @@ SUBROUTINE nhcnp
   io_printnode blankline(stdout)
              
   deallocate(Q , Qb )
+  CALL calc_thermo
 
   return
 
@@ -1122,7 +1146,6 @@ SUBROUTINE prop_pos_vel_verlet_npt ( kin , xe , ve , xe0 , L , W )
   ! f(t+dt)
   ! ==========================
   CALL engforce_driver
-!  CALL calc_thermo
 
   ! =========================================
   !   v(t) = v(t+dt2) + f(t+dt) * dt2
